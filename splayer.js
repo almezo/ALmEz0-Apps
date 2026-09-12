@@ -1086,7 +1086,7 @@ function playStream(id, type, extension, name, icon) {
                 playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
                 controlBar: {
                     pictureInPictureToggle: false,
-                    skipButtons: {
+                    skipButtons: (type === 'live') ? false : {
                         forward: 10,
                         backward: 10
                     }
@@ -3130,3 +3130,195 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// =========================================================
+// ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE
+// =========================================================
+function initTvNavigationEngine() {
+    let currentFocusedEl = null;
+
+    const FOCUSABLE_SELECTOR = [
+        '.dash-card',
+        '.nav-action-btn',
+        '.cat-item',
+        '.list-item',
+        '.vod-card',
+        '.episode-card',
+        '.server-card',
+        '.action-btn',
+        '.btn-primary',
+        '.btn-close-playlists',
+        '.btn-close-live-player',
+        '.btn-server-option',
+        'button:not([disabled])',
+        'input:not([disabled]):not([type="hidden"])',
+        'a[href]'
+    ].join(',');
+
+    function getVisibleFocusables() {
+        const activeModal = document.querySelector('#playlistsModal:not(.hidden), .custom-logout-modal, .swal2-container');
+        const container = activeModal || document.body;
+
+        const all = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR));
+        return all.filter(el => {
+            if (el.disabled) return false;
+            if (el.classList.contains('hidden')) return false;
+            if (el.closest('.hidden')) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && r.bottom >= 0 && r.top <= (window.innerHeight || document.documentElement.clientHeight);
+        });
+    }
+
+    function setFocus(el) {
+        if (!el) return;
+        if (currentFocusedEl && currentFocusedEl !== el) {
+            currentFocusedEl.classList.remove('tv-focused');
+        }
+        currentFocusedEl = el;
+        el.classList.add('tv-focused');
+        document.body.classList.add('tv-mode');
+        try {
+            el.focus({ preventScroll: true });
+        } catch (e) {}
+        try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        } catch (e) {}
+    }
+
+    function clearTvFocus() {
+        if (currentFocusedEl) {
+            currentFocusedEl.classList.remove('tv-focused');
+            currentFocusedEl = null;
+        }
+        document.body.classList.remove('tv-mode');
+    }
+
+    function findNextElement(direction) {
+        const focusables = getVisibleFocusables();
+        if (!focusables.length) return null;
+
+        if (!currentFocusedEl || !focusables.includes(currentFocusedEl)) {
+            const dashCard = focusables.find(e => e.classList.contains('dash-card'));
+            return dashCard || focusables[0];
+        }
+
+        const currentRect = currentFocusedEl.getBoundingClientRect();
+        const curCx = currentRect.left + currentRect.width / 2;
+        const curCy = currentRect.top + currentRect.height / 2;
+
+        let bestCandidate = null;
+        let bestScore = Infinity;
+
+        for (const candidate of focusables) {
+            if (candidate === currentFocusedEl) continue;
+            const rect = candidate.getBoundingClientRect();
+            const candCx = rect.left + rect.width / 2;
+            const candCy = rect.top + rect.height / 2;
+
+            const dx = candCx - curCx;
+            const dy = candCy - curCy;
+
+            let isDirectionValid = false;
+            let primaryDist = 0;
+            let secondaryDist = 0;
+
+            if (direction === 'up') {
+                if (dy < -4) {
+                    isDirectionValid = true;
+                    primaryDist = Math.abs(dy);
+                    secondaryDist = Math.abs(dx);
+                }
+            } else if (direction === 'down') {
+                if (dy > 4) {
+                    isDirectionValid = true;
+                    primaryDist = Math.abs(dy);
+                    secondaryDist = Math.abs(dx);
+                }
+            } else if (direction === 'left') {
+                if (dx < -4) {
+                    isDirectionValid = true;
+                    primaryDist = Math.abs(dx);
+                    secondaryDist = Math.abs(dy);
+                }
+            } else if (direction === 'right') {
+                if (dx > 4) {
+                    isDirectionValid = true;
+                    primaryDist = Math.abs(dx);
+                    secondaryDist = Math.abs(dy);
+                }
+            }
+
+            if (isDirectionValid) {
+                const score = primaryDist + (secondaryDist * 1.8);
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestCandidate = candidate;
+                }
+            }
+        }
+
+        return bestCandidate;
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp' || e.keyCode === 38) {
+            const next = findNextElement('up');
+            if (next) {
+                e.preventDefault();
+                setFocus(next);
+            }
+        } else if (e.key === 'ArrowDown' || e.keyCode === 40) {
+            const next = findNextElement('down');
+            if (next) {
+                e.preventDefault();
+                setFocus(next);
+            }
+        } else if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+            const next = findNextElement('left');
+            if (next) {
+                e.preventDefault();
+                setFocus(next);
+            }
+        } else if (e.key === 'ArrowRight' || e.keyCode === 39) {
+            const next = findNextElement('right');
+            if (next) {
+                e.preventDefault();
+                setFocus(next);
+            }
+        } else if (e.key === 'Enter' || e.keyCode === 13 || e.key === 'Select') {
+            if (currentFocusedEl && !['INPUT', 'TEXTAREA'].includes(currentFocusedEl.tagName)) {
+                e.preventDefault();
+                currentFocusedEl.click();
+            }
+        } else if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 27 || e.keyCode === 8) {
+            const modal = document.getElementById('playlistsModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                e.preventDefault();
+                closePlaylistsModal();
+                return;
+            }
+            const activeScreen = (typeof currentScreenId !== 'undefined') ? currentScreenId : sessionStorage.getItem('sp_current_screen');
+            if (activeScreen === 'movie-details-screen') {
+                e.preventDefault();
+                showScreen('vod-screen');
+            } else if (activeScreen === 'series-details-screen') {
+                e.preventDefault();
+                showScreen('series-screen');
+            } else if (['vod-screen', 'series-screen', 'live-screen', 'profile-screen'].includes(activeScreen)) {
+                e.preventDefault();
+                showScreen('dashboard-screen');
+            }
+        }
+    });
+
+    window.addEventListener('touchstart', clearTvFocus, { passive: true });
+    window.addEventListener('mousedown', clearTvFocus, { passive: true });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTvNavigationEngine);
+} else {
+    initTvNavigationEngine();
+}

@@ -210,29 +210,6 @@
         </div>
         <!-- MAIN APP: DASHBOARD -->
         <div class="app-screen-container dashboard-content hidden" id="dashboard-screen" dir="rtl">
-            <!-- شريط السيرفر النشط السريع مع زر التبديل وإضافة قائمة -->
-            <div class="active-server-banner" onclick="openPlaylistsModal()" title="اضغط لتبديل السيرفر أو إضافة حساب">
-                <div class="active-server-left">
-                    <img id="dashActiveServerLogo" src="photo/logo.ico" alt="Server Logo" class="banner-server-logo" onerror="this.src='photo/logo.ico'" />
-                    <div class="banner-server-text">
-                        <div class="banner-server-title-row">
-                            <span class="active-dot-indicator"></span>
-                            <span class="banner-label">السيرفر النشط:</span>
-                            <strong id="dashActiveServerName">--</strong>
-                        </div>
-                        <div class="banner-user-row">
-                            <i class="fas fa-user-circle"></i>
-                            <span id="dashActiveUsername">--</span>
-                            <span class="banner-sep">|</span>
-                            <i class="far fa-calendar-alt"></i>
-                            <span id="dashActiveExp">--</span>
-                        </div>
-                    </div>
-                </div>
-                <button class="btn-banner-switch" type="button">
-                    <i class="fas fa-layer-group"></i> قوائم التشغيل والسيرفرات
-                </button>
-            </div>
             <div class="dash-cards-wrapper">
                 <div class="dash-card card-live" onclick="switchTab('live', null)">
                     <i class="fas fa-desktop"></i>
