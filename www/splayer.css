@@ -4511,12 +4511,30 @@ body.tv-mode {
     box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
+#liveVideoContainer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+}
+
 .live-slider-fill {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
+    height: 100%;
     background: #ffffff;
     border-radius: 3px;
     transition: height 0.05s linear;
+}
+
+.live-slider-val {
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 8px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+    -webkit-user-select: none;
+    user-select: none;
 }
