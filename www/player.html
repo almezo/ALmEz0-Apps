@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ALmEz0 Player | مشغل الميزو</title>
     <link rel="icon" type="image/png" sizes="192x192" href="photo/logo-192.png" />
     <link rel="icon" type="image/x-icon" href="photo/logo.ico" />
@@ -22,6 +22,22 @@
     <!-- App Bridge for Mobile & Desktop -->
     <script src="app-bridge.js"></script>
     <script>
+        // قفل مقياس العرض ومنع التكبير تلقائياً مع التوافق الكامل مع معايير HTML5
+        (function enforceFixedScale() {
+            try {
+                const meta = document.querySelector('meta[name="viewport"]');
+                if (meta) {
+                    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+                }
+                document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+                document.addEventListener('touchmove', function (e) {
+                    if (e.touches && e.touches.length > 1) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+            } catch (e) { }
+        })();
+
         (function enforceImmersiveOnPlayer() {
             function applyImmersive() {
                 try {
