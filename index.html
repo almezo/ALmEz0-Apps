@@ -174,6 +174,9 @@
                     event.stopPropagation();
                 }
                 if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
+                    if (typeof window.AlMeZ0App.lockLandscape === 'function') {
+                        window.AlMeZ0App.lockLandscape();
+                    }
                     window.location.href = 'player.html';
                 } else {
                     window.open('go-player.php', '_blank');
@@ -183,6 +186,16 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            // Reset orientation to portrait on the main website
+            if (window.AlMeZ0App && typeof window.AlMeZ0App.unlockOrientation === 'function') {
+                window.AlMeZ0App.unlockOrientation();
+            }
+            window.addEventListener('pageshow', function () {
+                if (window.AlMeZ0App && typeof window.AlMeZ0App.unlockOrientation === 'function') {
+                    window.AlMeZ0App.unlockOrientation();
+                }
+            });
+
             var urlParams = new URLSearchParams(window.location.search);
             var isAuthReq = urlParams.get('auth_required') === 'player';
             var isPlayerLimit = urlParams.get('player_limit') === '1';

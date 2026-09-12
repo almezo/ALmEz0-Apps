@@ -3833,3 +3833,27 @@ i.fas.fa-sync-alt.refresh-icon {
 #serverCode[readonly] {
     cursor: pointer;
 }
+
+/* 3. زر المشغل الخارجي VLC / MX Player: ذهبي واضح وأنيق */
+#innerPlayerExternal {
+    background-color: #f4c242 !important;
+    color: #111111 !important;
+    border: 2px solid #f4c242 !important;
+    opacity: 0.95;
+    font-size: 15px !important;
+}
+
+#innerPlayerExternal:hover {
+    background-color: #ffd54f !important;
+    transform: scale(1.08);
+    opacity: 1;
+}
+
+/* ضمان عدم تكبير الشاشة التلقائي على الموبايل عند الكتابة في الحقول */
+.input-field,
+input[type="text"],
+input[type="password"],
+input[type="search"],
+input[type="number"] {
+    font-size: 16px !important;
+}

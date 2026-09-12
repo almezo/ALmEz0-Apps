@@ -14,15 +14,47 @@ function tryLandscapeOnFullscreen() {
 // ==========================================
 // SMART VIEWPORT SCALE-TO-FIT ENGINE
 // ==========================================
+let isVirtualKeyboardOpen = false;
+let stableLandscapeWidth = 0;
+let stableLandscapeHeight = 0;
+
+document.addEventListener('focusin', (e) => {
+    if (e.target && e.target.matches('input, textarea, select')) {
+        isVirtualKeyboardOpen = true;
+    }
+});
+
+document.addEventListener('focusout', (e) => {
+    if (e.target && e.target.matches('input, textarea, select')) {
+        isVirtualKeyboardOpen = false;
+        setTimeout(applyAutoScaling, 150);
+    }
+});
+
 function applyAutoScaling() {
     const scaler = document.getElementById('app-scaler');
     if (!scaler) return;
 
+    // Prevent scaling distortion when mobile virtual keyboard is displayed
+    if (isVirtualKeyboardOpen) return;
+
+    let windowWidth = window.innerWidth;
+    let windowHeight = window.innerHeight;
+
+    const isLandscape = windowWidth > windowHeight || (window.screen && window.screen.orientation && String(window.screen.orientation.type).includes('landscape'));
+
+    if (isLandscape) {
+        if (windowWidth > stableLandscapeWidth) stableLandscapeWidth = windowWidth;
+        if (windowHeight > stableLandscapeHeight) stableLandscapeHeight = windowHeight;
+
+        // If height collapsed drastically (soft keyboard open but focusin was missed)
+        if (stableLandscapeHeight > 0 && windowHeight < stableLandscapeHeight * 0.72) {
+            windowHeight = stableLandscapeHeight;
+        }
+    }
+
     const baseWidth = 1200;
     const baseHeight = 750;
-
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
 
     const scaleX = windowWidth / baseWidth;
     const scaleY = windowHeight / baseHeight;
@@ -34,11 +66,23 @@ function applyAutoScaling() {
 
 window.addEventListener('resize', applyAutoScaling);
 window.addEventListener('orientationchange', () => {
+    stableLandscapeWidth = 0;
+    stableLandscapeHeight = 0;
+    applyAutoScaling();
+    setTimeout(applyAutoScaling, 100);
+    setTimeout(applyAutoScaling, 250);
+    setTimeout(applyAutoScaling, 500);
+});
+window.addEventListener('pageshow', () => {
     applyAutoScaling();
     setTimeout(applyAutoScaling, 150);
-    setTimeout(applyAutoScaling, 300);
 });
-document.addEventListener('DOMContentLoaded', applyAutoScaling);
+document.addEventListener('DOMContentLoaded', () => {
+    applyAutoScaling();
+    if (window.AlMeZ0App && window.AlMeZ0App.isNative && typeof window.AlMeZ0App.lockLandscape === 'function') {
+        window.AlMeZ0App.lockLandscape();
+    }
+});
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     applyAutoScaling();
 }
@@ -61,6 +105,10 @@ function initForceLandscapeButton() {
     if (!btn) return;
     btn.addEventListener('click', async () => {
         try {
+            if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
+                const locked = await window.AlMeZ0App.lockLandscape();
+                if (locked) return;
+            }
             if (screen.orientation && screen.orientation.lock) {
                 await screen.orientation.lock('landscape');
                 return;
@@ -427,59 +475,6 @@ async function handleLogin() {
     }
 }
 
-// ==========================================
-// 2. الخطوة الثانية: تسجيل الدخول بهوست واحد وثابت
-// ==========================================
-async function handleLogin() {
-    const user = document.getElementById('username').value.trim();
-    const pass = document.getElementById('password').value.trim();
-
-    if (!user || !pass) {
-        Swal.fire('تنبيه', 'يرجى إدخال اسم المستخدم وكلمة المرور', 'warning');
-        return;
-    }
-
-    const host = state.host || sessionStorage.getItem('sp_fixed_host');
-    if (!host) {
-        showScreen('auth1-screen');
-        return;
-    }
-
-    const btn = document.getElementById('btnLogin');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تسجيل الدخول...';
-
-    const apiUrl = `${host}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`;
-    const proxyUrl = getProxyUrl(apiUrl);
-
-    try {
-        const res = await fetch(proxyUrl);
-        const data = await res.json();
-
-        if (data && data.user_info && data.user_info.auth === 1) {
-            state.userInfo = data.user_info;
-            state.username = user;
-            state.password = pass;
-
-            // حفظ الجلسة في sessionStorage و الـ cached_user لكي تتوافق مع صفحة الحماية player.html
-            sessionStorage.setItem('sp_user', JSON.stringify(data.user_info));
-            sessionStorage.setItem('almezo_cached_user', JSON.stringify(data.user_info));
-            sessionStorage.setItem('sp_host', host);
-            sessionStorage.setItem('sp_pass', pass);
-
-            showScreen('dashboard-screen');
-        } else {
-            Swal.fire('خطأ', 'بيانات الدخول غير صحيحة', 'error');
-        }
-    } catch (e) {
-        console.error(e);
-        Swal.fire('خطأ', 'تعذر الاتصال بالسيرفر، تأكد من البيانات', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'تسجيل الدخول';
-    }
-}
-
 function playStream(id, type, extension, name, icon) {
     currentStreamInfo = { id, type, extension, name, icon };
     if (type === 'live') {
@@ -493,13 +488,12 @@ function playStream(id, type, extension, name, icon) {
 
     // خريطة السيرفرات لربط كود السيرفر بالهوست المخصص له
     const serverHostsMap = {
-        "001": "http://cafott.com" //[cite: 1]
-        // يمكنك إضافة المزيد من الأكواد هنا
+        "001": "http://cafott.com"
     };
 
     // جلب كود السيرفر الحالي
     const currentServerCode = state.serverCode || sessionStorage.getItem('sp_server_code');
-    const hostUrl = serverHostsMap[currentServerCode] || sessionStorage.getItem('sp_host');
+    let hostUrl = (serverHostsMap[currentServerCode] || localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host') || (state.hostUrls && state.hostUrls[0]) || '').replace(/\/+$/, '');
 
     // ================================================================
     // 1. نظام كشف المتصفحات الشامل لدعم صيغة MKV
@@ -515,8 +509,11 @@ function playStream(id, type, extension, name, icon) {
     // فحص متصفح فايرفوكس
     const isFirefox = userAgent.indexOf('firefox') > -1;
 
+    // فحص أجهزة أندرويد (المتصفح المدمج و WebView لا يدعمان حاوية MKV وترميز AC3)
+    const isAndroid = /android/i.test(userAgent) || (window.AlMeZ0App && (window.AlMeZ0App.isAndroid || window.AlMeZ0App.isNative));
+
     // الشرط: إذا كان المتصفح أحد هؤلاء، فهو لا يدعم MKV نهائياً
-    const isUnsupportedMKVBrowser = isFirefox || isSafari || isIOS;
+    const isUnsupportedMKVBrowser = isFirefox || isSafari || isIOS || isAndroid;
 
     // بناء الرابط الأساسي لاستخدامه في التنبيه أو المشغل
     let baseStreamUrl = '';
@@ -528,41 +525,50 @@ function playStream(id, type, extension, name, icon) {
         baseStreamUrl = `${hostUrl}/series/${user}/${pass}/${id}.${ext}`;
     }
 
+    // دالة مساعدة لتشغيل الرابط في مشغل وسائط خارجي
+    function launchExternalPlayer(targetUrl, mediaName) {
+        if (window.AlMeZ0App && typeof window.AlMeZ0App.openInExternalPlayer === 'function') {
+            window.AlMeZ0App.openInExternalPlayer(targetUrl, mediaName);
+        } else {
+            window.location.href = `vlc://${targetUrl}`;
+            setTimeout(() => {
+                window.open(targetUrl, '_blank');
+            }, 800);
+        }
+    }
+
     // ================================================================
-    // 2. صندوق تنبيه VLC (يظهر فقط إذا كانت الصيغة MKV والمتصفح لا يدعمها)
+    // 2. صندوق تنبيه المشغل الخارجي (يظهر فقط إذا كانت الصيغة MKV والمتصفح لا يدعمها)
     // ================================================================
     if (ext === 'mkv' && isUnsupportedMKVBrowser) {
-        // رسالة مخصصة حسب نوع المتصفح
-        let browserWarning = isFirefox ?
+        let browserWarning = isAndroid ?
+            "صيغة هذا المقطع <b>(MKV)</b> وترميز الصوت الخاص به لا تدعمه متصفحات الويب المدمجة." :
+            isFirefox ?
             "متصفح <b>Firefox</b> لا يدعم تشغيل صيغة MKV بشكل مباشر داخل الصفحة." :
             (isIOS || isSafari) ? "متصفحات <b>Safari</b> وأجهزة <b>Apple</b> لا تدعم تشغيل صيغة MKV." :
                 "متصفحك الحالي لا يدعم تشغيل حاوية هذا الملف مباشرة.";
 
         Swal.fire({
-            title: '<span style="color: #f4c242;">🎬 تشغيل عبر مشغل VLC</span>',
+            title: '<span style="color: #f4c242;">🎬 تشغيل عبر مشغل خارجي</span>',
             width: '32em',
             html: `
-                <div style="text-align: center; direction: rtl; color: #fff; font-size: 15px; line-height: 1.6; white-space: normal !important; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; box-sizing: border-box; padding: 0 10px;">
-                    <!-- 💡 تم تصحيح اسم المتغير هنا ليطابق browserWarning -->
-                    <p style="margin: 0; white-space: normal !important; word-break: break-word;">${browserWarning} تم إعداد التشغيل ليعمل بكفاءة مطلقة عبر برنامج <b style="white-space: nowrap;">VLC Media Player</b>.</p>
-                    <p style="margin-top: 10px; color: #aaa; font-size: 13px; white-space: normal !important; word-break: break-word;">* إذا كان برنامج VLC مثبتًا لديك، سيفتح المقطع تلقائياً فور النقر على زر التشغيل أدناه.</p>
+                <div style="text-align: center; direction: rtl; color: #fff; font-size: 15px; line-height: 1.6; padding: 0 10px;">
+                    <p style="margin: 0;">${browserWarning} تم تجهيز المقطع ليعمل بأعلى جودة وصوت محيطي عبر <b>VLC Media Player</b> أو <b>MX Player</b>.</p>
+                    <p style="margin-top: 10px; color: #aaa; font-size: 13px;">* فور النقر على زر التشغيل أدناه سيفتح المقطع في مشغل جهازك الخارجي فوراً.</p>
                 </div>
             `,
             icon: 'info',
             background: '#161b22',
             color: '#fff',
             showCancelButton: true,
-            confirmButtonText: '<i class="fas fa-play"></i> فتح في برنامج VLC',
-            cancelButtonText: 'إغلاق',
+            confirmButtonText: '<i class="fas fa-play"></i> تشغيل في VLC / مشغل خارجي',
+            cancelButtonText: 'إلغاء',
             confirmButtonColor: '#f4c242',
             cancelButtonColor: '#333',
-            footer: '<a href="https://www.videolan.org/vlc/" target="_blank" style="color: #4caf50; font-size: 13px; text-decoration: underline;">لست تمتلك برنامج VLC؟ اضغط هنا لتحميله مجاناً</a>'
+            footer: '<a href="https://play.google.com/store/apps/details?id=org.videolan.vlc" target="_blank" style="color: #4caf50; font-size: 13px; text-decoration: underline;">لست تمتلك برنامج VLC؟ اضغط هنا لتحميله مجاناً</a>'
         }).then((result) => {
             if (result.isConfirmed) {
-                window.location.href = `vlc://${baseStreamUrl}`;
-                setTimeout(() => {
-                    window.open(baseStreamUrl, '_blank');
-                }, 1000);
+                launchExternalPlayer(baseStreamUrl, name);
             }
         });
 
@@ -661,7 +667,7 @@ function playStream(id, type, extension, name, icon) {
         } else if (sLower.includes('.ts')) {
             mimeType = 'video/mp2t';
         } else if (sLower.includes('.mkv')) {
-            mimeType = 'video/webm'; // يتيح لكروم استخدام مفكك الحاويات Matroska بدلاً من MP4
+            mimeType = 'video/mp4'; // يتيح للمتصفح استخدام مفكك الحاويات القياسي بدون إجبار WebM
         } else if (sLower.includes('.mp4')) {
             mimeType = 'video/mp4';
         } else if (type === 'live') {
@@ -833,6 +839,7 @@ function playStream(id, type, extension, name, icon) {
                     <div class="vjs-custom-top-bar">
                         <button class="vjs-top-btn" id="innerPlayerClose" title="إغلاق"><i class="fas fa-times"></i></button>
                         <div class="vjs-custom-title">${name || 'تشغيل'}</div>
+                        <button class="vjs-top-btn" id="innerPlayerExternal" title="تشغيل في مشغل خارجي (VLC)"><i class="fas fa-external-link-alt"></i></button>
                         <button class="vjs-top-btn" id="innerPlayerInfo" title="معلومات البث"><i class="fas fa-info"></i></button>
                     </div>
                 `;
@@ -844,6 +851,19 @@ function playStream(id, type, extension, name, icon) {
                         e.stopPropagation();
                         if (isFullscreenModal && typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
                         else if (typeof closeLivePlayer === 'function') closeLivePlayer(true);
+                    };
+                }
+
+                const externalPlayBtn = document.getElementById('innerPlayerExternal');
+                if (externalPlayBtn) {
+                    externalPlayBtn.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (window.AlMeZ0App && typeof window.AlMeZ0App.openInExternalPlayer === 'function') {
+                            window.AlMeZ0App.openInExternalPlayer(playUrl, name);
+                        } else {
+                            window.location.href = `vlc://${playUrl}`;
+                        }
                     };
                 }
 
@@ -995,7 +1015,28 @@ function playStream(id, type, extension, name, icon) {
                 console.error("تم استنفاد جميع المحاولات والروابط.");
                 const parent = isFullscreenModal ? document.getElementById('fullscreenVideoContainer') : document.getElementById('livePlayerWrapper');
                 if (parent) {
-                    parent.innerHTML = '<div class="empty-state">عذراً، فشل تشغيل هذا المحتوى.<br>يرجى التحقق من اتصالك أو تجربة مشغل آخر.</div>';
+                    parent.innerHTML = `
+                        <div class="empty-state" style="padding: 40px 20px; text-align: center; color: #fff;">
+                            <div style="font-size: 50px; color: #f59e0b; margin-bottom: 15px;"><i class="fas fa-film"></i></div>
+                            <h3 style="margin-bottom: 10px; font-size: 22px;">تعذر تشغيل هذا المقطع داخل المشغل المدمج</h3>
+                            <p style="color: #cbd5e1; font-size: 15px; max-width: 480px; margin: 0 auto 25px auto; line-height: 1.6;">
+                                صيغة الفيديو أو ترميز الصوت (MKV / AC3) تتطلب مشغل وسائط خارجي لتشغيلها بسلاسة وبأعلى جودة.
+                            </p>
+                            <button id="btnFallbackExternalPlay" style="background: linear-gradient(135deg, #f4c242, #d4a017); color: #111; border: none; padding: 14px 32px; font-size: 17px; font-weight: bold; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 20px rgba(244,194,66,0.4);">
+                                <i class="fas fa-play"></i> تشغيل فوراً عبر مشغل خارجي (VLC / MX Player)
+                            </button>
+                        </div>
+                    `;
+                    const fbBtn = document.getElementById('btnFallbackExternalPlay');
+                    if (fbBtn) {
+                        fbBtn.onclick = () => {
+                            if (window.AlMeZ0App && typeof window.AlMeZ0App.openInExternalPlayer === 'function') {
+                                window.AlMeZ0App.openInExternalPlayer(baseStreamUrl, name);
+                            } else {
+                                window.location.href = `vlc://${baseStreamUrl}`;
+                            }
+                        };
+                    }
                 }
             }
         }, 2000);

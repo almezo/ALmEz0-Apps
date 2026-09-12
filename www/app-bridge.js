@@ -1,6 +1,6 @@
 /**
  * AlMeZ0 Cross-Platform App Bridge
- * Handles platform detection, hardware back button, external URLs, and safe-area adjustments
+ * Handles platform detection, hardware back button, external URLs, orientation, and safe-area adjustments
  * for Electron (Windows), Capacitor (Android / iOS), and standard Web.
  */
 (function () {
@@ -18,18 +18,80 @@
         isNative: isNative,
         platform: isElectron ? 'electron' : (isCapacitor ? window.Capacitor.getPlatform() : 'web'),
 
+        // Helper to lock screen to landscape (e.g. for Player)
+        lockLandscape: async function () {
+            try {
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ScreenOrientation) {
+                    await window.Capacitor.Plugins.ScreenOrientation.lock({ orientation: 'landscape' });
+                    return true;
+                }
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('landscape');
+                    return true;
+                }
+            } catch (e) {
+                console.warn('ScreenOrientation lockLandscape failed:', e);
+            }
+            return false;
+        },
+
+        // Helper to lock screen to portrait (e.g. for Main Site)
+        lockPortrait: async function () {
+            try {
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ScreenOrientation) {
+                    await window.Capacitor.Plugins.ScreenOrientation.lock({ orientation: 'portrait' });
+                    return true;
+                }
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('portrait');
+                    return true;
+                }
+            } catch (e) {
+                console.warn('ScreenOrientation lockPortrait failed:', e);
+            }
+            return false;
+        },
+
+        // Helper to unlock screen orientation
+        unlockOrientation: async function () {
+            try {
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ScreenOrientation) {
+                    await window.Capacitor.Plugins.ScreenOrientation.unlock();
+                    return true;
+                }
+                if (screen.orientation && screen.orientation.unlock) {
+                    screen.orientation.unlock();
+                    return true;
+                }
+            } catch (e) { }
+            return false;
+        },
+
+        // Helper to open media streams in external players (VLC, MX Player, Android Intent)
+        openInExternalPlayer: function (streamUrl, title) {
+            if (!streamUrl) return;
+            const cleanUrl = String(streamUrl).trim();
+
+            if (isAndroid) {
+                const cleanNoProto = cleanUrl.replace(/^https?:\/\//, '');
+                // Android intent to trigger video player chooser (VLC, MX Player, Nova, System)
+                const generalIntent = `intent://${cleanNoProto}#Intent;scheme=http;type=video/*;action=android.intent.action.VIEW;end`;
+
+                try {
+                    window.location.href = `vlc://${cleanUrl}`;
+                } catch (e) { }
+
+                setTimeout(() => {
+                    window.location.href = generalIntent;
+                }, 250);
+            } else {
+                window.location.href = `vlc://${cleanUrl}`;
+            }
+        },
+
         // Helper to open links safely across platforms
         openExternal: function (url) {
             if (!url) return;
-
-            // If it's a request to the player:
-            // In native app (Android / iOS / Windows EXE): navigate directly to internal player.html!
-            if (url.includes('go-player.php') || url.includes('player.html')) {
-                if (isNative) {
-                    window.location.href = 'player.html';
-                    return;
-                }
-            }
 
             if (isElectron && window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
                 window.electronAPI.openExternal(url);
@@ -57,7 +119,7 @@
 
         let cleanUrl = String(url);
 
-        // Player routing:
+        // Player routing (only if initiated via window.open):
         if (cleanUrl.includes('go-player.php') || cleanUrl.includes('player.html')) {
             if (isNative) {
                 window.location.href = 'player.html';
@@ -91,23 +153,14 @@
             body.classList.add('platform-native', 'platform-ios');
         }
 
-        // Intercept all link clicks in native Android, iOS and Electron
+        // Intercept external social/contact link clicks in native Android, iOS and Electron
+        // NOTE: We DO NOT intercept go-player.php here so handlePlayerCardClick can verify authentication!
         document.addEventListener('click', function (e) {
             const anchor = e.target.closest('a');
             if (!anchor) return;
 
             let href = anchor.getAttribute('href');
             if (!href) return;
-
-            // Player link: keep inside app if native
-            if (href.includes('go-player.php') || href.includes('player.html')) {
-                if (isNative) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.location.href = 'player.html';
-                    return;
-                }
-            }
 
             const isSocialOrExternal =
                 href.includes('wa.me') ||
@@ -125,7 +178,7 @@
         // Capacitor Android Hardware Back Button Handling
         if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
             window.Capacitor.Plugins.App.addListener('backButton', function () {
-                // If fullscreen video modal is open in player.html, close it first
+                // 1. If fullscreen video modal is open in player.html, close it first
                 const videoModal = document.getElementById('fullscreenVideoModal');
                 if (videoModal && !videoModal.classList.contains('hidden')) {
                     if (typeof closeFullscreenPlayer === 'function') {
@@ -134,7 +187,7 @@
                     }
                 }
 
-                // If general modal is open, close modal first
+                // 2. If general modal is open, close modal first
                 const openModal = document.querySelector('.modal.active, .modal.show, [id*="modal"][style*="block"], [id*="Modal"][style*="flex"]');
                 if (openModal) {
                     const closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"]');
@@ -144,9 +197,12 @@
                     }
                 }
 
-                // If on player.html, return to home (index.html)
+                // 3. If on player.html, return to home (index.html) and reset orientation
                 const currentPath = window.location.pathname.toLowerCase();
                 if (currentPath.includes('player.html')) {
+                    if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') {
+                        window.AlMeZ0App.lockPortrait();
+                    }
                     window.location.href = 'index.html';
                     return;
                 }

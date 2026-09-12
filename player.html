@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>ALmEz0 Player | مشغل الميزو</title>
     <link rel="icon" type="image/png" sizes="192x192" href="photo/logo-192.png" />
     <link rel="icon" type="image/x-icon" href="photo/logo.ico" />
@@ -21,6 +21,23 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <!-- App Bridge for Mobile & Desktop -->
     <script src="app-bridge.js"></script>
+    <!-- Auth Guard: Verify website login before accessing player -->
+    <script>
+        (function checkWebsiteAuth() {
+            var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
+            var isAuth = false;
+            if (cached) {
+                try {
+                    var u = JSON.parse(cached);
+                    if (u && (u.uid || u.phone || u.name)) isAuth = true;
+                } catch (e) { }
+            }
+            if (!isAuth) {
+                sessionStorage.setItem('almezo_redirect_to_player', '1');
+                window.location.replace('index.html?auth_required=player');
+            }
+        })();
+    </script>
 </head>
 
 <body>
@@ -40,7 +57,7 @@
         <!-- AUTH SCREEN 1: SERVER CODE -->
         <div class="app-screen-container auth-container hidden" id="auth1-screen" dir="rtl">
             <div class="auth-card auto-style-1" dir="rtl">
-                <a href="index.html" title="الرجوع للرئيسية" class="btn-home-return auto-style-2">
+                <a href="index.html" onclick="if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();" title="الرجوع للرئيسية" class="btn-home-return auto-style-2">
                     <i class="fas fa-home"></i>
                 </a>
                 <img alt="Player Logo" class="auth-logo"
