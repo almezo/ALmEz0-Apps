@@ -876,7 +876,7 @@ function playStream(id, type, extension, name, icon) {
                 if (controlBar) {
                     const fsControl = controlBar.querySelector('.vjs-fullscreen-control');
 
-                    // 2. زر الترجمة والإعدادات
+                    // 1. زر الترجمة والإعدادات
                     const settingsBtn = document.createElement('div');
                     settingsBtn.className = 'custom-vjs-btn vjs-control';
                     settingsBtn.innerHTML = '<i class="fas fa-closed-captioning"></i>';
@@ -891,7 +891,7 @@ function playStream(id, type, extension, name, icon) {
                         }
                     };
 
-                    // 3. زر تغيير الأبعاد (Aspect Ratio)
+                    // 2. زر تغيير الأبعاد (Aspect Ratio)
                     const aspectBtn = document.createElement('div');
                     aspectBtn.className = 'custom-vjs-btn vjs-control';
                     aspectBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
@@ -911,9 +911,54 @@ function playStream(id, type, extension, name, icon) {
                         if (typeof showToast === 'function') showToast(`الأبعاد: ${state.toUpperCase()}`, 'info');
                     };
 
+                    // 3. زر ملء الشاشة المخصص (Fullscreen Button أقصى اليمين)
+                    const customFsBtn = document.createElement('div');
+                    customFsBtn.className = 'custom-vjs-btn vjs-control custom-vjs-fs-btn';
+                    customFsBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                    customFsBtn.title = "ملء الشاشة";
+
+                    const updateFsBtnState = () => {
+                        const isFs = player.isFullscreen() || !!(document.fullscreenElement || document.webkitFullscreenElement);
+                        customFsBtn.innerHTML = isFs ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
+                        customFsBtn.title = isFs ? "تصغير الشاشة" : "ملء الشاشة";
+                    };
+
+                    customFsBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const isFs = player.isFullscreen() || !!(document.fullscreenElement || document.webkitFullscreenElement);
+                        if (isFs) {
+                            if (player.isFullscreen()) {
+                                player.exitFullscreen();
+                            } else {
+                                exitNativeFullscreen();
+                            }
+                        } else {
+                            if (player.requestFullscreen) {
+                                player.requestFullscreen();
+                            } else {
+                                openNativeFullscreen(playerEl);
+                            }
+                            if (typeof tryLandscapeOnFullscreen === 'function') {
+                                tryLandscapeOnFullscreen();
+                            } else if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
+                                window.AlMeZ0App.lockLandscape();
+                            }
+                        }
+                    };
+
+                    player.on('fullscreenchange', updateFsBtnState);
+                    document.addEventListener('fullscreenchange', updateFsBtnState);
+                    document.addEventListener('webkitfullscreenchange', updateFsBtnState);
+
                     if (fsControl) {
                         controlBar.insertBefore(settingsBtn, fsControl);
                         controlBar.insertBefore(aspectBtn, fsControl);
+                        controlBar.insertBefore(customFsBtn, fsControl);
+                    } else {
+                        controlBar.appendChild(settingsBtn);
+                        controlBar.appendChild(aspectBtn);
+                        controlBar.appendChild(customFsBtn);
                     }
                 }
             });
