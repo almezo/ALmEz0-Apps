@@ -19,10 +19,13 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.ui.AspectRatioFrameLayout;
@@ -56,30 +59,55 @@ public class PlayerActivity extends AppCompatActivity {
         @Override
         public void run() {
             try {
-                if (player != null && player.isPlaying() && !isUserSeeking && seekBar != null) {
-                    long pos = player.getCurrentPosition();
-                    long dur = player.getDuration();
-                    if (dur > 0) {
-                        seekBar.setProgress((int) ((pos * 1000) / dur));
-                        if (tvPosition != null) tvPosition.setText(formatTime(pos));
-                        if (tvDuration != null) tvDuration.setText(formatTime(dur));
+                if (player != null && !isFinishing() && !isDestroyed()) {
+                    if (player.isPlaying() && !isUserSeeking && seekBar != null) {
+                        long pos = player.getCurrentPosition();
+                        long dur = player.getDuration();
+                        if (dur > 0 && pos >= 0) {
+                            int progress = (int) Math.min(1000, Math.max(0, (pos * 1000) / dur));
+                            seekBar.setProgress(progress);
+                            if (tvPosition != null) tvPosition.setText(formatTime(pos));
+                            if (tvDuration != null) tvDuration.setText(formatTime(dur));
+                        }
                     }
                 }
             } catch (Throwable ignored) { }
-            handler.postDelayed(this, 500);
+
+            try {
+                if (!isFinishing() && !isDestroyed()) {
+                    handler.postDelayed(this, 500);
+                }
+            } catch (Throwable ignored) { }
         }
     };
 
     private final Runnable hideControlsRunnable = new Runnable() {
         @Override
         public void run() {
-            hideControls();
+            try {
+                hideControls();
+            } catch (Throwable t) {
+                Log.w(TAG, "hideControls error", t);
+            }
         }
     };
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Global crash guard to prevent hard app crash
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            Log.e(TAG, "Uncaught exception in PlayerActivity on thread " + thread.getName(), throwable);
+            try {
+                runOnUiThread(() -> {
+                    Toast.makeText(getApplicationContext(), "حدث خطأ أثناء تشغيل الوسائط", Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            } catch (Throwable ignored) {
+                finish();
+            }
+        });
 
         try {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -156,10 +184,14 @@ public class PlayerActivity extends AppCompatActivity {
         if (btnPlayPause != null) {
             btnPlayPause.setOnClickListener(v -> {
                 if (player != null) {
-                    if (player.isPlaying()) {
-                        player.pause();
-                    } else {
-                        player.play();
+                    try {
+                        if (player.isPlaying()) {
+                            player.pause();
+                        } else {
+                            player.play();
+                        }
+                    } catch (Throwable t) {
+                        Log.w(TAG, "play/pause toggle error", t);
                     }
                 }
                 resetControlsHideTimer();
@@ -169,8 +201,12 @@ public class PlayerActivity extends AppCompatActivity {
         if (btnRewind10 != null) {
             btnRewind10.setOnClickListener(v -> {
                 if (player != null) {
-                    long newPos = Math.max(0, player.getCurrentPosition() - 10000);
-                    player.seekTo(newPos);
+                    try {
+                        long newPos = Math.max(0, player.getCurrentPosition() - 10000);
+                        player.seekTo(newPos);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "rewind error", t);
+                    }
                 }
                 resetControlsHideTimer();
             });
@@ -179,9 +215,13 @@ public class PlayerActivity extends AppCompatActivity {
         if (btnForward10 != null) {
             btnForward10.setOnClickListener(v -> {
                 if (player != null) {
-                    long dur = player.getDuration();
-                    long newPos = (dur > 0) ? Math.min(dur, player.getCurrentPosition() + 10000) : (player.getCurrentPosition() + 10000);
-                    player.seekTo(newPos);
+                    try {
+                        long dur = player.getDuration();
+                        long newPos = (dur > 0) ? Math.min(dur, player.getCurrentPosition() + 10000) : (player.getCurrentPosition() + 10000);
+                        player.seekTo(newPos);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "forward error", t);
+                    }
                 }
                 resetControlsHideTimer();
             });
@@ -189,18 +229,22 @@ public class PlayerActivity extends AppCompatActivity {
 
         if (btnAspect != null && playerView != null) {
             btnAspect.setOnClickListener(v -> {
-                if (currentAspectMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
-                    currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
-                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
-                    btnAspect.setText("تكبير");
-                } else if (currentAspectMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-                    currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FILL;
-                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
-                    btnAspect.setText("تمديد");
-                } else {
-                    currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
-                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-                    btnAspect.setText("16:9");
+                try {
+                    if (currentAspectMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
+                        currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                        btnAspect.setText("تكبير");
+                    } else if (currentAspectMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
+                        currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FILL;
+                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                        btnAspect.setText("تمديد");
+                    } else {
+                        currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
+                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                        btnAspect.setText("16:9");
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "aspect change error", t);
                 }
                 resetControlsHideTimer();
             });
@@ -211,11 +255,13 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override
                 public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
                     if (fromUser && player != null) {
-                        long dur = player.getDuration();
-                        if (dur > 0) {
-                            long target = (dur * progress) / 1000;
-                            if (tvPosition != null) tvPosition.setText(formatTime(target));
-                        }
+                        try {
+                            long dur = player.getDuration();
+                            if (dur > 0) {
+                                long target = (dur * progress) / 1000;
+                                if (tvPosition != null) tvPosition.setText(formatTime(target));
+                            }
+                        } catch (Throwable ignored) { }
                     }
                 }
 
@@ -228,10 +274,14 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override
                 public void onStopTrackingTouch(SeekBar sb) {
                     if (player != null) {
-                        long dur = player.getDuration();
-                        if (dur > 0) {
-                            long target = (dur * sb.getProgress()) / 1000;
-                            player.seekTo(target);
+                        try {
+                            long dur = player.getDuration();
+                            if (dur > 0) {
+                                long target = (dur * sb.getProgress()) / 1000;
+                                player.seekTo(target);
+                            }
+                        } catch (Throwable t) {
+                            Log.w(TAG, "seek error", t);
                         }
                     }
                     isUserSeeking = false;
@@ -269,14 +319,35 @@ public class PlayerActivity extends AppCompatActivity {
             DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
                     .setUserAgent("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 ALmEz0/1.0")
                     .setAllowCrossProtocolRedirects(true)
-                    .setConnectTimeoutMs(20000)
-                    .setReadTimeoutMs(20000);
+                    .setConnectTimeoutMs(25000)
+                    .setReadTimeoutMs(25000);
 
             DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(httpDataSourceFactory);
 
+            // Resilient buffer control for smooth IPTV streaming
+            DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                            15000, // minBufferMs
+                            50000, // maxBufferMs
+                            1500,  // bufferForPlaybackMs
+                            3000   // bufferForPlaybackAfterRebufferMs
+                    )
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build();
+
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build();
+
             player = new ExoPlayer.Builder(this)
                     .setMediaSourceFactory(mediaSourceFactory)
+                    .setLoadControl(loadControl)
+                    .setAudioAttributes(audioAttributes, true)
+                    .setHandleAudioBecomingNoisy(true)
+                    .setSeekForwardIncrementMs(10000)
+                    .setSeekBackIncrementMs(10000)
                     .build();
 
             if (playerView != null) {
@@ -291,40 +362,52 @@ public class PlayerActivity extends AppCompatActivity {
             player.addListener(new Player.Listener() {
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
-                    if (pbBuffering != null) {
-                        if (playbackState == Player.STATE_BUFFERING) {
-                            pbBuffering.setVisibility(View.VISIBLE);
-                        } else {
-                            pbBuffering.setVisibility(View.GONE);
+                    try {
+                        if (pbBuffering != null) {
+                            if (playbackState == Player.STATE_BUFFERING) {
+                                pbBuffering.setVisibility(View.VISIBLE);
+                            } else {
+                                pbBuffering.setVisibility(View.GONE);
+                            }
                         }
-                    }
 
-                    if (playbackState == Player.STATE_READY && player != null) {
-                        long dur = player.getDuration();
-                        if (dur > 0 && tvDuration != null) {
-                            tvDuration.setText(formatTime(dur));
+                        if (playbackState == Player.STATE_READY && player != null) {
+                            long dur = player.getDuration();
+                            if (dur > 0 && tvDuration != null) {
+                                tvDuration.setText(formatTime(dur));
+                            }
                         }
+                    } catch (Throwable t) {
+                        Log.w(TAG, "playbackStateChanged error", t);
                     }
                 }
 
                 @Override
                 public void onIsPlayingChanged(boolean isPlaying) {
-                    if (btnPlayPause != null) {
-                        if (isPlaying) {
-                            btnPlayPause.setImageResource(R.drawable.ic_player_pause);
-                            resetControlsHideTimer();
-                        } else {
-                            btnPlayPause.setImageResource(R.drawable.ic_player_play);
-                            showControls();
+                    try {
+                        if (btnPlayPause != null) {
+                            if (isPlaying) {
+                                btnPlayPause.setImageResource(R.drawable.ic_player_pause);
+                                resetControlsHideTimer();
+                            } else {
+                                btnPlayPause.setImageResource(R.drawable.ic_player_play);
+                                showControls();
+                            }
                         }
+                    } catch (Throwable t) {
+                        Log.w(TAG, "isPlayingChanged error", t);
                     }
                 }
 
                 @Override
                 public void onPlayerError(PlaybackException error) {
-                    if (pbBuffering != null) pbBuffering.setVisibility(View.GONE);
-                    Log.e(TAG, "ExoPlayer error: " + error.getMessage(), error);
-                    Toast.makeText(PlayerActivity.this, "تعذر تشغيل هذا المقطع من السيرفر", Toast.LENGTH_LONG).show();
+                    try {
+                        if (pbBuffering != null) pbBuffering.setVisibility(View.GONE);
+                        Log.e(TAG, "ExoPlayer error: " + error.getMessage(), error);
+                        Toast.makeText(PlayerActivity.this, "تعذر استكمال البث من السيرفر", Toast.LENGTH_SHORT).show();
+                    } catch (Throwable t) {
+                        Log.w(TAG, "onPlayerError error", t);
+                    }
                 }
             });
 
@@ -339,25 +422,33 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void showControls() {
-        if (controlsOverlay != null) {
-            controlsOverlay.setVisibility(View.VISIBLE);
+        try {
+            if (controlsOverlay != null) {
+                controlsOverlay.setVisibility(View.VISIBLE);
+            }
+            resetControlsHideTimer();
+        } catch (Throwable t) {
+            Log.w(TAG, "showControls error", t);
         }
-        enableImmersiveFullscreen();
-        resetControlsHideTimer();
     }
 
     private void hideControls() {
-        if (player != null && player.isPlaying() && !isUserSeeking) {
-            if (controlsOverlay != null) {
-                controlsOverlay.setVisibility(View.GONE);
+        try {
+            if (player != null && player.isPlaying() && !isUserSeeking) {
+                if (controlsOverlay != null) {
+                    controlsOverlay.setVisibility(View.GONE);
+                }
             }
-            enableImmersiveFullscreen();
+        } catch (Throwable t) {
+            Log.w(TAG, "hideControls error", t);
         }
     }
 
     private void resetControlsHideTimer() {
-        handler.removeCallbacks(hideControlsRunnable);
-        handler.postDelayed(hideControlsRunnable, 3500);
+        try {
+            handler.removeCallbacks(hideControlsRunnable);
+            handler.postDelayed(hideControlsRunnable, 4000);
+        } catch (Throwable ignored) { }
     }
 
     private String formatTime(long ms) {
@@ -367,9 +458,9 @@ public class PlayerActivity extends AppCompatActivity {
         long minutes = (totalSeconds / 60) % 60;
         long hours = totalSeconds / 3600;
         if (hours > 0) {
-            return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds);
+            return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds);
         } else {
-            return String.format(Locale.getDefault(), "%02d:%02d:%02d", minutes, seconds);
+            return String.format(Locale.US, "%02d:%02d:%02d", minutes, seconds);
         }
     }
 

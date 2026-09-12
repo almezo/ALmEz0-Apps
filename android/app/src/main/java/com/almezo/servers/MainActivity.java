@@ -18,7 +18,17 @@ public class MainActivity extends BridgeActivity {
 
         // Inject Native Bridge to enable immersive fullscreen and ExoPlayer playback
         if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().addJavascriptInterface(new NativePlayerBridge(), "AndroidNativeBridge");
+            android.webkit.WebView webView = bridge.getWebView();
+            webView.addJavascriptInterface(new NativePlayerBridge(), "AndroidNativeBridge");
+
+            // Disable text zoom and external zoom to preserve pixel-perfect 1650x750 scaling
+            android.webkit.WebSettings settings = webView.getSettings();
+            settings.setTextZoom(100);
+            settings.setSupportZoom(false);
+            settings.setBuiltInZoomControls(false);
+            settings.setDisplayZoomControls(false);
+            settings.setUseWideViewPort(true);
+            settings.setLoadWithOverviewMode(true);
         }
     }
 
