@@ -11,8 +11,39 @@ function tryLandscapeOnFullscreen() {
     } catch (e) { }
 }
 
+// ترويض مشغل Video.js لتقبل كافة صيغ وتنسيقات الفيديو (مثل MKV و MP4 و WebM) دون رفضها برمز الخطأ 4
+function patchVideoJsTech() {
+    try {
+        if (typeof videojs !== 'undefined' && videojs.getTech) {
+            const Html5 = videojs.getTech('Html5');
+            if (Html5 && !Html5._mizoPatched) {
+                Html5._mizoPatched = true;
+                const origCanPlaySource = Html5.canPlaySource;
+                Html5.canPlaySource = function (srcObj, options) {
+                    const type = (srcObj && srcObj.type) || '';
+                    const src = (srcObj && srcObj.src) || '';
+                    if (type.includes('matroska') || type.includes('mkv') || src.includes('.mkv') || type === 'video/mp4' || type.includes('webm')) {
+                        return 'maybe';
+                    }
+                    return origCanPlaySource ? origCanPlaySource.call(this, srcObj, options) : 'maybe';
+                };
+                const origCanPlayType = Html5.canPlayType;
+                Html5.canPlayType = function (type) {
+                    if (type && (type.includes('matroska') || type.includes('mkv'))) {
+                        return 'maybe';
+                    }
+                    return origCanPlayType ? origCanPlayType.call(this, type) : '';
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('patchVideoJsTech error:', e);
+    }
+}
+patchVideoJsTech();
+
 // ==========================================
-// SMART VIEWPORT SCALE-TO-FIT ENGINE
+// SMART VIEWPORT SCALE-TO-FIT ENGINE (1650x750 Base)
 // ==========================================
 let isVirtualKeyboardOpen = false;
 let stableLandscapeWidth = 0;
@@ -38,26 +69,37 @@ function applyAutoScaling() {
     // Prevent scaling distortion when mobile virtual keyboard is displayed
     if (isVirtualKeyboardOpen) return;
 
-    let windowWidth = window.innerWidth;
-    let windowHeight = window.innerHeight;
+    let windowWidth = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || screen.width;
+    let windowHeight = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || screen.height;
 
     const isLandscape = windowWidth > windowHeight || (window.screen && window.screen.orientation && String(window.screen.orientation.type).includes('landscape'));
 
+    let effectiveW = windowWidth;
+    let effectiveH = windowHeight;
+
     if (isLandscape) {
-        if (windowWidth > stableLandscapeWidth) stableLandscapeWidth = windowWidth;
-        if (windowHeight > stableLandscapeHeight) stableLandscapeHeight = windowHeight;
+        // استخدام أبعاد الوضع العرضي بدقة حتى لو كان المتصفح في منتصف التدوير
+        effectiveW = Math.max(windowWidth, windowHeight);
+        effectiveH = Math.min(windowWidth, windowHeight);
+
+        if (effectiveW > stableLandscapeWidth) stableLandscapeWidth = effectiveW;
+        if (effectiveH > stableLandscapeHeight) stableLandscapeHeight = effectiveH;
 
         // If height collapsed drastically (soft keyboard open but focusin was missed)
-        if (stableLandscapeHeight > 0 && windowHeight < stableLandscapeHeight * 0.72) {
-            windowHeight = stableLandscapeHeight;
+        if (stableLandscapeHeight > 0 && effectiveH < stableLandscapeHeight * 0.72) {
+            effectiveH = stableLandscapeHeight;
         }
+    } else {
+        stableLandscapeWidth = 0;
+        stableLandscapeHeight = 0;
     }
 
-    const baseWidth = 1200;
+    // الأبعاد الأساسية المتطابقة 100% مع قياسات الـ CSS لحاوية app-scaler
+    const baseWidth = 1650;
     const baseHeight = 750;
 
-    const scaleX = windowWidth / baseWidth;
-    const scaleY = windowHeight / baseHeight;
+    const scaleX = effectiveW / baseWidth;
+    const scaleY = effectiveH / baseHeight;
     const scale = Math.min(scaleX, scaleY);
 
     scaler.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -73,17 +115,29 @@ window.addEventListener('orientationchange', () => {
     setTimeout(applyAutoScaling, 250);
     setTimeout(applyAutoScaling, 500);
 });
+if (window.screen && window.screen.orientation && typeof window.screen.orientation.addEventListener === 'function') {
+    window.screen.orientation.addEventListener('change', () => {
+        stableLandscapeWidth = 0;
+        stableLandscapeHeight = 0;
+        applyAutoScaling();
+        setTimeout(applyAutoScaling, 100);
+        setTimeout(applyAutoScaling, 250);
+        setTimeout(applyAutoScaling, 500);
+    });
+}
 window.addEventListener('pageshow', () => {
     applyAutoScaling();
     setTimeout(applyAutoScaling, 150);
 });
 document.addEventListener('DOMContentLoaded', () => {
+    patchVideoJsTech();
     applyAutoScaling();
     if (window.AlMeZ0App && window.AlMeZ0App.isNative && typeof window.AlMeZ0App.lockLandscape === 'function') {
         window.AlMeZ0App.lockLandscape();
     }
 });
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    patchVideoJsTech();
     applyAutoScaling();
 }
 
@@ -536,16 +590,18 @@ function playStream(id, type, extension, name, icon) {
         urlQueue.push(`${hostUrl}/live/${user}/${pass}/${id}.ts`);
         urlQueue.push(`${hostUrl}/live/${user}/${pass}/${id}`);
     } else if (type === 'vod') {
-        // تشغيل الفيلم داخل المشغل: الصيغة المحددة ثم mp4 ثم بث m3u8 ثم مباشر
+        // تشغيل الفيلم داخل المشغل: الصيغة الفعلية للسيرفر أولاً، ثم mp4، ثم مباشر بدون امتداد
         urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.${ext}`);
-        if (ext !== 'mp4') urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.mp4`);
-        urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.m3u8`);
+        if (ext !== 'mp4') {
+            urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.mp4`);
+        }
         urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}`);
     } else if (type === 'series') {
-        // تشغيل الحلقة داخل المشغل: الصيغة المحددة ثم mp4 ثم بث m3u8 ثم مباشر
+        // تشغيل الحلقة داخل المشغل: الصيغة الفعلية للسيرفر أولاً، ثم mp4، ثم مباشر بدون امتداد
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.${ext}`);
-        if (ext !== 'mp4') urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.mp4`);
-        urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.m3u8`);
+        if (ext !== 'mp4') {
+            urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.mp4`);
+        }
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}`);
     }
 
@@ -614,9 +670,12 @@ function playStream(id, type, extension, name, icon) {
             parent.innerHTML = `<video id="${containerSelector}" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>`;
         }
 
+        patchVideoJsTech();
+
         const playUrl = streamUrl;
         const sLower = streamUrl.toLowerCase();
-        const isHlsStream = sLower.includes('.m3u8') || type === 'live';
+        // HLS مخصص فقط للبث المباشر أو ملفات m3u8 الحقيقية، وليس لملفات الأفلام والمسلسلات الثابتة
+        const isHlsStream = (sLower.includes('.m3u8') || type === 'live') && !sLower.includes('.mp4') && !sLower.includes('.mkv');
 
         // تحديد نوع الملف بدقة مع إعطاء مرونة لفك ترميز MKV و MP4
         let mimeType = 'video/mp4';
@@ -624,14 +683,10 @@ function playStream(id, type, extension, name, icon) {
             mimeType = 'application/x-mpegURL';
         } else if (sLower.includes('.ts')) {
             mimeType = 'video/mp2t';
-        } else if (sLower.includes('.mp4')) {
-            mimeType = 'video/mp4';
         } else if (sLower.includes('.webm')) {
             mimeType = 'video/webm';
-        } else if (sLower.includes('.mkv')) {
-            mimeType = 'video/webm';
-        } else if (type === 'live') {
-            mimeType = 'application/x-mpegURL';
+        } else {
+            mimeType = 'video/mp4';
         }
 
         const progressKey = `sp_progress_${type}_${id}`;
@@ -687,12 +742,19 @@ function playStream(id, type, extension, name, icon) {
                     window.hlsInstance.attachMedia(videoTag);
                 }
 
+                let hlsNetworkRetries = 0;
                 window.hlsInstance.on(Hls.Events.ERROR, function (event, data) {
                     if (data.fatal) {
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                console.warn("HLS Network Error, recovering...");
-                                window.hlsInstance.startLoad();
+                                hlsNetworkRetries++;
+                                if (hlsNetworkRetries <= 2) {
+                                    console.warn(`HLS Network Error, retrying (${hlsNetworkRetries}/2)...`);
+                                    window.hlsInstance.startLoad();
+                                } else {
+                                    console.warn("HLS Network Error retry limit reached, triggering fallback.");
+                                    triggerFallback();
+                                }
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
                                 console.warn("HLS Media Error, recovering...");
@@ -705,11 +767,15 @@ function playStream(id, type, extension, name, icon) {
                     }
                 });
             } else {
-                if (sLower.includes('.mkv')) {
-                    // تشغيل ملفات MKV المباشرة بالسماح للمتصفح والـ WebView بالكشف التلقائي
-                    window.vjsPlayer.src({ src: playUrl });
-                } else {
-                    window.vjsPlayer.src({ src: playUrl, type: mimeType });
+                // تمرير نوع video/mp4 لمشغل Video.js لتقبل كل من صيغ MP4 و MKV في WebView والمتصفحات
+                window.vjsPlayer.src({ src: playUrl, type: mimeType });
+
+                // التعيين المباشر على عنصر video لتسريع وتحفيز البث التدريجي فورا
+                const playerEl = window.vjsPlayer.el();
+                const videoTag = (window.vjsPlayer.tech() && window.vjsPlayer.tech().el()) || (playerEl && playerEl.querySelector('video'));
+                if (videoTag && videoTag.src !== playUrl) {
+                    videoTag.src = playUrl;
+                    videoTag.load();
                 }
             }
 
@@ -973,14 +1039,16 @@ function playStream(id, type, extension, name, icon) {
 
                 console.warn("Video.js Error:", mediaErr, "currentT:", currentT, "isSeeking:", isSeeking);
 
+                // إزالة شاشة الخطأ السوداء فوراً من المشغل حتى لا تومض رسالة الخطأ على الشاشة
+                try {
+                    player.error(null);
+                } catch (e) { }
+
                 // إذا حدث الخطأ أثناء التقديم (Seeking) أو أثناء تشغيل الفيديو بالفعل
                 if (isSeeking || (player && player.seeking && player.seeking()) || currentT > 1) {
                     if (seekRecoveryCount < 3) {
                         seekRecoveryCount++;
                         console.warn(`[SeekRecovery] Attempt #${seekRecoveryCount}`);
-
-                        // إزالة شاشة الخطأ السوداء فوراً من المشغل حتى لا يظهر "تعذر تشغيل"
-                        player.error(null);
 
                         if (typeof showToast === 'function') {
                             showToast('جاري استكمال البث وتجاوز انقطاع التقديم...', 'info', 2000);
@@ -1997,6 +2065,12 @@ async function showMovieDetails(movieId, name, cover, ext) {
     try {
         const data = await proxyFetch(infoUrl);
         const info = data.info || {};
+        if (data.movie_data && data.movie_data.container_extension) {
+            ext = data.movie_data.container_extension;
+            document.getElementById('btnWatchMovie').onclick = () => {
+                playStream(movieId, 'vod', ext, name, cover);
+            };
+        }
 
         // 1. استخراج الباك دروب عالي الدقة (Backdrop Path أو Movie Image أو Cover Big)
         let backdropUrl = null;

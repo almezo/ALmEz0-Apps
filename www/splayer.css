@@ -88,7 +88,7 @@ body {
 }
 
 /* =========================================================
-   CANVAS SCALER ENGINE (Fixed Desktop Canvas 1200x750)
+   CANVAS SCALER ENGINE (Fixed Canvas 1650x750)
    ========================================================= */
 #app-scaler,
 .app-scaler {
@@ -3861,4 +3861,9 @@ input[type="search"],
 input[type="number"] {
     font-size: 16px !important;
     touch-action: manipulation !important;
+}
+
+/* إخفاء شاشة خطأ Video.js الافتراضية لمنع وميض رسالة الخطأ أثناء التبديل الذكي بين الصيغ */
+.vjs-error-display {
+    display: none !important;
 }
