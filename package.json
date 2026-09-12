@@ -6,7 +6,7 @@
   "scripts": {
     "prepare:app": "node scripts/prepare-app.js",
     "electron:dev": "electron .",
-    "electron:build": "node scripts/prepare-app.js && electron-builder --win",
+    "electron:build": "node scripts/prepare-app.js && electron-builder --win --publish never",
     "cap:sync": "node scripts/prepare-app.js && cap sync",
     "cap:android": "node scripts/prepare-app.js && cap open android",
     "cap:ios": "node scripts/prepare-app.js && cap open ios"
