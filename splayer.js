@@ -206,19 +206,63 @@ document.addEventListener('DOMContentLoaded', () => {
         initScrollTopListener();
     }
 
+    // تحديث شارة الحسابات المحفوظة
+    if (typeof updateSavedAccountsBadge === 'function') {
+        updateSavedAccountsBadge();
+    }
+
     // التحقق فقط مما إذا كان المستخدم مسجل الدخول بالكامل (لديه جلسة نشطة)
-    const storedUser = localStorage.getItem('sp_user') || sessionStorage.getItem('sp_user');
-    const storedHost = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
-    const storedPass = localStorage.getItem('sp_pass') || sessionStorage.getItem('sp_pass');
+    let storedUser = localStorage.getItem('sp_user') || sessionStorage.getItem('sp_user');
+    let storedHost = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+    let storedPass = localStorage.getItem('sp_pass') || sessionStorage.getItem('sp_pass');
+
+    // محاولة الاستعادة من آخر حساب نشط في قوائم التشغيل إن لم تكن المفاتيح المباشرة موجودة
+    if (!storedUser || !storedHost || !storedPass) {
+        const activeAccId = localStorage.getItem('sp_active_acc_id');
+        const savedAccounts = typeof getSavedAccounts === 'function' ? getSavedAccounts() : [];
+        if (savedAccounts.length > 0) {
+            const acc = (activeAccId && savedAccounts.find(a => a.id === activeAccId)) || savedAccounts[0];
+            if (acc && acc.userInfo && acc.host && acc.password) {
+                storedUser = JSON.stringify(acc.userInfo);
+                storedHost = acc.host;
+                storedPass = acc.password;
+                localStorage.setItem('sp_user', storedUser);
+                localStorage.setItem('sp_host', storedHost);
+                localStorage.setItem('sp_pass', storedPass);
+                localStorage.setItem('sp_server_code', acc.serverCode || '001');
+                localStorage.setItem('sp_server_info', JSON.stringify({ name: acc.serverName, logo: acc.serverLogo }));
+                localStorage.setItem('sp_active_acc_id', acc.id);
+            }
+        }
+    }
 
     if (storedUser && storedHost && storedPass) {
-        state.userInfo = JSON.parse(storedUser);
-        state.username = state.userInfo.username;
+        try {
+            state.userInfo = JSON.parse(storedUser);
+        } catch (e) {
+            state.userInfo = {};
+        }
+        state.username = (state.userInfo && state.userInfo.username) || '';
         state.password = storedPass;
         state.hostUrls = [storedHost];
+        state.host = storedHost;
+        state.serverCode = localStorage.getItem('sp_server_code') || sessionStorage.getItem('sp_server_code') || '001';
+
+        // مزامنة مع sessionStorage
+        sessionStorage.setItem('sp_user', storedUser);
+        sessionStorage.setItem('sp_host', storedHost);
+        sessionStorage.setItem('sp_pass', storedPass);
+        sessionStorage.setItem('sp_server_code', state.serverCode);
 
         const navUserEl = document.getElementById('navUsername');
         if (navUserEl) navUserEl.innerText = state.username;
+
+        const navEl = document.getElementById('dashboard-nav');
+        if (navEl) navEl.classList.remove('hidden');
+
+        if (typeof updateActiveServerBanner === 'function') {
+            updateActiveServerBanner();
+        }
 
         // إذا كان مسجلاً مسبقاً، اذهب مباشرة للرئيسية
         showScreen('dashboard-screen');
@@ -227,6 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('sp_server_code');
         sessionStorage.removeItem('sp_host_urls');
         sessionStorage.removeItem('sp_server_info');
+        if (typeof updateSavedAccountsBadge === 'function') {
+            updateSavedAccountsBadge();
+        }
         showScreen('auth1-screen');
     }
 
@@ -264,6 +311,9 @@ function showScreen(screenId, isBackNavigation = false) {
     }
     if (screenId === 'dashboard-screen') {
         sessionStorage.setItem('sp_current_tab', 'dashboard');
+        if (typeof updateActiveServerBanner === 'function') {
+            updateActiveServerBanner();
+        }
     }
 
     document.querySelectorAll('.app-screen-container').forEach(el => el.classList.add('hidden'));
@@ -291,14 +341,16 @@ function showScreen(screenId, isBackNavigation = false) {
                 navRight.style.display = '';
             }
 
-            // Hide/Show secondary action buttons (refresh, profile, logout)
+            // Hide/Show secondary action buttons (refresh, profile, logout, accounts)
             const refreshBtn = document.getElementById('navRefreshBtn');
             const profileBtn = document.getElementById('navProfileBtn');
             const logoutBtn = document.getElementById('navLogoutBtn');
+            const accountsBtn = document.getElementById('navAccountsBtn');
 
             if (refreshBtn) refreshBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
             if (profileBtn) profileBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
             if (logoutBtn) logoutBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
+            if (accountsBtn) accountsBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
 
             // Toggle Return Button (Home on Dashboard -> index.html, Arrow on other screens -> goBack to Dashboard)
             const returnBtn = document.getElementById('navReturnBtn');
@@ -419,6 +471,265 @@ function showToast(title, icon = 'success') {
 }
 
 // ==========================================
+// MULTI-ACCOUNT & PLAYLIST MANAGEMENT
+// ==========================================
+
+function getSavedAccounts() {
+    try {
+        const raw = localStorage.getItem('sp_accounts');
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        console.error('Error reading sp_accounts:', e);
+        return [];
+    }
+}
+
+function saveAccountToStorage(account) {
+    let accounts = getSavedAccounts();
+    const existingIdx = accounts.findIndex(a => 
+        a.id === account.id || 
+        (a.username && account.username && a.username.toLowerCase() === account.username.toLowerCase() && a.serverCode === account.serverCode)
+    );
+    if (existingIdx >= 0) {
+        accounts[existingIdx] = { ...accounts[existingIdx], ...account };
+    } else {
+        accounts.unshift(account);
+    }
+    localStorage.setItem('sp_accounts', JSON.stringify(accounts));
+    if (typeof updateSavedAccountsBadge === 'function') {
+        updateSavedAccountsBadge();
+    }
+    return accounts;
+}
+
+function deleteAccount(accId) {
+    const accounts = getSavedAccounts();
+    const target = accounts.find(a => a.id === accId);
+    const targetName = target ? (target.serverName + ' (' + target.username + ')') : 'هذا السيرفر';
+
+    if (!confirm(`هل أنت متأكد من رغبتك في حذف ${targetName} من قوائم التشغيل؟`)) {
+        return;
+    }
+
+    const updated = accounts.filter(a => a.id !== accId);
+    localStorage.setItem('sp_accounts', JSON.stringify(updated));
+    if (typeof updateSavedAccountsBadge === 'function') {
+        updateSavedAccountsBadge();
+    }
+
+    const activeId = localStorage.getItem('sp_active_acc_id');
+    if (activeId === accId) {
+        if (updated.length > 0) {
+            activateAccount(updated[0].id);
+        } else {
+            localStorage.removeItem('sp_user');
+            localStorage.removeItem('sp_host');
+            localStorage.removeItem('sp_pass');
+            localStorage.removeItem('sp_server_code');
+            localStorage.removeItem('sp_server_info');
+            localStorage.removeItem('sp_active_acc_id');
+            sessionStorage.clear();
+            closePlaylistsModal();
+            showScreen('auth1-screen');
+            showAppAlert('تم حذف جميع الحسابات المحفوظة', 'info');
+            return;
+        }
+    }
+
+    renderPlaylists();
+    showAppAlert('تم حذف السيرفر بنجاح', 'success');
+}
+
+function activateAccount(accId) {
+    const accounts = getSavedAccounts();
+    const target = accounts.find(a => a.id === accId);
+    if (!target) return;
+
+    if (typeof closeLivePlayer === 'function') closeLivePlayer();
+    if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
+
+    localStorage.setItem('sp_active_acc_id', target.id);
+    localStorage.setItem('sp_user', JSON.stringify(target.userInfo));
+    localStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo));
+    localStorage.setItem('sp_host', target.host);
+    localStorage.setItem('sp_pass', target.password);
+    localStorage.setItem('sp_server_code', target.serverCode || '001');
+    localStorage.setItem('sp_server_info', JSON.stringify({ name: target.serverName, logo: target.serverLogo }));
+
+    sessionStorage.setItem('sp_user', JSON.stringify(target.userInfo));
+    sessionStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo));
+    sessionStorage.setItem('sp_host', target.host);
+    sessionStorage.setItem('sp_pass', target.password);
+    sessionStorage.setItem('sp_server_code', target.serverCode || '001');
+    sessionStorage.setItem('sp_server_info', JSON.stringify({ name: target.serverName, logo: target.serverLogo }));
+
+    state.userInfo = target.userInfo;
+    state.username = target.username;
+    state.password = target.password;
+    state.host = target.host;
+    state.hostUrls = [target.host];
+    state.serverCode = target.serverCode || '001';
+
+    // مسح كاش القنوات السابقة
+    state.categories = [];
+    state.streams = [];
+    state.activeCategory = null;
+
+    const navUserEl = document.getElementById('navUsername');
+    if (navUserEl) navUserEl.innerText = state.username;
+
+    const navEl = document.getElementById('dashboard-nav');
+    if (navEl) navEl.classList.remove('hidden');
+
+    updateActiveServerBanner();
+    closePlaylistsModal();
+    showScreen('dashboard-screen');
+    showAppAlert(`تم التبديل بنجاح إلى: ${target.serverName}`, 'success');
+}
+
+function openPlaylistsModal() {
+    renderPlaylists();
+    const modal = document.getElementById('playlistsModal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closePlaylistsModal() {
+    const modal = document.getElementById('playlistsModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function addNewPlaylistServer() {
+    closePlaylistsModal();
+    const sCodeInput = document.getElementById('serverCode');
+    if (sCodeInput) sCodeInput.value = '';
+    const uInput = document.getElementById('username');
+    if (uInput) uInput.value = '';
+    const pInput = document.getElementById('password');
+    if (pInput) pInput.value = '';
+
+    sessionStorage.removeItem('sp_server_code');
+    sessionStorage.removeItem('sp_host_urls');
+    sessionStorage.removeItem('sp_server_info');
+
+    showScreen('auth1-screen');
+    showAppAlert('أدخل كود السيرفر الجديد لإضافته كقائمة تشغيل إضافية', 'info');
+}
+
+function renderPlaylists() {
+    const grid = document.getElementById('playlistsGrid');
+    const countEl = document.getElementById('playlistsCountText');
+    if (!grid) return;
+
+    const accounts = getSavedAccounts();
+    if (countEl) countEl.innerText = `${accounts.length} سيرفر(ات) محفوظة`;
+
+    const activeId = localStorage.getItem('sp_active_acc_id') || (accounts[0] ? accounts[0].id : null);
+
+    if (accounts.length === 0) {
+        grid.innerHTML = `
+            <div class="playlists-empty-state">
+                <i class="fas fa-layer-group playlists-empty-icon"></i>
+                <h4>لا توجد سيرفرات أو قوائم تشغيل محفوظة حالياً</h4>
+                <p>اضغط على زر "إضافة سيرفر جديد" لإدخال بيانات اشتراكك وحفظه للرجوع إليه في أي وقت.</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = accounts.map(acc => {
+        const isActive = (acc.id === activeId);
+        const serverName = acc.serverName || 'سيرفر IPTV';
+        const serverLogo = acc.serverLogo || 'photo/logo.ico';
+        const username = acc.username || '--';
+        const expDate = acc.expDateText || 'غير متوفر';
+
+        return `
+            <div class="playlist-card ${isActive ? 'is-active' : ''}">
+                ${isActive ? '<div class="playlist-active-badge"><i class="fas fa-check-circle"></i> السيرفر الحالي</div>' : ''}
+                <div class="playlist-card-top">
+                    <img src="${serverLogo}" alt="${serverName}" class="playlist-logo" onerror="this.src='photo/logo.ico'" />
+                    <div class="playlist-card-meta">
+                        <h4 title="${serverName}">${serverName}</h4>
+                        <div class="playlist-username">
+                            <i class="fas fa-user-circle"></i>
+                            <span>${username}</span>
+                        </div>
+                        <div class="playlist-exp">
+                            <i class="far fa-calendar-alt"></i>
+                            <span>الانتهاء: ${expDate}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="playlist-card-actions">
+                    ${isActive
+                        ? `<button type="button" class="btn-playlist-select current">
+                                <i class="fas fa-check"></i> متصل حالياً
+                           </button>`
+                        : `<button type="button" class="btn-playlist-select" onclick="activateAccount('${acc.id}')">
+                                <i class="fas fa-sign-in-alt"></i> استخدام هذا السيرفر
+                           </button>`
+                    }
+                    <button type="button" class="btn-playlist-delete" onclick="deleteAccount('${acc.id}')" title="حذف من المحفوظات">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateSavedAccountsBadge() {
+    const accounts = getSavedAccounts();
+    const badgeBtn = document.getElementById('btnSavedAccountsAuth');
+    const badgeCount = document.getElementById('savedAccCountBadge');
+    if (badgeBtn && badgeCount) {
+        badgeCount.innerText = accounts.length;
+        if (accounts.length > 0) {
+            badgeBtn.classList.remove('hidden');
+        } else {
+            badgeBtn.classList.add('hidden');
+        }
+    }
+}
+
+function updateActiveServerBanner() {
+    const bannerLogo = document.getElementById('dashActiveServerLogo');
+    const bannerName = document.getElementById('dashActiveServerName');
+    const bannerUser = document.getElementById('dashActiveUsername');
+    const bannerExp = document.getElementById('dashActiveExp');
+
+    const accounts = getSavedAccounts();
+    const activeId = localStorage.getItem('sp_active_acc_id');
+    const currentAcc = (activeId && accounts.find(a => a.id === activeId)) || accounts[0];
+
+    let sName = 'سيرفر ميزو';
+    let sLogo = 'photo/logo.ico';
+    let sUser = state.username || '--';
+    let sExp = '--';
+
+    if (currentAcc) {
+        sName = currentAcc.serverName || sName;
+        sLogo = currentAcc.serverLogo || sLogo;
+        sUser = currentAcc.username || sUser;
+        sExp = currentAcc.expDateText || sExp;
+    } else {
+        try {
+            const sInfo = JSON.parse(localStorage.getItem('sp_server_info') || sessionStorage.getItem('sp_server_info') || '{}');
+            if (sInfo.name) sName = sInfo.name;
+            if (sInfo.logo) sLogo = sInfo.logo;
+        } catch(e) {}
+        if (state.userInfo && state.userInfo.exp_date) {
+            sExp = typeof formatSubscriptionDate === 'function' ? formatSubscriptionDate(state.userInfo.exp_date) : state.userInfo.exp_date;
+        }
+    }
+
+    if (bannerLogo) bannerLogo.src = sLogo;
+    if (bannerName) bannerName.innerText = sName;
+    if (bannerUser) bannerUser.innerText = sUser;
+    if (bannerExp) bannerExp.innerText = sExp;
+}
+
+// ==========================================
 // AUTHENTICATION LOGIC
 // ==========================================
 // خريطة أكواد السيرفرات المحلية
@@ -459,6 +770,7 @@ async function handleServerCode() {
     sessionStorage.setItem('sp_fixed_host', hostUrl);
 
     state.serverCode = code;
+    localStorage.setItem('sp_server_code', code);
     sessionStorage.setItem('sp_server_code', code);
     sessionStorage.setItem('sp_current_screen', 'auth2-screen');
 
@@ -473,6 +785,7 @@ async function handleServerCode() {
     };
 
     const sInfo = serverMap[code] || { name: `سيرفر (${code})`, logo: 'photo/logo.ico' };
+    localStorage.setItem('sp_server_info', JSON.stringify(sInfo));
     sessionStorage.setItem('sp_server_info', JSON.stringify(sInfo));
 
     document.getElementById('authServerDisplay').innerText = sInfo.name;
@@ -484,7 +797,7 @@ async function handleServerCode() {
     btn.innerHTML = 'الاتصال بالسيرفر';
 }
 
-// 2. تسجيل الدخول وقراءة الهوست المحفوظ بشكل صحيح دون إرجاعك للخلف
+// 2. تسجيل الدخول وقراءة الهوست المحفوظ بشكل صحيح وحفظ الحسابات في قوائم التشغيل
 async function handleLogin() {
     const user = document.getElementById('username').value.trim();
     const pass = document.getElementById('password').value.trim();
@@ -494,10 +807,9 @@ async function handleLogin() {
     }
 
     // جلب الهوست من المتغير العام أو من الـ sessionStorage بجميع الاحتمالات المتاحة
-    const host = state.host || sessionStorage.getItem('sp_fixed_host') || sessionStorage.getItem('sp_host');
+    const host = state.host || sessionStorage.getItem('sp_fixed_host') || localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
 
     if (!host) {
-        // لو مش موجود يرجع لشاشة الكود، ولكن مع التعديل بالأعلى لن يحدث هذا أبداً
         showScreen('auth1-screen');
         return showAppAlert('حدث خطأ في بيانات السيرفر، يرجى إعادة إدخال الكود', 'error');
     }
@@ -518,12 +830,61 @@ async function handleLogin() {
             state.username = user;
             state.password = pass;
             state.host = host;
+            state.hostUrls = [host];
 
-            // حفظ الجلسة بالكامل لضمان الانتقال للوحة التحكم الرئيسية
+            const currentCode = state.serverCode || sessionStorage.getItem('sp_server_code') || localStorage.getItem('sp_server_code') || '001';
+            const serverMap = {
+                '001': { name: 'سيرفر اكس', logo: 'photo/x.jpeg' },
+                '002': { name: 'سيرفر نوفا', logo: 'photo/nova.jpeg' },
+                '003': { name: 'سيرفر مارفل', logo: 'photo/marvel.jpeg' },
+                '004': { name: 'سيرفر مافين', logo: 'photo/maven.jpeg' },
+                '005': { name: 'سيرفر ميجا', logo: 'photo/mega.jpeg' },
+                '006': { name: 'سيرفر نينجا', logo: 'photo/ninja.jpeg' },
+                '007': { name: 'سيرفر MH', logo: 'photo/mh.png' }
+            };
+            const sInfo = serverMap[currentCode] || { name: `سيرفر (${currentCode})`, logo: 'photo/logo.ico' };
+            const expDateText = typeof formatSubscriptionDate === 'function' ? formatSubscriptionDate(data.user_info.exp_date) : (data.user_info.exp_date || 'غير متوفر');
+
+            const accountId = 'acc_' + currentCode + '_' + user.toLowerCase();
+            const accountObj = {
+                id: accountId,
+                serverCode: currentCode,
+                serverName: sInfo.name,
+                serverLogo: sInfo.logo,
+                host: host,
+                username: user,
+                password: pass,
+                userInfo: data.user_info,
+                expDateText: expDateText,
+                savedAt: Date.now()
+            };
+
+            saveAccountToStorage(accountObj);
+            localStorage.setItem('sp_active_acc_id', accountId);
+
+            // حفظ الجلسة محلياً ودائماً لضمان عدم طلب تسجيل الدخول مجدداً إلا عند الخروج يدوياً
+            localStorage.setItem('sp_user', JSON.stringify(data.user_info));
+            localStorage.setItem('almezo_cached_user', JSON.stringify(data.user_info));
+            localStorage.setItem('sp_host', host);
+            localStorage.setItem('sp_pass', pass);
+            localStorage.setItem('sp_server_code', currentCode);
+            localStorage.setItem('sp_server_info', JSON.stringify(sInfo));
+
             sessionStorage.setItem('sp_user', JSON.stringify(data.user_info));
             sessionStorage.setItem('almezo_cached_user', JSON.stringify(data.user_info));
             sessionStorage.setItem('sp_host', host);
             sessionStorage.setItem('sp_pass', pass);
+            sessionStorage.setItem('sp_server_code', currentCode);
+            sessionStorage.setItem('sp_server_info', JSON.stringify(sInfo));
+
+            const navUserEl = document.getElementById('navUsername');
+            if (navUserEl) navUserEl.innerText = user;
+
+            const navEl = document.getElementById('dashboard-nav');
+            if (navEl) navEl.classList.remove('hidden');
+
+            updateActiveServerBanner();
+            updateSavedAccountsBadge();
 
             // الانتقال للوحة التحكم الرئيسية (dashboard-screen)
             showScreen('dashboard-screen');
@@ -1160,15 +1521,27 @@ function logout() {
     const oldModal = document.querySelector('.custom-logout-modal');
     if (oldModal) oldModal.remove();
 
+    const accounts = typeof getSavedAccounts === 'function' ? getSavedAccounts() : [];
+    const hasMultiple = accounts.length > 1;
+
     const logoutHtml = `
         <div class="custom-logout-modal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999999; color: #fff; font-family: inherit;">
-            <div class="custom-logout-box" style="background: #161b22; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 24px; padding: 50px 60px; text-align: center; max-width: 580px; width: 92%; box-shadow: 0 30px 80px rgba(0,0,0,0.95);">
-                <div style="font-size: 75px; color: #f59e0b; margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i></div>
-                <h3 style="margin: 0 0 18px 0; font-size: 32px; color: #fff; font-weight: bold;">تسجيل الخروج</h3>
-                <p style="margin: 0 0 35px 0; font-size: 20px; color: #cbd5e1; line-height: 1.6;">هل أنت متأكد أنك تريد تسجيل الخروج من السيرفر؟</p>
-                <div style="display: flex; gap: 20px; justify-content: center;">
-                    <button id="confirmLogoutBtn" class="logout-action-btn" style="background: #e53935; color: #fff; border: none; padding: 15px 35px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 18px; box-shadow: 0 5px 20px rgba(229,57,53,0.4);">نعم، خروج</button>
-                    <button id="cancelLogoutBtn" class="logout-action-btn" style="background: #4caf50; color: #fff; border: none; padding: 15px 35px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 18px; box-shadow: 0 5px 20px rgba(76,175,80,0.4);">إلغاء</button>
+            <div class="custom-logout-box" style="background: #161b22; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 24px; padding: 45px 50px; text-align: center; max-width: 600px; width: 92%; box-shadow: 0 30px 80px rgba(0,0,0,0.95);">
+                <div style="font-size: 70px; color: #f59e0b; margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i></div>
+                <h3 style="margin: 0 0 16px 0; font-size: 30px; color: #fff; font-weight: bold;">تسجيل الخروج</h3>
+                <p style="margin: 0 0 30px 0; font-size: 18px; color: #cbd5e1; line-height: 1.6;">هل أنت متأكد أنك تريد تسجيل الخروج من السيرفر الحالي؟</p>
+                <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+                    ${hasMultiple ? `
+                    <button id="switchServerLogoutBtn" class="logout-action-btn" style="background: linear-gradient(135deg, #f4c242, #d4a017); color: #111; border: none; padding: 14px 24px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px; box-shadow: 0 5px 20px rgba(244,194,66,0.35);">
+                        <i class="fas fa-layer-group"></i> تبديل السيرفر
+                    </button>
+                    ` : ''}
+                    <button id="confirmLogoutBtn" class="logout-action-btn" style="background: #e53935; color: #fff; border: none; padding: 14px 30px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px; box-shadow: 0 5px 20px rgba(229,57,53,0.4);">
+                        <i class="fas fa-sign-out-alt"></i> نعم، خروج
+                    </button>
+                    <button id="cancelLogoutBtn" class="logout-action-btn" style="background: #374151; color: #fff; border: none; padding: 14px 26px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px;">
+                        إلغاء
+                    </button>
                 </div>
             </div>
         </div>
@@ -1176,14 +1549,30 @@ function logout() {
 
     document.body.insertAdjacentHTML('beforeend', logoutHtml);
 
+    if (hasMultiple) {
+        const switchBtn = document.getElementById('switchServerLogoutBtn');
+        if (switchBtn) {
+            switchBtn.onclick = () => {
+                const modal = document.querySelector('.custom-logout-modal');
+                if (modal) modal.remove();
+                if (typeof openPlaylistsModal === 'function') {
+                    openPlaylistsModal();
+                }
+            };
+        }
+    }
+
     document.getElementById('confirmLogoutBtn').onclick = () => {
-        // مسح بيانات سيرفر المشغل فقط
+        // مسح بيانات سيرفر المشغل النشط فقط مع الحفاظ على القوائم المحفوظة
         localStorage.removeItem('sp_user');
         localStorage.removeItem('sp_host');
         localStorage.removeItem('sp_pass');
+        localStorage.removeItem('sp_server_code');
+        localStorage.removeItem('sp_server_info');
+        localStorage.removeItem('sp_active_acc_id');
         sessionStorage.clear();
 
-        // التعديل هنا: توجيه المستخدم إلى الصفحة الرئيسية للموقع مباشرة
+        // التوجيه إلى الصفحة الرئيسية للموقع مباشرة
         window.location.href = 'index.html';
     };
 
