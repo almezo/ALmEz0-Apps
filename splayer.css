@@ -3856,4 +3856,5 @@ input[type="password"],
 input[type="search"],
 input[type="number"] {
     font-size: 16px !important;
+    touch-action: manipulation !important;
 }
