@@ -1022,9 +1022,13 @@ function playStream(id, type, extension, name, icon) {
         if (typeof resetCloseBtnInactivityTimer === 'function') resetCloseBtnInactivityTimer();
         history.pushState({ screenId: typeof currentScreenId !== 'undefined' ? currentScreenId : null, modal: 'fullscreen' }, '', window.location.href);
     } else {
-        const wrapper = document.getElementById('livePlayerWrapper');
+        const wrapper = document.getElementById('liveVideoContainer') || document.getElementById('livePlayerWrapper');
         wrapper.innerHTML = '<video id="mizoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>';
         containerSelector = 'mizoPlayer';
+
+        const liveWrap = document.getElementById('livePlayerWrapper');
+        if (liveWrap) liveWrap.classList.add('is-playing');
+        if (typeof initLivePlayerGestures === 'function') initLivePlayerGestures();
 
         document.getElementById('playingChannelName').innerText = name || 'Live Channel';
         document.getElementById('playingChannelIcon').src = icon || 'photo/logo.ico';
@@ -2160,9 +2164,11 @@ async function loadStreams(action, categoryId, type) {
     if (type === 'live') {
         container = document.getElementById('liveChannels');
         container.innerHTML = loadingHtml;
+        container.scrollTop = 0;
     } else {
         container = document.getElementById('vodGrid');
         container.innerHTML = loadingHtml;
+        container.scrollTop = 0;
     }
 
     try {
@@ -2375,7 +2381,10 @@ function closeLivePlayer(clearSaved = true) {
     const topHeader = document.getElementById('playerTopHeader');
     if (topHeader) topHeader.classList.add('hidden');
 
-    const wrapper = document.getElementById('livePlayerWrapper');
+    const liveWrap = document.getElementById('livePlayerWrapper');
+    if (liveWrap) liveWrap.classList.remove('is-playing');
+
+    const wrapper = document.getElementById('liveVideoContainer') || document.getElementById('livePlayerWrapper');
     if (wrapper) wrapper.innerHTML = '<div class="empty-state">اختر قناة لبدء المشاهدة</div>';
 
     document.querySelectorAll('#liveChannels .list-item').forEach(i => i.classList.remove('active'));
@@ -3094,18 +3103,59 @@ function applySort() {
     renderItems(sorted, currentSortContext);
 }
 
+// ==========================================
+// PROGRESSIVE CHUNKED RENDERING ENGINE
+// ==========================================
+let activeRenderList = [];
+let activeRenderType = '';
+let activeRenderOffset = 0;
+const RENDER_CHUNK_SIZE = 50;
+let isAppendingChunk = false;
+
 function renderItems(items, type) {
     let container = type === 'live' ? document.getElementById('liveChannels') : document.getElementById('vodGrid');
-    container.innerHTML = '';
+    if (!container) return;
 
-    if (type === 'live') {
+    container.innerHTML = '';
+    container.scrollTop = 0;
+    activeRenderList = Array.isArray(items) ? items : [];
+    activeRenderType = type;
+    activeRenderOffset = 0;
+
+    if (!container._hasInfiniteScroll) {
+        container._hasInfiniteScroll = true;
+        container.addEventListener('scroll', () => {
+            if (isAppendingChunk) return;
+            if (container.scrollTop + container.clientHeight >= container.scrollHeight - 500) {
+                appendNextItemChunk();
+            }
+        }, { passive: true });
+    }
+
+    appendNextItemChunk();
+}
+
+function appendNextItemChunk() {
+    if (activeRenderOffset >= activeRenderList.length) return;
+    isAppendingChunk = true;
+
+    const container = activeRenderType === 'live' ? document.getElementById('liveChannels') : document.getElementById('vodGrid');
+    if (!container) {
+        isAppendingChunk = false;
+        return;
+    }
+
+    const chunk = activeRenderList.slice(activeRenderOffset, activeRenderOffset + RENDER_CHUNK_SIZE);
+    const fragment = document.createDocumentFragment();
+
+    if (activeRenderType === 'live') {
         const savedLive = sessionStorage.getItem('sp_last_live_stream');
         let savedLiveObj = null;
         if (savedLive) {
             try { savedLiveObj = JSON.parse(savedLive); } catch (e) { }
         }
 
-        items.forEach(item => {
+        chunk.forEach(item => {
             const el = document.createElement('div');
             el.className = 'list-item';
             el.dataset.streamId = String(item.stream_id);
@@ -3118,41 +3168,45 @@ function renderItems(items, type) {
             }
 
             el.innerHTML = `
-                <img src="${item.stream_icon || 'photo/logo.ico'}" class="channel-icon" onerror="this.src='photo/logo.ico'">
-                <span>${item.name}</span>
+                <img src="${item.stream_icon || 'photo/logo.ico'}" loading="lazy" decoding="async" class="channel-icon" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                <span>${item.name || ''}</span>
             `;
             el.onclick = () => {
                 document.querySelectorAll('#liveChannels .list-item').forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
                 playStream(item.stream_id, 'live', 'm3u8', item.name, item.stream_icon);
             };
-            container.appendChild(el);
+            fragment.appendChild(el);
         });
     } else {
-        items.forEach(item => {
+        chunk.forEach(item => {
             const card = document.createElement('div');
             card.className = 'vod-card';
             let id = item.stream_id || item.series_id;
-            let name = item.name;
+            let name = item.name || '';
             let cover = item.stream_icon || item.cover || 'photo/logo.ico';
             let ext = item.container_extension || 'mp4';
 
             card.innerHTML = `
-                <img src="${cover}" class="vod-poster" onerror="this.src='photo/logo.ico'">
+                <img src="${cover}" loading="lazy" decoding="async" class="vod-poster" onerror="this.onerror=null;this.src='photo/logo.ico'">
                 <div class="vod-info">
                     <div class="vod-title" title="${name}">${name}</div>
                 </div>
             `;
             card.onclick = () => {
-                if (type === 'series') {
+                if (activeRenderType === 'series') {
                     showSeriesDetails(id, name, cover);
                 } else {
                     showMovieDetails(id, name, cover, ext);
                 }
             };
-            container.appendChild(card);
+            fragment.appendChild(card);
         });
     }
+
+    container.appendChild(fragment);
+    activeRenderOffset += chunk.length;
+    isAppendingChunk = false;
 }
 
 // ==========================================
@@ -3229,26 +3283,143 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const searchLiveItems = document.getElementById('searchLiveItems');
     if (searchLiveItems) {
+        let liveSearchTimer = null;
         searchLiveItems.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            document.querySelectorAll('#liveChannels .list-item').forEach(el => {
-                const text = el.innerText.toLowerCase();
-                el.style.display = text.includes(term) ? '' : 'none';
-            });
+            clearTimeout(liveSearchTimer);
+            liveSearchTimer = setTimeout(() => {
+                const term = e.target.value.trim().toLowerCase();
+                if (!term) {
+                    renderItems(currentItemsArray, 'live');
+                } else {
+                    const filtered = currentItemsArray.filter(i => (i.name || '').toLowerCase().includes(term));
+                    renderItems(filtered, 'live');
+                }
+            }, 140);
         });
     }
 
     const searchVodItems = document.getElementById('searchVodItems');
     if (searchVodItems) {
+        let vodSearchTimer = null;
         searchVodItems.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            document.querySelectorAll('#vodGrid .vod-card').forEach(el => {
-                const text = el.innerText.toLowerCase();
-                el.style.display = text.includes(term) ? '' : 'none';
-            });
+            clearTimeout(vodSearchTimer);
+            vodSearchTimer = setTimeout(() => {
+                const term = e.target.value.trim().toLowerCase();
+                const ctx = currentSortContext || (state.activeTab === 'movies' ? 'vod' : 'series');
+                if (!term) {
+                    renderItems(currentItemsArray, ctx);
+                } else {
+                    const filtered = currentItemsArray.filter(i => (i.name || '').toLowerCase().includes(term));
+                    renderItems(filtered, ctx);
+                }
+            }, 140);
         });
     }
 });
+
+// =========================================================
+// LIVE TV VERTICAL BRIGHTNESS & VOLUME SLIDERS & GESTURES
+// =========================================================
+let livePlayerBrightness = 1.0;
+let livePlayerVolume = 1.0;
+
+function initLivePlayerGestures() {
+    const wrapper = document.getElementById('livePlayerWrapper');
+    if (!wrapper || wrapper._hasGestureEngine) return;
+    wrapper._hasGestureEngine = true;
+
+    const bSlider = document.getElementById('liveSliderBrightness');
+    const bFill = document.getElementById('liveSliderBrightnessFill');
+    const bVal = document.getElementById('liveSliderBrightnessVal');
+
+    const vSlider = document.getElementById('liveSliderVolume');
+    const vFill = document.getElementById('liveSliderVolumeFill');
+    const vVal = document.getElementById('liveSliderVolumeVal');
+
+    function updateLiveBrightness(delta) {
+        livePlayerBrightness = Math.max(0.2, Math.min(1.6, livePlayerBrightness + delta));
+        const video = wrapper.querySelector('video');
+        if (video) {
+            video.style.filter = `brightness(${livePlayerBrightness})`;
+        }
+        const pct = Math.round((livePlayerBrightness / 1.6) * 100);
+        if (bFill) bFill.style.height = `${pct}%`;
+        if (bVal) bVal.innerText = `${pct}%`;
+        if (bSlider) {
+            bSlider.classList.add('active');
+            clearTimeout(bSlider._timer);
+            bSlider._timer = setTimeout(() => bSlider.classList.remove('active'), 2500);
+        }
+    }
+
+    function updateLiveVolume(delta) {
+        livePlayerVolume = Math.max(0.0, Math.min(1.0, livePlayerVolume + delta));
+        const video = wrapper.querySelector('video');
+        if (video) {
+            video.volume = livePlayerVolume;
+        }
+        if (window.vjsPlayer) {
+            try { window.vjsPlayer.volume(livePlayerVolume); } catch (e) { }
+        }
+        const pct = Math.round(livePlayerVolume * 100);
+        if (vFill) vFill.style.height = `${pct}%`;
+        if (vVal) vVal.innerText = `${pct}%`;
+        if (vSlider) {
+            vSlider.classList.add('active');
+            clearTimeout(vSlider._timer);
+            vSlider._timer = setTimeout(() => vSlider.classList.remove('active'), 2500);
+        }
+    }
+
+    let touchStartY = 0;
+    let touchStartX = 0;
+    let isDragging = false;
+    let isBrightnessSide = false;
+
+    wrapper.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        const rect = wrapper.getBoundingClientRect();
+        touchStartY = touch.clientY;
+        touchStartX = touch.clientX;
+        isDragging = false;
+        // In Arabic RTL layout, brightness slider is on left side (x < 50%)
+        isBrightnessSide = (touchStartX - rect.left) < (rect.width * 0.5);
+    }, { passive: true });
+
+    wrapper.addEventListener('touchmove', (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        const deltaY = touchStartY - touch.clientY;
+        const deltaX = Math.abs(touch.clientX - touchStartX);
+
+        if (!isDragging && Math.abs(deltaY) > 12 && Math.abs(deltaY) > deltaX) {
+            isDragging = true;
+        }
+
+        if (isDragging) {
+            const rect = wrapper.getBoundingClientRect();
+            const step = deltaY / (rect.height * 0.75);
+            if (isBrightnessSide) {
+                updateLiveBrightness(step);
+            } else {
+                updateLiveVolume(step);
+            }
+            touchStartY = touch.clientY;
+        }
+    }, { passive: true });
+
+    wrapper.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.05 : -0.05;
+        const rect = wrapper.getBoundingClientRect();
+        if ((e.clientX - rect.left) < (rect.width * 0.5)) {
+            updateLiveBrightness(delta);
+        } else {
+            updateLiveVolume(delta);
+        }
+    }, { passive: false });
+}
 
 // =========================================================
 // ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE

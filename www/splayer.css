@@ -484,7 +484,7 @@ body {
     height: 480px;
     align-self: center;
     border-radius: 28px;
-    padding: 45px;
+    padding: 35px 35px 22px 35px;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -1066,11 +1066,13 @@ body {
     border-radius: 0;
     overflow: visible;
     cursor: pointer;
-    transition: transform 0.3s;
+    transition: transform 0.25s ease;
     border: none;
     position: relative;
     display: flex;
     flex-direction: column;
+    content-visibility: auto;
+    contain-intrinsic-size: 180px 280px;
 }
 
 .vod-card:hover {
@@ -1084,6 +1086,8 @@ body {
     border-radius: 8px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
     margin-bottom: 10px;
+    background: #10141f;
+    transition: opacity 0.25s ease;
 }
 
 .vod-info {
@@ -4379,58 +4383,64 @@ body.tv-mode {
 }
 
 /* =========================================================
-   DASHBOARD CARD REFRESH FOOTER (طلب المستخدم رقم 4 - مثل مارفل)
+   DASHBOARD CARD REFRESH FOOTER (طلب المستخدم رقم 1 - شريط احترافي أنيق)
    ========================================================= */
 .card-update-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    margin-top: 16px;
-    padding: 8px 14px;
-    background: rgba(0, 0, 0, 0.45);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 18px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.52);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-sizing: border-box;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+    z-index: 2;
     transition: all 0.25s ease;
 }
 
 .card-update-text {
-    font-size: 11.5px;
-    color: #94a3b8;
+    font-size: 12.5px;
+    color: #cbd5e1;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     -webkit-user-select: none;
     user-select: none;
+    font-weight: 500;
 }
 
 .card-update-text b {
-    color: #e2e8f0;
+    color: #f4c242;
     font-weight: 700;
 }
 
 .card-refresh-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #f4c242;
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
+    font-size: 13px;
+    transition: all 0.25s ease;
 }
 
 .card-refresh-btn:hover {
     background: #f4c242;
     color: #000000;
-    transform: scale(1.08);
-    box-shadow: 0 0 10px rgba(244, 194, 66, 0.5);
+    border-color: #f4c242;
+    transform: scale(1.1);
+    box-shadow: 0 0 14px rgba(244, 194, 66, 0.6);
 }
 
 .card-refresh-btn.updating i {
@@ -4440,4 +4450,73 @@ body.tv-mode {
 @keyframes spRotate {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* =========================================================
+   LIVE PLAYER VERTICAL SLIDERS (طلب المستخدم رقم 6)
+   ========================================================= */
+.live-player-container-rel {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.live-slider {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 20;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.live-player-container-rel.is-playing .live-slider {
+    opacity: 0.85;
+}
+
+.live-slider.active,
+.live-player-container-rel:hover .live-slider {
+    opacity: 1;
+}
+
+.live-slider-brightness {
+    left: 18px;
+}
+
+.live-slider-volume {
+    right: 18px;
+}
+
+.live-slider i {
+    font-size: 18px;
+    color: #ffffff;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.9));
+}
+
+.live-slider-track {
+    width: 6px;
+    height: 140px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.live-slider-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #ffffff;
+    border-radius: 3px;
+    transition: height 0.05s linear;
 }

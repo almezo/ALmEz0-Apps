@@ -209,28 +209,34 @@
 
             <ImageButton
                 android:id="@+id/btn_rewind_10"
-                android:layout_width="54dp"
-                android:layout_height="54dp"
-                android:layout_marginEnd="44dp"
+                android:layout_width="62dp"
+                android:layout_height="62dp"
+                android:layout_marginEnd="40dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Rewind 10 seconds"
+                android:scaleType="fitCenter"
+                android:tint="#FFFFFFFF"
                 android:src="@drawable/ic_player_rewind_10" />
 
             <ImageButton
                 android:id="@+id/btn_play_pause"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
+                android:layout_width="78dp"
+                android:layout_height="78dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Play/Pause"
+                android:scaleType="fitCenter"
+                android:tint="#FFFFFFFF"
                 android:src="@drawable/ic_player_pause" />
 
             <ImageButton
                 android:id="@+id/btn_forward_10"
-                android:layout_width="54dp"
-                android:layout_height="54dp"
-                android:layout_marginStart="44dp"
+                android:layout_width="62dp"
+                android:layout_height="62dp"
+                android:layout_marginStart="40dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Forward 10 seconds"
+                android:scaleType="fitCenter"
+                android:tint="#FFFFFFFF"
                 android:src="@drawable/ic_player_forward_10" />
         </LinearLayout>
 

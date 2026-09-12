@@ -100,6 +100,7 @@ public class PlayerActivity extends AppCompatActivity {
     private AudioManager audioManager;
     private int maxVolume = 15;
     private float currentBrightness = 0.5f;
+    private float currentVolumePercent = 0.5f;
     private boolean isScreenLocked = false;
     private boolean isUserSeeking = false;
 
@@ -155,8 +156,7 @@ public class PlayerActivity extends AppCompatActivity {
     private final Runnable hideSlidersRunnable = new Runnable() {
         @Override
         public void run() {
-            if (layoutBrightnessSlider != null) layoutBrightnessSlider.setVisibility(View.GONE);
-            if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
+            // Intentionally keep sliders visible whenever controls overlay is active
         }
     };
 
@@ -193,6 +193,8 @@ public class PlayerActivity extends AppCompatActivity {
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                currentVolumePercent = (float) currentVol / Math.max(1, maxVolume);
             }
 
             // Init brightness
@@ -277,6 +279,10 @@ public class PlayerActivity extends AppCompatActivity {
         layoutVolumeSlider = findViewById(R.id.layout_volume_slider);
         barVolumeFill = findViewById(R.id.bar_volume_fill);
         tvSeekFeedback = findViewById(R.id.tv_seek_feedback);
+
+        // Pre-fill initial slider levels so they are immediately accurate on launch
+        updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
+        updateVerticalSlider(layoutVolumeSlider, barVolumeFill, currentVolumePercent);
 
         settingsDrawerOverlay = findViewById(R.id.settings_drawer_overlay);
         settingsDrawer = findViewById(R.id.settings_drawer);
@@ -512,9 +518,7 @@ public class PlayerActivity extends AppCompatActivity {
 
                         case MotionEvent.ACTION_UP:
                         case MotionEvent.ACTION_CANCEL:
-                            if (isVerticalDrag) {
-                                handler.postDelayed(hideSlidersRunnable, 1200);
-                            }
+                            // Sliders remain visible with controls overlay
                             break;
                     }
                     return true;
@@ -526,15 +530,14 @@ public class PlayerActivity extends AppCompatActivity {
     private void adjustVolume(float delta) {
         if (audioManager == null) return;
         try {
+            // Smooth float-based volume tracking on every single pixel of touch
+            currentVolumePercent = Math.max(0.0f, Math.min(1.0f, currentVolumePercent + delta));
+            int target = Math.round(currentVolumePercent * maxVolume);
             int current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-            int step = (int) (delta * maxVolume);
-            int target = Math.max(0, Math.min(maxVolume, current + step));
-            if (step != 0) {
+            if (target != current) {
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0);
             }
-
-            float percent = (float) target / Math.max(1, maxVolume);
-            updateVerticalSlider(layoutVolumeSlider, barVolumeFill, percent);
+            updateVerticalSlider(layoutVolumeSlider, barVolumeFill, currentVolumePercent);
         } catch (Throwable t) {
             Log.w(TAG, "adjustVolume error", t);
         }
@@ -948,6 +951,7 @@ public class PlayerActivity extends AppCompatActivity {
                                 btnPlayPause.setImageResource(R.drawable.ic_player_play);
                                 showControls();
                             }
+                            btnPlayPause.setColorFilter(Color.WHITE);
                         }
                     } catch (Throwable t) {
                         Log.w(TAG, "isPlayingChanged error", t);
@@ -981,6 +985,12 @@ public class PlayerActivity extends AppCompatActivity {
         try {
             if (controlsOverlay != null) {
                 controlsOverlay.setVisibility(View.VISIBLE);
+            }
+            if (layoutBrightnessSlider != null) {
+                layoutBrightnessSlider.setVisibility(View.VISIBLE);
+            }
+            if (layoutVolumeSlider != null) {
+                layoutVolumeSlider.setVisibility(View.VISIBLE);
             }
             resetControlsHideTimer();
         } catch (Throwable t) {
