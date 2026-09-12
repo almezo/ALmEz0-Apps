@@ -4352,4 +4352,92 @@ body.tv-mode *:focus-visible {
 body.tv-mode {
     -webkit-user-select: none !important;
     user-select: none !important;
+}
+
+/* =========================================================
+   PURE BLACK PLAYER & LOADING BACKGROUND (طلب المستخدم رقم 1)
+   ========================================================= */
+#livePlayerWrapper,
+.plyr-container,
+.video-js,
+.video-js .vjs-tech,
+.video-js .vjs-poster,
+.vjs-loading-spinner,
+.video-js.vjs-waiting,
+.video-js.vjs-seeking,
+.video-js.vjs-waiting .vjs-loading-spinner,
+#fullscreenVideoContainer,
+#fullscreenVideoModal,
+.video-js .vjs-modal-dialog {
+    background: #000000 !important;
+    background-color: #000000 !important;
+}
+
+.plyr-container .empty-state {
+    background: #000000 !important;
+    color: #94a3b8 !important;
+}
+
+/* =========================================================
+   DASHBOARD CARD REFRESH FOOTER (طلب المستخدم رقم 4 - مثل مارفل)
+   ========================================================= */
+.card-update-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 16px;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.25s ease;
+}
+
+.card-update-text {
+    font-size: 11.5px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.card-update-text b {
+    color: #e2e8f0;
+    font-weight: 700;
+}
+
+.card-refresh-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #f4c242;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.card-refresh-btn:hover {
+    background: #f4c242;
+    color: #000000;
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(244, 194, 66, 0.5);
+}
+
+.card-refresh-btn.updating i {
+    animation: spRotate 1s infinite linear;
+}
+
+@keyframes spRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

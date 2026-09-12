@@ -314,6 +314,11 @@ function showScreen(screenId, isBackNavigation = false) {
         if (typeof updateActiveServerBanner === 'function') {
             updateActiveServerBanner();
         }
+        if (typeof check24HourAutoSync === 'function') {
+            check24HourAutoSync();
+        } else if (typeof updateCardTimestamps === 'function') {
+            updateCardTimestamps();
+        }
     }
 
     document.querySelectorAll('.app-screen-container').forEach(el => el.classList.add('hidden'));
@@ -1780,6 +1785,120 @@ const fetchCache = {};
 // ==========================================
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
+function formatRelativeTime(ts) {
+    if (!ts) return 'الآن';
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'منذ ثوانٍ';
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 60) return `منذ ${minutes} د`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `منذ ${hours} س`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'أمس';
+    return `منذ ${days} أيام`;
+}
+
+function updateCardTimestamps() {
+    const liveTs = parseInt(localStorage.getItem('sp_last_updated_live') || '0', 10);
+    const vodTs = parseInt(localStorage.getItem('sp_last_updated_vod') || '0', 10);
+    const seriesTs = parseInt(localStorage.getItem('sp_last_updated_series') || '0', 10);
+
+    const elLive = document.getElementById('lastUpdatedLive');
+    if (elLive) elLive.innerText = formatRelativeTime(liveTs);
+
+    const elVod = document.getElementById('lastUpdatedVod');
+    if (elVod) elVod.innerText = formatRelativeTime(vodTs);
+
+    const elSeries = document.getElementById('lastUpdatedSeries');
+    if (elSeries) elSeries.innerText = formatRelativeTime(seriesTs);
+}
+
+// تحديث التوقيتات النسبية كل دقيقة تلقائياً
+setInterval(updateCardTimestamps, 60000);
+
+async function manualRefreshCategory(type, event) {
+    if (event) event.stopPropagation();
+
+    const btnId = type === 'live' ? 'btnRefreshLive' : (type === 'vod' ? 'btnRefreshVod' : 'btnRefreshSeries');
+    const labelId = type === 'live' ? 'lastUpdatedLive' : (type === 'vod' ? 'lastUpdatedVod' : 'lastUpdatedSeries');
+    const typeLabel = type === 'live' ? 'البث المباشر' : (type === 'vod' ? 'الأفلام' : 'المسلسلات');
+
+    const btn = document.getElementById(btnId);
+    const label = document.getElementById(labelId);
+
+    if (btn) btn.classList.add('updating');
+    if (label) label.innerText = 'جاري التحديث...';
+
+    // مسح الكاش لإجبار السيرفر على إرسال أحدث البيانات
+    for (const key in fetchCache) {
+        delete fetchCache[key];
+    }
+
+    try {
+        const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+        const user = encodeURIComponent(state.username);
+        const pass = encodeURIComponent(state.password);
+
+        let action = 'get_live_categories';
+        if (type === 'vod') action = 'get_vod_categories';
+        if (type === 'series') action = 'get_series_categories';
+
+        if (host && state.username && state.password) {
+            const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
+            await proxyFetch(url, false);
+        }
+
+        const now = Date.now();
+        localStorage.setItem('sp_last_updated_' + type, String(now));
+        updateCardTimestamps();
+        showToast(`تم تحديث قائمة ${typeLabel} بنجاح`, 'success');
+    } catch (e) {
+        console.warn('Manual refresh failed', e);
+        showToast(`تعذر تحديث قائمة ${typeLabel}`, 'warning');
+        updateCardTimestamps();
+    } finally {
+        if (btn) btn.classList.remove('updating');
+    }
+}
+
+async function check24HourAutoSync() {
+    updateCardTimestamps();
+
+    const lastSync = parseInt(localStorage.getItem('sp_last_auto_sync') || '0', 10);
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+    if (!lastSync || (now - lastSync >= TWENTY_FOUR_HOURS)) {
+        console.log('[AutoSync] Running 24-hour automatic IPTV playlist refresh...');
+        const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+        const user = encodeURIComponent(state.username);
+        const pass = encodeURIComponent(state.password);
+
+        if (!host || !state.username || !state.password) return;
+
+        for (const key in fetchCache) {
+            delete fetchCache[key];
+        }
+
+        try {
+            await Promise.allSettled([
+                proxyFetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_live_categories`, false),
+                proxyFetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_vod_categories`, false),
+                proxyFetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_series_categories`, false)
+            ]);
+
+            localStorage.setItem('sp_last_auto_sync', String(now));
+            localStorage.setItem('sp_last_updated_live', String(now));
+            localStorage.setItem('sp_last_updated_vod', String(now));
+            localStorage.setItem('sp_last_updated_series', String(now));
+            updateCardTimestamps();
+            console.log('[AutoSync] 24-hour auto refresh completed successfully');
+        } catch (e) {
+            console.warn('[AutoSync] Error during background 24-hour sync', e);
+        }
+    }
+}
+
 function forceRefreshData() {
     for (const key in fetchCache) {
         delete fetchCache[key];
@@ -3139,6 +3258,7 @@ function initTvNavigationEngine() {
 
     const FOCUSABLE_SELECTOR = [
         '.dash-card',
+        '.card-refresh-btn',
         '.nav-action-btn',
         '.cat-item',
         '.list-item',

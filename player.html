@@ -190,17 +190,12 @@
                         title="قوائم التشغيل وتبديل السيرفر">
                         <i class="fas fa-layer-group"></i>
                     </button>
-                    <!-- 3. زر التحديث -->
-                    <button onclick="forceRefreshData()" class="nav-action-btn nav-btn-refresh" id="navRefreshBtn"
-                        title="تحديث البيانات">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                    <!-- 4. زر معلومات الحساب (الملف الشخصي) -->
+                    <!-- 3. زر معلومات الحساب (الملف الشخصي) -->
                     <button onclick="switchTab('profile', null)" class="nav-action-btn nav-btn-profile"
                         id="navProfileBtn" title="الملف الشخصي">
                         <i class="far fa-user-circle"></i>
                     </button>
-                    <!-- 5. زر تسجيل الخروج -->
+                    <!-- 4. زر تسجيل الخروج -->
                     <button onclick="logout()" class="nav-action-btn nav-btn-logout" id="navLogoutBtn"
                         title="تسجيل الخروج">
                         <i class="fas fa-sign-out-alt"></i>
@@ -211,20 +206,41 @@
         <!-- MAIN APP: DASHBOARD -->
         <div class="app-screen-container dashboard-content hidden" id="dashboard-screen" dir="rtl">
             <div class="dash-cards-wrapper">
+                <!-- 1. كارت البث المباشر مع زر التحديث ووقت آخر مزامنة -->
                 <div class="dash-card card-live" onclick="switchTab('live', null)">
                     <i class="fas fa-desktop"></i>
                     <h2>البث المباشر</h2>
                     <p>شاهد القنوات مباشرة</p>
+                    <div class="card-update-footer" onclick="event.stopPropagation()">
+                        <span class="card-update-text">آخر تحديث: <b id="lastUpdatedLive">الآن</b></span>
+                        <button class="card-refresh-btn" id="btnRefreshLive" onclick="manualRefreshCategory('live', event)" title="تحديث قنوات البث المباشر">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                 </div>
+                <!-- 2. كارت الأفلام مع زر التحديث ووقت آخر مزامنة -->
                 <div class="dash-card card-movies" onclick="switchTab('movies', null)">
                     <i class="far fa-play-circle"></i>
                     <h2>الأفلام</h2>
                     <p>تصفح جميع الأفلام</p>
+                    <div class="card-update-footer" onclick="event.stopPropagation()">
+                        <span class="card-update-text">آخر تحديث: <b id="lastUpdatedVod">الآن</b></span>
+                        <button class="card-refresh-btn" id="btnRefreshVod" onclick="manualRefreshCategory('vod', event)" title="تحديث مكتبة الأفلام">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                 </div>
+                <!-- 3. كارت المسلسلات مع زر التحديث ووقت آخر مزامنة -->
                 <div class="dash-card card-series" onclick="switchTab('series', null)">
                     <i class="fas fa-video"></i>
                     <h2>المسلسلات</h2>
                     <p>تصفح المسلسلات والحلقات</p>
+                    <div class="card-update-footer" onclick="event.stopPropagation()">
+                        <span class="card-update-text">آخر تحديث: <b id="lastUpdatedSeries">الآن</b></span>
+                        <button class="card-refresh-btn" id="btnRefreshSeries" onclick="manualRefreshCategory('series', event)" title="تحديث مكتبة المسلسلات">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="dash-footer">

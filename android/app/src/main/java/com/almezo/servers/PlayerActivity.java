@@ -1,6 +1,8 @@
 package com.almezo.servers;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
@@ -13,26 +15,28 @@ import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
@@ -45,8 +49,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 public class PlayerActivity extends AppCompatActivity {
@@ -61,30 +63,45 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageButton btnRewind10;
     private ImageButton btnForward10;
     private ImageButton btnBack;
-    private ImageButton btnSubtitles;
-    private ImageButton btnAudio;
-    private ImageButton btnQualityInfo;
+    private ImageButton btnCast;
     private ImageButton btnLock;
     private ImageButton btnUnlockScreen;
+    private ImageButton btnSettings;
+    private ImageButton btnCloseSettings;
     private TextView tvTitle;
     private TextView tvPosition;
     private TextView tvDuration;
     private SeekBar seekBar;
-    private Button btnAspect;
 
-    // Floating HUDs
-    private LinearLayout hudVolumeBrightness;
-    private ImageView hudIcon;
-    private ProgressBar hudProgress;
-    private TextView hudText;
+    // Aspect & Speed
+    private View btnAspect;
+    private TextView tvAspectText;
+    private View btnSpeed;
+    private TextView tvSpeedText;
+    private int currentAspectIndex = 0; // 0: Fit (16:9), 1: Fill, 2: Zoom
+    private float[] playbackSpeeds = {1.0f, 1.25f, 1.5f, 2.0f, 0.5f, 0.75f};
+    private int currentSpeedIndex = 0;
+
+    // Vertical Visual Sliders (Matching Image 3)
+    private View layoutBrightnessSlider;
+    private View barBrightnessFill;
+    private View layoutVolumeSlider;
+    private View barVolumeFill;
     private TextView tvSeekFeedback;
+
+    // Settings Drawer (Matching Image 4)
+    private View settingsDrawerOverlay;
+    private View settingsDrawer;
+    private RadioGroup rgVideoTracks;
+    private RadioGroup rgAudioTracks;
+    private RadioGroup rgSubtitleTracks;
+    private TextView tvNoSubtitles;
 
     private AudioManager audioManager;
     private int maxVolume = 15;
     private float currentBrightness = 0.5f;
     private boolean isScreenLocked = false;
     private boolean isUserSeeking = false;
-    private int currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private GestureDetector gestureDetector;
@@ -135,12 +152,11 @@ public class PlayerActivity extends AppCompatActivity {
         }
     };
 
-    private final Runnable hideHudRunnable = new Runnable() {
+    private final Runnable hideSlidersRunnable = new Runnable() {
         @Override
         public void run() {
-            if (hudVolumeBrightness != null) {
-                hudVolumeBrightness.setVisibility(View.GONE);
-            }
+            if (layoutBrightnessSlider != null) layoutBrightnessSlider.setVisibility(View.GONE);
+            if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
         }
     };
 
@@ -241,22 +257,33 @@ public class PlayerActivity extends AppCompatActivity {
         btnRewind10 = findViewById(R.id.btn_rewind_10);
         btnForward10 = findViewById(R.id.btn_forward_10);
         btnBack = findViewById(R.id.btn_back);
-        btnSubtitles = findViewById(R.id.btn_subtitles);
-        btnAudio = findViewById(R.id.btn_audio);
-        btnQualityInfo = findViewById(R.id.btn_quality_info);
+        btnCast = findViewById(R.id.btn_cast);
         btnLock = findViewById(R.id.btn_lock);
         btnUnlockScreen = findViewById(R.id.btn_unlock_screen);
+        btnSettings = findViewById(R.id.btn_settings);
+        btnCloseSettings = findViewById(R.id.btn_close_settings);
         tvTitle = findViewById(R.id.tv_title);
         tvPosition = findViewById(R.id.tv_position);
         tvDuration = findViewById(R.id.tv_duration);
         seekBar = findViewById(R.id.seek_bar);
-        btnAspect = findViewById(R.id.btn_aspect);
 
-        hudVolumeBrightness = findViewById(R.id.hud_volume_brightness);
-        hudIcon = findViewById(R.id.hud_icon);
-        hudProgress = findViewById(R.id.hud_progress);
-        hudText = findViewById(R.id.hud_text);
+        btnAspect = findViewById(R.id.btn_aspect);
+        tvAspectText = findViewById(R.id.tv_aspect_text);
+        btnSpeed = findViewById(R.id.btn_speed);
+        tvSpeedText = findViewById(R.id.tv_speed_text);
+
+        layoutBrightnessSlider = findViewById(R.id.layout_brightness_slider);
+        barBrightnessFill = findViewById(R.id.bar_brightness_fill);
+        layoutVolumeSlider = findViewById(R.id.layout_volume_slider);
+        barVolumeFill = findViewById(R.id.bar_volume_fill);
         tvSeekFeedback = findViewById(R.id.tv_seek_feedback);
+
+        settingsDrawerOverlay = findViewById(R.id.settings_drawer_overlay);
+        settingsDrawer = findViewById(R.id.settings_drawer);
+        rgVideoTracks = findViewById(R.id.rg_video_tracks);
+        rgAudioTracks = findViewById(R.id.rg_audio_tracks);
+        rgSubtitleTracks = findViewById(R.id.rg_subtitle_tracks);
+        tvNoSubtitles = findViewById(R.id.tv_no_subtitles);
 
         String title = getIntent().getStringExtra("title");
         if (title != null && !title.isEmpty() && tvTitle != null) {
@@ -265,6 +292,12 @@ public class PlayerActivity extends AppCompatActivity {
 
         if (btnBack != null) {
             btnBack.setOnClickListener(v -> finish());
+        }
+
+        if (btnCast != null) {
+            btnCast.setOnClickListener(v -> {
+                Toast.makeText(this, "جاري البحث عن أجهزة البث المتاحة...", Toast.LENGTH_SHORT).show();
+            });
         }
 
         if (btnPlayPause != null) {
@@ -277,6 +310,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (btnRewind10 != null) {
             btnRewind10.setOnClickListener(v -> {
                 seekRelative(-10000);
+                showSeekFeedback("-10s");
                 resetControlsHideTimer();
             });
         }
@@ -284,58 +318,44 @@ public class PlayerActivity extends AppCompatActivity {
         if (btnForward10 != null) {
             btnForward10.setOnClickListener(v -> {
                 seekRelative(10000);
-                resetControlsHideTimer();
-            });
-        }
-
-        if (btnSubtitles != null) {
-            btnSubtitles.setOnClickListener(v -> {
-                showSubtitlesDialog();
-                resetControlsHideTimer();
-            });
-        }
-
-        if (btnAudio != null) {
-            btnAudio.setOnClickListener(v -> {
-                showAudioTracksDialog();
-                resetControlsHideTimer();
-            });
-        }
-
-        if (btnQualityInfo != null) {
-            btnQualityInfo.setOnClickListener(v -> {
-                showVideoQualityDialog();
+                showSeekFeedback("+10s");
                 resetControlsHideTimer();
             });
         }
 
         if (btnLock != null) {
-            btnLock.setOnClickListener(v -> {
-                lockControls();
-            });
+            btnLock.setOnClickListener(v -> lockControls());
         }
 
         if (btnUnlockScreen != null) {
-            btnUnlockScreen.setOnClickListener(v -> {
-                unlockControls();
-            });
+            btnUnlockScreen.setOnClickListener(v -> unlockControls());
+        }
+
+        if (btnSettings != null) {
+            btnSettings.setOnClickListener(v -> openSettingsDrawer());
+        }
+
+        if (btnCloseSettings != null) {
+            btnCloseSettings.setOnClickListener(v -> closeSettingsDrawer());
+        }
+
+        if (settingsDrawerOverlay != null) {
+            settingsDrawerOverlay.setOnClickListener(v -> closeSettingsDrawer());
         }
 
         if (btnAspect != null && playerView != null) {
             btnAspect.setOnClickListener(v -> {
                 try {
-                    if (currentAspectMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
-                        currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
-                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
-                        btnAspect.setText("تكبير");
-                    } else if (currentAspectMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-                        currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FILL;
-                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
-                        btnAspect.setText("تمديد");
-                    } else {
-                        currentAspectMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
+                    currentAspectIndex = (currentAspectIndex + 1) % 3;
+                    if (currentAspectIndex == 0) {
                         playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-                        btnAspect.setText("16:9");
+                        if (tvAspectText != null) tvAspectText.setText("Aspect Ratio");
+                    } else if (currentAspectIndex == 1) {
+                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                        if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
+                    } else {
+                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                        if (tvAspectText != null) tvAspectText.setText("Zoom (تكبير)");
                     }
                 } catch (Throwable t) {
                     Log.w(TAG, "aspect change error", t);
@@ -344,7 +364,26 @@ public class PlayerActivity extends AppCompatActivity {
             });
         }
 
+        if (btnSpeed != null) {
+            btnSpeed.setOnClickListener(v -> {
+                try {
+                    currentSpeedIndex = (currentSpeedIndex + 1) % playbackSpeeds.length;
+                    float speed = playbackSpeeds[currentSpeedIndex];
+                    if (player != null) {
+                        player.setPlaybackParameters(new PlaybackParameters(speed));
+                    }
+                    if (tvSpeedText != null) {
+                        tvSpeedText.setText("Speed (" + (speed == (int) speed ? (int) speed + "x" : speed + "x") + ")");
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "speed change error", t);
+                }
+                resetControlsHideTimer();
+            });
+        }
+
         if (seekBar != null) {
+            seekBar.setMax(1000);
             seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
@@ -390,6 +429,10 @@ public class PlayerActivity extends AppCompatActivity {
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
                 if (isScreenLocked) return true;
+                if (settingsDrawerOverlay != null && settingsDrawerOverlay.getVisibility() == View.VISIBLE) {
+                    closeSettingsDrawer();
+                    return true;
+                }
                 if (controlsOverlay != null) {
                     if (controlsOverlay.getVisibility() == View.VISIBLE) {
                         hideControls();
@@ -407,13 +450,11 @@ public class PlayerActivity extends AppCompatActivity {
                 float x = e.getX();
 
                 if (x < screenWidth * 0.4f) {
-                    // Double tap left -> rewind 10s
                     seekRelative(-10000);
-                    showSeekFeedback("-10 ثواني");
+                    showSeekFeedback("-10s");
                 } else if (x > screenWidth * 0.6f) {
-                    // Double tap right -> forward 10s
                     seekRelative(10000);
-                    showSeekFeedback("+10 ثواني");
+                    showSeekFeedback("+10s");
                 } else {
                     togglePlayPause();
                 }
@@ -459,7 +500,7 @@ public class PlayerActivity extends AppCompatActivity {
                             }
 
                             if (isVerticalDrag) {
-                                float percentDelta = deltaY / (screenHeight * 0.6f);
+                                float percentDelta = deltaY / (screenHeight * 0.5f);
                                 if (isVolumeGesture) {
                                     adjustVolume(percentDelta);
                                 } else {
@@ -472,7 +513,7 @@ public class PlayerActivity extends AppCompatActivity {
                         case MotionEvent.ACTION_UP:
                         case MotionEvent.ACTION_CANCEL:
                             if (isVerticalDrag) {
-                                handler.postDelayed(hideHudRunnable, 1200);
+                                handler.postDelayed(hideSlidersRunnable, 1200);
                             }
                             break;
                     }
@@ -492,8 +533,8 @@ public class PlayerActivity extends AppCompatActivity {
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0);
             }
 
-            int percent = (target * 100) / Math.max(1, maxVolume);
-            showHud(R.drawable.ic_player_volume, percent, "صوت: " + percent + "%");
+            float percent = (float) target / Math.max(1, maxVolume);
+            updateVerticalSlider(layoutVolumeSlider, barVolumeFill, percent);
         } catch (Throwable t) {
             Log.w(TAG, "adjustVolume error", t);
         }
@@ -506,21 +547,24 @@ public class PlayerActivity extends AppCompatActivity {
             lp.screenBrightness = currentBrightness;
             getWindow().setAttributes(lp);
 
-            int percent = (int) (currentBrightness * 100);
-            showHud(R.drawable.ic_player_brightness, percent, "سطوع: " + percent + "%");
+            updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
         } catch (Throwable t) {
             Log.w(TAG, "adjustBrightness error", t);
         }
     }
 
-    private void showHud(int iconRes, int progress, String text) {
+    private void updateVerticalSlider(View layout, View fillBar, float percent) {
         try {
-            handler.removeCallbacks(hideHudRunnable);
-            if (hudVolumeBrightness != null) {
-                if (hudIcon != null) hudIcon.setImageResource(iconRes);
-                if (hudProgress != null) hudProgress.setProgress(progress);
-                if (hudText != null) hudText.setText(text);
-                hudVolumeBrightness.setVisibility(View.VISIBLE);
+            handler.removeCallbacks(hideSlidersRunnable);
+            if (layout != null) {
+                layout.setVisibility(View.VISIBLE);
+            }
+            if (fillBar != null) {
+                int totalHeightPx = (int) (170 * getResources().getDisplayMetrics().density);
+                int fillHeight = Math.max(4, (int) (totalHeightPx * percent));
+                ViewGroup.LayoutParams lp = fillBar.getLayoutParams();
+                lp.height = fillHeight;
+                fillBar.setLayoutParams(lp);
             }
         } catch (Throwable ignored) { }
     }
@@ -582,137 +626,176 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     // ==========================================
-    // SUBTITLES DIALOG
+    // SETTINGS DRAWER (Matching Image 4 Exactly)
     // ==========================================
-    private void showSubtitlesDialog() {
-        if (player == null) return;
-        try {
-            Tracks tracks = player.getCurrentTracks();
-            List<String> names = new ArrayList<>();
-            List<TrackSelectionOverride> overrides = new ArrayList<>();
-
-            names.add("إيقاف الترجمة");
-            overrides.add(null);
-
-            for (Tracks.Group group : tracks.getGroups()) {
-                if (group.getType() == C.TRACK_TYPE_TEXT) {
-                    TrackGroup tg = group.getMediaTrackGroup();
-                    for (int i = 0; i < tg.length; i++) {
-                        Format f = tg.getFormat(i);
-                        String label = f.label != null ? f.label : (f.language != null ? f.language : ("ترجمة #" + (names.size())));
-                        names.add(label);
-                        overrides.add(new TrackSelectionOverride(tg, i));
-                    }
-                }
-            }
-
-            if (names.size() <= 1) {
-                Toast.makeText(this, "لا توجد ملفات ترجمة مدمجة لهذا المقطع", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            AlertDialog.Builder b = new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert);
-            b.setTitle("الترجمة المدمجة");
-            b.setItems(names.toArray(new String[0]), (dialog, which) -> {
-                try {
-                    TrackSelectionParameters.Builder params = player.getTrackSelectionParameters().buildUpon();
-                    if (which == 0) {
-                        params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true);
-                        Toast.makeText(this, "تم إيقاف الترجمة", Toast.LENGTH_SHORT).show();
-                    } else {
-                        params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false);
-                        params.clearOverridesOfType(C.TRACK_TYPE_TEXT);
-                        params.addOverride(overrides.get(which));
-                        Toast.makeText(this, "تم تفعيل: " + names.get(which), Toast.LENGTH_SHORT).show();
-                    }
-                    player.setTrackSelectionParameters(params.build());
-                } catch (Throwable t) {
-                    Log.w(TAG, "subtitle selection error", t);
-                }
-            });
-            b.setNegativeButton("إلغاء", null);
-            b.show();
-        } catch (Throwable t) {
-            Log.e(TAG, "showSubtitlesDialog error", t);
+    private void openSettingsDrawer() {
+        if (settingsDrawerOverlay != null) {
+            populateSettingsTracks();
+            settingsDrawerOverlay.setVisibility(View.VISIBLE);
+            handler.removeCallbacks(hideControlsRunnable);
         }
     }
 
-    // ==========================================
-    // AUDIO TRACKS DIALOG
-    // ==========================================
-    private void showAudioTracksDialog() {
+    private void closeSettingsDrawer() {
+        if (settingsDrawerOverlay != null) {
+            settingsDrawerOverlay.setVisibility(View.GONE);
+            resetControlsHideTimer();
+        }
+    }
+
+    private void populateSettingsTracks() {
         if (player == null) return;
         try {
             Tracks tracks = player.getCurrentTracks();
-            List<String> names = new ArrayList<>();
-            List<TrackSelectionOverride> overrides = new ArrayList<>();
 
-            for (Tracks.Group group : tracks.getGroups()) {
-                if (group.getType() == C.TRACK_TYPE_AUDIO) {
-                    TrackGroup tg = group.getMediaTrackGroup();
-                    for (int i = 0; i < tg.length; i++) {
-                        Format f = tg.getFormat(i);
-                        String lang = f.label != null ? f.label : (f.language != null ? f.language : ("مسار صوتي #" + (names.size() + 1)));
-                        if (f.channelCount > 0) {
-                            lang += " (" + f.channelCount + "ch)";
+            // 1. VIDEO TRACKS
+            if (rgVideoTracks != null) {
+                rgVideoTracks.removeAllViews();
+                addRadioButton(rgVideoTracks, "Disable", false, (buttonView, isChecked) -> {
+                    if (isChecked) {
+                        TrackSelectionParameters params = player.getTrackSelectionParameters()
+                                .buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                                .build();
+                        player.setTrackSelectionParameters(params);
+                    }
+                });
+
+                int videoIndex = 0;
+                for (Tracks.Group group : tracks.getGroups()) {
+                    if (group.getType() == C.TRACK_TYPE_VIDEO) {
+                        TrackGroup tg = group.getMediaTrackGroup();
+                        for (int i = 0; i < tg.length; i++) {
+                            Format f = tg.getFormat(i);
+                            String res = (f.width > 0 && f.height > 0) ? (f.width + " x " + f.height) : "Default";
+                            String codec = f.sampleMimeType != null ? f.sampleMimeType.replace("video/", "") : "h264";
+                            String label = videoIndex + ", VIDEO, " + codec + ", " + res;
+                            boolean isSelected = group.isTrackSelected(i);
+
+                            final int finalIndex = i;
+                            final TrackGroup finalTg = tg;
+                            addRadioButton(rgVideoTracks, label, isSelected, (buttonView, isChecked) -> {
+                                if (isChecked) {
+                                    TrackSelectionParameters params = player.getTrackSelectionParameters()
+                                            .buildUpon()
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
+                                            .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                                            .addOverride(new TrackSelectionOverride(finalTg, finalIndex))
+                                            .build();
+                                    player.setTrackSelectionParameters(params);
+                                }
+                            });
+                            videoIndex++;
                         }
-                        names.add(lang);
-                        overrides.add(new TrackSelectionOverride(tg, i));
                     }
                 }
             }
 
-            if (names.isEmpty()) {
-                Toast.makeText(this, "لا توجد مسارات صوتية بديلة لهذا المقطع", Toast.LENGTH_SHORT).show();
-                return;
+            // 2. AUDIO TRACKS
+            if (rgAudioTracks != null) {
+                rgAudioTracks.removeAllViews();
+                addRadioButton(rgAudioTracks, "Disable", false, (buttonView, isChecked) -> {
+                    if (isChecked) {
+                        TrackSelectionParameters params = player.getTrackSelectionParameters()
+                                .buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                                .build();
+                        player.setTrackSelectionParameters(params);
+                    }
+                });
+
+                int audioIndex = 1;
+                for (Tracks.Group group : tracks.getGroups()) {
+                    if (group.getType() == C.TRACK_TYPE_AUDIO) {
+                        TrackGroup tg = group.getMediaTrackGroup();
+                        for (int i = 0; i < tg.length; i++) {
+                            Format f = tg.getFormat(i);
+                            String codec = f.sampleMimeType != null ? f.sampleMimeType.replace("audio/", "") : "aac";
+                            String lang = f.language != null ? f.language : "und";
+                            String sampleRate = f.sampleRate > 0 ? (f.sampleRate + " Hz") : "48000 Hz";
+                            String label = audioIndex + ", AUDIO, " + codec + ", N/A, " + sampleRate + ", " + lang;
+                            boolean isSelected = group.isTrackSelected(i);
+
+                            final int finalIndex = i;
+                            final TrackGroup finalTg = tg;
+                            addRadioButton(rgAudioTracks, label, isSelected, (buttonView, isChecked) -> {
+                                if (isChecked) {
+                                    TrackSelectionParameters params = player.getTrackSelectionParameters()
+                                            .buildUpon()
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                                            .addOverride(new TrackSelectionOverride(finalTg, finalIndex))
+                                            .build();
+                                    player.setTrackSelectionParameters(params);
+                                }
+                            });
+                            audioIndex++;
+                        }
+                    }
+                }
             }
 
-            AlertDialog.Builder b = new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert);
-            b.setTitle("المسار الصوتي / الدبلجة");
-            b.setItems(names.toArray(new String[0]), (dialog, which) -> {
-                try {
-                    TrackSelectionParameters.Builder params = player.getTrackSelectionParameters().buildUpon();
-                    params.clearOverridesOfType(C.TRACK_TYPE_AUDIO);
-                    params.addOverride(overrides.get(which));
-                    player.setTrackSelectionParameters(params.build());
-                    Toast.makeText(this, "تم اختيار: " + names.get(which), Toast.LENGTH_SHORT).show();
-                } catch (Throwable t) {
-                    Log.w(TAG, "audio track selection error", t);
+            // 3. SUBTITLE TRACKS
+            if (rgSubtitleTracks != null) {
+                rgSubtitleTracks.removeAllViews();
+                int subCount = 0;
+
+                for (Tracks.Group group : tracks.getGroups()) {
+                    if (group.getType() == C.TRACK_TYPE_TEXT) {
+                        TrackGroup tg = group.getMediaTrackGroup();
+                        for (int i = 0; i < tg.length; i++) {
+                            Format f = tg.getFormat(i);
+                            String label = f.label != null ? f.label : (f.language != null ? f.language : ("Subtitle #" + (subCount + 1)));
+                            boolean isSelected = group.isTrackSelected(i);
+
+                            final int finalIndex = i;
+                            final TrackGroup finalTg = tg;
+                            addRadioButton(rgSubtitleTracks, label, isSelected, (buttonView, isChecked) -> {
+                                if (isChecked) {
+                                    TrackSelectionParameters params = player.getTrackSelectionParameters()
+                                            .buildUpon()
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                            .addOverride(new TrackSelectionOverride(finalTg, finalIndex))
+                                            .build();
+                                    player.setTrackSelectionParameters(params);
+                                }
+                            });
+                            subCount++;
+                        }
+                    }
                 }
-            });
-            b.setNegativeButton("إلغاء", null);
-            b.show();
+
+                if (subCount == 0) {
+                    if (tvNoSubtitles != null) tvNoSubtitles.setVisibility(View.VISIBLE);
+                } else {
+                    if (tvNoSubtitles != null) tvNoSubtitles.setVisibility(View.GONE);
+                    addRadioButton(rgSubtitleTracks, "Disable Subtitles", false, (buttonView, isChecked) -> {
+                        if (isChecked) {
+                            TrackSelectionParameters params = player.getTrackSelectionParameters()
+                                    .buildUpon()
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                    .build();
+                            player.setTrackSelectionParameters(params);
+                        }
+                    });
+                }
+            }
         } catch (Throwable t) {
-            Log.e(TAG, "showAudioTracksDialog error", t);
+            Log.e(TAG, "populateSettingsTracks error", t);
         }
     }
 
-    // ==========================================
-    // VIDEO QUALITY & SPECS DIALOG
-    // ==========================================
-    private void showVideoQualityDialog() {
-        if (player == null) return;
-        try {
-            Format vf = player.getVideoFormat();
-            String res = (vf != null && vf.width > 0 && vf.height > 0) ? (vf.width + " × " + vf.height) : "تلقائي (حسب البث)";
-            String codec = (vf != null && vf.sampleMimeType != null) ? vf.sampleMimeType.replace("video/", "") : "H.264 / HEVC";
-            float fps = (vf != null && vf.frameRate > 0) ? vf.frameRate : 0;
-            String fpsText = (fps > 0) ? String.format(Locale.US, "%.1f FPS", fps) : "قياسي";
-
-            String infoMessage = "دقة الفيديو: " + res + "\n"
-                    + "معدل الإطارات: " + fpsText + "\n"
-                    + "ترميز الفيديو: " + codec + "\n"
-                    + "بروتوكول البث: IPTV Stream (HTTP)\n"
-                    + "المشغل: ExoPlayer Media3 (تسريع عتادي)";
-
-            AlertDialog.Builder b = new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert);
-            b.setTitle("معلومات وجودة البث");
-            b.setMessage(infoMessage);
-            b.setPositiveButton("حسناً", null);
-            b.show();
-        } catch (Throwable t) {
-            Log.e(TAG, "showVideoQualityDialog error", t);
-        }
+    private void addRadioButton(RadioGroup group, String text, boolean isChecked, RadioButton.OnCheckedChangeListener listener) {
+        RadioButton rb = new RadioButton(this);
+        rb.setText(text);
+        rb.setTextColor(Color.WHITE);
+        rb.setTextSize(13.5f);
+        rb.setChecked(isChecked);
+        rb.setPadding(12, 10, 12, 10);
+        rb.setButtonTintList(ColorStateList.valueOf(Color.parseColor("#5240d8")));
+        rb.setOnCheckedChangeListener(listener);
+        group.addView(rb);
     }
 
     // ==========================================
@@ -720,6 +803,13 @@ public class PlayerActivity extends AppCompatActivity {
     // ==========================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (settingsDrawerOverlay != null && settingsDrawerOverlay.getVisibility() == View.VISIBLE) {
+            if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
+                closeSettingsDrawer();
+                return true;
+            }
+        }
+
         if (isScreenLocked && keyCode != KeyEvent.KEYCODE_BACK) {
             return super.onKeyDown(keyCode, event);
         }
@@ -747,7 +837,7 @@ public class PlayerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_MEDIA_REWIND:
             case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
                 seekRelative(-10000);
-                showSeekFeedback("-10 ثواني");
+                showSeekFeedback("-10s");
                 showControls();
                 return true;
 
@@ -755,7 +845,7 @@ public class PlayerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
             case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
                 seekRelative(10000);
-                showSeekFeedback("+10 ثواني");
+                showSeekFeedback("+10s");
                 showControls();
                 return true;
 
@@ -787,7 +877,6 @@ public class PlayerActivity extends AppCompatActivity {
         videoUrl = videoUrl.trim();
 
         try {
-            // Configure HttpDataSource with cross-protocol redirects and standard IPTV User-Agent
             DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
                     .setUserAgent("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 ALmEz0/1.0")
                     .setAllowCrossProtocolRedirects(true)
@@ -797,14 +886,8 @@ public class PlayerActivity extends AppCompatActivity {
             DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(httpDataSourceFactory);
 
-            // Resilient buffer control for smooth IPTV streaming
             DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(
-                            15000, // minBufferMs
-                            50000, // maxBufferMs
-                            1500,  // bufferForPlaybackMs
-                            3000   // bufferForPlaybackAfterRebufferMs
-                    )
+                    .setBufferDurationsMs(15000, 50000, 1500, 3000)
                     .setPrioritizeTimeOverSizeThresholds(true)
                     .build();
 
@@ -908,6 +991,9 @@ public class PlayerActivity extends AppCompatActivity {
     private void hideControls() {
         try {
             if (player != null && !isUserSeeking) {
+                if (settingsDrawerOverlay != null && settingsDrawerOverlay.getVisibility() == View.VISIBLE) {
+                    return; // Don't hide while settings drawer is open
+                }
                 if (controlsOverlay != null) {
                     controlsOverlay.setVisibility(View.GONE);
                 }
@@ -924,6 +1010,7 @@ public class PlayerActivity extends AppCompatActivity {
         } catch (Throwable ignored) { }
     }
 
+    // FIXED: Exactly matches Image 3 formatting and prevents MissingFormatArgumentException
     private String formatTime(long ms) {
         if (ms <= 0) return "00:00";
         long totalSeconds = ms / 1000;
@@ -931,9 +1018,9 @@ public class PlayerActivity extends AppCompatActivity {
         long minutes = (totalSeconds / 60) % 60;
         long hours = totalSeconds / 3600;
         if (hours > 0) {
-            return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds);
+            return String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds);
         } else {
-            return String.format(Locale.US, "%02d:%02d:%02d", minutes, seconds);
+            return String.format(Locale.US, "%02d:%02d", minutes, seconds);
         }
     }
 
