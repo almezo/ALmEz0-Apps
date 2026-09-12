@@ -30,7 +30,9 @@ if (!gotTheLock) {
                 contextIsolation: true,
                 preload: path.join(__dirname, 'preload.js'),
                 spellcheck: false,
-                sandbox: false
+                sandbox: false,
+                webSecurity: false,
+                allowRunningInsecureContent: true
             }
         });
 

@@ -7,8 +7,15 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <script>
+        // كشف فوري لمنصات التطبيقات (Capacitor / Electron / Standalone) لمنع ظهور عناصر التثبيت
+        const isNativeEarly = !!(window.electronAPI?.isElectron || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) || window.navigator.standalone);
+        if (isNativeEarly) {
+            document.documentElement.classList.add('platform-native');
+        }
+
         window.deferredPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
+            if (isNativeEarly) return;
             e.preventDefault();
             window.deferredPrompt = e;
         });

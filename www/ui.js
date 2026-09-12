@@ -3081,11 +3081,17 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// لا يتم التحقق من localStorage هنا، الصندوق سيظهر دائماً مع كل تحديث للصفحة
-// لكن سنقوم بإخفائه فوراً إذا كان المستخدم يفتح التطبيق المثبت (لأجهزة iOS القديمة التي لا تدعم CSS display-mode)
+// إخفاء صندوق التنزيل نهائياً إذا كان المستخدم يفتح التطبيق المثبت (أندرويد، ويندوز، آيفون، أو standalone)
 if (installContainer) {
-    if (window.navigator.standalone === true) {
+    const isNativeApp = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
+                        !!(window.electronAPI && window.electronAPI.isElectron) ||
+                        !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                        window.navigator.standalone === true;
+    if (isNativeApp) {
         installContainer.style.setProperty('display', 'none', 'important');
+        if (installContainer.parentNode) {
+            installContainer.parentNode.removeChild(installContainer);
+        }
     }
 }
 
@@ -3093,6 +3099,7 @@ if (installContainer) {
 
 // دالة عرض النافذة المنبثقة للتنزيل اليدوي
 function showPwaFallbackModal() {
+    if ((window.AlMeZ0App && window.AlMeZ0App.isNative) || window.navigator.standalone) return;
     let overlay = document.getElementById('pwa-fallback-overlay');
     if (!overlay) {
         overlay = document.createElement('div');

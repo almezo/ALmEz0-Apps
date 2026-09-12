@@ -146,11 +146,23 @@
         if (!body) return;
 
         if (isElectron) {
-            body.classList.add('platform-electron');
+            body.classList.add('platform-native', 'platform-electron');
+            document.documentElement.classList.add('platform-native');
         } else if (isAndroid) {
             body.classList.add('platform-native', 'platform-android');
+            document.documentElement.classList.add('platform-native');
         } else if (isIOS) {
             body.classList.add('platform-native', 'platform-ios');
+            document.documentElement.classList.add('platform-native');
+        }
+
+        // إخفاء وحذف صندوق تثبيت التطبيق تماماً في كل التطبيقات المثبتة
+        if (isNative) {
+            const pwaBox = document.getElementById('pwa-install-container');
+            if (pwaBox) {
+                pwaBox.style.setProperty('display', 'none', 'important');
+                pwaBox.remove();
+            }
         }
 
         // Intercept external social/contact link clicks in native Android, iOS and Electron

@@ -4726,11 +4726,24 @@ th.sortable-th:hover .sort-th-icon {
     /* إظهار الصندوق دائماً عند تحميل الصفحة */
 }
 
-/* إخفاء صندوق التنزيل نهائياً إذا كان المستخدم يفتح الموقع من التطبيق المثبت */
+/* إخفاء صندوق التنزيل نهائياً في جميع التطبيقات المثبتة (أندرويد، آيفون، ويندوز) والـ Standalone */
 @media all and (display-mode: standalone) {
-    .pwa-install-container-margin {
+    .pwa-install-container-margin,
+    #pwa-install-container {
         display: none !important;
     }
+}
+
+html.platform-native #pwa-install-container,
+html.platform-native .pwa-install-container-margin,
+body.platform-native #pwa-install-container,
+body.platform-native .pwa-install-container-margin,
+body.platform-android #pwa-install-container,
+body.platform-ios #pwa-install-container,
+body.platform-electron #pwa-install-container,
+.platform-native #pwa-install-container,
+.platform-electron #pwa-install-container {
+    display: none !important;
 }
 
 .pwa-install-box-wrapper {

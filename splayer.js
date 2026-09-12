@@ -496,26 +496,13 @@ function playStream(id, type, extension, name, icon) {
     let hostUrl = (serverHostsMap[currentServerCode] || localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host') || (state.hostUrls && state.hostUrls[0]) || '').replace(/\/+$/, '');
 
     // ================================================================
-    // 1. نظام كشف المتصفحات الشامل لدعم صيغة MKV
+    // نظام فحص المتصفح وإعداد الروابط
     // ================================================================
     const userAgent = navigator.userAgent.toLowerCase();
-
-    // فحص جميع أجهزة آبل (آيفون، آيباد، آيبود) - جميع متصفحاتها ترفض MKV
-    const isIOS = /ipad|iphone|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    // فحص متصفح سفاري على أجهزة الماك (لا يحتوي على كلمة chrome)
     const isSafari = /safari/.test(userAgent) && userAgent.indexOf('chrome') === -1;
+    const isAndroid = /android/i.test(userAgent) || (window.AlMeZ0App && window.AlMeZ0App.isAndroid);
 
-    // فحص متصفح فايرفوكس
-    const isFirefox = userAgent.indexOf('firefox') > -1;
-
-    // فحص أجهزة أندرويد (المتصفح المدمج و WebView لا يدعمان حاوية MKV وترميز AC3)
-    const isAndroid = /android/i.test(userAgent) || (window.AlMeZ0App && (window.AlMeZ0App.isAndroid || window.AlMeZ0App.isNative));
-
-    // الشرط: إذا كان المتصفح أحد هؤلاء، فهو لا يدعم MKV نهائياً
-    const isUnsupportedMKVBrowser = isFirefox || isSafari || isIOS || isAndroid;
-
-    // بناء الرابط الأساسي لاستخدامه في التنبيه أو المشغل
+    // بناء الرابط الأساسي لاستخدامه في المشغل أو المشغل الخارجي الاختياري
     let baseStreamUrl = '';
     if (type === 'live') {
         baseStreamUrl = `${hostUrl}/live/${user}/${pass}/${id}.m3u8`;
@@ -525,7 +512,7 @@ function playStream(id, type, extension, name, icon) {
         baseStreamUrl = `${hostUrl}/series/${user}/${pass}/${id}.${ext}`;
     }
 
-    // دالة مساعدة لتشغيل الرابط في مشغل وسائط خارجي
+    // دالة مساعدة لتشغيل الرابط في مشغل وسائط خارجي (اختياري عند طلب المستخدم يدوياً)
     function launchExternalPlayer(targetUrl, mediaName) {
         if (window.AlMeZ0App && typeof window.AlMeZ0App.openInExternalPlayer === 'function') {
             window.AlMeZ0App.openInExternalPlayer(targetUrl, mediaName);
@@ -538,45 +525,7 @@ function playStream(id, type, extension, name, icon) {
     }
 
     // ================================================================
-    // 2. صندوق تنبيه المشغل الخارجي (يظهر فقط إذا كانت الصيغة MKV والمتصفح لا يدعمها)
-    // ================================================================
-    if (ext === 'mkv' && isUnsupportedMKVBrowser) {
-        let browserWarning = isAndroid ?
-            "صيغة هذا المقطع <b>(MKV)</b> وترميز الصوت الخاص به لا تدعمه متصفحات الويب المدمجة." :
-            isFirefox ?
-            "متصفح <b>Firefox</b> لا يدعم تشغيل صيغة MKV بشكل مباشر داخل الصفحة." :
-            (isIOS || isSafari) ? "متصفحات <b>Safari</b> وأجهزة <b>Apple</b> لا تدعم تشغيل صيغة MKV." :
-                "متصفحك الحالي لا يدعم تشغيل حاوية هذا الملف مباشرة.";
-
-        Swal.fire({
-            title: '<span style="color: #f4c242;">🎬 تشغيل عبر مشغل خارجي</span>',
-            width: '32em',
-            html: `
-                <div style="text-align: center; direction: rtl; color: #fff; font-size: 15px; line-height: 1.6; padding: 0 10px;">
-                    <p style="margin: 0;">${browserWarning} تم تجهيز المقطع ليعمل بأعلى جودة وصوت محيطي عبر <b>VLC Media Player</b> أو <b>MX Player</b>.</p>
-                    <p style="margin-top: 10px; color: #aaa; font-size: 13px;">* فور النقر على زر التشغيل أدناه سيفتح المقطع في مشغل جهازك الخارجي فوراً.</p>
-                </div>
-            `,
-            icon: 'info',
-            background: '#161b22',
-            color: '#fff',
-            showCancelButton: true,
-            confirmButtonText: '<i class="fas fa-play"></i> تشغيل في VLC / مشغل خارجي',
-            cancelButtonText: 'إلغاء',
-            confirmButtonColor: '#f4c242',
-            cancelButtonColor: '#333',
-            footer: '<a href="https://play.google.com/store/apps/details?id=org.videolan.vlc" target="_blank" style="color: #4caf50; font-size: 13px; text-decoration: underline;">لست تمتلك برنامج VLC؟ اضغط هنا لتحميله مجاناً</a>'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                launchExternalPlayer(baseStreamUrl, name);
-            }
-        });
-
-        return;
-    }
-
-    // ================================================================
-    // 3. بناء قائمة الروابط (إذا كان المتصفح يدعم التشغيل مثل Chrome/Edge)
+    // بناء قائمة الروابط والصيغ لتشغيلها مباشرة داخل المشغل المدمج
     // ================================================================
     let urlQueue = [];
 
@@ -585,14 +534,16 @@ function playStream(id, type, extension, name, icon) {
         urlQueue.push(`${hostUrl}/live/${user}/${pass}/${id}.ts`);
         urlQueue.push(`${hostUrl}/live/${user}/${pass}/${id}`);
     } else if (type === 'vod') {
+        // تشغيل الفيلم داخل المشغل: الصيغة المحددة ثم mp4 ثم بث m3u8 ثم مباشر
         urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.${ext}`);
-        urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.m3u8`);
         if (ext !== 'mp4') urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.mp4`);
+        urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.m3u8`);
         urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}`);
     } else if (type === 'series') {
+        // تشغيل الحلقة داخل المشغل: الصيغة المحددة ثم mp4 ثم بث m3u8 ثم مباشر
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.${ext}`);
-        urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.m3u8`);
         if (ext !== 'mp4') urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.mp4`);
+        urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.m3u8`);
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}`);
     }
 
@@ -620,13 +571,13 @@ function playStream(id, type, extension, name, icon) {
         openNativeFullscreen(modal);
 
         const container = document.getElementById('fullscreenVideoContainer');
-        container.innerHTML = '<video id="mizoVodPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline style="width:100%;height:100%;"></video>';
+        container.innerHTML = '<video id="mizoVodPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>';
         containerSelector = 'mizoVodPlayer';
         if (typeof resetCloseBtnInactivityTimer === 'function') resetCloseBtnInactivityTimer();
         history.pushState({ screenId: typeof currentScreenId !== 'undefined' ? currentScreenId : null, modal: 'fullscreen' }, '', window.location.href);
     } else {
         const wrapper = document.getElementById('livePlayerWrapper');
-        wrapper.innerHTML = '<video id="mizoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline style="width:100%;height:100%;"></video>';
+        wrapper.innerHTML = '<video id="mizoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>';
         containerSelector = 'mizoPlayer';
 
         document.getElementById('playingChannelName').innerText = name || 'Live Channel';
@@ -644,32 +595,39 @@ function playStream(id, type, extension, name, icon) {
     function initSelectedPlayer(streamUrl) {
         // تنظيف المشغل القديم قبل إنشاء الجديد
         if (window.vjsPlayer) {
-            window.vjsPlayer.dispose();
+            try {
+                window.vjsPlayer.dispose();
+            } catch (e) { }
             window.vjsPlayer = null;
         }
         if (window.hlsInstance) {
-            window.hlsInstance.destroy();
+            try {
+                window.hlsInstance.destroy();
+            } catch (e) { }
             window.hlsInstance = null;
         }
 
         const parent = isFullscreenModal ? document.getElementById('fullscreenVideoContainer') : document.getElementById('livePlayerWrapper');
         if (parent) {
-            parent.innerHTML = `<video id="${containerSelector}" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline style="width:100%;height:100%;"></video>`;
+            parent.innerHTML = `<video id="${containerSelector}" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>`;
         }
 
         const playUrl = streamUrl;
-
-        // تحديد نوع الملف بدقة لتجنب أخطاء المشغل ومتصفح كروم عند التقديم
-        let mimeType = 'video/mp4';
         const sLower = streamUrl.toLowerCase();
+        const isHlsStream = sLower.includes('.m3u8') || type === 'live';
+
+        // تحديد نوع الملف بدقة مع إعطاء مرونة لفك ترميز MKV و MP4
+        let mimeType = 'video/mp4';
         if (sLower.includes('.m3u8')) {
             mimeType = 'application/x-mpegURL';
         } else if (sLower.includes('.ts')) {
             mimeType = 'video/mp2t';
-        } else if (sLower.includes('.mkv')) {
-            mimeType = 'video/mp4'; // يتيح للمتصفح استخدام مفكك الحاويات القياسي بدون إجبار WebM
         } else if (sLower.includes('.mp4')) {
             mimeType = 'video/mp4';
+        } else if (sLower.includes('.webm')) {
+            mimeType = 'video/webm';
+        } else if (sLower.includes('.mkv')) {
+            mimeType = 'video/webm';
         } else if (type === 'live') {
             mimeType = 'application/x-mpegURL';
         }
@@ -703,10 +661,12 @@ function playStream(id, type, extension, name, icon) {
                 }
             });
 
-            const isHlsStream = streamUrl.toLowerCase().includes('.m3u8') || type === 'live';
-
             if (isHlsStream && typeof Hls !== 'undefined' && Hls.isSupported()) {
-                const videoTag = document.querySelector(`#${containerSelector} video`);
+                const playerEl = window.vjsPlayer.el();
+                const videoTag = (window.vjsPlayer.tech() && window.vjsPlayer.tech().el()) ||
+                                 (playerEl && playerEl.querySelector('video')) ||
+                                 document.querySelector(`#${containerSelector} video`) ||
+                                 document.getElementById(containerSelector);
 
                 window.hlsInstance = new Hls({
                     enableWorker: true,
@@ -721,7 +681,9 @@ function playStream(id, type, extension, name, icon) {
                 });
 
                 window.hlsInstance.loadSource(playUrl);
-                window.hlsInstance.attachMedia(videoTag);
+                if (videoTag) {
+                    window.hlsInstance.attachMedia(videoTag);
+                }
 
                 window.hlsInstance.on(Hls.Events.ERROR, function (event, data) {
                     if (data.fatal) {
@@ -741,7 +703,12 @@ function playStream(id, type, extension, name, icon) {
                     }
                 });
             } else {
-                window.vjsPlayer.src({ src: playUrl, type: mimeType });
+                if (sLower.includes('.mkv')) {
+                    // تشغيل ملفات MKV المباشرة بالسماح للمتصفح والـ WebView بالكشف التلقائي
+                    window.vjsPlayer.src({ src: playUrl });
+                } else {
+                    window.vjsPlayer.src({ src: playUrl, type: mimeType });
+                }
             }
 
             window.vjsPlayer.ready(function () {
@@ -1004,12 +971,16 @@ function playStream(id, type, extension, name, icon) {
     function triggerFallback() {
         if (fallbackTimer) return;
 
+        // في حال حدوث خطأ عند بداية التشغيل، يتم التبديل فوراً خلال 250ms بدلاً من الانتظار ثانيتين
+        const isInitialStartError = !window.vjsPlayer || !window.vjsPlayer.currentTime || window.vjsPlayer.currentTime() <= 0.5;
+        const delayMs = isInitialStartError ? 250 : 1500;
+
         fallbackTimer = setTimeout(() => {
             fallbackTimer = null;
 
             currentTryIndex++;
             if (currentTryIndex < urlQueue.length) {
-                console.warn(`الرابط فشل، تجربة الصيغة التالية: ${urlQueue[currentTryIndex]}`);
+                console.warn(`الرابط لم يبدأ، تجربة الصيغة البديلة (${currentTryIndex + 1}/${urlQueue.length}): ${urlQueue[currentTryIndex]}`);
                 initSelectedPlayer(urlQueue[currentTryIndex]);
             } else {
                 console.error("تم استنفاد جميع المحاولات والروابط.");
@@ -1020,10 +991,10 @@ function playStream(id, type, extension, name, icon) {
                             <div style="font-size: 50px; color: #f59e0b; margin-bottom: 15px;"><i class="fas fa-film"></i></div>
                             <h3 style="margin-bottom: 10px; font-size: 22px;">تعذر تشغيل هذا المقطع داخل المشغل المدمج</h3>
                             <p style="color: #cbd5e1; font-size: 15px; max-width: 480px; margin: 0 auto 25px auto; line-height: 1.6;">
-                                صيغة الفيديو أو ترميز الصوت (MKV / AC3) تتطلب مشغل وسائط خارجي لتشغيلها بسلاسة وبأعلى جودة.
+                                لم يتمكن المشغل الداخلي من قراءة هذا الملف من السيرفر، يمكنك تجربة تشغيله في مشغل خارجي.
                             </p>
                             <button id="btnFallbackExternalPlay" style="background: linear-gradient(135deg, #f4c242, #d4a017); color: #111; border: none; padding: 14px 32px; font-size: 17px; font-weight: bold; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 20px rgba(244,194,66,0.4);">
-                                <i class="fas fa-play"></i> تشغيل فوراً عبر مشغل خارجي (VLC / MX Player)
+                                <i class="fas fa-play"></i> تشغيل عبر مشغل خارجي (VLC)
                             </button>
                         </div>
                     `;
@@ -1039,7 +1010,7 @@ function playStream(id, type, extension, name, icon) {
                     }
                 }
             }
-        }, 2000);
+        }, delayMs);
     }
 
     // تشغيل أول رابط في القائمة
