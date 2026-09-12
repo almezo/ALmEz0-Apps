@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Production / Executable builds (Do NOT push large binary EXEs to GitHub)
 dist-electron/
