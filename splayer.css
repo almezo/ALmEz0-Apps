@@ -37,6 +37,10 @@
     font-family: 'Cairo', sans-serif;
 }
 
+html, body {
+    touch-action: manipulation;
+}
+
 .hidden {
     display: none !important;
 }
