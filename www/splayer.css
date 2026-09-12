@@ -4389,8 +4389,8 @@ body.tv-mode {
     margin-top: 16px;
     padding: 8px 14px;
     background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     transition: all 0.25s ease;
