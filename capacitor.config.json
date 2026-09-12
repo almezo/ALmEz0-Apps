@@ -6,8 +6,6 @@
   "server": {
     "cleartext": true,
     "allowNavigation": [
-      "*",
-      "player.almezo.store",
       "*.firebaseapp.com",
       "*.googleapis.com"
     ]

@@ -8,29 +8,61 @@
     const isCapacitor = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
     const isAndroid = isCapacitor && window.Capacitor.getPlatform() === 'android';
     const isIOS = isCapacitor && window.Capacitor.getPlatform() === 'ios';
+    const isNative = isElectron || isCapacitor;
 
     window.AlMeZ0App = {
         isElectron: isElectron,
         isCapacitor: isCapacitor,
         isAndroid: isAndroid,
         isIOS: isIOS,
-        isNative: isElectron || isCapacitor,
+        isNative: isNative,
         platform: isElectron ? 'electron' : (isCapacitor ? window.Capacitor.getPlatform() : 'web'),
 
         // Helper to open links safely across platforms
         openExternal: function (url) {
             if (!url) return;
+
+            // Map internal go-player redirect to the real live player URL
+            if (url.includes('go-player.php') || url.includes('player.almezo.store')) {
+                url = 'http://player.almezo.store';
+            }
+
             if (isElectron && window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
                 window.electronAPI.openExternal(url);
-            } else if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-                window.Capacitor.Plugins.Browser.open({ url: url });
+            } else if (isCapacitor) {
+                // In Capacitor Android/iOS, _system opens the URL in the system browser / native app
+                window.open(url, '_system');
             } else {
                 window.open(url, '_blank', 'noopener,noreferrer');
             }
         }
     };
 
-    // Add CSS class to body for platform-specific styling
+    // Safe global interceptor for window.open
+    const _origWindowOpen = window.open;
+    window.open = function (url, target, features) {
+        if (!url) return null;
+
+        let cleanUrl = String(url);
+        if (cleanUrl.includes('go-player.php') || cleanUrl.includes('player.almezo.store')) {
+            cleanUrl = 'http://player.almezo.store';
+        }
+
+        const isSocialOrExternal =
+            cleanUrl.includes('wa.me') ||
+            cleanUrl.includes('facebook.com') ||
+            cleanUrl.includes('player.almezo.store') ||
+            cleanUrl.startsWith('tel:') ||
+            cleanUrl.startsWith('whatsapp:');
+
+        if (isNative && isSocialOrExternal) {
+            window.AlMeZ0App.openExternal(cleanUrl);
+            return null;
+        }
+
+        return _origWindowOpen.call(window, cleanUrl, target, features);
+    };
+
     document.addEventListener('DOMContentLoaded', function () {
         const body = document.body;
         if (!body) return;
@@ -43,20 +75,17 @@
             body.classList.add('platform-native', 'platform-ios');
         }
 
-        // Intercept external anchor clicks in Electron and Native apps
+        // Intercept all link clicks in native Android, iOS and Electron
         document.addEventListener('click', function (e) {
             const anchor = e.target.closest('a');
             if (!anchor) return;
 
-            const href = anchor.getAttribute('href');
+            let href = anchor.getAttribute('href');
             if (!href) return;
 
-            const isExternal =
-                href.startsWith('http://') ||
-                href.startsWith('https://') ||
-                href.startsWith('tel:') ||
-                href.startsWith('whatsapp:') ||
-                href.startsWith('mailto:');
+            if (href.includes('go-player.php')) {
+                href = 'http://player.almezo.store';
+            }
 
             const isSocialOrExternal =
                 href.includes('wa.me') ||
@@ -65,15 +94,16 @@
                 href.startsWith('tel:') ||
                 href.startsWith('whatsapp:');
 
-            if (isElectron && isSocialOrExternal) {
+            if (isNative && isSocialOrExternal) {
                 e.preventDefault();
+                e.stopPropagation();
                 window.AlMeZ0App.openExternal(href);
             }
         }, true);
 
         // Capacitor Android Hardware Back Button Handling
         if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-            window.Capacitor.Plugins.App.addListener('backButton', function (canGoBack) {
+            window.Capacitor.Plugins.App.addListener('backButton', function () {
                 // If modal is open, close modal first
                 const openModal = document.querySelector('.modal.active, .modal.show, [id*="modal"][style*="block"], [id*="Modal"][style*="flex"]');
                 if (openModal) {
@@ -93,7 +123,6 @@
                 } else if (!isHome) {
                     window.location.href = 'index.html';
                 } else {
-                    // Double-tap or prompt to exit app
                     window.Capacitor.Plugins.App.exitApp();
                 }
             });
