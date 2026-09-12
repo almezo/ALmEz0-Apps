@@ -173,8 +173,9 @@
                     event.preventDefault();
                     event.stopPropagation();
                 }
-                if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
-                    if (typeof window.AlMeZ0App.lockLandscape === 'function') {
+                var isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+                if ((window.AlMeZ0App && window.AlMeZ0App.isNative) || isLocalDev) {
+                    if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
                         window.AlMeZ0App.lockLandscape();
                     }
                     window.location.href = 'player.html';
@@ -241,7 +242,8 @@
                         }
                     }, 300);
                 } else {
-                    if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
+                    var isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+                    if ((window.AlMeZ0App && window.AlMeZ0App.isNative) || isLocalDev) {
                         window.location.href = 'player.html';
                     } else {
                         window.open('go-player.php', '_blank');
