@@ -274,8 +274,10 @@ function showScreen(screenId, isBackNavigation = false) {
 }
 
 function goBack() {
-    if (currentScreenId === 'movie-details-screen' || currentScreenId === 'series-details-screen') {
+    if (currentScreenId === 'movie-details-screen') {
         showScreen('vod-screen');
+    } else if (currentScreenId === 'series-details-screen') {
+        showScreen('series-screen');
     } else {
         showScreen('dashboard-screen');
     }

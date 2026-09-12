@@ -189,8 +189,16 @@
 
         // Capacitor Android Hardware Back Button Handling
         if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            let lastBackPress = 0;
+
             window.Capacitor.Plugins.App.addListener('backButton', function () {
-                // 1. If fullscreen video modal is open in player.html, close it first
+                // 1. إغلاق أي نافذة تنبيه SweetAlert2 مفتوحة
+                if (typeof Swal !== 'undefined' && typeof Swal.isVisible === 'function' && Swal.isVisible()) {
+                    Swal.close();
+                    return;
+                }
+
+                // 2. إذا كان مشغل الفيديو مفتوحاً بملء الشاشة، يتم إغلاق المشغل والرجوع للشاشة التي كان فيها
                 const videoModal = document.getElementById('fullscreenVideoModal');
                 if (videoModal && !videoModal.classList.contains('hidden')) {
                     if (typeof closeFullscreenPlayer === 'function') {
@@ -199,34 +207,101 @@
                     }
                 }
 
-                // 2. If general modal is open, close modal first
-                const openModal = document.querySelector('.modal.active, .modal.show, [id*="modal"][style*="block"], [id*="Modal"][style*="flex"]');
+                // 3. إذا كانت هناك نافذة فرعية مفتوحة (نافذة الدخول، ترتيب، خروج، إلخ) يتم إغلاقها
+                const openModal = document.querySelector('.modal.active, .modal.show, [id*="modal"][style*="block"], [id*="modal"][style*="flex"], [id*="Modal"][style*="block"], [id*="Modal"][style*="flex"], .sort-modal:not(.hidden)');
                 if (openModal) {
-                    const closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"]');
+                    if (openModal.id === 'loginModal' && typeof closeLoginModal === 'function') {
+                        closeLoginModal();
+                        return;
+                    }
+                    if (openModal.id === 'sortModal') {
+                        openModal.classList.add('hidden');
+                        return;
+                    }
+                    const closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"], .btn-sort-close');
                     if (closeBtn) {
                         closeBtn.click();
                         return;
                     }
-                }
-
-                // 3. If on player.html, return to home (index.html) and reset orientation
-                const currentPath = window.location.pathname.toLowerCase();
-                if (currentPath.includes('player.html')) {
-                    if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') {
-                        window.AlMeZ0App.lockPortrait();
-                    }
-                    window.location.href = 'index.html';
+                    openModal.style.display = 'none';
                     return;
                 }
 
+                // 4. داخل مشغل ميزو (player.html): الرجوع خطوة بخطوة (تفاصيل -> القائمة -> الداشبورد -> الموقع)
+                const currentPath = window.location.pathname.toLowerCase();
+                if (currentPath.includes('player.html')) {
+                    const activeScreen = (typeof currentScreenId !== 'undefined') ? currentScreenId : sessionStorage.getItem('sp_current_screen');
+
+                    // أ) إذا كان في تفاصيل فيلم أو مسلسل، يرجع لقائمة الأفلام/المسلسلات
+                    if (activeScreen === 'movie-details-screen' || activeScreen === 'series-details-screen') {
+                        if (typeof goBack === 'function') {
+                            goBack();
+                            return;
+                        } else if (typeof showScreen === 'function') {
+                            showScreen(activeScreen === 'series-details-screen' ? 'series-screen' : 'vod-screen');
+                            return;
+                        }
+                    }
+
+                    // ب) إذا كان في أقسام الأفلام أو المسلسلات أو البث المباشر أو الملف الشخصي، يرجع للوحة التحكم الرئيسية للمشغل
+                    if (activeScreen === 'vod-screen' || activeScreen === 'series-screen' || activeScreen === 'live-screen' || activeScreen === 'profile-screen') {
+                        if (typeof showScreen === 'function') {
+                            showScreen('dashboard-screen');
+                            return;
+                        }
+                    }
+
+                    // ج) إذا كان في شاشة الداشبورد أو شاشة الدخول فقط، يرجع للموقع الرئيسي مع إعادة تدوير الشاشة لوضعها الطبيعي
+                    if (activeScreen === 'dashboard-screen' || activeScreen === 'auth1-screen' || activeScreen === 'auth2-screen' || !activeScreen) {
+                        if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') {
+                            window.AlMeZ0App.lockPortrait();
+                        }
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    // خيار احتياطي لتاريخ المتصفح
+                    if (window.history.length > 1) {
+                        window.history.back();
+                    } else {
+                        if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') {
+                            window.AlMeZ0App.lockPortrait();
+                        }
+                        window.location.href = 'index.html';
+                    }
+                    return;
+                }
+
+                // 5. في صفحات الموقع الأخرى (مثل iptv.html, server-details.html, vip.html)
                 const isHome = currentPath.endsWith('index.html') || currentPath === '/' || currentPath.endsWith('/');
 
-                if (!isHome && window.history.length > 1) {
-                    window.history.back();
-                } else if (!isHome) {
-                    window.location.href = 'index.html';
-                } else {
+                if (!isHome) {
+                    // الرجوع للصفحة السابقة التي كان فيها المستخدم
+                    if (window.history.length > 1) {
+                        window.history.back();
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                    return;
+                }
+
+                // 6. في الصفحة الرئيسية للموقع (index.html): الخروج بضغطة مزدوجة لمنع الإغلاق بالخطأ
+                const now = Date.now();
+                if (now - lastBackPress < 2000) {
                     window.Capacitor.Plugins.App.exitApp();
+                } else {
+                    lastBackPress = now;
+                    if (typeof showToast === 'function') {
+                        showToast('اضغط مرة أخرى للخروج من التطبيق', 'info');
+                    } else if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'bottom',
+                            title: 'اضغط مرة أخرى للخروج من التطبيق',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
                 }
             });
         }
