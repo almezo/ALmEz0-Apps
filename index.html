@@ -174,7 +174,7 @@
                     event.stopPropagation();
                 }
                 if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
-                    window.AlMeZ0App.openExternal('http://player.almezo.store');
+                    window.location.href = 'player.html';
                 } else {
                     window.open('go-player.php', '_blank');
                 }
@@ -229,7 +229,7 @@
                     }, 300);
                 } else {
                     if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
-                        window.AlMeZ0App.openExternal('http://player.almezo.store');
+                        window.location.href = 'player.html';
                     } else {
                         window.open('go-player.php', '_blank');
                     }

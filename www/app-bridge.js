@@ -22,17 +22,20 @@
         openExternal: function (url) {
             if (!url) return;
 
-            // Map internal go-player redirect to the real live player URL
-            if (url.includes('go-player.php') || url.includes('player.almezo.store')) {
-                url = 'http://player.almezo.store';
+            // If it's a request to the player:
+            // In native app (Android / iOS / Windows EXE): navigate directly to internal player.html!
+            if (url.includes('go-player.php') || url.includes('player.html')) {
+                if (isNative) {
+                    window.location.href = 'player.html';
+                    return;
+                }
             }
 
             if (isElectron && window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
                 window.electronAPI.openExternal(url);
             } else if (isCapacitor && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-                // Use Capacitor Browser plugin for websites (Player, Facebook)
+                // For WhatsApp and Phone calls, location.href triggers Android's native intent app launcher
                 if (url.startsWith('tel:') || url.startsWith('whatsapp:') || url.includes('wa.me')) {
-                    // For WhatsApp and Phone calls, location.href triggers Android's native intent app launcher
                     window.location.href = url;
                 } else {
                     window.Capacitor.Plugins.Browser.open({ url: url }).catch(function () {
@@ -53,14 +56,18 @@
         if (!url) return null;
 
         let cleanUrl = String(url);
-        if (cleanUrl.includes('go-player.php') || cleanUrl.includes('player.almezo.store')) {
-            cleanUrl = 'http://player.almezo.store';
+
+        // Player routing:
+        if (cleanUrl.includes('go-player.php') || cleanUrl.includes('player.html')) {
+            if (isNative) {
+                window.location.href = 'player.html';
+                return null;
+            }
         }
 
         const isSocialOrExternal =
             cleanUrl.includes('wa.me') ||
             cleanUrl.includes('facebook.com') ||
-            cleanUrl.includes('player.almezo.store') ||
             cleanUrl.startsWith('tel:') ||
             cleanUrl.startsWith('whatsapp:');
 
@@ -92,14 +99,19 @@
             let href = anchor.getAttribute('href');
             if (!href) return;
 
-            if (href.includes('go-player.php')) {
-                href = 'http://player.almezo.store';
+            // Player link: keep inside app if native
+            if (href.includes('go-player.php') || href.includes('player.html')) {
+                if (isNative) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = 'player.html';
+                    return;
+                }
             }
 
             const isSocialOrExternal =
                 href.includes('wa.me') ||
                 href.includes('facebook.com') ||
-                href.includes('player.almezo.store') ||
                 href.startsWith('tel:') ||
                 href.startsWith('whatsapp:');
 
@@ -113,7 +125,16 @@
         // Capacitor Android Hardware Back Button Handling
         if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
             window.Capacitor.Plugins.App.addListener('backButton', function () {
-                // If modal is open, close modal first
+                // If fullscreen video modal is open in player.html, close it first
+                const videoModal = document.getElementById('fullscreenVideoModal');
+                if (videoModal && !videoModal.classList.contains('hidden')) {
+                    if (typeof closeFullscreenPlayer === 'function') {
+                        closeFullscreenPlayer();
+                        return;
+                    }
+                }
+
+                // If general modal is open, close modal first
                 const openModal = document.querySelector('.modal.active, .modal.show, [id*="modal"][style*="block"], [id*="Modal"][style*="flex"]');
                 if (openModal) {
                     const closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"]');
@@ -123,8 +144,13 @@
                     }
                 }
 
-                // If not at home page, navigate back
+                // If on player.html, return to home (index.html)
                 const currentPath = window.location.pathname.toLowerCase();
+                if (currentPath.includes('player.html')) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+
                 const isHome = currentPath.endsWith('index.html') || currentPath === '/' || currentPath.endsWith('/');
 
                 if (!isHome && window.history.length > 1) {
