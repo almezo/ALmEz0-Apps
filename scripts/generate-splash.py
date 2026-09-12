@@ -2,7 +2,7 @@ import os
 from PIL import Image
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC_LOGO = os.path.join(BASE_DIR, 'photo', 'logo-512.png')
+SRC_LOGO = os.path.join(BASE_DIR, 'photo', 'logo-clean.png')
 RES_DIR = os.path.join(BASE_DIR, 'android', 'app', 'src', 'main', 'res')
 
 BG_COLOR = (10, 13, 18, 255) # #0a0d12

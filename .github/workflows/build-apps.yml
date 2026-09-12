@@ -51,11 +51,16 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
+      - name: Rename APK to ALmEz0.apk
+        run: |
+          mkdir -p apk-output
+          cp android/app/build/outputs/apk/debug/*.apk apk-output/ALmEz0.apk
+
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlMeZ0-Android-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: ALmEz0-Android-APK
+          path: apk-output/ALmEz0.apk
 
   # -------------------------------------------------------------
   # 2. Windows EXE Build (Windows runner)

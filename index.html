@@ -55,11 +55,13 @@
 
 <body>
 
-    <!-- Dazzling Animated App Launch Splash Screen -->
+    <!-- Dazzling Animated App Launch Splash Screen (Plays Once Per Session) -->
     <div id="app-launch-splash" class="app-launch-splash">
         <div class="splash-ambient-glow"></div>
+        <div class="splash-sonar-ring"></div>
+        <div class="splash-sonar-ring ring-delay"></div>
         <div class="splash-logo-container">
-            <img src="photo/logo-512.png" alt="ALmEz0" class="splash-main-logo" />
+            <img src="photo/logo-clean.png" alt="ALmEz0" class="splash-main-logo" />
             <div class="splash-shimmer-ray"></div>
         </div>
         <div class="splash-loading-dots">
@@ -70,22 +72,27 @@
         (function() {
             var splash = document.getElementById('app-launch-splash');
             if (!splash) return;
-            window.addEventListener('load', function() {
+
+            // Only show splash once per session (first app launch only, never on returning home)
+            if (sessionStorage.getItem('almezo_app_splash_played') === 'true') {
+                splash.style.display = 'none';
+                if (splash.parentNode) splash.parentNode.removeChild(splash);
+                return;
+            }
+            sessionStorage.setItem('almezo_app_splash_played', 'true');
+
+            function dismissSplash() {
+                if (!splash || splash.classList.contains('splash-dismiss')) return;
+                splash.classList.add('splash-dismiss');
                 setTimeout(function() {
-                    splash.classList.add('splash-dismiss');
-                    setTimeout(function() {
-                        if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
-                    }, 550);
-                }, 1600);
+                    if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+                }, 600);
+            }
+
+            window.addEventListener('load', function() {
+                setTimeout(dismissSplash, 1500);
             });
-            setTimeout(function() {
-                if (splash && !splash.classList.contains('splash-dismiss')) {
-                    splash.classList.add('splash-dismiss');
-                    setTimeout(function() {
-                        if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
-                    }, 550);
-                }
-            }, 2600);
+            setTimeout(dismissSplash, 2500);
         })();
     </script>
 

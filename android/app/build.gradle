@@ -26,6 +26,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "ALmEz0.apk"
+        }
+    }
 }
 
 repositories {
@@ -46,8 +52,10 @@ dependencies {
 
     // AndroidX Media3 (ExoPlayer) for native hardware-accelerated MKV, MP4, TS, HLS playback
     implementation "androidx.media3:media3-exoplayer:1.2.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.2.1"
     implementation "androidx.media3:media3-ui:1.2.1"
     implementation "androidx.media3:media3-common:1.2.1"
+    implementation "androidx.media3:media3-datasource:1.2.1"
 }
 
 apply from: 'capacitor.build.gradle'

@@ -50,8 +50,7 @@
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="رجوع"
-                android:src="@android:drawable/ic_menu_revert"
-                android:tint="#ffffff" />
+                android:src="@drawable/ic_player_back" />
 
             <TextView
                 android:id="@+id/tv_title"
@@ -95,8 +94,7 @@
                 android:layout_marginEnd="32dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="10 ثواني للخلف"
-                android:src="@android:drawable/ic_media_rew"
-                android:tint="#ffffff" />
+                android:src="@drawable/ic_player_rewind" />
 
             <ImageButton
                 android:id="@+id/btn_play_pause"
@@ -104,8 +102,7 @@
                 android:layout_height="72dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="تشغيل / إيقاف"
-                android:src="@android:drawable/ic_media_play"
-                android:tint="#f4c242" />
+                android:src="@drawable/ic_player_play" />
 
             <ImageButton
                 android:id="@+id/btn_forward_10"
@@ -114,8 +111,7 @@
                 android:layout_marginStart="32dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="10 ثواني للأمام"
-                android:src="@android:drawable/ic_media_ff"
-                android:tint="#ffffff" />
+                android:src="@drawable/ic_player_forward" />
         </LinearLayout>
 
         <!-- Bottom Controls Bar -->
@@ -157,7 +153,7 @@
 
             <Button
                 android:id="@+id/btn_aspect"
-                style="?android:attr/borderlessButtonStyle"
+                style="@style/Widget.AppCompat.Button.Borderless"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:layout_marginStart="8dp"

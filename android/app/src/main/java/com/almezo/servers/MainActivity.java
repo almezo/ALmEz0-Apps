@@ -93,13 +93,17 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void playNativeVideo(String videoUrl, String title, String posterUrl) {
-            if (videoUrl == null || videoUrl.isEmpty()) return;
+            if (videoUrl == null || videoUrl.trim().isEmpty()) return;
             runOnUiThread(() -> {
-                Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
-                intent.putExtra("videoUrl", videoUrl);
-                intent.putExtra("title", title != null ? title : "ALmEz0 Video");
-                intent.putExtra("posterUrl", posterUrl != null ? posterUrl : "");
-                startActivity(intent);
+                try {
+                    Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
+                    intent.putExtra("videoUrl", videoUrl.trim());
+                    intent.putExtra("title", title != null ? title : "ALmEz0 Video");
+                    intent.putExtra("posterUrl", posterUrl != null ? posterUrl : "");
+                    startActivity(intent);
+                } catch (Throwable t) {
+                    android.util.Log.e("MainActivity", "Failed to launch PlayerActivity", t);
+                }
             });
         }
     }
