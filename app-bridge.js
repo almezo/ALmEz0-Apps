@@ -29,9 +29,18 @@
 
             if (isElectron && window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
                 window.electronAPI.openExternal(url);
+            } else if (isCapacitor && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+                // Use Capacitor Browser plugin for websites (Player, Facebook)
+                if (url.startsWith('tel:') || url.startsWith('whatsapp:') || url.includes('wa.me')) {
+                    // For WhatsApp and Phone calls, location.href triggers Android's native intent app launcher
+                    window.location.href = url;
+                } else {
+                    window.Capacitor.Plugins.Browser.open({ url: url }).catch(function () {
+                        window.location.href = url;
+                    });
+                }
             } else if (isCapacitor) {
-                // In Capacitor Android/iOS, _system opens the URL in the system browser / native app
-                window.open(url, '_system');
+                window.location.href = url;
             } else {
                 window.open(url, '_blank', 'noopener,noreferrer');
             }
