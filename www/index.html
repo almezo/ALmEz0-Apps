@@ -173,10 +173,10 @@
                     event.preventDefault();
                     event.stopPropagation();
                 }
-                if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+                if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
                     window.AlMeZ0App.openExternal('http://player.almezo.store');
                 } else {
-                    window.open('http://player.almezo.store', '_blank');
+                    window.open('go-player.php', '_blank');
                 }
                 return true;
             }
@@ -228,10 +228,10 @@
                         }
                     }, 300);
                 } else {
-                    if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+                    if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
                         window.AlMeZ0App.openExternal('http://player.almezo.store');
                     } else {
-                        window.open('http://player.almezo.store', '_blank');
+                        window.open('go-player.php', '_blank');
                     }
                 }
             }
