@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <!-- Ultimate Cache Buster -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>
+        if ('caches' in window) {
+            caches.keys().then(function(k) {
+                k.forEach(function(key) { caches.delete(key); });
+            });
+        }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="باقات VIP من سيرفرات الميزو - اشتراكات استثنائية وخدمة مميزة لكبار العملاء.">
+    <title>باقات VIP | سيرفرات الميزو</title>
+    <!-- أيقونات الموقع (Favicon & Apple Touch Icon) -->
+    <link rel="icon" type="image/x-icon" href="photo/logo.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="photo/logo.ico">
+    <link rel="apple-touch-icon" href="photo/logo.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=4037.0">
+</head>
+
+<body>
+
+    <header>
+        <div class="container header-flex">
+            <a href="index.html" class="logo">
+                <img src="photo/logo.ico" alt="AlMeZ0 Logo"
+                    onerror="this.src='https://via.placeholder.com/150x50/0a0d12/4caf50?text=AlMeZ0'">
+                <h1>سيرفرات الميزو - ALmEz0</h1>
+            </a>
+            <div class="contact-header">
+                <button class="header-login-btn" id="headerLoginBtn" onclick="openLoginModal()">تسجيل الدخول</button>
+                <script>
+                    (function () {
+                        try {
+                            var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
+                            if (cached) {
+                                var u = JSON.parse(cached);
+                                if (u && u.name) {
+                                    var b = document.getElementById('headerLoginBtn') || document.querySelector('.header-login-btn');
+                                    if (b) {
+                                        b.className = 'header-login-btn logged-in';
+                                        b.innerHTML = '<i class="fas fa-user-check"></i> ' + u.name;
+                                        b.onclick = function () { if (typeof openLogoutModal === 'function') openLogoutModal(); };
+                                    }
+                                }
+                            }
+                        } catch (e) { }
+                    })();
+                </script>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <a href="index.html" class="back-btn"><i class="fas fa-arrow-right"></i> رجوع للرئيسية</a>
+
+        <div class="app-note-box note-vip mb-30">
+            <h3>ماذا يعني باقات VIP (Mango)؟</h3>
+            <p>هي اشتراكات رقمية تُدار عبر منصة الموزعين (MetaMango) لتجديد وتفعيل سيرفرات أجهزة الاستقبال الفضائي
+                المدعومة بسيرفر Forever. تُستخدم هذه الباقات لفك تشفير القنوات الرياضية مثل قنوات beIN Sports العالمية
+                وبعض القنوات الترفيهية المختلفة.</p>
+        </div>
+
+        <section class="category-section">
+            <h2 class="section-title"><img src="photo/mango-icon.png" alt="Mango VIP" class="title-icon-img mango-icon">
+                باقات VIP (Mango) المتوفرة:</h2>
+            <div class="products-grid vip-grid" id="vip-container"></div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <!-- حقوق النشر -->
+            <div class="copyright">
+                <p>جميع الحقوق محفوظة © 2026 - سيرفرات الميزو - ALmEz0</p>
+            </div>
+            <!-- أيقونات التواصل الاجتماعي -->
+            <div class="social-icons">
+                <a href="tel:0945772649" title="Call">
+                    <i class="fas fa-phone-alt"></i>
+                </a>
+                <a href="https://facebook.com/ALMEZ0SERVERS" target="_blank" rel="noopener" title="Facebook">
+                    <i class="fab fa-facebook-f"></i>
+                </a>
+                <a href="https://wa.me/218945772649" target="_blank" rel="noopener" title="WhatsApp">
+                    <i class="fab fa-whatsapp"></i>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+    <!-- سكربتات الموقع -->
+    <script src="firebase-config.js?v=4042.0"></script>
+    <script src="validation.js?v=4037.0"></script>
+    <script src="ui.js?v=4037.0"></script>
+    <script src="whatsapp.js?v=4037.0"></script>
+
+    <script>
+        // عرض قائمة باقات VIP
+        renderLogoList('vip', 'vip-container', 'vip-details.html');
+    </script>
+</body>
+
+</html>
+
+

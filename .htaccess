@@ -1,0 +1,40 @@
+# =========================================================
+# ALmEz0 Servers - Production Apache & cPanel Configuration
+# =========================================================
+
+# 1. Prevent Directory Browsing
+Options -Indexes
+
+# 2. Enable CORS (Cross-Origin Resource Sharing)
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Range"
+    Header set Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges"
+</IfModule>
+
+# 3. Add Media & Video MIME Types
+<IfModule mod_mime.c>
+    AddType application/vnd.apple.mpegurl .m3u8
+    AddType video/mp2t .ts
+    AddType video/mp4 .mp4
+    AddType video/webm .webm
+    AddType application/json .json
+    AddType application/manifest+json .webmanifest
+    AddType image/x-icon .ico
+</IfModule>
+
+# 4. Gzip Compression for Fast Loading
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# 5. PHP Settings (if mod_php is available)
+<IfModule mod_php7.c>
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+</IfModule>
+<IfModule mod_php8.c>
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+</IfModule>

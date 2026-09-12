@@ -1,0 +1,50 @@
+File: d:/My File/ALmEz0/1- Site\devices.html, Line: 18
+  <meta name="description" content="الأجهزة الإلكترونية من سيرفرات الميزو - قريباً أجهزة ومستلزمات. ترقبونا!">
+File: d:/My File/ALmEz0/1- Site\firebase-config.js, Line: 288
+  console.warn('Session revoked! Password was changed from another device.');
+File: d:/My File/ALmEz0/1- Site\fix.js, Line: 11
+  console.log('Inserted missing brace!');
+File: d:/My File/ALmEz0/1- Site\fix_db.js, Line: 24
+  console.log("Done updating sortOrder!");
+File: d:/My File/ALmEz0/1- Site\fix_rest.js, Line: 37
+  console.log("Done updating sortOrder!");
+File: d:/My File/ALmEz0/1- Site\staff.js, Line: 663
+  else alert('الرجاء اختيار طريقة الدفع المستلمة!');
+File: d:/My File/ALmEz0/1- Site\staff.js, Line: 673
+  if (typeof showToast === 'function') showToast('الرجاء اختيار لمن الرصيد (المندوب المستلم) قبل تسجيل المبيعة!', 'error');
+File: d:/My File/ALmEz0/1- Site\staff.js, Line: 674
+  else alert('الرجاء اختيار لمن الرصيد (المندوب المستلم) قبل تسجيل المبيعة!');
+File: d:/My File/ALmEz0/1- Site\staff.js, Line: 832
+  if (typeof showToast === 'function') showToast('الرجاء اختيار المحفظة المسحوب منها!', 'error');
+File: d:/My File/ALmEz0/1- Site\staff.js, Line: 836
+  if (typeof showToast === 'function') showToast('الرجاء اختيار الشخص / الجهة!', 'error');
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 131
+  console.warn("البيانات قادمة من فايربيز، يرجى الترحيل من data.js الأصلية فقط!");
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 146
+  console.log(`تم ترحيل ${count} منتج بنجاح إلى فايربيز!`);
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 147
+  showToast("تم ترحيل البيانات بنجاح!", "success");
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 178
+  showToast('تم حفظ التعديلات بنجاح!', 'success');
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 269
+  showToast('تم إضافة المنتج بنجاح!', 'success');
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 366
+  showToast('تم حفظ التحديثات بنجاح!', 'success');
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 877
+  showToast('رافقتك السلامة 👋، نراك قريباً!', 'success', 4000);
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 958
+  showToast('تم تغيير كلمة المرور بنجاح! 🔒', 'success');
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 1896
+  bannerEl.innerHTML = '<div style="background: rgba(76, 175, 80, 0.18); border: 1.5px solid #4caf50; border-radius: 10px; padding: 12px; text-align: center; color: #fff;"><i class="fas fa-unlock-alt" style="color: #69f0ae; font-size: 1.4rem; margin-bottom: 4px; display:block;"></i><div style="font-weight: 800; color: #81c784; font-size: 0.98rem;">انتهت فترة الحظر المؤقت بنجاح!</div><div style="font-size: 0.84rem; color: #c8e6c9; margin-top: 3px;">يمكنك الآن إعادة إدخال بياناتك بشكل صحيح لتسجيل الدخول.</div></div>';
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 1969
+  showToast('⛔ الجهاز محظور مؤقتاً من تسجيل الدخول! متبقي: ' + formatLockoutSeconds(lockStatus.remainingSeconds), 'error', 4000);
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 2412
+  phoneErrEl.innerText = '⚠️ هذا الرقم مسجل مسبقاً! يرجى التبديل لتسجيل الدخول.';
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 2666
+  showToast('التطبيق مثبت بالفعل على جهازك!', 'info');
+File: d:/My File/ALmEz0/1- Site\ui.js, Line: 2668
+  alert('التطبيق مثبت بالفعل على جهازك!');
+File: d:/My File/ALmEz0/1- Site\whatsapp.js, Line: 132
+  showToast('يرجى اختيار طريقة الدفع أولاً!', 'error');
+File: d:/My File/ALmEz0/1- Site\whatsapp.js, Line: 134
+  alert('يرجى اختيار طريقة الدفع أولاً!');

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <!-- Ultimate Cache Buster -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>
+        if ('caches' in window) {
+            caches.keys().then(function (k) {
+                k.forEach(function (key) { caches.delete(key); });
+            });
+        }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="لوحة مبيعات المناديب - سيرفرات الميزو ALmEz0.">
+    <title>سيرفرات الميزو | لوحة المبيعات</title>
+    <!-- أيقونات الموقع -->
+    <link rel="icon" type="image/x-icon" href="photo/logo.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="photo/logo.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=4068.0">
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+</head>
+
+<body>
+
+    <header>
+        <div class="container header-flex">
+            <a href="index.html" class="logo">
+                <img src="photo/logo.ico" alt="AlMeZ0 Logo"
+                    onerror="this.src='https://via.placeholder.com/150x50/0a0d12/4caf50?text=AlMeZ0'">
+                <h1>سيرفرات الميزو - ALmEz0</h1>
+            </a>
+            <div class="contact-header">
+                <button class="admin-home-btn" onclick="window.location.href='index.html'">
+                    <i class="fas fa-home"></i> الرجوع للرئيسية
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container staff-dashboard" id="staffMainContent">
+        <h2 class="page-title"><i class="fas fa-chart-bar"></i> لوحة إدارة المبيعات</h2>
+ 
+        <!-- شريط اختيار المندوب للمدير فقط (يظهر فقط عند دخول المدير لمعاينة أي مندوب) -->
+        <div id="adminStaffSelectorContainer" class="admin-staff-selector-banner">
+            <div class="admin-staff-selector-info">
+                <span class="admin-staff-badge">
+                    <i class="fas fa-user-shield"></i> وضع المدير
+                </span>
+                <span class="admin-staff-selector-title">معاينة لوحة ومطاليب المندوب:</span>
+            </div>
+            <div class="admin-staff-selector-controls">
+                <select id="adminStaffSelect" class="admin-staff-select-input" title="معاينة لوحة ومطاليب المندوب" aria-label="معاينة لوحة ومطاليب المندوب">
+                    <option value="">جاري تحميل المناديب...</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="staff-forms-layout">
+            <!-- تسجيل بيعة -->
+            <div class="main-category-card staff-card right-text form-card">
+                <h3 class="staff-form-title"><i class="fas fa-cart-plus"></i> تسجيل مبيعة جديدة</h3>
+
+                <div class="staff-form-group">
+                    <label for="saleProductCategory"><i class="fas fa-tags"></i> نوع المنتج</label>
+                    <select id="saleProductCategory" class="staff-input staff-product-select" title="نوع المنتج">
+                        <option value="" selected disabled>اختر نوع المنتج...</option>
+                        <option value="iptv">اشتراكات IPTV</option>
+                        <option value="smartApps">برامج سمارت</option>
+                        <option value="vip">باقات VIP</option>
+                    </select>
+                </div>
+                <div class="staff-form-group hidden-group" id="saleProductItemContainer">
+                    <label id="saleProductItemLabel">اسم المنتج</label>
+                    <select id="saleProductItem" class="staff-input staff-product-select" title="اسم المنتج">
+                        <option value="" selected>اختر نوع المنتج أولاً...</option>
+                    </select>
+                </div>
+
+                <div class="staff-form-group">
+                    <label>المدة / الباقة</label>
+                    <select id="saleDuration" class="staff-input staff-product-select" title="المدة الباقة">
+                        <option value="" selected>اختر المنتج أولاً...</option>
+                    </select>
+                </div>
+
+                <div class="staff-form-group">
+                    <label for="salePoints">عدد النقاط المسحوبة من المخزن</label>
+                    <input type="number" id="salePoints" class="staff-input"
+                        placeholder="أدخل عدد النقاط المراد سحبها (مطلوب)" min="0" step="0.25">
+                </div>
+
+                <div class="staff-form-group">
+                    <label>سعر البيع الفعلي (د.ل)</label>
+                    <input type="number" id="salePrice" min="0" step="0.25" placeholder="أدخل السعر..."
+                        class="staff-input">
+                </div>
+
+                <div class="staff-form-group">
+                    <label>طريقة الدفع المستلمة</label>
+                    <select id="saleMethod" class="staff-input" title="طريقة الدفع المستلمة">
+                        <option value="" selected>اختر طريقة الدفع...</option>
+                        <option value="ليبيانا">ليبيانا</option>
+                        <option value="المدار">المدار</option>
+                        <option value="دفع مشترك (ليبيانا + مدار)">دفع مشترك (ليبيانا + مدار)</option>
+                        <option value="تحويلات مصرفية">تحويلات مصرفية</option>
+                        <option value="سداد">سداد</option>
+                        <option value="انيس">انيس</option>
+                        <option value="المظلة">المظلة</option>
+                        <option value="بوينت">بوينت</option>
+                        <option value="Bn+">Bn+</option>
+                        <option value="USDT">USDT</option>
+                        <option value="كاش">كاش</option>
+                        <option value="دين">دين</option>
+                    </select>
+                </div>
+
+                <div class="staff-form-group last hidden-group" id="saleRecipientContainer">
+                    <label for="saleRecipient">أختر لمن الرصيد</label>
+                    <select id="saleRecipient" class="staff-input" title="أختر لمن الرصيد">
+                        <option value="" selected>اختر لمن الرصيد...</option>
+                    </select>
+                </div>
+
+                <!-- حاوية تفاصيل الدفع المشترك (ليبيانا + مدار) -->
+                <div class="staff-form-group last hidden-group" id="saleSplitContainer">
+                    <div class="split-payment-box">
+                        <h4 class="split-payment-title">
+                            <i class="fas fa-divide"></i> تفاصيل توزيع الدفع المشترك
+                        </h4>
+
+                        <!-- قسم رصيد ليبيانا -->
+                        <div class="split-payment-grid split-payment-grid mb-12">
+                            <div>
+                                <label class="split-label-libyana">قيمة ليبيانا (د.ل)</label>
+                                <input type="number" id="splitLibyanaAmount" min="0" step="0.25" placeholder="مثال: 30"
+                                    class="staff-input split-input-libyana">
+                            </div>
+                            <div>
+                                <label class="split-label-libyana">مستلم رصيد ليبيانا</label>
+                                <select id="splitLibyanaRecipient" class="staff-input split-input-libyana"
+                                    title="مستلم رصيد ليبيانا">
+                                    <option value="" selected>اختر المندوب...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- قسم رصيد المدار -->
+                        <div class="split-payment-grid">
+                            <div>
+                                <label class="split-label-almadar">قيمة المدار (د.ل)</label>
+                                <input type="number" id="splitAlmadarAmount" min="0" step="0.25" placeholder="مثال: 20"
+                                    class="staff-input split-input-almadar">
+                            </div>
+                            <div>
+                                <label class="split-label-almadar">مستلم رصيد المدار</label>
+                                <select id="splitAlmadarRecipient" class="staff-input split-input-almadar"
+                                    title="مستلم رصيد المدار">
+                                    <option value="" selected>اختر المندوب...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="btnRecordSale" class="btn-primary staff-submit-btn"><i class="fas fa-save"></i> تسجيل
+                    المبيعة</button>
+            </div>
+
+            <!-- فورم تسجيل سحب -->
+            <div class="form-card staff-card">
+                <h3 class="staff-form-title"><i class="fas fa-hand-holding-usd"></i> تسجيل سحب أو تحويل رصيد</h3>
+                <div class="staff-form-grid staff-form-grid-flex">
+
+
+                    <div class="staff-form-group">
+                        <label id="withdrawalAmountLabel">القيمة المسحوبة (د.ل)</label>
+                        <input type="number" id="withdrawalAmount" min="0" step="0.25" placeholder="أدخل القيمة..."
+                            class="staff-input">
+                        <span id="cashCalcText" class="cash-calc-text hidden-group">(الكاش الفعلي المحسوب: 0 د.ل)</span>
+                    </div>
+
+                    <div class="staff-form-group">
+                        <label>المحفظة المسحوب منها</label>
+                        <select id="withdrawalWallet" class="staff-input" title="المحفظة المسحوب منها">
+                            <option value="" selected>اختر المحفظة...</option>
+                            <option value="ليبيانا">ليبيانا</option>
+                            <option value="المدار">المدار</option>
+                            <option value="كاش">كاش</option>
+                        </select>
+                    </div>
+
+                    <div class="staff-form-group" id="debtorGroup">
+                        <label id="debtorGroupLabel">سحب رصيد من</label>
+                        <select id="debtorName" class="staff-input" title="سحب رصيد من">
+                            <option value="" selected>اختر الشخص المسحوب منه الرصيد...</option>
+                        </select>
+                    </div>
+
+                    <div class="staff-form-group last" id="withdrawalReasonGroup">
+                        <label id="withdrawalReasonLabel">السبب</label>
+                        <input type="text" id="withdrawalReason" class="staff-input"
+                            placeholder="أدخل سبب السحب (إجباري)..." required>
+                    </div>
+
+                    <button id="btnRecordWithdrawal" class="btn-primary staff-submit-btn withdrawal-btn"><i
+                            class="fas fa-minus-circle"></i> تسجيل السحب</button>
+                </div>
+            </div>
+        </div> <!-- إغلاق staff-forms-layout -->
+
+        <!-- صندوق المخزون المتاح للمناديب -->
+        <h3 class="page-title table-section-title"><i class="fas fa-cubes"></i> الكميات المتوفرة في المخزن للبيع</h3>
+        <div class="main-category-card staff-card right-text mb-20">
+            <div id="staffInventoryGrid">
+                <div class="inventory-loading">جاري تحميل المخزون...</div>
+            </div>
+        </div>
+
+        <!-- تصفية سجل المبيعات والعمليات -->
+        <div class="history-search-container">
+            <h3 class="history-search-title"><i class="fas fa-search"></i> تصفية سجل المبيعات والعمليات</h3>
+            <div class="history-search-flex">
+
+                <div class="history-search-group">
+                    <label for="historyStartDate" class="history-search-label">من تاريخ:</label>
+                    <input type="text" id="historyStartDate" title="تاريخ البداية" placeholder="اختر التاريخ..."
+                        class="history-search-input">
+                </div>
+
+                <div class="history-search-group">
+                    <label for="historyEndDate" class="history-search-label">إلى تاريخ:</label>
+                    <input type="text" id="historyEndDate" title="تاريخ النهاية" placeholder="اختر التاريخ..."
+                        class="history-search-input">
+                </div>
+
+                <div class="history-search-btn-group">
+                    <button class="btn-primary history-search-btn" onclick="searchHistory()"><i
+                            class="fas fa-search"></i> بحث</button>
+                    <button class="history-reset-btn" onmouseover="this.classList.add('hover')"
+                        onmouseout="this.classList.remove('hover')" onclick="resetHistory()"><i class="fas fa-undo"></i>
+                        اليوم الحالي</button>
+                </div>
+            </div>
+            <p class="history-search-note">* للبحث عن يوم واحد فقط، اختر نفس التاريخ في الحقلين.</p>
+        </div>
+
+        <!-- سجل العمليات -->
+        <div class="sales-log-header-container">
+            <h3 class="page-title table-section-title" id="salesLogTitle"><i class="fas fa-history"></i> سجل عمليات
+                المندوب</h3>
+            <button id="btnDownloadLogImage" class="btn-download-log" title="تنزيل سجل العمليات كصورة">
+                <i class="fas fa-camera"></i> تنزيل السجل كصورة
+            </button>
+        </div>
+        <div class="table-responsive table-scrollable">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>الوقت</th>
+                        <th>نوع العملية</th>
+                        <th>المنتج / السبب</th>
+                        <th>القيمة (د.ل)</th>
+                        <th>المحفظة</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="staffHistoryTableBody">
+                    <tr>
+                        <td colspan="6" class="table-empty-message">لا توجد عمليات مسجلة في هذا اليوم</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- إجمالي أرباح المبيعات لليوم -->
+        <div id="staffProfitCard" class="main-category-card staff-card profit-card-container mb-20">
+            <h3 class="profit-title"><i class="fas fa-hand-holding-usd"></i> إجمالي أرباح المبيعات لليوم</h3>
+            <div class="profit-amount" id="staffTodayProfit">0.00 <span class="profit-currency">د.ل</span></div>
+        </div>
+
+        <!-- إحصائيات الأرصدة المطلوبة -->
+        <h3 class="page-title table-section-title"><i class="fas fa-wallet"></i> الأرصدة المطلوبة</h3>
+
+        <div class="main-category-card staff-card right-text mb-20 staff-profile-card">
+            <div class="staff-profile-card-inner">
+                <div class="staff-profile-header">
+                    <h3 class="staff-form-title staff-profile-title" id="staffCardName"><i class="fas fa-user-tie"></i>
+                        جاري التحميل...</h3>
+                </div>
+                <p class="staff-profile-phone-text">رقم الهاتف: <span id="staffCardPhone"
+                        class="staff-profile-phone-number">---</span></p>
+            </div>
+
+            <div class="staff-balances-container">
+                <div class="balance-card balance-card-libyana">
+                    <h4 class="balance-card-title">مطلوب ليبيانا</h4>
+                    <div class="balance-card-amount balance-val-libyana" id="libyanaBalance">
+                        <span class="balance-val-amount">0.00</span> <span class="balance-val-currency">د.ل</span>
+                    </div>
+                </div>
+                <div class="balance-card balance-card-almadar">
+                    <h4 class="balance-card-title">مطلوب المدار</h4>
+                    <div class="balance-card-amount balance-val-almadar" id="almadarBalance">
+                        <span class="balance-val-amount">0.00</span> <span class="balance-val-currency">د.ل</span>
+                    </div>
+                </div>
+                <div class="balance-card balance-card-cash">
+                    <h4 class="balance-card-title">مطلوب كاش</h4>
+                    <div class="balance-card-amount balance-val-cash" id="cashBalance">
+                        <span class="balance-val-amount">0.00</span> <span class="balance-val-currency">د.ل</span>
+                    </div>
+                </div>
+                <div class="balance-card balance-card-profit">
+                    <h4 class="balance-card-title" id="profitCardTitle">ربح الأسبوع</h4>
+                    <div class="balance-card-amount balance-val-profit" id="profitBalance">
+                        <span class="balance-val-amount card-profit-amount">0.00</span> <span
+                            class="balance-val-currency">د.ل</span>
+                    </div>
+                </div>
+                <div class="balance-card balance-card-dues">
+                    <h4 class="balance-card-title" id="duesCardTitle">مستحقات</h4>
+                    <div class="balance-card-amount balance-val-dues" id="duesBalance">
+                        <span class="balance-val-amount card-dues-amount">0.00</span> <span
+                            class="balance-val-currency">د.ل</span>
+                    </div>
+                </div>
+                <div class="balance-card balance-card-net">
+                    <h4 class="balance-card-title" id="netCardTitle">الصافي</h4>
+                    <div class="balance-card-amount balance-val-net" id="netBalance">
+                        <span class="balance-val-amount card-net-amount">0.00</span> <span
+                            class="balance-val-currency">د.ل</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="copyright">
+                <p>جميع الحقوق محفوظة © 2026 - سيرفرات الميزو - ALmEz0</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+    <!-- html2canvas for image export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <script src="firebase-config.js?v=4045.0"></script>
+    <script src="validation.js?v=4045.0"></script>
+    <script src="ui.js?v=4060.0"></script>
+    <script src="staff.js?v=4069.0"></script>
+</body>
+
+</html>

@@ -1,0 +1,149 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.uid == '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+
+      // =============================================
+      // قواعد أمان مشددة لمجموعة customers
+      // المبدأ: يمكن للمستخدم فقط قراءة وثيقته الخاصة
+      //          ولا يمكن لأي طرف قراءة بيانات شخص آخر
+      // =============================================
+
+      allow list: if request.auth != null && (
+          isAdmin() || 
+          (resource.data.role == 'staff' && get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff')
+      );
+
+      // 2. السماح بالقراءة المباشرة فقط للمستخدم صاحب الوثيقة أو للمدير أو لزملاء العمل
+      allow get: if request.auth != null && (
+          request.auth.uid == customerId ||
+          isAdmin() || 
+          (resource.data.role == 'staff' && get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff')
+      );
+
+      // 3. السماح للمدير بالتعديل المطلق، وللمستخدم بتحديث حقل authVersion فقط (لطرد الأجهزة الأخرى)
+      allow update: if isAdmin() || (
+        request.auth != null && 
+        request.auth.uid == customerId && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authVersion'])
+      );
+      allow delete: if false;
+
+      // 4. السماح بالإنشاء بشروط صارمة:
+      //    - يجب أن يكون المستخدم مسجّلاً في Firebase Auth
+      //    - يجب أن يتطابق uid المستخدم مع معرّف الوثيقة المنشأة
+      //      (يمنع أي مستخدم من إنشاء وثيقة بـ uid شخص آخر)
+      //    - التحقق من المخطط (Schema): الحقول المسموح بها فقط
+      //    - التحقق من أن حقل phone هو نص من 10 أرقام
+      allow create: if
+        // المستخدم مسجّل في Firebase Auth
+        request.auth != null &&
+
+        // uid المستخدم يجب أن يتطابق مع معرّف الوثيقة
+        // (يمنع إنشاء وثيقة بـ uid شخص آخر)
+        request.auth.uid == customerId &&
+
+        // التحقق الصارم من المخطط: لا حقول إضافية مسموح بها
+        // ملاحظة: تمت إزالة حقل 'password' لأن Firebase Auth يتولى ذلك
+        request.resource.data.keys().hasOnly([
+          'firstName', 'lastName', 'age', 'city', 'phone', 'registeredAt', 'source'
+        ]) &&
+
+        // التحقق من أن جميع الحقول المطلوبة موجودة
+        request.resource.data.keys().hasAll([
+          'firstName', 'lastName', 'age', 'city', 'phone', 'registeredAt', 'source'
+        ]) &&
+
+        // التحقق من صيغة رقم الهاتف: نص من 10 أرقام بالضبط
+        request.resource.data.phone is string &&
+        request.resource.data.phone.size() == 10;
+    }
+
+    match /transactions/{transactionId} {
+      // السماح بالقراءة للمندوب نفسه، أو للمدير، أو لزملائه المناديب (لحساب صافي الربح والديون المشتركة)
+      allow read: if request.auth != null && (
+          request.auth.uid == resource.data.staffId || 
+          isAdmin() ||
+          get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff'
+      );
+      // السماح بإنشاء معاملة فقط إذا كان uid مطابقاً لـ staffId
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.staffId;
+      // السماح للمدير بالحذف وللمندوب بحذف عملياته
+      allow delete: if request.auth != null && (isAdmin() || request.auth.uid == resource.data.staffId);
+      // السماح للمدير فقط بتعديل عملية موجودة (تصحيح سعر/منتج/طريقة دفع بالخطأ)
+      allow update: if isAdmin();
+    }
+
+    match /activity_logs/{logId} {
+      // السماح بالقراءة والحذف للمدير العام فقط
+      allow read, delete: if isAdmin();
+      // السماح بإنشاء السجلات لكافة الحركات (الزوار، العملاء، المناديب، المدير)
+      allow create: if true;
+      // منع التعديل على السجلات لضمان عدم التلاعب بها (Immutable Audit Trail)
+      allow update: if false;
+    }
+
+    match /security_lockouts/{lockoutId} {
+      // السماح للمدير بإنشاء وتعديل وحذف الحظر
+      // والسماح للجميع بالقراءة فقط للتحقق من حالة أجهزتهم
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    match /server_hosts/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // صلاحيات المخزن والمشتريات
+    match /inventory/{itemId} {
+      allow read: if request.auth != null && (isAdmin() || get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff');
+      allow update: if request.auth != null && (isAdmin() || get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff');
+      allow create, delete: if isAdmin();
+    }
+    // كل مستند هنا يمثل شهر كامل (معرّفه مثلاً 2026-08)
+    // وبداخله مجموعة فرعية invoices تحتوي فواتير ذلك الشهر
+    match /purchases/{monthId} {
+      allow read, write: if isAdmin();
+
+      match /invoices/{invoiceId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    // أرصدة صناديق شركات التوزيع (المظلة / انيس / بوينت / Bn+) - المدير فقط
+    match /companyBalances/{companyId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /siteConfig/{configId} {
+      // إعدادات عامة للموقع (زي كروت الصفحة الرئيسية) - القراءة متاحة للجميع
+      // والتعديل مقصور على المدير فقط
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // مركز قوانين وعمولات المناديب والمبيعات
+    match /systemSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "almezo-servers",
+  "version": "1.0.0",
+  "description": "سيرفرات الميزو - AlMeZ0 Servers Multi-Platform App",
+  "main": "electron/main.js",
+  "scripts": {
+    "prepare:app": "node scripts/prepare-app.js",
+    "electron:dev": "electron .",
+    "electron:build": "node scripts/prepare-app.js && electron-builder --win",
+    "cap:sync": "node scripts/prepare-app.js && cap sync",
+    "cap:android": "node scripts/prepare-app.js && cap open android",
+    "cap:ios": "node scripts/prepare-app.js && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "firebase": "^8.10.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.almezo.servers",
+    "productName": "سيرفرات الميزو",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "app-bridge.js",
+      "index.html",
+      "admin-dashboard.html",
+      "admin-dashboard.js",
+      "app-details.html",
+      "core.js",
+      "data.js",
+      "devices.html",
+      "firebase-config.js",
+      "iptv.html",
+      "manifest.json",
+      "player.html",
+      "purchases.html",
+      "purchases.js",
+      "security-monitor.html",
+      "security-monitor.js",
+      "server-details.html",
+      "servers.json",
+      "smart.html",
+      "splayer.css",
+      "splayer.js",
+      "staff.html",
+      "staff.js",
+      "style.css",
+      "sw.js",
+      "ui.js",
+      "validation.js",
+      "vip-details.html",
+      "vip.html",
+      "whatsapp.js",
+      "photo/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "photo/logo.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "سيرفرات الميزو",
+      "installerIcon": "photo/logo.ico",
+      "uninstallerIcon": "photo/logo.ico"
+    },
+    "portable": {
+      "artifactName": "AlMeZ0-Servers-Portable.exe"
+    }
+  }
+}

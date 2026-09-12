@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <!-- Ultimate Cache Buster -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>
+        if ('caches' in window) {
+            caches.keys().then(function (k) {
+                k.forEach(function (key) { caches.delete(key); });
+            });
+        }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlMeZ0 Servers - تقارير المبيعات</title>
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css?v=4067.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+
+    <style>
+        /* =============================================
+           أنماط استجابة شاشات الهواتف للوحة تحكم المدير
+           Ultra-Responsive Mobile Admin Dashboard
+           متناسقة 100% مثل لوحة الأمان ولوحة المشتريات
+           ============================================= */
+
+        html, body {
+            overflow-x: hidden !important;
+            width: 100% !important;
+            max-width: 100vw !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            position: relative;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box !important;
+        }
+
+        @media (max-width: 768px) {
+            html, body {
+                overflow-x: hidden !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+            }
+
+            .container {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            /* هيدر الصفحة */
+            .header-flex {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 8px 10px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .logo {
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+            }
+
+            .logo img {
+                width: 34px !important;
+                height: 34px !important;
+                border-radius: 6px !important;
+            }
+
+            .logo h1 {
+                font-size: 0.92rem !important;
+                white-space: nowrap !important;
+            }
+
+            .admin-home-btn {
+                padding: 6px 10px !important;
+                font-size: 0.78rem !important;
+                border-radius: 8px !important;
+                white-space: nowrap !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 5px !important;
+            }
+
+            /* المحتوى الرئيسي */
+            .admin-main-content {
+                margin-top: 15px !important;
+                margin-bottom: 35px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            /* شريط عنوان اللوحة وزر الإدارة */
+            .admin-header-actions {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 10px !important;
+                margin: 15px 0 20px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .admin-header-actions .page-title,
+            .admin-header-actions h2 {
+                font-size: 1.15rem !important;
+                text-align: center !important;
+                margin: 0 !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+            }
+
+            .custom-staff-btn {
+                width: 100% !important;
+                justify-content: center !important;
+                padding: 10px 14px !important;
+                font-size: 0.88rem !important;
+                box-sizing: border-box !important;
+            }
+
+            .table-section-title {
+                font-size: 1.1rem !important;
+                margin-top: 25px !important;
+                margin-bottom: 12px !important;
+                text-align: center !important;
+            }
+
+            /* شبكات البطاقات */
+            .forms-grid,
+            #staffBalancesGrid,
+            #companyBalancesGrid {
+                display: grid !important;
+                grid-template-columns: 1fr !important;
+                gap: 12px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+
+            /* بطاقة المندوب والشركة */
+            .staff-card {
+                padding: 14px 10px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                border-radius: 12px !important;
+            }
+
+            .staff-card .staff-form-title {
+                font-size: 1.05rem !important;
+                margin: 0 !important;
+            }
+
+            .edit-balance-btn,
+            .company-invoice-btn,
+            .settle-company-btn {
+                padding: 5px 12px !important;
+                font-size: 0.78rem !important;
+                border-radius: 16px !important;
+                white-space: nowrap !important;
+            }
+
+            /* حاوية المربعات المالية (2 في كل صف، مع تمدد الصافي والمستحقات لكامل الصف) */
+            .staff-balances-container {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .staff-balances-container .balance-card {
+                min-width: 0 !important;
+                width: 100% !important;
+                padding: 10px 4px !important;
+                box-sizing: border-box !important;
+                flex: none !important;
+            }
+
+            .staff-balances-container .balance-card-title {
+                font-size: 0.75rem !important;
+                margin-bottom: 3px !important;
+                white-space: nowrap !important;
+            }
+
+            .staff-balances-container .balance-card-amount {
+                font-size: 0.92rem !important;
+                white-space: nowrap !important;
+            }
+
+            .staff-balances-container .balance-val-currency {
+                font-size: 0.65rem !important;
+            }
+
+            #staffBalancesGrid .balance-card-libyana {
+                grid-column: 1 !important;
+            }
+
+            #staffBalancesGrid .balance-card-almadar {
+                grid-column: 2 !important;
+            }
+
+            #staffBalancesGrid .balance-card-cash {
+                grid-column: 1 !important;
+            }
+
+            #staffBalancesGrid .balance-card-profit {
+                grid-column: 2 !important;
+            }
+
+            #staffBalancesGrid .balance-card-dues {
+                grid-column: 1 / -1 !important;
+                width: 100% !important;
+            }
+
+            #staffBalancesGrid .balance-card-net {
+                grid-column: 1 / -1 !important;
+                width: 100% !important;
+            }
+
+            /* صناديق شركات التوزيع: إجمالي المبيعات و مطلوب كاش بجانب بعضهما */
+            #companyBalancesGrid .staff-balances-container,
+            .company-balances-subcontainer {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            #companyBalancesGrid .balance-card-company-sales {
+                grid-column: 1 !important;
+                width: 100% !important;
+            }
+
+            #companyBalancesGrid .balance-card-cash {
+                grid-column: 2 !important;
+                width: 100% !important;
+            }
+
+            /* صناديق التصفية والبحث */
+            .history-search-container {
+                padding: 14px 10px !important;
+                margin-top: 20px !important;
+                margin-bottom: 16px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                border-radius: 12px !important;
+            }
+
+            .history-search-title {
+                font-size: 1rem !important;
+                margin-bottom: 12px !important;
+                text-align: center !important;
+            }
+
+            .history-search-flex {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 10px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .history-search-group {
+                width: 100% !important;
+                min-width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .history-search-label {
+                font-size: 0.84rem !important;
+                margin-bottom: 4px !important;
+            }
+
+            .history-search-input {
+                font-size: 0.86rem !important;
+                padding: 9px 10px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .history-search-btn-group {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+                min-width: 100% !important;
+                gap: 8px !important;
+                box-sizing: border-box !important;
+            }
+
+            .history-search-btn,
+            .history-reset-btn,
+            .history-search-btn-group .btn-product-summary.period-summary-btn {
+                width: 100% !important;
+                min-width: 100% !important;
+                height: 42px !important;
+                justify-content: center !important;
+                font-size: 0.84rem !important;
+                box-sizing: border-box !important;
+            }
+
+            .history-search-note {
+                font-size: 0.74rem !important;
+                text-align: center !important;
+                line-height: 1.4 !important;
+            }
+
+            /* صندوق تتبع إجمالي أرباح المناديب */
+            .profits-tracking-container {
+                flex-direction: column !important;
+                align-items: center !important;
+                text-align: center !important;
+                gap: 8px !important;
+                padding: 14px 10px !important;
+                margin-top: 15px !important;
+                margin-bottom: 15px !important;
+                border-radius: 12px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .profits-tracking-title {
+                font-size: 0.92rem !important;
+                text-align: center !important;
+                margin: 0 !important;
+            }
+
+            .profits-tracking-value {
+                font-size: 1.35rem !important;
+            }
+
+            /* شبكة إحصائيات فواتير شركات التوزيع */
+            .company-invoice-summary-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .company-invoice-card {
+                padding: 10px 6px !important;
+                border-radius: 10px !important;
+            }
+
+            .company-invoice-stat-lbl {
+                font-size: 0.72rem !important;
+            }
+
+            .company-invoice-stat-val {
+                font-size: 1rem !important;
+            }
+
+            .company-invoice-actions {
+                width: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 8px !important;
+            }
+
+            .btn-close-company-invoice {
+                width: 100% !important;
+                justify-content: center !important;
+                font-size: 0.82rem !important;
+                padding: 10px 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            .btn-download-company-invoice {
+                width: 100% !important;
+                justify-content: center !important;
+                margin-top: 0 !important;
+                font-size: 0.82rem !important;
+                padding: 10px 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            /* شريط رأس جدول المبيعات والفرز */
+            .sales-log-header-bar {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 10px !important;
+                margin-top: 20px !important;
+                margin-bottom: 10px !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .sales-log-header-right {
+                width: 100% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                gap: 8px !important;
+            }
+
+            .sales-log-header-left {
+                width: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 8px !important;
+            }
+
+            .sales-sort-wrap {
+                width: 100% !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                padding: 8px 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            .sales-sort-select {
+                flex: 1 !important;
+                font-size: 0.82rem !important;
+            }
+
+            .btn-product-summary {
+                width: 100% !important;
+                justify-content: center !important;
+                padding: 10px 14px !important;
+                font-size: 0.85rem !important;
+                box-sizing: border-box !important;
+            }
+
+            /* ========================================================
+               إلغاء التمرير الجانبي وضغط الجداول لتلائم عرض الشاشة تماماً
+               مع الإبقاء على التمرير الرأسي (أعلى وأسفل) متاحاً وسلساً
+               ======================================================== */
+            .table-responsive,
+            .company-sales-responsive,
+            #masterHistoryContainer .table-responsive,
+            .product-summary-table-wrap {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important; /* منع التمرير يمين ويسار نهائياً */
+                overflow-y: auto !important;   /* تمرير أعلى وأسفل متاح كما هو */
+                max-height: 520px !important;
+                display: block !important;
+                box-sizing: border-box !important;
+                border-radius: 12px !important;
+                margin-top: 12px !important;
+                margin-bottom: 15px !important;
+            }
+
+            /* 1. جدول العمليات الرئيسي (7 أعمدة مضغوطة بعناية لتملأ 100% من العرض) */
+            #masterHistoryContainer .data-table {
+                min-width: 0 !important;
+                width: 100% !important;
+                table-layout: fixed !important;
+                box-sizing: border-box !important;
+            }
+
+            #masterHistoryContainer .data-table th,
+            #masterHistoryContainer .data-table td {
+                padding: 4px 1px !important;
+                font-size: 0.62rem !important;
+                line-height: 1.2 !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                text-align: center !important;
+                box-sizing: border-box !important;
+            }
+
+            /* توزيع دقيق لنسب الأعمدة السبعة لتساوي 100% بالضبط */
+            /* المندوب */
+            #masterHistoryContainer .data-table th:nth-child(1),
+            #masterHistoryContainer .data-table td:nth-child(1) {
+                width: 12% !important;
+                font-weight: 700 !important;
+            }
+            #masterHistoryContainer .data-table td:nth-child(1) i {
+                display: none !important; /* إخفاء أيقونة المندوب لتوفير المساحة للخط */
+            }
+
+            /* الوقت */
+            #masterHistoryContainer .data-table th:nth-child(2),
+            #masterHistoryContainer .data-table td:nth-child(2) {
+                width: 13% !important;
+                font-size: 0.58rem !important;
+            }
+
+            /* نوع العملية */
+            #masterHistoryContainer .data-table th:nth-child(3),
+            #masterHistoryContainer .data-table td:nth-child(3) {
+                width: 12% !important;
+            }
+            #masterHistoryContainer .data-table .badge {
+                font-size: 0.55rem !important;
+                padding: 2px 2px !important;
+                border-radius: 4px !important;
+                display: inline-block !important;
+                white-space: nowrap !important;
+            }
+
+            /* المنتج / السبب */
+            #masterHistoryContainer .data-table th:nth-child(4),
+            #masterHistoryContainer .data-table td:nth-child(4) {
+                width: 30% !important;
+                font-size: 0.62rem !important;
+                text-align: right !important;
+                font-weight: 600 !important;
+            }
+
+            /* المحفظة */
+            #masterHistoryContainer .data-table th:nth-child(5),
+            #masterHistoryContainer .data-table td:nth-child(5) {
+                width: 12% !important;
+                font-size: 0.58rem !important;
+            }
+            #masterHistoryContainer .data-table td:nth-child(5) span {
+                font-size: 0.52rem !important;
+            }
+
+            /* القيمة */
+            #masterHistoryContainer .data-table th:nth-child(6),
+            #masterHistoryContainer .data-table td:nth-child(6) {
+                width: 12% !important;
+                font-size: 0.66rem !important;
+                font-weight: 800 !important;
+            }
+
+            /* الإجراءات */
+            #masterHistoryContainer .data-table th:nth-child(7),
+            #masterHistoryContainer .data-table td:nth-child(7) {
+                width: 9% !important;
+                padding: 2px 0 !important;
+            }
+
+            #masterHistoryContainer .data-table .btn-delete-trans,
+            #masterHistoryContainer .data-table .btn-edit-trans {
+                padding: 2px 3px !important;
+                font-size: 0.55rem !important;
+                min-width: 0 !important;
+                width: 18px !important;
+                height: 18px !important;
+                border-radius: 4px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                margin: 1px 0 !important;
+            }
+
+            #masterHistoryContainer .data-table th .sort-th-icon {
+                font-size: 0.48rem !important;
+                margin-right: 1px !important;
+            }
+
+            /* 2. جدول مقارنة مبيعات شركات التوزيع العامة (7 أعمدة مضغوطة 100% من العرض) */
+            .company-general-table {
+                min-width: 0 !important;
+                width: 100% !important;
+                table-layout: fixed !important;
+                box-sizing: border-box !important;
+            }
+
+            .company-general-table th,
+            .company-general-table td {
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                padding: 4px 1px !important;
+                font-size: 0.58rem !important;
+                line-height: 1.15 !important;
+                min-width: 0 !important;
+                text-align: center !important;
+                box-sizing: border-box !important;
+            }
+
+            /* توزيع دقيق لنسب أعمدة جدول مقارنة الشركات لتساوي 100% بدون أي تمرير جانبي */
+            .company-general-table th.col-cgen-name,
+            .company-general-table td.col-cgen-name {
+                width: 17% !important;
+                font-size: 0.6rem !important;
+                font-weight: 700 !important;
+            }
+            .company-general-table td.col-cgen-name i {
+                display: none !important; /* إخفاء أيقونة المبنى لتوفير المساحة */
+            }
+
+            .company-general-table th.col-cgen-rate,
+            .company-general-table td.col-cgen-rate {
+                width: 17% !important;
+                padding: 3px 0 !important;
+            }
+            .company-general-table .cgen-rate-badge {
+                font-size: 0.5rem !important;
+                padding: 2px 2px !important;
+                display: inline-block !important;
+                line-height: 1.1 !important;
+            }
+
+            .company-general-table th.col-cgen-sales,
+            .company-general-table td.col-cgen-sales {
+                width: 16% !important;
+                font-weight: 700 !important;
+                font-size: 0.58rem !important;
+            }
+
+            .company-general-table th.col-cgen-almezo,
+            .company-general-table td.col-cgen-almezo {
+                width: 15% !important;
+                font-weight: 700 !important;
+                font-size: 0.58rem !important;
+            }
+
+            .company-general-table th.col-cgen-company,
+            .company-general-table td.col-cgen-company {
+                width: 15% !important;
+                font-weight: 700 !important;
+                font-size: 0.58rem !important;
+            }
+
+            .company-general-table th.col-cgen-count,
+            .company-general-table td.col-cgen-count {
+                width: 8% !important;
+                padding: 3px 0 !important;
+            }
+            .company-general-table .cgen-count-badge {
+                font-size: 0.55rem !important;
+                padding: 1px 3px !important;
+                display: inline-block !important;
+            }
+
+            .company-general-table th.col-cgen-action,
+            .company-general-table td.col-cgen-action {
+                width: 12% !important;
+                padding: 2px 0 !important;
+            }
+            .company-general-table .company-invoice-btn {
+                padding: 2px 2px !important;
+                font-size: 0.52rem !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                border-radius: 4px !important;
+                margin: 0 !important;
+            }
+            .company-general-table .company-invoice-btn i {
+                display: none !important; /* إخفاء الأيقونة للاكتفاء بكلمة الفاتورة */
+            }
+            .company-general-table tfoot .col-cgen-total-lbl {
+                font-size: 0.58rem !important;
+                padding: 4px 2px !important;
+                white-space: nowrap !important;
+            }
+
+            /* 3. جدول تفاصيل مبيعات شركة محددة (8 أعمدة مضغوطة 100% بأبعاد دقيقة) */
+            .company-detail-sales-table,
+            .company-sales-table {
+                min-width: 0 !important;
+                width: 100% !important;
+                table-layout: fixed !important;
+                box-sizing: border-box !important;
+            }
+
+            .company-detail-sales-table th,
+            .company-detail-sales-table td,
+            .company-sales-table th,
+            .company-sales-table td {
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                padding: 2px 1px !important;
+                font-size: 0.53rem !important;
+                line-height: 1.15 !important;
+                min-width: 0 !important;
+                text-align: center !important;
+                box-sizing: border-box !important;
+            }
+
+            .company-detail-sales-table th {
+                padding: 3px 1px !important;
+                font-size: 0.53rem !important;
+                font-weight: 700 !important;
+            }
+
+            .col-hdr-mobile {
+                display: inline !important;
+            }
+
+            .col-hdr-full {
+                display: none !important;
+            }
+
+            .date-mobile {
+                display: inline !important;
+                font-size: 0.49rem !important;
+                white-space: nowrap !important;
+            }
+
+            .date-full {
+                display: none !important;
+            }
+
+            .curr-lbl {
+                font-size: 0.44rem !important;
+                opacity: 0.85 !important;
+            }
+
+            .company-detail-sales-table th.col-num,
+            .company-detail-sales-table td.col-num {
+                width: 4% !important;
+                min-width: 0 !important;
+            }
+
+            .company-detail-sales-table th.col-date,
+            .company-detail-sales-table td.col-date {
+                width: 14% !important;
+                min-width: 0 !important;
+                direction: rtl !important;
+            }
+
+            .company-detail-sales-table th.col-staff,
+            .company-detail-sales-table td.col-staff {
+                width: 10% !important;
+                min-width: 0 !important;
+                font-size: 0.53rem !important;
+            }
+
+            .company-detail-sales-table th.col-product,
+            .company-detail-sales-table td.col-product {
+                width: 28% !important;
+                min-width: 0 !important;
+                font-size: 0.55rem !important;
+                text-align: right !important;
+                font-weight: 600 !important;
+            }
+
+            .company-detail-sales-table th.col-price,
+            .company-detail-sales-table td.col-price {
+                width: 13% !important;
+                min-width: 0 !important;
+                font-weight: 700 !important;
+                font-size: 0.56rem !important;
+            }
+
+            .company-detail-sales-table th.col-share-almezo,
+            .company-detail-sales-table td.col-share-almezo {
+                width: 12% !important;
+                min-width: 0 !important;
+                font-size: 0.55rem !important;
+                font-weight: 700 !important;
+            }
+
+            .company-detail-sales-table th.col-share-company,
+            .company-detail-sales-table td.col-share-company {
+                width: 12% !important;
+                min-width: 0 !important;
+                font-size: 0.55rem !important;
+                font-weight: 700 !important;
+            }
+
+            .company-detail-sales-table th.col-actions,
+            .company-detail-sales-table td.col-actions {
+                width: 7% !important;
+                min-width: 0 !important;
+                padding: 1px 0 !important;
+            }
+
+            .company-detail-sales-table .edit-share-btn-text {
+                display: none !important;
+            }
+
+            .company-detail-sales-table .btn-edit-share {
+                padding: 0 !important;
+                font-size: 0.52rem !important;
+                min-width: 0 !important;
+                width: 19px !important;
+                height: 19px !important;
+                border-radius: 4px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                margin: 0 auto !important;
+            }
+
+            .company-detail-sales-table .custom-share-badge {
+                display: none !important;
+            }
+
+            .col-detail-total-lbl {
+                font-size: 0.54rem !important;
+                white-space: nowrap !important;
+            }
+
+            /* 4. جدول ملخص مبيعات المنتجات في النافذة المنبثقة */
+            .product-summary-table {
+                min-width: 0 !important;
+                width: 100% !important;
+                table-layout: fixed !important;
+            }
+
+            .product-summary-table th,
+            .product-summary-table td {
+                padding: 5px 3px !important;
+                font-size: 0.72rem !important;
+                word-break: break-word !important;
+            }
+
+            /* النوافذ المنبثقة على الهواتف */
+            .modal-content,
+            .edit-balances-modal-content,
+            .product-summary-modal-content {
+                width: 95% !important;
+                max-width: 95% !important;
+                margin: 15px auto !important;
+                padding: 18px 14px !important;
+                box-sizing: border-box !important;
+                border-radius: 16px !important;
+            }
+
+            .product-summary-stats-grid {
+                grid-template-columns: 1fr !important;
+                gap: 8px !important;
+            }
+
+            .product-summary-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 8px !important;
+            }
+
+            .btn-copy-summary {
+                width: 100% !important;
+                justify-content: center !important;
+            }
+
+            /* تذييل الصفحة */
+            footer .container {
+                padding: 15px 10px !important;
+                text-align: center !important;
+                font-size: 0.78rem !important;
+            }
+        }
+    </style>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <!-- Config -->
+    <script src="firebase-config.js?v=4066.0"></script>
+</head>
+
+<body>
+    <header>
+        <div class="container header-flex">
+            <a href="index.html" class="logo">
+                <img src="photo/logo.ico" alt="AlMeZ0 Logo"
+                    onerror="this.src='https://via.placeholder.com/150x50/0a0d12/4caf50?text=AlMeZ0'">
+                <h1>سيرفرات الميزو - ALmEz0</h1>
+            </a>
+            <div class="contact-header">
+                <button class="admin-home-btn" onclick="window.location.href='index.html'">
+                    <i class="fas fa-home"></i> الرجوع للرئيسية
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container admin-main-content" id="adminMainContent">
+        <div class="admin-header-actions">
+            <h2 class="page-title title-no-margin"><i class="fas fa-chart-bar"></i> لوحة تحكم وتقارير المدير</h2>
+            <div class="admin-top-action-buttons">
+                <button type="button" id="btnStaffRules" onclick="openStaffRulesModal()" class="custom-staff-btn btn-staff-rules" title="مركز التحكم في قوانين وعمولات ونسب المناديب">
+                    <i class="fas fa-sliders-h"></i> قوانين ونسب المناديب
+                </button>
+                <button onclick="openStaffManagementModal()" class="custom-staff-btn" title="إدارة الموظفين والمناديب">
+                    <i class="fas fa-users-cog"></i> إدارة الموظفين
+                </button>
+            </div>
+        </div>
+
+        <!-- أرصدة المناديب -->
+        <div class="forms-grid" id="staffBalancesGrid">
+            <!-- سيتم إضافة بطاقات المناديب هنا بواسطة JS -->
+        </div>
+
+        <!-- أرصدة شركات التوزيع (المظلة / انيس / بوينت / Bn+) -->
+        <h3 class="page-title table-section-title mt-30"><i class="fas fa-building"></i> صناديق شركات التوزيع</h3>
+        <div class="forms-grid" id="companyBalancesGrid">
+            <!-- سيتم إضافة بطاقات الشركات هنا بواسطة JS -->
+        </div>
+
+        <!-- تصفح وفواتير مبيعات شركات التوزيع -->
+        <div class="history-search-container company-sales-section">
+            <h3 class="history-search-title"><i class="fas fa-file-invoice-dollar"></i> مبيعات وفواتير شركات التوزيع</h3>
+            <div class="history-search-flex">
+                <div class="history-search-group">
+                    <label for="companyFilterSelect" class="history-search-label">الشركة:</label>
+                    <select id="companyFilterSelect" class="history-search-input" onchange="searchCompanySales()" autocomplete="off">
+                        <option value="all">جميع الشركات</option>
+                        <option value="almadhala">المظلة</option>
+                        <option value="anees">انيس</option>
+                        <option value="point">بوينت</option>
+                        <option value="bn">Bn+</option>
+                    </select>
+                </div>
+
+                <div class="history-search-group">
+                    <label for="companyStartDate" class="history-search-label">من تاريخ:</label>
+                    <input type="text" id="companyStartDate" title="تاريخ البداية" placeholder="اختر التاريخ..."
+                        class="history-search-input" autocomplete="off">
+                </div>
+
+                <div class="history-search-group">
+                    <label for="companyEndDate" class="history-search-label">إلى تاريخ:</label>
+                    <input type="text" id="companyEndDate" title="تاريخ النهاية" placeholder="اختر التاريخ..."
+                        class="history-search-input" autocomplete="off">
+                </div>
+
+                <div class="history-search-btn-group">
+                    <button type="button" class="btn-primary history-search-btn" onclick="searchCompanySales()"><i
+                            class="fas fa-search"></i> عرض المبيعات</button>
+                    <button type="button" class="history-reset-btn" onclick="resetCompanySalesToCurrentMonth()" title="عرض شهر كامل"><i
+                            class="fas fa-calendar-check"></i> الشهر الحالي</button>
+                </div>
+            </div>
+            <p class="history-search-note">* العرض الافتراضي لمدة شهر كامل، ويمكنك تخصيص الفترة (من - إلى) لأي شركة وتنزيل فاتورة مبيعاتها كصورة رسمية عالية الدقة.</p>
+            <div id="companyMonthlyHistoryContainer"></div>
+        </div>
+
+        <!-- السجل العام -->
+
+        <!-- السجل العام -->
+        <div class="history-search-container">
+            <h3 class="history-search-title"><i class="fas fa-search"></i> تصفية سجل المبيعات والعمليات</h3>
+            <div class="history-search-flex">
+
+                <div class="history-search-group">
+                    <label for="historyStartDate" class="history-search-label">من تاريخ:</label>
+                    <input type="text" id="historyStartDate" title="تاريخ البداية" placeholder="اختر التاريخ..."
+                        class="history-search-input" autocomplete="off">
+                </div>
+
+                <div class="history-search-group">
+                    <label for="historyEndDate" class="history-search-label">إلى تاريخ:</label>
+                    <input type="text" id="historyEndDate" title="تاريخ النهاية" placeholder="اختر التاريخ..."
+                        class="history-search-input" autocomplete="off">
+                </div>
+
+                <div class="history-search-btn-group">
+                    <button class="btn-primary history-search-btn" onclick="searchHistory()"><i
+                            class="fas fa-search"></i> بحث</button>
+                    <button class="history-reset-btn" onmouseover="this.classList.add('hover')"
+                        onmouseout="this.classList.remove('hover')" onclick="resetHistory()"><i class="fas fa-undo"></i>
+                        أسبوع الحالي</button>
+                    <button type="button" id="btnPeriodProductSummary" class="btn-product-summary period-summary-btn" onclick="openPeriodProductSalesSummary()" title="عرض تفاصيل إجمالي مبيعات المنتجات في الفترة المحددة">
+                        <i class="fas fa-chart-pie"></i> إجمالي مبيعات المنتجات للفترة
+                        <span class="summary-btn-badge" id="periodSalesBadge">0</span>
+                    </button>
+                </div>
+            </div>
+            <p class="history-search-note">* للبحث عن يوم واحد فقط، اختر نفس التاريخ في الحقلين.</p>
+        </div>
+
+        <!-- إجمالي أرباح المناديب -->
+        <div class="history-search-container profits-tracking-container">
+            <h3 class="profits-tracking-title"><i class="fas fa-hand-holding-usd profits-tracking-icon"></i> إجمالي
+                أرباح المناديب للفترة المعروضة:</h3>
+            <span id="totalProfitsValue" class="profits-tracking-value">0.00 د.ل</span>
+        </div>
+
+        <div id="masterHistoryContainer">
+            <div class="table-empty-message mt-20">جاري جلب البيانات...</div>
+        </div>
+    </main>
+    <!-- Edit Balances Modal -->
+    <div id="editBalancesModal" class="modal">
+        <div class="modal-content edit-balances-modal-content">
+            <div class="modal-header edit-balances-modal-header">
+                <h2 class="edit-balances-modal-title"><i class="fas fa-edit accent-blue"></i>
+                    تعديل أرصدة <span id="editStaffName" class="accent-blue"></span></h2>
+                <span class="close-modal edit-balances-modal-close" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="closeEditBalancesModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editStaffId">
+                <input type="hidden" id="editBaseLibyana">
+                <input type="hidden" id="editBaseAlmadar">
+                <input type="hidden" id="editBaseCash">
+                <input type="hidden" id="editNetLibyana">
+                <input type="hidden" id="editNetAlmadar">
+                <input type="hidden" id="editNetCash">
+                <input type="hidden" id="editNetBank">
+                <input type="hidden" id="editNetSadad">
+                <input type="hidden" id="editNetUsdt">
+                <input type="hidden" id="editBaseProfit">
+                <input type="hidden" id="editNetAmount">
+                <input type="hidden" id="editDuesOwed">
+                <input type="hidden" id="editCurrentCash">
+                <input type="hidden" id="editNetProfitWithoutBase">
+
+                <div class="staff-form-group">
+                    <label for="newLibyanaVal" class="edit-balances-modal-label"><i
+                            class="fas fa-wallet accent-purple"></i> مطلوب ليبيانا الجديد (د.ل):</label>
+                    <input type="number" id="newLibyanaVal" step="0.01" title="مطلوب ليبيانا"
+                        placeholder="مطلوب ليبيانا" class="edit-balances-modal-input input-libyana">
+                </div>
+                <div class="staff-form-group mt-20">
+                    <label for="newAlmadarVal" class="edit-balances-modal-label"><i
+                            class="fas fa-wallet accent-green"></i> مطلوب المدار الجديد (د.ل):</label>
+                    <input type="number" id="newAlmadarVal" step="0.01" title="مطلوب المدار" placeholder="مطلوب المدار"
+                        class="edit-balances-modal-input input-almadar">
+                </div>
+
+                <!-- حقول خاصة بمندوب ابراهيم (كاش، حساب مصرفي، سداد، USDT) -->
+                <div id="ibrahimEditFields">
+                    <div class="staff-form-group mt-20">
+                        <label for="newCashVal" class="edit-balances-modal-label"><i
+                                class="fas fa-money-bill-wave accent-red"></i> مطلوب كاش الجديد (د.ل):</label>
+                        <input type="number" id="newCashVal" step="0.01" title="مطلوب كاش" placeholder="مطلوب كاش"
+                            class="edit-balances-modal-input input-cash">
+                    </div>
+                    <div class="staff-form-group mt-20">
+                        <label for="newBankVal" class="edit-balances-modal-label"><i
+                                class="fas fa-university accent-bank"></i> حساب المصرفي الجديد (د.ل):</label>
+                        <input type="number" id="newBankVal" step="0.01" title="حساب المصرفي" placeholder="حساب المصرفي"
+                            class="edit-balances-modal-input input-bank">
+                    </div>
+                    <div class="staff-form-group mt-20">
+                        <label for="newSadadVal" class="edit-balances-modal-label"><i
+                                class="fas fa-hand-holding-usd accent-sadad"></i> سداد الجديد (د.ل):</label>
+                        <input type="number" id="newSadadVal" step="0.01" title="سداد" placeholder="سداد"
+                            class="edit-balances-modal-input input-sadad">
+                    </div>
+                    <div class="staff-form-group mt-20">
+                        <label for="newUsdtVal" class="edit-balances-modal-label"><i
+                                class="fas fa-coins accent-usdt"></i> USDT الجديد ($):</label>
+                        <input type="number" id="newUsdtVal" step="0.01" title="USDT" placeholder="USDT"
+                            class="edit-balances-modal-input input-usdt">
+                    </div>
+                </div>
+
+                <!-- حقل التسوية للمناديب العاديين فقط -->
+                <div id="standardSettlementGroup" class="staff-form-group mt-20">
+                    <!-- تنبيه ومقاصة للمندوب المدين الذي لديه مستحقات سابقة -->
+                    <div id="debtorOffsetAlert" class="debtor-offset-alert">
+                        <div class="debtor-offset-alert-text">
+                            <i class="fas fa-info-circle"></i> المندوب مدين (عليه ديون كاش)، ولديه مستحقات أرباح سابقة قدرها: <strong id="debtorDuesNotice" class="debtor-offset-dues-val">0.00</strong> د.ل.
+                        </div>
+                        <label class="debtor-offset-label">
+                            <input type="checkbox" id="autoOffsetDuesCheckbox" checked class="debtor-offset-checkbox" title="تصفير المستحقات تلقائياً وخصمها من مطلوب الكاش (مقاصة)">
+                            <span>تصفير المستحقات تلقائياً وخصمها من مطلوب الكاش (مقاصة)</span>
+                        </label>
+                    </div>
+
+                    <!-- تنبيه ومقاصة للمندوب الدائن الذي في جيبه كاش من المبيعات -->
+                    <div id="creditorOffsetAlert" class="creditor-offset-alert">
+                        <div class="creditor-offset-alert-text">
+                            <i class="fas fa-info-circle"></i> بحوزة المندوب كاش مبيعات قدره: <strong id="creditorCashNotice" class="debtor-offset-dues-val">0.00</strong> د.ل.
+                            <br>
+                            المستحقات السابقة: <strong id="creditorDuesNotice" class="debtor-offset-dues-val">0.00</strong> د.ل | الصافي المطلوب دفعه: <strong id="creditorNetToPay" class="debtor-offset-dues-val">0.00</strong> د.ل
+                        </div>
+                        <label class="debtor-offset-label">
+                            <input type="checkbox" id="autoOffsetCashForCreditorCheckbox" checked class="creditor-offset-checkbox" title="مقاصة وتصفير كاش المبيعات وخصمه من المستحقات">
+                            <span>مقاصة الكاش وتصفيره (يحتفظ به المندوب وتدفع له الصافي فقط)</span>
+                        </label>
+                    </div>
+
+                    <label id="settlementLabel" for="settlementAmountVal" class="edit-balances-modal-label"><i
+                            class="fas fa-hand-holding-usd accent-white"></i> القيمة المسددة (د.ل):</label>
+                    <input type="number" id="settlementAmountVal" step="0.01" title="القيمة المسددة"
+                        placeholder="أدخل القيمة هنا..." class="edit-balances-modal-input input-profit">
+                </div>
+
+                <button class="edit-balances-modal-save" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="saveNewBalances()"><i
+                        class="fas fa-save icon-spacing-left"></i> حفظ التعديلات</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Sale Modal -->
+    <div id="editSaleModal" class="modal">
+        <div class="modal-content edit-balances-modal-content">
+            <div class="modal-header edit-balances-modal-header">
+                <h2 class="edit-balances-modal-title"><i class="fas fa-pen accent-blue"></i>
+                    تعديل عملية بيع</h2>
+                <span class="close-modal edit-balances-modal-close" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="closeEditSaleModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editSaleId">
+
+                <div class="staff-form-group">
+                    <label for="editSaleProduct" class="edit-balances-modal-label"><i
+                            class="fas fa-box accent-purple"></i> اسم المنتج:</label>
+                    <input type="text" id="editSaleProduct" title="اسم المنتج"
+                        placeholder="مثال: سيرفر مافين (Maven)" class="edit-balances-modal-input input-libyana">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="editSaleDuration" class="edit-balances-modal-label"><i
+                            class="fas fa-clock accent-purple"></i> المدة / الباقة:</label>
+                    <input type="text" id="editSaleDuration" title="المدة أو الباقة"
+                        placeholder="مثال: 3 أشهر" class="edit-balances-modal-input input-libyana">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="editSaleMethod" class="edit-balances-modal-label"><i
+                            class="fas fa-wallet accent-green"></i> طريقة الدفع / المحفظة:</label>
+                    <select id="editSaleMethod" title="طريقة الدفع" class="edit-balances-modal-input input-almadar">
+                        <option value="ليبيانا">ليبيانا</option>
+                        <option value="المدار">المدار</option>
+                        <option value="تحويلات مصرفية">تحويلات مصرفية</option>
+                        <option value="سداد">سداد</option>
+                        <option value="انيس">انيس</option>
+                        <option value="المظلة">المظلة</option>
+                        <option value="بوينت">بوينت</option>
+                        <option value="Bn+">Bn+</option>
+                        <option value="USDT">USDT</option>
+                        <option value="كاش">كاش</option>
+                        <option value="دين">دين</option>
+                    </select>
+                    <p class="history-search-note note-mt-8">* ملاحظة: تغيير طريقة الدفع من/إلى "ليبيانا"،
+                        "المدار" أو "دفع مشترك" لا يعدّل مستلم الرصيد المسجل مسبقاً. لتغيير المستلم، الأفضل إلغاء العملية
+                        وتسجيلها من جديد.</p>
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="editSalePrice" class="edit-balances-modal-label"><i
+                            class="fas fa-hand-holding-usd accent-white"></i> سعر البيع (د.ل):</label>
+                    <input type="number" id="editSalePrice" step="0.01" title="سعر البيع"
+                        placeholder="أدخل السعر الجديد..." class="edit-balances-modal-input input-profit">
+                </div>
+
+                <button class="edit-balances-modal-save" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="saveEditedSale()"><i
+                        class="fas fa-save icon-spacing-left"></i> حفظ التعديل</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Company Balance Modal -->
+    <div id="editCompanyModal" class="modal">
+        <div class="modal-content edit-balances-modal-content">
+            <div class="modal-header edit-balances-modal-header">
+                <h2 class="edit-balances-modal-title"><i class="fas fa-edit accent-blue"></i>
+                    تعديل حساب <span id="editCompanyName" class="accent-blue"></span></h2>
+                <span class="close-modal edit-balances-modal-close" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="closeEditCompanyModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editCompanyId">
+
+                <div class="staff-form-group">
+                    <label for="editCompanyTotalSales" class="edit-balances-modal-label"><i
+                            class="fas fa-chart-line accent-purple"></i> إجمالي المبيعات (د.ل):</label>
+                    <input type="number" id="editCompanyTotalSales" step="0.01" title="إجمالي المبيعات"
+                        placeholder="إجمالي المبيعات" class="edit-balances-modal-input input-libyana">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="editCompanyPercent" class="edit-balances-modal-label"><i
+                            class="fas fa-percent accent-green"></i> نسبة التصفية (%):</label>
+                    <input type="number" id="editCompanyPercent" step="1" min="0" max="100" title="نسبة التصفية"
+                        placeholder="مثال: 15 أو 20" class="edit-balances-modal-input input-almadar">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="editCompanyNetSales" class="edit-balances-modal-label"><i
+                            class="fas fa-coins accent-blue"></i> الصافي (د.ل):</label>
+                    <input type="number" id="editCompanyNetSales" step="0.01" title="الصافي"
+                        placeholder="الصافي بعد التصفية" class="edit-balances-modal-input input-cash">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="editCompanyReceivedTotal" class="edit-balances-modal-label"><i
+                            class="fas fa-hand-holding-usd accent-white"></i> القيمة المستلمة من الشركة (د.ل):</label>
+                    <input type="number" id="editCompanyReceivedTotal" step="0.01" title="القيمة المستلمة"
+                        placeholder="القيمة المستلمة من الشركة" class="edit-balances-modal-input input-profit">
+                </div>
+
+                <button class="edit-balances-modal-save" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="saveCompanyBalance()"><i
+                        class="fas fa-save icon-spacing-left"></i> حفظ التعديلات</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal تعديل توزيع حصص مبيعة لشركة التوزيع -->
+    <div id="editCompanySaleShareModal" class="modal">
+        <div class="modal-content edit-balances-modal-content">
+            <div class="modal-header edit-balances-modal-header">
+                <h2 class="edit-balances-modal-title"><i class="fas fa-sliders-h accent-blue"></i>
+                    تعديل حصص المبيعة</h2>
+                <span class="close-modal edit-balances-modal-close" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="closeEditCompanySaleShareModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editShareTxId">
+                <input type="hidden" id="editShareSalePrice">
+                <input type="hidden" id="editShareDefaultAlmezoPercent">
+
+                <!-- تفاصيل المنتج والعملية -->
+                <div class="edit-share-info-card">
+                    <div class="edit-share-info-row">
+                        <span class="edit-share-info-label">المنتج:</span>
+                        <strong id="editShareProductLabel" class="edit-share-product-val">-</strong>
+                    </div>
+                    <div class="edit-share-info-row">
+                        <span class="edit-share-info-label">سعر البيع:</span>
+                        <strong id="editSharePriceLabel" class="edit-share-price-val">-</strong>
+                    </div>
+                    <div class="edit-share-info-row">
+                        <span class="edit-share-info-label">شركة التوزيع:</span>
+                        <strong id="editShareCompanyLabel" class="edit-share-company-val">-</strong>
+                    </div>
+                </div>
+
+                <div class="staff-form-group">
+                    <label for="inputSalePrice" class="edit-balances-modal-label">
+                        <i class="fas fa-tag accent-blue"></i> سعر البيع (د.ل):
+                    </label>
+                    <input type="number" id="inputSalePrice" step="0.01" min="0" placeholder="سعر البيع"
+                        class="edit-balances-modal-input" oninput="onSalePriceInput(this.value)">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="inputShareAlmezo" class="edit-balances-modal-label">
+                        <i class="fas fa-crown accent-green"></i> حصة الميزو (د.ل):
+                    </label>
+                    <input type="number" id="inputShareAlmezo" step="0.01" min="0" placeholder="حصة الميزو"
+                        class="edit-balances-modal-input" oninput="onAlmezoShareInput(this.value)">
+                </div>
+
+                <div class="staff-form-group mt-20">
+                    <label for="inputShareCompany" class="edit-balances-modal-label">
+                        <i class="fas fa-building accent-purple"></i> حصة <span id="labelEditShareCompany">الشركة</span> (د.ل):
+                    </label>
+                    <input type="number" id="inputShareCompany" step="0.01" min="0" placeholder="حصة الشركة"
+                        class="edit-balances-modal-input" oninput="onCompanyShareInput(this.value)">
+                </div>
+
+                <!-- زر استعادة النسبة الافتراضية -->
+                <div class="edit-share-restore-wrap">
+                    <button type="button" class="btn-restore-default-share" onclick="restoreDefaultCompanyShare()">
+                        <i class="fas fa-undo"></i> استعادة التوزيع الافتراضي (<span id="restorePercentBadge">85% / 15%</span>)
+                    </button>
+                </div>
+
+                <button class="edit-balances-modal-save edit-share-modal-submit" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="saveCompanySaleShare()">
+                    <i class="fas fa-save icon-spacing-left"></i> حفظ الحصص
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Sales Summary Modal -->
+    <div id="productSalesSummaryModal" class="modal">
+        <div class="modal-content product-summary-modal-content">
+            <div class="modal-header product-summary-modal-header">
+                <div class="product-summary-modal-header-text">
+                    <h2 class="product-summary-modal-title">
+                        <i class="fas fa-chart-pie accent-blue"></i>
+                        <span id="productSummaryTitle">إجمالي مبيعات المنتجات</span>
+                    </h2>
+                    <span id="productSummarySubtitle" class="product-summary-subtitle"></span>
+                </div>
+                <span class="close-modal product-summary-modal-close" onmouseover="this.classList.add('hover')"
+                    onmouseout="this.classList.remove('hover')" onclick="closeProductSummaryModal()">&times;</span>
+            </div>
+            <div class="modal-body product-summary-modal-body">
+                <!-- Summary Stats Bar -->
+                <div class="product-summary-stats-grid">
+                    <div class="product-summary-stat-card stat-sales-count">
+                        <div class="stat-icon"><i class="fas fa-shopping-cart"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">إجمالي المبيعات</span>
+                            <span id="summaryTotalSalesCount" class="stat-value">0</span>
+                        </div>
+                    </div>
+                    <div class="product-summary-stat-card stat-sales-amount">
+                        <div class="stat-icon"><i class="fas fa-coins"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">إجمالي القيمة</span>
+                            <span id="summaryTotalSalesAmount" class="stat-value">0.00 د.ل</span>
+                        </div>
+                    </div>
+                    <div class="product-summary-stat-card stat-products-count">
+                        <div class="stat-icon"><i class="fas fa-boxes-stacked"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">تنوع المنتجات</span>
+                            <span id="summaryDistinctProductsCount" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search / Filter & Actions Bar -->
+                <div class="product-summary-controls">
+                    <div class="product-summary-search-wrap">
+                        <i class="fas fa-search product-summary-search-icon"></i>
+                        <input type="text" id="productSummarySearch" class="product-summary-search-input" placeholder="بحث في المنتجات..." oninput="filterProductSummary(this.value)" autocomplete="off">
+                    </div>
+                    <button type="button" class="btn-copy-summary" onclick="copyProductSummaryToClipboard()" title="نسخ التقرير المفصل كـ نص">
+                        <i class="fas fa-copy"></i> نسخ التقرير
+                    </button>
+                </div>
+
+                <!-- Products Breakdown Table / List -->
+                <div class="table-responsive table-scrollable product-summary-table-wrap">
+                    <table class="data-table product-summary-table">
+                        <thead>
+                            <tr>
+                                <th class="product-summary-th-idx">#</th>
+                                <th class="product-summary-th-product">المنتج / الباقة</th>
+                                <th class="product-summary-th-qty">الكمية (العدد)</th>
+                                <th class="product-summary-th-amount">إجمالي القيمة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productSummaryTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer product-summary-footer">
+                <button type="button" class="btn-close-summary" onclick="closeProductSummaryModal()">
+                    <i class="fas fa-times"></i> إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staff Rules & Commissions Management Modal -->
+    <div id="staffRulesModal" class="modal">
+        <div class="modal-content staff-rules-modal-content">
+            <div class="modal-header staff-rules-modal-header">
+                <h2 class="staff-rules-modal-title">
+                    <i class="fas fa-sliders-h icon-sky"></i>
+                    مركز التحكم في قوانين وعمولات المناديب والمبيعات
+                </h2>
+                <span class="close-modal edit-balances-modal-close" onclick="closeStaffRulesModal()">&times;</span>
+            </div>
+
+            <!-- شريط التبويبات -->
+            <div class="staff-rules-tabs-nav">
+                <button type="button" class="staff-rules-tab-btn active" onclick="switchStaffRulesTab('tabCommissions')">
+                    <i class="fas fa-coins"></i> عمولات المنتجات
+                </button>
+                <button type="button" class="staff-rules-tab-btn" onclick="switchStaffRulesTab('tabProfitSharing')">
+                    <i class="fas fa-users-cog"></i> توزيع الأرباح
+                </button>
+                <button type="button" class="staff-rules-tab-btn" onclick="switchStaffRulesTab('tabTransfers')">
+                    <i class="fas fa-exchange-alt"></i> التحويلات والديون
+                </button>
+                <button type="button" class="staff-rules-tab-btn" onclick="switchStaffRulesTab('tabWeekCycle')">
+                    <i class="fas fa-calendar-week"></i> دورة الأسبوع
+                </button>
+            </div>
+
+            <div class="modal-body staff-rules-body">
+                <!-- تبويب 1: عمولات المنتجات -->
+                <div id="tabCommissions" class="staff-rules-tab-pane active">
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-tv icon-sky"></i> اشتراكات سيرفرات IPTV (د.ل)</h4>
+                        <div class="rules-fields-grid-3">
+                            <div class="rules-field-group">
+                                <label for="rule_comm_iptv_3m" class="rules-field-label">باقة 3 أشهر:</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.5" min="0" id="rule_comm_iptv_3m" class="rules-field-input" placeholder="0" title="عمولة باقة 3 أشهر" aria-label="عمولة باقة 3 أشهر">
+                                    <span class="rules-field-unit">د.ل</span>
+                                </div>
+                            </div>
+                            <div class="rules-field-group">
+                                <label for="rule_comm_iptv_6m" class="rules-field-label">باقة 6 أشهر:</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.5" min="0" id="rule_comm_iptv_6m" class="rules-field-input" placeholder="0" title="عمولة باقة 6 أشهر" aria-label="عمولة باقة 6 أشهر">
+                                    <span class="rules-field-unit">د.ل</span>
+                                </div>
+                            </div>
+                            <div class="rules-field-group">
+                                <label for="rule_comm_iptv_12m" class="rules-field-label">باقة 12 شهر (سنة):</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.5" min="0" id="rule_comm_iptv_12m" class="rules-field-input" placeholder="0" title="عمولة باقة 12 شهر (سنة)" aria-label="عمولة باقة 12 شهر (سنة)">
+                                    <span class="rules-field-unit">د.ل</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-mobile-alt icon-purple"></i> تفعيلات تطبيقات الشاشات (Smart Apps)</h4>
+                        <div class="rules-fields-grid-2">
+                            <div class="rules-field-group">
+                                <label for="rule_comm_smart_12m" class="rules-field-label">تفعيل سنة (12 شهر):</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.5" min="0" id="rule_comm_smart_12m" class="rules-field-input" placeholder="0" title="عمولة تفعيل سنة (12 شهر)" aria-label="عمولة تفعيل سنة (12 شهر)">
+                                    <span class="rules-field-unit">د.ل</span>
+                                </div>
+                            </div>
+                            <div class="rules-field-group">
+                                <label for="rule_comm_smart_life" class="rules-field-label">تفعيل مدى الحياة (Lifetime):</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.5" min="0" id="rule_comm_smart_life" class="rules-field-input" placeholder="0" title="عمولة تفعيل مدى الحياة (Lifetime)" aria-label="عمولة تفعيل مدى الحياة (Lifetime)">
+                                    <span class="rules-field-unit">د.ل</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-crown icon-amber"></i> سيرفرات الـ VIP</h4>
+                        <div class="rules-fields-grid-2">
+                            <div class="rules-field-group">
+                                <label for="rule_comm_vip_default" class="rules-field-label">العمولة الافتراضية للاشتراك:</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.5" min="0" id="rule_comm_vip_default" class="rules-field-input" placeholder="0" title="العمولة الافتراضية لاشتراك VIP" aria-label="العمولة الافتراضية لاشتراك VIP">
+                                    <span class="rules-field-unit">د.ل</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="rules-note-box">
+                            <i class="fas fa-info-circle"></i>
+                            <span>أي بيعة جديدة للمندوب ستعتمد فوراً على هذه المبالغ لحساب أرباح البيعة، وإجمالي أرباح الأسبوع لجميع المناديب.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- تبويب 2: توزيع الأرباح بين المناديب -->
+                <div id="tabProfitSharing" class="staff-rules-tab-pane">
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-balance-scale icon-green"></i> طريقة توزيع أرباح الأسبوع</h4>
+                        <div class="rules-fields-grid-2">
+                            <div class="rules-field-group">
+                                <label for="rule_profit_mode" class="rules-field-label">نمط التوزيع:</label>
+                                <select id="rule_profit_mode" class="rules-field-input" title="نمط توزيع الأرباح" aria-label="نمط توزيع الأرباح" onchange="toggleProfitSharingModeUI(this.value)">
+                                    <option value="equal">تقسيم بالتساوي على الشركاء المحددين</option>
+                                    <option value="custom">نسب مئوية مخصصة لكل مندوب</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-user-check icon-sky"></i> المناديب المشتركون في أرباح الأسبوع</h4>
+                        <p class="rules-staff-desc">حدد المناديب الذين يدخلون في قسمة أرباح مبيعات الشركة:</p>
+                        <div id="rulesEligibleStaffContainer">
+                            <!-- سيتم توليده ديناميكياً من المناديب المسجلين -->
+                        </div>
+                    </div>
+
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-user-slash icon-red"></i> المندوب المستثنى تماماً من الأرباح</h4>
+                        <div class="rules-field-group">
+                            <label for="rule_excluded_staff" class="rules-field-label">المندوب المستثنى (له محافظ مصرفي/سداد/USDT):</label>
+                            <input type="text" id="rule_excluded_staff" class="rules-field-input rule-input-padded" placeholder="مثال: ابراهيم" title="المندوب المستثنى من الأرباح" aria-label="المندوب المستثنى من الأرباح">
+                        </div>
+                        <div class="rules-note-box">
+                            <i class="fas fa-info-circle"></i>
+                            <span>المندوب المستثنى لا يدخل في قسمة أرباح الأسبوع، وتتحول بطاقته لعرض أرصدة الحساب المصرفي وسداد وUSDT تلقائياً.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- تبويب 3: التحويلات والديون -->
+                <div id="tabTransfers" class="staff-rules-tab-pane">
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-percentage icon-amber"></i> معامل تحويل رصيد الكروت إلى كاش</h4>
+                        <div class="rules-fields-grid-2">
+                            <div class="rules-field-group">
+                                <label for="rule_transfer_factor" class="rules-field-label">معامل التحويل (الحالي 0.75):</label>
+                                <div class="rules-field-input-wrap">
+                                    <input type="number" step="0.01" min="0.1" max="1" id="rule_transfer_factor" class="rules-field-input" placeholder="0.75" title="معامل تحويل رصيد الكروت إلى كاش" aria-label="معامل تحويل رصيد الكروت إلى كاش">
+                                    <span class="rules-field-unit">معامل</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="rules-note-box">
+                            <i class="fas fa-info-circle"></i>
+                            <span>يحدد قيمة الكاش المقابل للرصيد عند سحب دين من مندوب آخر. (مثال: 0.75 تعني أن 100 رصيد كروت تعادل 75 كاش). يمكنك تغييره حسب سعر السوق.</span>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <!-- تبويب 5: دورة الأسبوع والترحيل -->
+                <div id="tabWeekCycle" class="staff-rules-tab-pane">
+                    <div class="rules-section-card">
+                        <h4 class="rules-section-title"><i class="fas fa-calendar-alt icon-sky"></i> إعدادات الأسبوع المالي</h4>
+                        <div class="rules-fields-grid-2">
+                            <div class="rules-field-group">
+                                <label for="rule_week_start_day" class="rules-field-label">يوم بداية الأسبوع:</label>
+                                <select id="rule_week_start_day" class="rules-field-input" title="يوم بداية أسبوع الحسابات" aria-label="يوم بداية أسبوع الحسابات">
+                                    <option value="6">السبت (الوضع الافتراضي في ليبيا)</option>
+                                    <option value="0">الأحد</option>
+                                    <option value="1">الإثنين</option>
+                                    <option value="5">الجمعة</option>
+                                </select>
+                            </div>
+                            <div class="rules-field-group">
+                                <label for="rule_auto_rollover" class="rules-field-label">الترحيل التلقائي للأرباح غير المدفوعة:</label>
+                                <select id="rule_auto_rollover" class="rules-field-input" title="الترحيل التلقائي للأرباح غير المدفوعة" aria-label="الترحيل التلقائي للأرباح غير المدفوعة">
+                                    <option value="true">مفعل (ترحيل المتبقي لخانة مستحقات)</option>
+                                    <option value="false">معطل (عدم الترحيل التلقائي)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="rules-note-box">
+                            <i class="fas fa-info-circle"></i>
+                            <span>عند انتهاء الأسبوع وحلول اليوم المحدد لبداية الأسبوع الجديد، يقوم النظام بتصفير ربح الأسبوع الحالي وترحيل أي رصيد غير مدفوع لخانة "مستحقات المندوب" تلقائياً.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="staff-rules-footer">
+                <button type="button" class="btn-rules-restore" onclick="restoreDefaultStaffRules()">
+                    <i class="fas fa-undo"></i> استعادة الإعدادات الافتراضية
+                </button>
+                <div class="staff-rules-save-feedback" id="staffRulesSaveFeedback">
+                    <i class="fas fa-check-circle"></i> تم حفظ التغييرات بنجاح وتطبيقها!
+                </div>
+                <button type="button" class="btn-rules-save" onclick="saveStaffRulesFromModal()">
+                    <i class="fas fa-save"></i> حفظ وتطبيق القوانين
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="copyright">
+                <p>جميع الحقوق محفوظة © 2026 - سيرفرات الميزو - ALmEz0</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="ui.js?v=4064.0"></script>
+    <script src="admin-dashboard.js?v=4068.0"></script>
+</body>
+
+</html>
