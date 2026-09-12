@@ -132,13 +132,21 @@ window.addEventListener('pageshow', () => {
 document.addEventListener('DOMContentLoaded', () => {
     patchVideoJsTech();
     applyAutoScaling();
-    if (window.AlMeZ0App && window.AlMeZ0App.isNative && typeof window.AlMeZ0App.lockLandscape === 'function') {
-        window.AlMeZ0App.lockLandscape();
+    if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
+        if (typeof window.AlMeZ0App.lockLandscape === 'function') {
+            window.AlMeZ0App.lockLandscape();
+        }
+        if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') {
+            window.AlMeZ0App.setImmersiveFullscreen(true);
+        }
     }
 });
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     patchVideoJsTech();
     applyAutoScaling();
+    if (window.AlMeZ0App && window.AlMeZ0App.isNative && typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') {
+        window.AlMeZ0App.setImmersiveFullscreen(true);
+    }
 }
 
 const state = {
@@ -566,6 +574,20 @@ function playStream(id, type, extension, name, icon) {
         baseStreamUrl = `${hostUrl}/movie/${user}/${pass}/${id}.${ext}`;
     } else if (type === 'series') {
         baseStreamUrl = `${hostUrl}/series/${user}/${pass}/${id}.${ext}`;
+    }
+
+    // ================================================================
+    // في تطبيق أندرويد: تشغيل الأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
+    // ================================================================
+    if ((window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) && (type === 'vod' || type === 'series')) {
+        if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
+            const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon);
+            if (handled) return;
+        }
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
+            window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '');
+            return;
+        }
     }
 
     // دالة مساعدة لتشغيل الرابط في مشغل وسائط خارجي (اختياري عند طلب المستخدم يدوياً)

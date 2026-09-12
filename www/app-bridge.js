@@ -6,9 +6,9 @@
 (function () {
     const isElectron = !!(window.electronAPI && window.electronAPI.isElectron);
     const isCapacitor = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-    const isAndroid = isCapacitor && window.Capacitor.getPlatform() === 'android';
+    const isAndroid = (isCapacitor && window.Capacitor.getPlatform() === 'android') || !!(window.AndroidNativeBridge);
     const isIOS = isCapacitor && window.Capacitor.getPlatform() === 'ios';
-    const isNative = isElectron || isCapacitor;
+    const isNative = isElectron || isCapacitor || !!(window.AndroidNativeBridge);
 
     window.AlMeZ0App = {
         isElectron: isElectron,
@@ -64,6 +64,32 @@
                     return true;
                 }
             } catch (e) { }
+            return false;
+        },
+
+        // Helper to toggle full immersive edge-to-edge mode (hide Android status bar and navigation bar)
+        setImmersiveFullscreen: function (enabled) {
+            try {
+                if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
+                    window.AndroidNativeBridge.setImmersiveFullscreen(!!enabled);
+                    return true;
+                }
+            } catch (e) {
+                console.warn('setImmersiveFullscreen failed:', e);
+            }
+            return false;
+        },
+
+        // Helper to launch hardware-accelerated internal native video player (ExoPlayer)
+        playNativeVideo: function (videoUrl, title, posterUrl) {
+            try {
+                if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
+                    window.AndroidNativeBridge.playNativeVideo(videoUrl, title || 'ALmEz0 Video', posterUrl || '');
+                    return true;
+                }
+            } catch (e) {
+                console.warn('playNativeVideo failed:', e);
+            }
             return false;
         },
 
@@ -253,8 +279,9 @@
 
                     // ج) إذا كان في شاشة الداشبورد أو شاشة الدخول فقط، يرجع للموقع الرئيسي مع إعادة تدوير الشاشة لوضعها الطبيعي
                     if (activeScreen === 'dashboard-screen' || activeScreen === 'auth1-screen' || activeScreen === 'auth2-screen' || !activeScreen) {
-                        if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') {
-                            window.AlMeZ0App.lockPortrait();
+                        if (window.AlMeZ0App) {
+                            if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
+                            if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
                         }
                         window.location.href = 'index.html';
                         return;
@@ -264,8 +291,9 @@
                     if (window.history.length > 1) {
                         window.history.back();
                     } else {
-                        if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') {
-                            window.AlMeZ0App.lockPortrait();
+                        if (window.AlMeZ0App) {
+                            if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
+                            if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
                         }
                         window.location.href = 'index.html';
                     }

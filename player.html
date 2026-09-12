@@ -21,6 +21,28 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <!-- App Bridge for Mobile & Desktop -->
     <script src="app-bridge.js"></script>
+    <script>
+        (function enforceImmersiveOnPlayer() {
+            function applyImmersive() {
+                try {
+                    if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
+                        window.AndroidNativeBridge.setImmersiveFullscreen(true);
+                    } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') {
+                        window.AlMeZ0App.setImmersiveFullscreen(true);
+                    }
+                } catch(e) {}
+            }
+            applyImmersive();
+            document.addEventListener('DOMContentLoaded', applyImmersive);
+            window.addEventListener('load', applyImmersive);
+            window.addEventListener('focus', applyImmersive);
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) applyImmersive();
+            });
+            setTimeout(applyImmersive, 300);
+            setTimeout(applyImmersive, 1000);
+        })();
+    </script>
     <!-- Auth Guard: Verify website login before accessing player -->
     <script>
         (function checkWebsiteAuth() {
@@ -57,7 +79,7 @@
         <!-- AUTH SCREEN 1: SERVER CODE -->
         <div class="app-screen-container auth-container hidden" id="auth1-screen" dir="rtl">
             <div class="auth-card auto-style-1" dir="rtl">
-                <a href="index.html" onclick="if (window.AlMeZ0App && typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();" title="الرجوع للرئيسية" class="btn-home-return auto-style-2">
+                <a href="index.html" onclick="if (window.AlMeZ0App) { if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false); if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait(); }" title="الرجوع للرئيسية" class="btn-home-return auto-style-2">
                     <i class="fas fa-home"></i>
                 </a>
                 <img alt="Player Logo" class="auth-logo"
@@ -141,7 +163,7 @@
             <div class="nav-right">
                 <div class="nav-user nav-user-custom">
                     <!-- 1. زر الهوم / الرجوع -->
-                    <a href="index.html" class="nav-action-btn nav-btn-home" id="navReturnBtn" title="الرجوع للرئيسية">
+                    <a href="index.html" onclick="if (window.AlMeZ0App) { if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false); if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait(); }" class="nav-action-btn nav-btn-home" id="navReturnBtn" title="الرجوع للرئيسية">
                         <i class="fas fa-home"></i>
                     </a>
                     <!-- 2. زر التحديث -->
