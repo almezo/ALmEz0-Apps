@@ -7800,7 +7800,6 @@ body.platform-electron {
     display: flex !important;
     flex-direction: column !important;
     gap: 16px !important;
-    -webkit-overflow-scrolling: touch;
 }
 .broadcast-info-banner {
     display: flex;
