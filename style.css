@@ -7476,7 +7476,7 @@ body.platform-electron {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: radial-gradient(circle at 50% 45%, #0d131f 0%, #06090e 65%, #030407 100%);
+    background: radial-gradient(circle at 50% 45%, #0d1527 0%, #060911 60%, #020306 100%);
     z-index: 99999999;
     display: flex;
     flex-direction: column;
@@ -7484,46 +7484,62 @@ body.platform-electron {
     justify-content: center;
     overflow: hidden;
     perspective: 1200px;
-    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), filter 0.65s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: all;
 }
 
 .app-launch-splash.splash-dismiss {
     opacity: 0 !important;
-    transform: scale(1.15) !important;
-    filter: blur(10px) !important;
+    transform: scale(1.22) !important;
+    filter: blur(14px) !important;
     pointer-events: none !important;
 }
 
 .splash-ambient-glow {
     position: absolute;
-    width: 580px;
-    height: 580px;
+    width: 650px;
+    height: 650px;
     max-width: 95vw;
     max-height: 95vw;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(76, 175, 80, 0.42) 0%, rgba(229, 57, 53, 0.24) 45%, rgba(244, 194, 66, 0.12) 65%, rgba(0, 0, 0, 0) 80%);
-    filter: blur(55px);
-    animation: splashAmbientPulse 3.8s infinite alternate ease-in-out;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.35) 0%, rgba(56, 189, 248, 0.25) 35%, rgba(229, 185, 53, 0.18) 60%, transparent 80%);
+    filter: blur(65px);
+    animation: splashAmbientPulse 4s infinite alternate ease-in-out;
     pointer-events: none;
+}
+
+/* Anamorphic Horizontal Lens Flare Streak */
+.splash-lens-flare {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 160vw;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, rgba(56, 189, 248, 0.4) 25%, rgba(255, 255, 255, 0.95) 50%, rgba(16, 185, 129, 0.5) 75%, transparent 100%);
+    filter: blur(1.5px);
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.8), 0 0 45px rgba(16, 185, 129, 0.6);
+    animation: lensFlarePulse 2.8s infinite alternate ease-in-out;
+    pointer-events: none;
+    z-index: 2;
 }
 
 /* Expanding Sonar Acoustic Wave Rings */
 .splash-sonar-ring {
     position: absolute;
-    width: 260px;
-    height: 260px;
+    width: 280px;
+    height: 280px;
     border-radius: 50%;
-    border: 2px solid rgba(76, 175, 80, 0.5);
-    box-shadow: 0 0 25px rgba(76, 175, 80, 0.3);
-    animation: splashSonarWave 2.4s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
+    border: 2px solid rgba(56, 189, 248, 0.45);
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
+    animation: splashSonarWave 2.6s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
     pointer-events: none;
 }
 
 .splash-sonar-ring.ring-delay {
-    animation-delay: 1.2s;
-    border-color: rgba(229, 57, 53, 0.4);
-    box-shadow: 0 0 25px rgba(229, 57, 53, 0.25);
+    animation-delay: 1.3s;
+    border-color: rgba(229, 185, 53, 0.4);
+    box-shadow: 0 0 30px rgba(229, 185, 53, 0.25);
 }
 
 .splash-logo-container {
@@ -7540,7 +7556,7 @@ body.platform-electron {
     max-width: 82vw;
     height: auto;
     object-fit: contain;
-    filter: drop-shadow(0 0 35px rgba(76, 175, 80, 0.6)) drop-shadow(0 15px 40px rgba(0, 0, 0, 0.95));
+    filter: drop-shadow(0 0 35px rgba(56, 189, 248, 0.5)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
     animation: splashLogoCinematic 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -7550,43 +7566,91 @@ body.platform-electron {
     left: -80%;
     width: 50%;
     height: 220%;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, rgba(76, 175, 80, 0.6) 75%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, rgba(56, 189, 248, 0.7) 75%, transparent 100%);
     transform: rotate(30deg);
     filter: blur(2px);
-    animation: splashLaserSweep 2.2s infinite ease-in-out;
+    animation: splashLaserSweep 2.4s infinite ease-in-out;
     pointer-events: none;
 }
 
-.splash-loading-dots {
-    margin-top: 38px;
+/* Cinematic Brand Reveal Typography */
+.splash-brand-reveal {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
-    z-index: 3;
+    margin-top: 22px;
+    z-index: 4;
+    text-align: center;
 }
 
-.splash-loading-dots span {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #4caf50;
-    box-shadow: 0 0 14px #4caf50;
-    animation: splashDotPulse 1.2s infinite ease-in-out both;
+.splash-brand-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    margin: 0;
+    background: linear-gradient(135deg, #ffffff 0%, #38bdf8 30%, #fbbf24 70%, #ffffff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 14px rgba(56, 189, 248, 0.4));
+    animation: brandTitleExpand 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.splash-loading-dots span:nth-child(1) {
-    animation-delay: -0.32s;
+.splash-brand-subtitle {
+    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #94a3b8;
+    margin: 6px 0 0 0;
+    letter-spacing: 1.5px;
+    animation: fadeInUp 1.2s ease forwards;
+    animation-delay: 0.3s;
+    opacity: 0;
 }
 
-.splash-loading-dots span:nth-child(2) {
-    animation-delay: -0.16s;
-    background: #f4c242;
-    box-shadow: 0 0 14px #f4c242;
+/* Futuristic Neon Laser Progress Bar */
+.splash-energy-bar {
+    width: 220px;
+    height: 3.5px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    margin-top: 24px;
+    z-index: 4;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
-.splash-loading-dots span:nth-child(3) {
-    background: #e53935;
-    box-shadow: 0 0 14px #e53935;
+.splash-energy-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #38bdf8, #fbbf24, #10b981);
+    box-shadow: 0 0 14px #38bdf8;
+    animation: energyFill 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes brandTitleExpand {
+    0% {
+        opacity: 0;
+        transform: translateY(16px) scale(0.92);
+        letter-spacing: 2px;
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        letter-spacing: 5px;
+    }
+}
+
+@keyframes energyFill {
+    0% { width: 0%; }
+    40% { width: 45%; }
+    80% { width: 85%; }
+    100% { width: 100%; }
+}
+
+@keyframes lensFlarePulse {
+    0% { opacity: 0.4; transform: translate(-50%, -50%) scaleX(0.85); }
+    100% { opacity: 0.95; transform: translate(-50%, -50%) scaleX(1.15); }
 }
 
 @keyframes splashLogoCinematic {
@@ -7597,13 +7661,13 @@ body.platform-electron {
     }
     65% {
         opacity: 1;
-        transform: scale(1.05) translateY(-4px) rotateX(-2deg);
-        filter: blur(0px) drop-shadow(0 0 45px rgba(76, 175, 80, 0.75)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
+        transform: scale(1.04) translateY(-4px) rotateX(-2deg);
+        filter: blur(0px) drop-shadow(0 0 45px rgba(56, 189, 248, 0.65)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
     }
     100% {
         opacity: 1;
         transform: scale(1) translateY(0) rotateX(0deg);
-        filter: blur(0px) drop-shadow(0 0 35px rgba(76, 175, 80, 0.6)) drop-shadow(0 15px 40px rgba(0, 0, 0, 0.95));
+        filter: blur(0px) drop-shadow(0 0 35px rgba(56, 189, 248, 0.5)) drop-shadow(0 15px 40px rgba(0, 0, 0, 0.95));
     }
 }
 
@@ -7643,16 +7707,5 @@ body.platform-electron {
     100% {
         left: 150%;
         opacity: 0;
-    }
-}
-
-@keyframes splashDotPulse {
-    0%, 80%, 100% {
-        transform: scale(0.6);
-        opacity: 0.35;
-    }
-    40% {
-        transform: scale(1.35);
-        opacity: 1;
     }
 }

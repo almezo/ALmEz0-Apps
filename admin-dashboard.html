@@ -845,10 +845,308 @@
             }
 
             /* تذييل الصفحة */
-            footer .container {
-                padding: 15px 10px !important;
-                text-align: center !important;
-                font-size: 0.78rem !important;
+        /* ========================================================= */
+        /* BROADCAST NOTIFICATION SYSTEM STYLES                     */
+        /* ========================================================= */
+        .btn-broadcast-notif {
+            background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+            color: #fff !important;
+            border: 1px solid rgba(245, 158, 11, 0.4) !important;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .btn-broadcast-notif:hover {
+            transform: translateY(-2px) scale(1.02) !important;
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.55) !important;
+            background: linear-gradient(135deg, #fbbf24, #b45309) !important;
+        }
+        .btn-broadcast-notif i {
+            font-size: 1.05rem;
+            animation: pulseHorn 2.5s infinite;
+        }
+        @keyframes pulseHorn {
+            0%, 100% { transform: rotate(0deg); }
+            10%, 30% { transform: rotate(-12deg); }
+            20%, 40% { transform: rotate(12deg); }
+            50% { transform: rotate(0deg); }
+        }
+
+        .broadcast-modal-content {
+            max-width: 680px !important;
+            width: 95% !important;
+            border-radius: 20px !important;
+            background: linear-gradient(145deg, #111827, #0f172a) !important;
+            border: 1px solid rgba(245, 158, 11, 0.3) !important;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(245, 158, 11, 0.15) !important;
+            overflow: hidden !important;
+        }
+        .broadcast-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 22px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .broadcast-modal-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+        }
+        .icon-amber {
+            color: #f59e0b;
+        }
+        .broadcast-modal-body {
+            padding: 20px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+        .broadcast-info-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            color: #fbbf24;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+        .broadcast-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .broadcast-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .broadcast-field-group.full-width {
+            grid-column: 1 / -1;
+        }
+        .broadcast-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .broadcast-input,
+        .broadcast-select,
+        .broadcast-textarea {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            color: #fff;
+            padding: 10px 12px;
+            font-size: 0.92rem;
+            font-family: inherit;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+        .broadcast-input:focus,
+        .broadcast-select:focus,
+        .broadcast-textarea:focus {
+            outline: none;
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+            background: rgba(15, 23, 42, 0.95);
+        }
+        .broadcast-preview-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .preview-heading {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .broadcast-preview-card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            border-right: 4px solid #f59e0b;
+        }
+        .preview-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.78rem;
+        }
+        .preview-app-identity {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .preview-app-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+        }
+        .preview-app-name {
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .preview-badge {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .preview-time {
+            color: #64748b;
+        }
+        .preview-title {
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 800;
+            margin: 0 0 4px 0;
+        }
+        .preview-message {
+            color: #cbd5e1;
+            font-size: 0.85rem;
+            margin: 0;
+            line-height: 1.4;
+        }
+        .broadcast-history-section {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .broadcast-history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .broadcast-history-title {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #94a3b8;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-refresh-history {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .btn-refresh-history:hover {
+            color: #f59e0b;
+        }
+        .broadcast-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .history-notif-item {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+        }
+        .history-notif-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            text-align: right;
+        }
+        .history-notif-title {
+            color: #fff;
+            font-weight: 700;
+        }
+        .history-notif-time {
+            color: #64748b;
+            font-size: 0.72rem;
+        }
+        .btn-delete-notif {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .btn-delete-notif:hover {
+            background: rgba(239, 68, 68, 0.15);
+        }
+        .broadcast-modal-footer {
+            padding: 14px 22px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .btn-send-broadcast {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+            transition: all 0.2s;
+        }
+        .btn-send-broadcast:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.55);
+        }
+        .btn-broadcast-cancel {
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-broadcast-cancel:hover {
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+        }
+        @media (max-width: 600px) {
+            .broadcast-form-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -882,6 +1180,9 @@
         <div class="admin-header-actions">
             <h2 class="page-title title-no-margin"><i class="fas fa-chart-bar"></i> لوحة تحكم وتقارير المدير</h2>
             <div class="admin-top-action-buttons">
+                <button type="button" id="btnBroadcastNotif" onclick="openBroadcastModal()" class="custom-staff-btn btn-broadcast-notif" title="إرسال إشعار فوري لجميع الأجهزة والعملاء">
+                    <i class="fas fa-bullhorn"></i> إرسال إشعار للعملاء
+                </button>
                 <button type="button" id="btnStaffRules" onclick="openStaffRulesModal()" class="custom-staff-btn btn-staff-rules" title="مركز التحكم في قوانين وعمولات ونسب المناديب">
                     <i class="fas fa-sliders-h"></i> قوانين ونسب المناديب
                 </button>
@@ -1536,6 +1837,101 @@
                 </div>
                 <button type="button" class="btn-rules-save" onclick="saveStaffRulesFromModal()">
                     <i class="fas fa-save"></i> حفظ وتطبيق القوانين
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Broadcast Notification Modal (إرسال إشعارات عامة للأجهزة) -->
+    <div id="broadcastNotificationModal" class="modal">
+        <div class="modal-content broadcast-modal-content">
+            <div class="modal-header broadcast-modal-header">
+                <h2 class="broadcast-modal-title">
+                    <i class="fas fa-bullhorn icon-amber"></i>
+                    مركز إرسال الإشعارات العامة لجميع الأجهزة والعملاء
+                </h2>
+                <span class="close-modal" onclick="closeBroadcastModal()">&times;</span>
+            </div>
+            <div class="modal-body broadcast-modal-body">
+                <div class="broadcast-info-banner">
+                    <i class="fas fa-info-circle"></i>
+                    <span>سيصل هذا الإشعار فوراً لشريط الإشعارات في أجهزة العملاء (أندرويد، كمبيوتر، متصفح) مع تنبيه مرئي وصوتي فور الإرسال.</span>
+                </div>
+
+                <div class="broadcast-form-grid">
+                    <div class="broadcast-field-group">
+                        <label for="broadcastNotifType" class="broadcast-label">
+                            <i class="fas fa-tag"></i> نوع الإشعار:
+                        </label>
+                        <select id="broadcastNotifType" class="broadcast-select" onchange="updateBroadcastPreview()">
+                            <option value="update">🚀 تحديث جديد للتطبيق (App Update)</option>
+                            <option value="promo">🔥 عرض خاص وتخفيضات (Offers & Promos)</option>
+                            <option value="product">✨ توفر منتج جديد (New Product)</option>
+                            <option value="general">📢 تنبيه عام وصيانة (General Announcement)</option>
+                        </select>
+                    </div>
+
+                    <div class="broadcast-field-group">
+                        <label for="broadcastNotifTitle" class="broadcast-label">
+                            <i class="fas fa-heading"></i> عنوان الإشعار:
+                        </label>
+                        <input type="text" id="broadcastNotifTitle" class="broadcast-input" placeholder="مثال: تحديث جديد لتطبيق الميزو v23.4 متاح الآن!" maxlength="80" oninput="updateBroadcastPreview()">
+                    </div>
+
+                    <div class="broadcast-field-group full-width">
+                        <label for="broadcastNotifMessage" class="broadcast-label">
+                            <i class="fas fa-comment-dots"></i> نص رسالة الإشعار:
+                        </label>
+                        <textarea id="broadcastNotifMessage" class="broadcast-textarea" rows="3" placeholder="اكتب تفاصيل الإشعار هنا... مثال: يتضمن التحديث الجديد سرعة تشغيل فائقة وتحديثات للأفلام والمسلسلات." maxlength="250" oninput="updateBroadcastPreview()"></textarea>
+                    </div>
+
+                    <div class="broadcast-field-group full-width">
+                        <label for="broadcastNotifActionUrl" class="broadcast-label">
+                            <i class="fas fa-link"></i> رابط الوجهة (اختياري - يفتح عند الضغط على الإشعار):
+                        </label>
+                        <input type="text" id="broadcastNotifActionUrl" class="broadcast-input" placeholder="مثال: index.html#download-section أو https://wa.me/218945772649">
+                    </div>
+                </div>
+
+                <!-- معاينة حية لشكل الإشعار في جهاز العميل -->
+                <div class="broadcast-preview-container">
+                    <span class="preview-heading"><i class="fas fa-mobile-alt"></i> معاينة شكل الإشعار كما سيظهر في شريط هاتف أو كمبيوتر العميل:</span>
+                    <div class="broadcast-preview-card" id="broadcastPreviewCard">
+                        <div class="preview-top-row">
+                            <div class="preview-app-identity">
+                                <img src="photo/logo.ico" alt="ALmEz0" class="preview-app-icon">
+                                <span class="preview-app-name">سيرفرات الميزو • ALmEz0</span>
+                            </div>
+                            <span class="preview-badge" id="previewBadge">🚀 تحديث جديد</span>
+                            <span class="preview-time">الآن</span>
+                        </div>
+                        <div class="preview-body-row">
+                            <div class="preview-text-block">
+                                <h4 id="previewTitle" class="preview-title">تحديث جديد لتطبيق الميزو متاح الآن!</h4>
+                                <p id="previewMessage" class="preview-message">يتضمن التحديث الجديد سرعة تشغيل فائقة وتحديثات للأفلام والمسلسلات.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- جدول آخر الإشعارات المرسلة -->
+                <div class="broadcast-history-section">
+                    <div class="broadcast-history-header">
+                        <h4 class="broadcast-history-title"><i class="fas fa-history"></i> سجل آخر الإشعارات المرسلة</h4>
+                        <button type="button" class="btn-refresh-history" onclick="loadBroadcastHistory()" title="تحديث السجل">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div id="broadcastHistoryList" class="broadcast-history-list">
+                        <div class="empty-state-sm">جاري جلب السجل...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer broadcast-modal-footer">
+                <button type="button" class="btn-broadcast-cancel" onclick="closeBroadcastModal()">إلغاء</button>
+                <button type="button" id="btnSendBroadcast" class="btn-send-broadcast" onclick="sendBroadcastNotification()">
+                    <i class="fas fa-paper-plane"></i> إرسال الإشعار لجميع الأجهزة الآن
                 </button>
             </div>
         </div>

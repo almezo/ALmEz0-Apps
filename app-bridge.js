@@ -587,6 +587,308 @@
         document.head.appendChild(style);
     }
 
+    // =========================================================
+    // BROADCAST NOTIFICATION CLIENT LISTENER & IN-APP PUSH
+    // =========================================================
+    function playNotificationChime() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.45);
+        } catch (e) { }
+    }
+
+    function showBroadcastPushBanner(notif) {
+        if (!notif || !notif.title) return;
+
+        // Play chime and trigger vibration
+        playNotificationChime();
+        if (navigator.vibrate) {
+            try { navigator.vibrate([120, 60, 120]); } catch (e) { }
+        }
+
+        // Native OS / Browser notification
+        try {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    const n = new Notification(notif.title, {
+                        body: notif.message,
+                        icon: 'photo/logo.ico',
+                        badge: 'photo/logo.ico',
+                        tag: notif.id || 'almezo_notif'
+                    });
+                    if (notif.actionUrl) {
+                        n.onclick = () => {
+                            window.focus();
+                            window.location.href = notif.actionUrl;
+                        };
+                    }
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(perm => {
+                        if (perm === 'granted') {
+                            new Notification(notif.title, {
+                                body: notif.message,
+                                icon: 'photo/logo.ico',
+                                badge: 'photo/logo.ico'
+                            });
+                        }
+                    });
+                }
+            }
+        } catch (e) { }
+
+        // Remove existing banner if any
+        const existing = document.getElementById('almezo-broadcast-banner');
+        if (existing) existing.remove();
+
+        const typeBadges = {
+            'update': { label: '🚀 تحديث جديد', color: '#38bdf8', glow: 'rgba(56, 189, 248, 0.4)' },
+            'promo': { label: '🔥 عرض خاص', color: '#fbbf24', glow: 'rgba(251, 191, 36, 0.4)' },
+            'product': { label: '✨ منتج جديد', color: '#c084fc', glow: 'rgba(192, 132, 252, 0.4)' },
+            'general': { label: '📢 إشعار عام', color: '#4ade80', glow: 'rgba(74, 222, 128, 0.4)' }
+        };
+
+        const config = typeBadges[notif.type] || typeBadges['general'];
+
+        const banner = document.createElement('div');
+        banner.id = 'almezo-broadcast-banner';
+        banner.className = 'almezo-push-banner';
+        banner.setAttribute('dir', 'rtl');
+
+        banner.innerHTML = `
+            <div class="push-banner-inner" style="border-top: 3px solid ${config.color}; box-shadow: 0 16px 36px rgba(0,0,0,0.6), 0 0 24px ${config.glow};">
+                <div class="push-banner-header">
+                    <div class="push-app-id">
+                        <img src="photo/logo.ico" alt="ALmEz0" class="push-icon" onerror="this.src='photo/logo.png'">
+                        <span class="push-app-title">سيرفرات الميزو • ALmEz0</span>
+                    </div>
+                    <div class="push-meta">
+                        <span class="push-badge" style="color: ${config.color}; border-color: ${config.color}; background: rgba(255,255,255,0.06);">${config.label}</span>
+                        <button type="button" class="push-close-btn" id="btnClosePushBanner" title="إغلاق">&times;</button>
+                    </div>
+                </div>
+                <div class="push-banner-content">
+                    <h4 class="push-notif-title">${escapeHtml(notif.title)}</h4>
+                    <p class="push-notif-body">${escapeHtml(notif.message)}</p>
+                </div>
+                ${notif.actionUrl ? `
+                <div class="push-banner-actions">
+                    <a href="${notif.actionUrl}" class="push-action-btn" id="btnPushAction">
+                        <i class="fas fa-external-link-alt"></i> فتح الرابط / التفاصيل
+                    </a>
+                </div>
+                ` : ''}
+            </div>
+        `;
+
+        // Inject banner CSS if not exists
+        if (!document.getElementById('almezo-push-banner-style')) {
+            const style = document.createElement('style');
+            style.id = 'almezo-push-banner-style';
+            style.textContent = `
+                .almezo-push-banner {
+                    position: fixed;
+                    top: 18px;
+                    left: 50%;
+                    transform: translateX(-50%) translateY(-120%);
+                    z-index: 99999999;
+                    width: calc(100% - 32px);
+                    max-width: 520px;
+                    transition: transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+                }
+                .almezo-push-banner.visible {
+                    transform: translateX(-50%) translateY(0);
+                }
+                .push-banner-inner {
+                    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.97));
+                    backdrop-filter: blur(16px);
+                    -webkit-backdrop-filter: blur(16px);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border-radius: 16px;
+                    padding: 14px 16px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .push-banner-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                }
+                .push-app-id {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .push-icon {
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 5px;
+                }
+                .push-app-title {
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #94a3b8;
+                }
+                .push-meta {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .push-badge {
+                    font-size: 11px;
+                    font-weight: 700;
+                    padding: 2px 8px;
+                    border-radius: 12px;
+                    border: 1px solid;
+                }
+                .push-close-btn {
+                    background: transparent;
+                    border: none;
+                    color: #94a3b8;
+                    font-size: 20px;
+                    line-height: 1;
+                    cursor: pointer;
+                    padding: 0 4px;
+                    transition: color 0.2s;
+                }
+                .push-close-btn:hover {
+                    color: #fff;
+                }
+                .push-notif-title {
+                    color: #fff;
+                    font-size: 14.5px;
+                    font-weight: 800;
+                    margin: 0 0 4px 0;
+                    line-height: 1.3;
+                }
+                .push-notif-body {
+                    color: #cbd5e1;
+                    font-size: 13px;
+                    margin: 0;
+                    line-height: 1.45;
+                }
+                .push-banner-actions {
+                    margin-top: 4px;
+                }
+                .push-action-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    background: rgba(255, 255, 255, 0.1);
+                    color: #fff;
+                    text-decoration: none;
+                    border-radius: 10px;
+                    padding: 6px 14px;
+                    font-size: 12.5px;
+                    font-weight: 700;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                    transition: all 0.2s;
+                }
+                .push-action-btn:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                    transform: translateY(-1px);
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(banner);
+        requestAnimationFrame(() => {
+            banner.classList.add('visible');
+        });
+
+        const dismissBtn = banner.querySelector('#btnClosePushBanner');
+        if (dismissBtn) {
+            dismissBtn.onclick = () => {
+                banner.classList.remove('visible');
+                setTimeout(() => banner.remove(), 450);
+            };
+        }
+
+        // Auto dismiss after 12 seconds
+        setTimeout(() => {
+            if (banner.parentElement) {
+                banner.classList.remove('visible');
+                setTimeout(() => banner.remove(), 450);
+            }
+        }, 12000);
+    }
+
+    function initBroadcastNotificationListener() {
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        const timer = setInterval(() => {
+            attempts++;
+            const firestore = (window.db) || (window.firebase && typeof window.firebase.firestore === 'function' ? window.firebase.firestore() : null);
+
+            if (firestore) {
+                clearInterval(timer);
+                try {
+                    let isInitialSnap = true;
+                    firestore.collection('broadcast_notifications')
+                        .orderBy('timestamp', 'desc')
+                        .limit(1)
+                        .onSnapshot(snapshot => {
+                            if (!snapshot || snapshot.empty) {
+                                isInitialSnap = false;
+                                return;
+                            }
+
+                            const doc = snapshot.docs[0];
+                            const data = doc.data();
+                            data.id = doc.id;
+
+                            const lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10);
+                            const notifTs = parseInt(data.timestamp || '0', 10);
+                            const now = Date.now();
+                            const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+
+                            // Show if it's newer than last seen and occurred in the last 48 hours
+                            if (notifTs > lastTs && (now - notifTs < FORTY_EIGHT_HOURS)) {
+                                localStorage.setItem('almezo_last_broadcast_ts', String(notifTs));
+                                showBroadcastPushBanner(data);
+                            }
+
+                            isInitialSnap = false;
+                        }, err => {
+                            console.warn('[BroadcastNotif] Listener error:', err);
+                        });
+                } catch (e) {
+                    console.warn('[BroadcastNotif] Setup failed:', e);
+                }
+            } else if (attempts >= maxAttempts) {
+                clearInterval(timer);
+            }
+        }, 800);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            initBroadcastNotificationListener();
+        });
+    } else {
+        initBroadcastNotificationListener();
+    }
+
     window.AlMeZ0App.checkUpdate = checkInAppUpdate;
     window.AlMeZ0App.showInAppUpdateBanner = showInAppUpdateBanner;
+    window.AlMeZ0App.showBroadcastPushBanner = showBroadcastPushBanner;
 })();
+

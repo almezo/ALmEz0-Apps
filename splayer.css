@@ -4552,4 +4552,112 @@ body.tv-mode {
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
     -webkit-user-select: none;
     user-select: none;
-}
+}
+
+/* =========================================================
+   NETFLIX-STYLE MOTION DESIGN & CINEMATIC MICRO-ANIMATIONS
+   ========================================================= */
+
+/* 1. 3D Card Hover Elevation & Glossy Shimmer */
+.vod-card,
+.episode-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px !important;
+    transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease !important;
+}
+
+.vod-card:hover,
+.episode-card:hover {
+    transform: translateY(-8px) scale(1.04) !important;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.85), 0 0 22px rgba(229, 185, 53, 0.35) !important;
+    z-index: 10;
+}
+
+.vod-card::after,
+.episode-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -130%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+    transform: skewX(-25deg);
+    pointer-events: none;
+    transition: none;
+    z-index: 5;
+}
+
+.vod-card:hover::after,
+.episode-card:hover::after {
+    left: 170%;
+    transition: left 0.75s ease-in-out;
+}
+
+/* 2. Pulsing Live Radar Indicator on Active Live Channels */
+#liveChannels .list-item.active {
+    position: relative;
+    border-left: 4px solid #10b981 !important;
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.18) 0%, rgba(255, 255, 255, 0.04) 100%) !important;
+}
+
+#liveChannels .list-item.active::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 10px #10b981;
+    animation: liveRadarPulse 1.8s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes liveRadarPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+/* 3. Spring Modal Dialog Zoom & Ambient Drop */
+.modal:not(.hidden) .modal-content,
+#playlistsModal:not(.hidden) .modal-content,
+#sortModal:not(.hidden) .modal-content {
+    animation: springModalOpen 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes springModalOpen {
+    0% {
+        opacity: 0;
+        transform: scale(0.82) translateY(24px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* 4. Cinematic Backdrop Zoom (Ken Burns Effect) */
+.movie-backdrop,
+.series-backdrop {
+    animation: kenBurnsAmbient 25s infinite alternate ease-in-out;
+}
+
+@keyframes kenBurnsAmbient {
+    0% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(1.08) translate(-1%, -1%);
+    }
+}
+

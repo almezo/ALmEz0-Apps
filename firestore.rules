@@ -145,5 +145,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // إشعارات وتنبيهات المدير العامة لجميع مستخدمي التطبيق والموقع
+    match /broadcast_notifications/{notificationId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

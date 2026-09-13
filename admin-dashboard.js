@@ -3384,3 +3384,210 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// =========================================================
+// BROADCAST NOTIFICATION CONTROLLER (إرسال إشعارات عامة للأجهزة)
+// =========================================================
+window.openBroadcastModal = function () {
+    const modal = document.getElementById('broadcastNotificationModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        updateBroadcastPreview();
+        loadBroadcastHistory();
+    }
+};
+
+window.closeBroadcastModal = function () {
+    const modal = document.getElementById('broadcastNotificationModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+};
+
+window.updateBroadcastPreview = function () {
+    const typeEl = document.getElementById('broadcastNotifType');
+    const titleEl = document.getElementById('broadcastNotifTitle');
+    const msgEl = document.getElementById('broadcastNotifMessage');
+
+    const badgeEl = document.getElementById('previewBadge');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewMessage = document.getElementById('previewMessage');
+
+    if (!typeEl || !badgeEl || !previewTitle || !previewMessage) return;
+
+    const type = typeEl.value;
+    const typeLabels = {
+        'update': '🚀 تحديث جديد',
+        'promo': '🔥 عرض خاص',
+        'product': '✨ منتج جديد',
+        'general': '📢 تنبيه عام'
+    };
+
+    badgeEl.innerText = typeLabels[type] || '📢 إشعار';
+    previewTitle.innerText = titleEl.value.trim() || 'سيرفرات الميزو - ALmEz0';
+    previewMessage.innerText = msgEl.value.trim() || 'معاينة نص الإشعار كما سيظهر في شريط إشعارات هاتف وجهاز العميل...';
+};
+
+window.sendBroadcastNotification = async function () {
+    const titleEl = document.getElementById('broadcastNotifTitle');
+    const msgEl = document.getElementById('broadcastNotifMessage');
+    const typeEl = document.getElementById('broadcastNotifType');
+    const urlEl = document.getElementById('broadcastNotifActionUrl');
+    const sendBtn = document.getElementById('btnSendBroadcast');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    const message = msgEl ? msgEl.value.trim() : '';
+    const type = typeEl ? typeEl.value : 'general';
+    const actionUrl = urlEl ? urlEl.value.trim() : '';
+
+    if (!title) {
+        if (typeof showToast === 'function') showToast('يرجى كتابة عنوان الإشعار', 'warning');
+        if (titleEl) titleEl.focus();
+        return;
+    }
+
+    if (!message) {
+        if (typeof showToast === 'function') showToast('يرجى كتابة نص رسالة الإشعار', 'warning');
+        if (msgEl) msgEl.focus();
+        return;
+    }
+
+    const confirmRes = await Swal.fire({
+        title: 'تأكيد إرسال الإشعار؟',
+        text: `سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو (${title})`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، إرسال الآن 🚀',
+        cancelButtonText: 'إلغاء',
+        background: '#141820',
+        color: '#fff',
+        customClass: {
+            popup: 'almezo-swal-popup',
+            confirmButton: 'almezo-swal-btn'
+        }
+    });
+
+    if (!confirmRes.isConfirmed) return;
+
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال لجميع الأجهزة...';
+    }
+
+    try {
+        const currentUser = firebase.auth().currentUser;
+        const notifDoc = {
+            type: type,
+            title: title,
+            message: message,
+            actionUrl: actionUrl,
+            timestamp: Date.now(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            senderUid: currentUser ? currentUser.uid : 'admin',
+            active: true
+        };
+
+        await db.collection('broadcast_notifications').add(notifDoc);
+
+        Swal.fire({
+            title: 'تم الإرسال بنجاح! 📢',
+            text: 'تم بث الإشعار بنجاح لجميع أجهزة العملاء وسيظهر في شريط الإشعارات لديهم فوراً.',
+            icon: 'success',
+            confirmButtonText: 'رائع',
+            background: '#141820',
+            color: '#fff',
+            customClass: {
+                popup: 'almezo-swal-popup',
+                confirmButton: 'almezo-swal-btn'
+            }
+        });
+
+        // مسح الحقول وتحديث السجل
+        if (titleEl) titleEl.value = '';
+        if (msgEl) msgEl.value = '';
+        if (urlEl) urlEl.value = '';
+        updateBroadcastPreview();
+        loadBroadcastHistory();
+
+    } catch (err) {
+        console.error('Failed to send broadcast notification:', err);
+        Swal.fire({
+            title: 'فشل إرسال الإشعار',
+            text: err.message || 'حدث خطأ أثناء الاتصال بقاعدة البيانات',
+            icon: 'error',
+            confirmButtonText: 'حسناً',
+            background: '#141820',
+            color: '#fff'
+        });
+    } finally {
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> إرسال الإشعار لجميع الأجهزة الآن';
+        }
+    }
+};
+
+window.loadBroadcastHistory = async function () {
+    const listContainer = document.getElementById('broadcastHistoryList');
+    if (!listContainer) return;
+
+    try {
+        const snap = await db.collection('broadcast_notifications')
+            .orderBy('timestamp', 'desc')
+            .limit(8)
+            .get();
+
+        if (snap.empty) {
+            listContainer.innerHTML = '<div class="empty-state-sm" style="color: #64748b; text-align: center; padding: 10px;">لا توجد إشعارات مرسلة سابقة</div>';
+            return;
+        }
+
+        let html = '';
+        snap.forEach(doc => {
+            const data = doc.data();
+            const dateStr = data.timestamp ? new Date(data.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : 'غير محدد';
+            const typeBadge = data.type === 'update' ? '🚀 تحديث' : (data.type === 'promo' ? '🔥 عرض' : (data.type === 'product' ? '✨ منتج' : '📢 عام'));
+
+            html += `
+                <div class="history-notif-item">
+                    <div class="history-notif-info">
+                        <span class="history-notif-title">${typeBadge} - ${escapeHtml(data.title || '')}</span>
+                        <span class="history-notif-time">${dateStr} | ${escapeHtml(data.message || '').substring(0, 50)}...</span>
+                    </div>
+                    <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${doc.id}')" title="حذف هذا الإشعار">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            `;
+        });
+        listContainer.innerHTML = html;
+    } catch (err) {
+        console.error('Failed to load broadcast history:', err);
+        listContainer.innerHTML = '<div class="empty-state-sm" style="color: #ef4444;">تعذر تحميل السجل</div>';
+    }
+};
+
+window.deleteBroadcastNotification = async function (docId) {
+    if (!docId) return;
+    const confirm = await Swal.fire({
+        title: 'حذف الإشعار؟',
+        text: 'هل أنت متأكد من رغبتك في حذف هذا الإشعار من السجل؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، احذف',
+        cancelButtonText: 'إلغاء',
+        background: '#141820',
+        color: '#fff'
+    });
+
+    if (confirm.isConfirmed) {
+        try {
+            await db.collection('broadcast_notifications').doc(docId).delete();
+            if (typeof showToast === 'function') showToast('تم حذف الإشعار', 'info');
+            loadBroadcastHistory();
+        } catch (e) {
+            console.error('Delete notification failed', e);
+        }
+    }
+};
+
+
