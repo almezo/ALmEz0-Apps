@@ -3073,21 +3073,30 @@ async function handleStaffRoleChange(newRole) {
     const installBtn = document.getElementById('pwa-install-btn');
     const closeBtn = document.getElementById('pwa-close-btn');
 
-    // تسجيل الـ Service Worker
-    if ('serviceWorker' in navigator) {
+    // 1. فحص هل المستخدم داخل تطبيق مثبت بالفعل (أندرويد / كمبيوتر / ملف محلي)
+    const isNativeApp = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
+        !!(window.electronAPI && window.electronAPI.isElectron) ||
+        !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+        window.location.protocol === 'file:' ||
+        window.navigator.standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches;
+
+    // تسجيل الـ Service Worker فقط في المتصفح العادي على الويب
+    if (isNativeApp) {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let r of registrations) {
+                    r.unregister();
+                }
+            }).catch(function () {});
+        }
+    } else if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js').catch((err) => console.log('SW Error', err));
         });
     }
 
     if (!installContainer || !installBtn) return;
-
-    // 1. إخفاء وحذف صندوق التنزيل نهائياً إذا كان المستخدم يفتح التطبيق المثبت بالفعل
-    const isNativeApp = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
-        !!(window.electronAPI && window.electronAPI.isElectron) ||
-        !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
-        window.navigator.standalone === true ||
-        window.matchMedia('(display-mode: standalone)').matches;
 
     if (isNativeApp) {
         installContainer.style.setProperty('display', 'none', 'important');

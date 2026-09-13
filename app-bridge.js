@@ -264,13 +264,13 @@
                             goBack();
                             return;
                         } else if (typeof showScreen === 'function') {
-                            showScreen(activeScreen === 'series-details-screen' ? 'series-screen' : 'vod-screen');
+                            showScreen('vod-screen');
                             return;
                         }
                     }
 
                     // ب) إذا كان في أقسام الأفلام أو المسلسلات أو البث المباشر أو الملف الشخصي، يرجع للوحة التحكم الرئيسية للمشغل
-                    if (activeScreen === 'vod-screen' || activeScreen === 'series-screen' || activeScreen === 'live-screen' || activeScreen === 'profile-screen') {
+                    if (activeScreen === 'vod-screen' || activeScreen === 'live-screen' || activeScreen === 'profile-screen') {
                         if (typeof showScreen === 'function') {
                             showScreen('dashboard-screen');
                             return;

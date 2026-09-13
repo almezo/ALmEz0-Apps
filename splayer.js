@@ -388,15 +388,24 @@ function showScreen(screenId, isBackNavigation = false) {
     if (screenId === 'profile-screen') {
         loadProfileData();
     }
+    if (screenId === 'vod-screen') {
+        const savedScroll = sessionStorage.getItem('sp_vod_scroll_pos');
+        if (savedScroll) {
+            const scrollEl = getScrollTarget('vod');
+            if (scrollEl) {
+                setTimeout(() => {
+                    scrollEl.scrollTop = parseInt(savedScroll, 10) || 0;
+                }, 30);
+            }
+        }
+    }
 
     applyAutoScaling();
 }
 
 function goBack() {
-    if (currentScreenId === 'movie-details-screen') {
+    if (currentScreenId === 'movie-details-screen' || currentScreenId === 'series-details-screen') {
         showScreen('vod-screen');
-    } else if (currentScreenId === 'series-details-screen') {
-        showScreen('series-screen');
     } else {
         showScreen('dashboard-screen');
     }
@@ -427,7 +436,11 @@ window.addEventListener('popstate', function (event) {
             sessionStorage.removeItem('sp_last_movie');
             sessionStorage.removeItem('sp_last_series');
         }
-        showScreen(event.state.screenId, true);
+        let targetScreenId = event.state.screenId;
+        if (targetScreenId === 'series-screen') {
+            targetScreenId = 'vod-screen';
+        }
+        showScreen(targetScreenId, true);
     } else {
         showScreen('dashboard-screen', true);
     }
@@ -1924,7 +1937,7 @@ async function proxyFetch(apiUrl, useCache = true) {
         if (Date.now() - cacheEntry.time < CACHE_TTL_MS) {
             try {
                 const data = await cacheEntry.promise;
-                return data ? JSON.parse(JSON.stringify(data)) : data;
+                return Array.isArray(data) ? [...data] : (data && typeof data === 'object' ? Object.assign({}, data) : data);
             } catch (e) {
                 // Ignore and fetch again if promise failed
             }
@@ -1952,7 +1965,7 @@ async function proxyFetch(apiUrl, useCache = true) {
 
     try {
         const data = await fetchPromise;
-        return data ? JSON.parse(JSON.stringify(data)) : data;
+        return Array.isArray(data) ? [...data] : (data && typeof data === 'object' ? Object.assign({}, data) : data);
     } catch (e) {
         if (useCache) delete fetchCache[apiUrl];
         throw e;
@@ -3205,7 +3218,7 @@ function appendNextItemChunk(customSize) {
             try { savedLiveObj = JSON.parse(savedLive); } catch (e) { }
         }
 
-        chunk.forEach(item => {
+        chunk.forEach((item, index) => {
             const el = document.createElement('div');
             el.className = 'list-item';
             el.dataset.streamId = String(item.stream_id);
@@ -3218,9 +3231,12 @@ function appendNextItemChunk(customSize) {
             }
 
             const iconSrc = cleanImageUrl(item.stream_icon);
+            const isPriority = (activeRenderOffset + index) < 14;
+            const loadingAttr = isPriority ? 'eager' : 'lazy';
+            const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
 
             el.innerHTML = `
-                <img src="${iconSrc}" class="channel-icon" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                <img src="${iconSrc}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
                 <span>${item.name || ''}</span>
             `;
             el.onclick = () => {
@@ -3231,7 +3247,7 @@ function appendNextItemChunk(customSize) {
             fragment.appendChild(el);
         });
     } else {
-        chunk.forEach(item => {
+        chunk.forEach((item, index) => {
             const card = document.createElement('div');
             card.className = 'vod-card';
             const id = item.stream_id || item.series_id;
@@ -3239,13 +3255,21 @@ function appendNextItemChunk(customSize) {
             const cover = cleanImageUrl(item.stream_icon || item.cover);
             const ext = item.container_extension || 'mp4';
 
+            const isPriority = (activeRenderOffset + index) < 14;
+            const loadingAttr = isPriority ? 'eager' : 'lazy';
+            const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
+
             card.innerHTML = `
-                <img src="${cover}" class="vod-poster" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                <img src="${cover}" class="vod-poster" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
                 <div class="vod-info">
                     <div class="vod-title" title="${name}">${name}</div>
                 </div>
             `;
             card.onclick = () => {
+                const scrollEl = getScrollTarget('vod');
+                if (scrollEl) {
+                    sessionStorage.setItem('sp_vod_scroll_pos', String(scrollEl.scrollTop));
+                }
                 if (activeRenderType === 'series') {
                     showSeriesDetails(id, name, cover);
                 } else {
@@ -3691,8 +3715,8 @@ function initTvNavigationEngine() {
                 showScreen('vod-screen');
             } else if (activeScreen === 'series-details-screen') {
                 e.preventDefault();
-                showScreen('series-screen');
-            } else if (['vod-screen', 'series-screen', 'live-screen', 'profile-screen'].includes(activeScreen)) {
+                showScreen('vod-screen');
+            } else if (['vod-screen', 'live-screen', 'profile-screen'].includes(activeScreen)) {
                 e.preventDefault();
                 showScreen('dashboard-screen');
             }

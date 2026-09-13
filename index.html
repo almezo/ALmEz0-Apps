@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <script>
-        // كشف فوري لمنصات التطبيقات (Capacitor / Electron / Standalone) لمنع ظهور عناصر التثبيت
-        const isNativeEarly = !!(window.electronAPI?.isElectron || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) || window.navigator.standalone);
+        // كشف فوري لمنصات التطبيقات (Capacitor / Electron / Standalone / Local file)
+        const isNativeEarly = !!(window.electronAPI?.isElectron || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) || window.navigator.standalone || window.location.protocol === 'file:');
         if (isNativeEarly) {
             document.documentElement.classList.add('platform-native');
         }
@@ -20,8 +20,16 @@
             window.deferredPrompt = e;
         });
 
-        // تسجيل الـ Service Worker لتفعيل التثبيت (بدون حفظ كاش)
-        if ('serviceWorker' in navigator) {
+        // تسجيل الـ Service Worker فقط في المتصفح العادي على الويب
+        if (isNativeEarly) {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                    for (var r of registrations) {
+                        r.unregister();
+                    }
+                }).catch(function () {});
+            }
+        } else if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('./sw.js').catch(function (error) {
                     console.log('Service Worker registration failed:', error);
@@ -295,18 +303,19 @@
                 event.stopPropagation();
             }
 
-            // فحص هل المستخدم داخل التطبيق الفعلي المثبت (أندرويد أو كمبيوتر)
+            // فحص هل المستخدم داخل التطبيق الفعلي المثبت (أندرويد أو كمبيوتر أو بروتوكول محلي)
             var isNative = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
                            !!(window.electronAPI && window.electronAPI.isElectron) ||
                            !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
-                           !!(window.AndroidNativeBridge);
+                           !!(window.AndroidNativeBridge) ||
+                           window.location.protocol === 'file:';
 
             if (isNative) {
                 if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
                     window.AlMeZ0App.lockLandscape();
                 }
                 window.location.href = 'player.html';
-                return true;
+                return false;
             }
 
             // إذا كان في متصفح الويب (كمبيوتر أو هاتف)، تخرج الرسالة المخصصة لتنزيل برنامج ALmEz0!
@@ -340,10 +349,6 @@
 
             if (isAppReq) {
                 setTimeout(openPlayerExclusiveModal, 300);
-            }
-                try {
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                } catch (e) { }
             }
             if (hasRedirect) {
                 sessionStorage.removeItem('almezo_redirect_to_player');
