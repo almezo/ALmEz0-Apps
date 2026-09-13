@@ -78,6 +78,8 @@ if (fs.existsSync(zipPath)) {
 try {
     console.log('🗜️ Compressing clean files into ALmEz0-Website.zip...');
     execSync(`powershell -Command "Compress-Archive -Path '${outDir}\\*' -DestinationPath '${zipPath}' -Force"`, { stdio: 'inherit' });
+    fs.rmSync(outDir, { recursive: true, force: true });
+    console.log('🧹 Cleaned up temporary dist-hosting folder.');
     const stats = fs.statSync(zipPath);
     const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
     console.log(`✅ Ready! ALmEz0-Website.zip created successfully (${sizeMB} MB)!`);
