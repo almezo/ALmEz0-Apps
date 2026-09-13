@@ -3,8 +3,10 @@ node_modules/
 
 # Production / Executable builds (Do NOT push large binary EXEs to GitHub)
 dist-electron/
+dist-hosting/
 dist/
 release/
+*.zip
 
 # Android build outputs and caches
 android/app/build/

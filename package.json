@@ -5,6 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "prepare:app": "node scripts/prepare-app.js",
+    "export:hosting": "node scripts/export-hosting.js",
     "electron:dev": "electron .",
     "electron:build": "node scripts/prepare-app.js && electron-builder --win --publish never",
     "cap:sync": "node scripts/prepare-app.js && cap sync",
