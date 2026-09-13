@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.almezo.servers",
-    "productName": "سيرفرات الميزو",
+    "productName": "ALmEz0",
     "directories": {
       "output": "dist-electron"
     },
@@ -72,27 +72,23 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
-      "icon": "photo/logo.ico"
+      "icon": "photo/logo.ico",
+      "executableName": "ALmEz0"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "سيرفرات الميزو",
+      "shortcutName": "ALmEz0",
+      "artifactName": "ALmEz0.exe",
+      "uninstallDisplayName": "ALmEz0",
       "installerIcon": "photo/logo.ico",
-      "uninstallerIcon": "photo/logo.ico"
-    },
-    "portable": {
-      "artifactName": "AlMeZ0-Servers-Portable.exe"
+      "uninstallerIcon": "photo/logo.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     }
   }
 }

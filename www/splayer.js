@@ -3471,6 +3471,49 @@ function initLivePlayerGestures() {
             updateLiveVolume(delta);
         }
     }, { passive: false });
+
+    // Desktop PC mouse drag support
+    let isMouseDown = false;
+    let mouseStartY = 0;
+    let mouseStartX = 0;
+    let isMouseDragging = false;
+    let isMouseBrightnessSide = false;
+
+    wrapper.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || e.target.closest('button, a, input, select, .vjs-control-bar, .channel-item')) return;
+        const rect = wrapper.getBoundingClientRect();
+        mouseStartY = e.clientY;
+        mouseStartX = e.clientX;
+        isMouseDown = true;
+        isMouseDragging = false;
+        isMouseBrightnessSide = (mouseStartX - rect.left) < (rect.width * 0.5);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isMouseDown) return;
+        const deltaY = mouseStartY - e.clientY;
+        const deltaX = Math.abs(e.clientX - mouseStartX);
+
+        if (!isMouseDragging && Math.abs(deltaY) > 8 && Math.abs(deltaY) > deltaX) {
+            isMouseDragging = true;
+        }
+
+        if (isMouseDragging) {
+            const rect = wrapper.getBoundingClientRect();
+            const step = deltaY / (rect.height * 0.75);
+            if (isMouseBrightnessSide) {
+                updateLiveBrightness(step);
+            } else {
+                updateLiveVolume(step);
+            }
+            mouseStartY = e.clientY;
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        isMouseDown = false;
+        isMouseDragging = false;
+    });
 }
 
 // =========================================================

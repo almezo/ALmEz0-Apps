@@ -21,7 +21,7 @@ if (!gotTheLock) {
             height: 820,
             minWidth: 420,
             minHeight: 640,
-            title: 'سيرفرات الميزو - ALmEz0',
+            title: 'ALmEz0',
             icon: path.join(__dirname, '../photo/logo.ico'),
             autoHideMenuBar: true,
             backgroundColor: '#0a0d12',

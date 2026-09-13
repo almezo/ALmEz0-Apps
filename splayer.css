@@ -3056,14 +3056,19 @@ span.cat-count:empty {
     }
 }
 
-@media screen and (orientation: portrait) {
-    .rotate-prompt {
+@media screen and (orientation: portrait) and (max-width: 1024px) and (hover: none) {
+    body:not(.platform-electron) .rotate-prompt {
         display: flex !important;
     }
 
-    body> :not(#rotate-prompt) {
+    body:not(.platform-electron)> :not(#rotate-prompt) {
         display: none !important;
     }
+}
+
+body.platform-electron .rotate-prompt,
+body.platform-native:not(.platform-android):not(.platform-ios) .rotate-prompt {
+    display: none !important;
 }
 
 /* تنظيف حاويات البحث من أي خطوط سابقة */

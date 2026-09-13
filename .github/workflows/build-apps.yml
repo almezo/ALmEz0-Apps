@@ -92,9 +92,9 @@ jobs:
       - name: Upload Windows Executables
         uses: actions/upload-artifact@v4
         with:
-          name: AlMeZ0-Windows-EXE
+          name: ALmEz0-Windows-Installer
           path: |
-            dist-electron/*.exe
+            dist-electron/ALmEz0.exe
 
   # -------------------------------------------------------------
   # 3. iOS Project Build (macOS runner)
