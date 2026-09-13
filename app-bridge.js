@@ -341,7 +341,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.0';
+    const CURRENT_APP_VERSION = '1.0.1';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -399,8 +399,9 @@
                 return; // التطبيق على أحدث إصدار
             }
 
-            const dismissKey = 'almezo_dismissed_update_' + latestVer;
-            if (sessionStorage.getItem(dismissKey)) {
+            // إذا قام العميل بتنزيل هذا الإصدار بالفعل، لا نكرر عرض الصندوق أبداً
+            const downloadedVer = localStorage.getItem('almezo_downloaded_version');
+            if (downloadedVer && compareVersions(latestVer, downloadedVer) <= 0) {
                 return;
             }
 
@@ -424,21 +425,17 @@
         banner.innerHTML = `
             <div class="inapp-update-card">
                 <div class="inapp-update-icon-glow">
-                    <i class="fas fa-rocket"></i>
+                    <i class="fas fa-arrow-circle-down"></i>
                 </div>
                 <div class="inapp-update-body">
                     <div class="inapp-update-header">
-                        <span class="inapp-update-badge">تحديث جديد v${info.version}</span>
-                        <span class="inapp-update-title">${info.title || 'يتوفر إصدار جديد لتطبيق الميزو'}</span>
+                        <span class="inapp-update-badge">v${info.version}</span>
+                        <span class="inapp-update-title">يتوفر إصدار جديد للبرنامج ويجب تنزيله للمتابعة</span>
                     </div>
-                    <div class="inapp-update-notes">${info.notes || 'قم بتحديث التطبيق للاستمتاع بأحدث الميزات وتحسينات المشغل.'}</div>
                 </div>
                 <div class="inapp-update-actions">
                     <button type="button" class="inapp-btn-update" id="inappBtnUpdate">
-                        <i class="fas fa-download"></i> تثبيت التحديث الآن
-                    </button>
-                    <button type="button" class="inapp-btn-dismiss" id="inappBtnDismiss">
-                        لاحقاً
+                        <i class="fas fa-download"></i> تنزيل وتثبيت التحديث الآن
                     </button>
                 </div>
             </div>
@@ -448,14 +445,16 @@
         injectInAppUpdateStyles();
 
         const btnUpdate = banner.querySelector('#inappBtnUpdate');
-        const btnDismiss = banner.querySelector('#inappBtnDismiss');
 
         btnUpdate.addEventListener('click', () => {
-            btnUpdate.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التنزيل...';
+            btnUpdate.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري بدء التنزيل...';
             btnUpdate.disabled = true;
 
+            // حفظ أن العميل قام بتنزيل هذا الإصدار لمنع تكرار الصندوق مستقبلاً
+            localStorage.setItem('almezo_downloaded_version', info.version);
+
             if (typeof showToast === 'function') {
-                showToast('🚀 جاري بدء تنزيل التحديث...', 'info', 4000);
+                showToast('🚀 جاري بدء تنزيل الإصدار الجديد...', 'success', 5000);
             }
 
             setTimeout(() => {
@@ -477,14 +476,8 @@
                 setTimeout(() => {
                     banner.classList.add('hide');
                     setTimeout(() => banner.remove(), 400);
-                }, 1500);
-            }, 300);
-        });
-
-        btnDismiss.addEventListener('click', () => {
-            sessionStorage.setItem('almezo_dismissed_update_' + info.version, 'true');
-            banner.classList.add('hide');
-            setTimeout(() => banner.remove(), 400);
+                }, 1200);
+            }, 250);
         });
     }
 
@@ -499,49 +492,49 @@
                 left: 50%;
                 transform: translateX(-50%) translateY(0);
                 width: calc(100% - 32px);
-                max-width: 580px;
+                max-width: 520px;
                 z-index: 9999999;
                 font-family: 'Cairo', 'Tajawal', sans-serif;
                 direction: rtl;
                 text-align: right;
-                animation: inappSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                animation: inappSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             }
             #almezo-inapp-update-banner.hide {
                 animation: inappSlideDown 0.35s ease forwards;
             }
             @keyframes inappSlideUp {
-                from { opacity: 0; transform: translateX(-50%) translateY(60px); }
+                from { opacity: 0; transform: translateX(-50%) translateY(50px); }
                 to { opacity: 1; transform: translateX(-50%) translateY(0); }
             }
             @keyframes inappSlideDown {
                 from { opacity: 1; transform: translateX(-50%) translateY(0); }
-                to { opacity: 0; transform: translateX(-50%) translateY(60px); }
+                to { opacity: 0; transform: translateX(-50%) translateY(50px); }
             }
             .inapp-update-card {
-                background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.96));
+                background: linear-gradient(135deg, rgba(15, 23, 21, 0.97), rgba(10, 13, 18, 0.98));
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
-                border: 1px solid rgba(56, 189, 248, 0.45);
-                box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.7), 0 0 24px rgba(56, 189, 248, 0.25);
+                border: 1.5px solid rgba(34, 197, 94, 0.45);
+                box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.85), 0 0 25px rgba(34, 197, 94, 0.2);
                 border-radius: 18px;
-                padding: 16px 18px;
+                padding: 16px 20px;
                 display: flex;
                 flex-wrap: wrap;
                 align-items: center;
                 gap: 14px;
             }
             .inapp-update-icon-glow {
-                width: 46px;
-                height: 46px;
-                border-radius: 13px;
-                background: linear-gradient(135deg, #0284c7, #0ea5e9);
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, #22c55e, #16a34a);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 color: #fff;
                 font-size: 20px;
                 flex-shrink: 0;
-                box-shadow: 0 0 16px rgba(14, 165, 233, 0.6);
+                box-shadow: 0 0 16px rgba(34, 197, 94, 0.5);
             }
             .inapp-update-body {
                 flex: 1 1 240px;
@@ -550,69 +543,50 @@
             .inapp-update-header {
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                margin-bottom: 4px;
+                gap: 10px;
             }
             .inapp-update-badge {
-                font-size: 11px;
-                font-weight: 700;
-                background: rgba(14, 165, 233, 0.2);
-                color: #38bdf8;
-                border: 1px solid rgba(56, 189, 248, 0.4);
+                font-size: 11.5px;
+                font-weight: 800;
+                background: rgba(34, 197, 94, 0.18);
+                color: #4ade80;
+                border: 1px solid rgba(34, 197, 94, 0.4);
                 padding: 2px 8px;
                 border-radius: 20px;
+                letter-spacing: 0.5px;
             }
             .inapp-update-title {
-                color: #fff;
+                color: #ffffff;
                 font-size: 14px;
                 font-weight: 800;
-            }
-            .inapp-update-notes {
-                color: #94a3b8;
-                font-size: 12px;
-                line-height: 1.5;
             }
             .inapp-update-actions {
                 display: flex;
                 align-items: center;
-                gap: 8px;
                 width: 100%;
+                margin-top: 2px;
             }
             .inapp-btn-update {
-                flex: 1;
-                background: linear-gradient(135deg, #0284c7, #025381);
-                color: #fff;
+                width: 100%;
+                background: linear-gradient(135deg, #22c55e, #16a34a);
+                color: #ffffff;
                 border: none;
                 border-radius: 12px;
-                padding: 10px 14px;
-                font-size: 13px;
+                padding: 11px 16px;
+                font-size: 13.5px;
                 font-weight: 700;
                 cursor: pointer;
-                transition: all 0.2s;
+                transition: all 0.2s ease;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 gap: 8px;
-                box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+                box-shadow: 0 4px 16px rgba(34, 197, 94, 0.35);
             }
             .inapp-btn-update:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 18px rgba(2, 132, 199, 0.6);
-            }
-            .inapp-btn-dismiss {
-                background: rgba(255, 255, 255, 0.08);
-                color: #cbd5e1;
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                border-radius: 12px;
-                padding: 10px 14px;
-                font-size: 12.5px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.2s;
-            }
-            .inapp-btn-dismiss:hover {
-                background: rgba(255, 255, 255, 0.16);
-                color: #fff;
+                box-shadow: 0 6px 20px rgba(34, 197, 94, 0.55);
+                filter: brightness(1.08);
             }
         `;
         document.head.appendChild(style);

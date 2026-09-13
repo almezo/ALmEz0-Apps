@@ -2245,23 +2245,32 @@ input[type="tel"] {
     box-shadow: 0 4px 16px rgba(255, 23, 68, 0.6) !important;
 }
 
-/* 4.5. زر إرسال الإشعارات لجميع الأجهزة للمدير (Broadcast Notification FAB) */
+/* 4.5. زر إرسال الإشعارات لجميع الأجهزة للمدير باللون الأبيض (Broadcast Notification FAB) */
 .floating-btn.broadcast-fab,
 #adminBroadcastFab {
-    background: linear-gradient(135deg, #f59e0b, #d97706, #b45309) !important;
-    border: 1.5px solid rgba(251, 191, 36, 0.6) !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5), 0 0 14px rgba(251, 191, 36, 0.4) !important;
+    background: linear-gradient(135deg, #ffffff, #f1f5f9) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+    box-shadow: 0 4px 16px rgba(255, 255, 255, 0.4), 0 0 14px rgba(255, 255, 255, 0.25) !important;
 }
 
 .floating-btn.broadcast-fab:hover,
 #adminBroadcastFab:hover {
-    box-shadow: 0 6px 22px rgba(245, 158, 11, 0.8), 0 0 20px rgba(251, 191, 36, 0.65) !important;
+    background: #ffffff !important;
+    box-shadow: 0 6px 24px rgba(255, 255, 255, 0.75), 0 0 20px rgba(255, 255, 255, 0.5) !important;
+    transform: scale(1.12) translateY(-2px);
 }
 
 .floating-btn.broadcast-fab i,
 #adminBroadcastFab i {
+    color: #0f172a !important;
     animation: hornWiggle 3s infinite ease-in-out;
+    transition: color 0.2s;
+}
+
+.floating-btn.broadcast-fab:hover i,
+#adminBroadcastFab:hover i {
+    color: #16a34a !important;
 }
 
 @keyframes hornWiggle {
@@ -7528,7 +7537,7 @@ body.platform-electron {
     max-width: 95vw;
     max-height: 95vw;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(16, 185, 129, 0.35) 0%, rgba(56, 189, 248, 0.25) 35%, rgba(229, 185, 53, 0.18) 60%, transparent 80%);
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.35) 0%, rgba(22, 163, 74, 0.25) 35%, rgba(245, 158, 11, 0.18) 60%, transparent 80%);
     filter: blur(65px);
     animation: splashAmbientPulse 4s infinite alternate ease-in-out;
     pointer-events: none;
@@ -7542,9 +7551,9 @@ body.platform-electron {
     transform: translate(-50%, -50%);
     width: 160vw;
     height: 3px;
-    background: linear-gradient(90deg, transparent 0%, rgba(56, 189, 248, 0.4) 25%, rgba(255, 255, 255, 0.95) 50%, rgba(16, 185, 129, 0.5) 75%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(34, 197, 94, 0.45) 25%, rgba(255, 255, 255, 0.95) 50%, rgba(245, 158, 11, 0.5) 75%, transparent 100%);
     filter: blur(1.5px);
-    box-shadow: 0 0 25px rgba(56, 189, 248, 0.8), 0 0 45px rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.85), 0 0 50px rgba(22, 163, 74, 0.6);
     animation: lensFlarePulse 2.8s infinite alternate ease-in-out;
     pointer-events: none;
     z-index: 2;
@@ -7556,16 +7565,16 @@ body.platform-electron {
     width: 280px;
     height: 280px;
     border-radius: 50%;
-    border: 2px solid rgba(56, 189, 248, 0.45);
-    box-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
+    border: 2px solid rgba(34, 197, 94, 0.45);
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.35);
     animation: splashSonarWave 2.6s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
     pointer-events: none;
 }
 
 .splash-sonar-ring.ring-delay {
     animation-delay: 1.3s;
-    border-color: rgba(229, 185, 53, 0.4);
-    box-shadow: 0 0 30px rgba(229, 185, 53, 0.25);
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.25);
 }
 
 .splash-logo-container {
@@ -7582,7 +7591,7 @@ body.platform-electron {
     max-width: 82vw;
     height: auto;
     object-fit: contain;
-    filter: drop-shadow(0 0 35px rgba(56, 189, 248, 0.5)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
+    filter: drop-shadow(0 0 35px rgba(34, 197, 94, 0.55)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
     animation: splashLogoCinematic 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -7592,7 +7601,7 @@ body.platform-electron {
     left: -80%;
     width: 50%;
     height: 220%;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, rgba(56, 189, 248, 0.7) 75%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.5) 50%, rgba(34, 197, 94, 0.7) 75%, transparent 100%);
     transform: rotate(30deg);
     filter: blur(2px);
     animation: splashLaserSweep 2.4s infinite ease-in-out;
@@ -7614,11 +7623,11 @@ body.platform-electron {
     font-weight: 900;
     letter-spacing: 5px;
     margin: 0;
-    background: linear-gradient(135deg, #ffffff 0%, #38bdf8 30%, #fbbf24 70%, #ffffff 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #22c55e 35%, #fbbf24 75%, #ffffff 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 2px 14px rgba(56, 189, 248, 0.4));
+    filter: drop-shadow(0 2px 14px rgba(34, 197, 94, 0.45));
     animation: brandTitleExpand 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -7650,8 +7659,8 @@ body.platform-electron {
 .splash-energy-fill {
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, #38bdf8, #fbbf24, #10b981);
-    box-shadow: 0 0 14px #38bdf8;
+    background: linear-gradient(90deg, #22c55e, #16a34a, #fbbf24);
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.85);
     animation: energyFill 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
