@@ -358,21 +358,29 @@
     }
 
     async function checkInAppUpdate() {
-        if (!isNative) return;
-
         try {
             let versionData = null;
+            const isLocal = window.location.protocol === 'file:' || 
+                            window.location.protocol === 'capacitor:' || 
+                            window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1';
+
             const endpoints = [
+                'https://almezo.store/version.json?t=' + Date.now(),
+                (!isLocal && window.location.origin ? window.location.origin + '/version.json?t=' + Date.now() : ''),
                 'https://raw.githubusercontent.com/almezo/ALmEz0-Downloads/main/version.json?t=' + Date.now(),
                 'version.json?t=' + Date.now()
-            ];
+            ].filter(Boolean);
 
             for (const url of endpoints) {
                 try {
                     const res = await fetch(url, { cache: 'no-store' });
                     if (res.ok) {
-                        versionData = await res.json();
-                        break;
+                        const data = await res.json();
+                        if (data && data.version) {
+                            versionData = data;
+                            break;
+                        }
                     }
                 } catch (e) {}
             }
@@ -398,7 +406,9 @@
     function showInAppUpdateBanner(info) {
         if (document.getElementById('almezo-inapp-update-banner')) return;
 
-        const downloadUrl = (isAndroid)
+        const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+        const isUserAndroid = isAndroid || /android/i.test(ua);
+        const downloadUrl = (isUserAndroid)
             ? (info.downloadUrls?.android || 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk')
             : (info.downloadUrls?.windows || 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe');
 
@@ -442,7 +452,21 @@
             }
 
             setTimeout(() => {
-                window.AlMeZ0App.openExternal(downloadUrl);
+                if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+                    window.AlMeZ0App.openExternal(downloadUrl);
+                }
+                try {
+                    const dlLink = document.createElement('a');
+                    dlLink.href = downloadUrl;
+                    dlLink.download = isUserAndroid ? 'ALmEz0.apk' : 'ALmEz0.exe';
+                    dlLink.target = '_blank';
+                    document.body.appendChild(dlLink);
+                    dlLink.click();
+                    setTimeout(() => {
+                        if (dlLink.parentNode) dlLink.parentNode.removeChild(dlLink);
+                    }, 1000);
+                } catch (e) {}
+
                 setTimeout(() => {
                     banner.classList.add('hide');
                     setTimeout(() => banner.remove(), 400);
@@ -882,10 +906,18 @@
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             initBroadcastNotificationListener();
+            setTimeout(checkInAppUpdate, 1500);
         });
     } else {
         initBroadcastNotificationListener();
+        setTimeout(checkInAppUpdate, 1500);
     }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            checkInAppUpdate();
+        }
+    });
 
     window.AlMeZ0App.checkUpdate = checkInAppUpdate;
     window.AlMeZ0App.showInAppUpdateBanner = showInAppUpdateBanner;
