@@ -7587,8 +7587,8 @@ body.platform-electron {
     max-width: 68vw;
     max-height: 68vw;
     aspect-ratio: 1 / 1;
-    border-radius: 26%;
     -webkit-border-radius: 26%;
+    border-radius: 26%;
     overflow: hidden;
     z-index: 3;
     transform-style: preserve-3d;
@@ -7605,8 +7605,8 @@ body.platform-electron {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 26%;
     -webkit-border-radius: 26%;
+    border-radius: 26%;
     display: block;
     pointer-events: none;
 }
