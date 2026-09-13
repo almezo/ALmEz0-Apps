@@ -1,5 +1,9 @@
 package com.almezo.servers;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -7,6 +11,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.JavascriptInterface;
+import androidx.core.app.NotificationCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -121,6 +126,54 @@ public class MainActivity extends BridgeActivity {
                     startActivity(intent);
                 } catch (Throwable t) {
                     android.util.Log.e("MainActivity", "Failed to launch PlayerActivity", t);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void showNotification(String title, String message, String actionUrl) {
+            runOnUiThread(() -> {
+                try {
+                    NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    String channelId = "almezo_broadcast_channel";
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        NotificationChannel channel = new NotificationChannel(
+                            channelId,
+                            "تنبيهات سيرفرات الميزو",
+                            NotificationManager.IMPORTANCE_HIGH
+                        );
+                        channel.setDescription("إشعارات وتحديثات سيرفرات الميزو");
+                        channel.enableLights(true);
+                        channel.enableVibration(true);
+                        if (manager != null) {
+                            manager.createNotificationChannel(channel);
+                        }
+                    }
+
+                    Intent intent = new Intent(MainActivity.this, MainActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    if (actionUrl != null && !actionUrl.trim().isEmpty()) {
+                        intent.putExtra("actionUrl", actionUrl.trim());
+                    }
+                    int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                        ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                        : PendingIntent.FLAG_UPDATE_CURRENT;
+                    PendingIntent pendingIntent = PendingIntent.getActivity(MainActivity.this, (int) System.currentTimeMillis(), intent, flags);
+
+                    NotificationCompat.Builder builder = new NotificationCompat.Builder(MainActivity.this, channelId)
+                        .setSmallIcon(R.mipmap.ic_launcher)
+                        .setContentTitle(title != null ? title : "سيرفرات الميزو")
+                        .setContentText(message != null ? message : "")
+                        .setStyle(new NotificationCompat.BigTextStyle().bigText(message != null ? message : ""))
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setAutoCancel(true)
+                        .setContentIntent(pendingIntent);
+
+                    if (manager != null) {
+                        manager.notify((int) System.currentTimeMillis(), builder.build());
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.e("MainActivity", "Failed to post native notification", t);
                 }
             });
         }

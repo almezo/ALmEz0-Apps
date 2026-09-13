@@ -3530,8 +3530,16 @@ window.loadBroadcastHistory = async function () {
     const listContainer = document.getElementById('broadcastHistoryList');
     if (!listContainer) return;
 
+    function safeEsc(s) {
+        if (typeof window.escapeHtml === 'function') return window.escapeHtml(s);
+        return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
     try {
-        const snap = await db.collection('broadcast_notifications')
+        const firestore = (window.db) || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+        if (!firestore) return;
+
+        const snap = await firestore.collection('broadcast_notifications')
             .orderBy('timestamp', 'desc')
             .limit(8)
             .get();
@@ -3550,8 +3558,8 @@ window.loadBroadcastHistory = async function () {
             html += `
                 <div class="history-notif-item">
                     <div class="history-notif-info">
-                        <span class="history-notif-title">${typeBadge} - ${escapeHtml(data.title || '')}</span>
-                        <span class="history-notif-time">${dateStr} | ${escapeHtml(data.message || '').substring(0, 50)}...</span>
+                        <span class="history-notif-title">${typeBadge} - ${safeEsc(data.title || '')}</span>
+                        <span class="history-notif-time">${dateStr} | ${safeEsc(data.message || '').substring(0, 50)}...</span>
                     </div>
                     <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${doc.id}')" title="حذف هذا الإشعار">
                         <i class="fas fa-trash-alt"></i>

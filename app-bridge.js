@@ -642,13 +642,32 @@
     function showBroadcastPushBanner(notif) {
         if (!notif || !notif.title) return;
 
+        function safeEsc(s) {
+            if (typeof window.escapeHtml === 'function') return window.escapeHtml(s);
+            return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
         // Play chime and trigger vibration
         playNotificationChime();
         if (navigator.vibrate) {
             try { navigator.vibrate([120, 60, 120]); } catch (e) { }
         }
 
-        // Native OS / Browser notification
+        // 1. Android Native System Tray Notification (Hardware StatusBar)
+        try {
+            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showNotification === 'function') {
+                window.AndroidNativeBridge.showNotification(notif.title, notif.message, notif.actionUrl || '');
+            }
+        } catch (e) { }
+
+        // 2. Windows PC Native System Notification (Action Center)
+        try {
+            if (window.electronAPI && typeof window.electronAPI.showNotification === 'function') {
+                window.electronAPI.showNotification(notif.title, notif.message);
+            }
+        } catch (e) { }
+
+        // 3. Web Notification API (Browser)
         try {
             if ('Notification' in window) {
                 if (Notification.permission === 'granted') {
@@ -678,7 +697,7 @@
             }
         } catch (e) { }
 
-        // Remove existing banner if any
+        // 4. In-App Floating Luxury Banner
         const existing = document.getElementById('almezo-broadcast-banner');
         if (existing) existing.remove();
 
@@ -709,12 +728,12 @@
                     </div>
                 </div>
                 <div class="push-banner-content">
-                    <h4 class="push-notif-title">${escapeHtml(notif.title)}</h4>
-                    <p class="push-notif-body">${escapeHtml(notif.message)}</p>
+                    <h4 class="push-notif-title">${safeEsc(notif.title)}</h4>
+                    <p class="push-notif-body">${safeEsc(notif.message)}</p>
                 </div>
                 ${notif.actionUrl ? `
                 <div class="push-banner-actions">
-                    <a href="${notif.actionUrl}" class="push-action-btn" id="btnPushAction">
+                    <a href="${safeEsc(notif.actionUrl)}" class="push-action-btn" id="btnPushAction">
                         <i class="fas fa-external-link-alt"></i> فتح الرابط / التفاصيل
                     </a>
                 </div>
@@ -742,15 +761,16 @@
                     transform: translateX(-50%) translateY(0);
                 }
                 .push-banner-inner {
-                    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.97));
+                    background: linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(15, 23, 42, 0.98));
                     backdrop-filter: blur(16px);
                     -webkit-backdrop-filter: blur(16px);
-                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border: 1.5px solid rgba(255, 255, 255, 0.14);
                     border-radius: 16px;
                     padding: 14px 16px;
                     display: flex;
                     flex-direction: column;
                     gap: 8px;
+                    box-sizing: border-box;
                 }
                 .push-banner-header {
                     display: flex;
@@ -848,52 +868,60 @@
             };
         }
 
-        // Auto dismiss after 12 seconds
+        // Auto dismiss after 15 seconds
         setTimeout(() => {
             if (banner.parentElement) {
                 banner.classList.remove('visible');
                 setTimeout(() => banner.remove(), 450);
             }
-        }, 12000);
+        }, 15000);
     }
 
     function initBroadcastNotificationListener() {
+        if (window._almezoBroadcastListenerActive) return;
         let attempts = 0;
         const maxAttempts = 30;
 
+        function getFirestore() {
+            try {
+                if (window.db) return window.db;
+                if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0 && typeof firebase.firestore === 'function') {
+                    return firebase.firestore();
+                }
+            } catch (e) {}
+            return null;
+        }
+
         const timer = setInterval(() => {
             attempts++;
-            const firestore = (window.db) || (window.firebase && typeof window.firebase.firestore === 'function' ? window.firebase.firestore() : null);
+            const firestore = getFirestore();
 
             if (firestore) {
                 clearInterval(timer);
+                window._almezoBroadcastListenerActive = true;
                 try {
-                    let isInitialSnap = true;
                     firestore.collection('broadcast_notifications')
                         .orderBy('timestamp', 'desc')
                         .limit(1)
                         .onSnapshot(snapshot => {
-                            if (!snapshot || snapshot.empty) {
-                                isInitialSnap = false;
-                                return;
-                            }
+                            if (!snapshot || snapshot.empty) return;
 
                             const doc = snapshot.docs[0];
                             const data = doc.data();
                             data.id = doc.id;
 
+                            const lastId = localStorage.getItem('almezo_last_broadcast_id');
                             const lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10);
                             const notifTs = parseInt(data.timestamp || '0', 10);
                             const now = Date.now();
                             const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
-                            // Show if it's newer than last seen and occurred in the last 48 hours
-                            if (notifTs > lastTs && (now - notifTs < FORTY_EIGHT_HOURS)) {
+                            // Show if new notification ID or newer timestamp within 48h
+                            if (doc.id !== lastId && notifTs > lastTs && (now - notifTs < FORTY_EIGHT_HOURS)) {
+                                localStorage.setItem('almezo_last_broadcast_id', doc.id);
                                 localStorage.setItem('almezo_last_broadcast_ts', String(notifTs));
                                 showBroadcastPushBanner(data);
                             }
-
-                            isInitialSnap = false;
                         }, err => {
                             console.warn('[BroadcastNotif] Listener error:', err);
                         });
@@ -903,7 +931,7 @@
             } else if (attempts >= maxAttempts) {
                 clearInterval(timer);
             }
-        }, 800);
+        }, 600);
     }
 
     if (document.readyState === 'loading') {

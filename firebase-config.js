@@ -21,7 +21,21 @@ const firebaseConfig = {
 // تهيئة تطبيق Firebase وخدماته
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+window.db = db;
+
 var ADMIN_UID = "7Rfvdr6GpwPcY9uDQwX0fIuWeRv1";
+window.ADMIN_UID = ADMIN_UID;
+
+// دالة حماية النصوص وتطهير HTML عالمية
+window.escapeHtml = function (str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
 
 // تفعيل الكاش المحلي للفايربيز (Offline Persistence) مع دعم التبويبات المتعددة لسرعة صاروخية
 db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
@@ -33,6 +47,7 @@ db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
 });
 
 const auth = firebase.auth();
+window.auth = auth;
 
 // جعل الـ Functions اختيارية لتفادي توقف السكربت في الصفحات التي لا تحمله
 let functions = null;

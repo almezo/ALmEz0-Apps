@@ -87,6 +87,20 @@ if (!gotTheLock) {
         }
     });
 
+    // IPC listener for native desktop notifications
+    ipcMain.on('show-notification', (event, data) => {
+        try {
+            const { Notification: ElectronNotification } = require('electron');
+            if (ElectronNotification.isSupported() && data && data.title) {
+                new ElectronNotification({
+                    title: data.title,
+                    body: data.message || '',
+                    icon: path.join(__dirname, '../photo/logo.ico')
+                }).show();
+            }
+        } catch (e) { }
+    });
+
     app.whenReady().then(() => {
         createWindow();
 
