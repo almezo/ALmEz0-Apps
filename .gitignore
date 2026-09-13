@@ -6,6 +6,9 @@ dist-electron/
 dist-hosting/
 dist/
 release/
+www/
+functions/node_modules/
+scratch/
 *.zip
 
 # Android build outputs and caches
