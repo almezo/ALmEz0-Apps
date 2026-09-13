@@ -3276,3 +3276,96 @@ async function handleStaffRoleChange(newRole) {
         });
     }
 })();
+
+// =========================================================
+// تنبيه انقطاع الإنترنت اللحظي (Live Offline / Online Toast Banner)
+// =========================================================
+(function initLiveNetworkStatusNotifier() {
+    let offlineBanner = null;
+
+    function createBanner() {
+        if (offlineBanner) return offlineBanner;
+        offlineBanner = document.createElement('div');
+        offlineBanner.id = 'almezo-offline-toast';
+        offlineBanner.className = 'almezo-network-toast';
+        offlineBanner.style.cssText = `
+            position: fixed;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            z-index: 9999999;
+            background: linear-gradient(135deg, rgba(20, 25, 34, 0.96), rgba(12, 15, 22, 0.96));
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            border-radius: 18px;
+            padding: 12px 22px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 18px rgba(239, 68, 68, 0.25);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: auto;
+            direction: rtl;
+        `;
+        document.body.appendChild(offlineBanner);
+        return offlineBanner;
+    }
+
+    function showOfflineNotification() {
+        const b = createBanner();
+        b.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+        b.style.boxShadow = '0 16px 40px rgba(0, 0, 0, 0.65), 0 0 18px rgba(239, 68, 68, 0.25)';
+        b.innerHTML = `
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(239, 68, 68, 0.18); display: flex; align-items: center; justify-content: center; color: #ef4444; font-size: 16px; flex-shrink: 0;">
+                <i class="fas fa-wifi-slash"></i>
+            </div>
+            <div style="display: flex; flex-direction: column; text-align: right;">
+                <span style="font-size: 14px; font-weight: 700; color: #ffffff;">لا يوجد اتصال بالإنترنت</span>
+                <span style="font-size: 12px; color: #9da0a6; font-weight: 400;">يرجى التحقق من الشبكة للمتابعة</span>
+            </div>
+            <button onclick="window.location.reload()" style="margin-right: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <i class="fas fa-redo-alt" style="font-size: 11px;"></i> إعادة المحاولة
+            </button>
+        `;
+        b.style.opacity = '1';
+        b.style.transform = 'translateX(-50%) translateY(0)';
+    }
+
+    function showOnlineNotification() {
+        if (!offlineBanner) return;
+        offlineBanner.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+        offlineBanner.style.boxShadow = '0 16px 40px rgba(0, 0, 0, 0.65), 0 0 18px rgba(34, 197, 94, 0.25)';
+        offlineBanner.innerHTML = `
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(34, 197, 94, 0.18); display: flex; align-items: center; justify-content: center; color: #22c55e; font-size: 16px; flex-shrink: 0;">
+                <i class="fas fa-wifi"></i>
+            </div>
+            <div style="display: flex; flex-direction: column; text-align: right;">
+                <span style="font-size: 14px; font-weight: 700; color: #ffffff;">تم استعادة الاتصال بالإنترنت</span>
+                <span style="font-size: 12px; color: #86efac; font-weight: 400;">أنت متصل بالإنترنت الآن بنجاح</span>
+            </div>
+        `;
+        setTimeout(() => {
+            if (offlineBanner) {
+                offlineBanner.style.opacity = '0';
+                offlineBanner.style.transform = 'translateX(-50%) translateY(-100px)';
+            }
+        }, 3200);
+    }
+
+    window.addEventListener('offline', showOfflineNotification);
+    window.addEventListener('online', showOnlineNotification);
+
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showOfflineNotification);
+        } else {
+            showOfflineNotification();
+        }
+    }
+})();
