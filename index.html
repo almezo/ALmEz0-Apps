@@ -213,29 +213,38 @@
             let btnHtml = '';
             if (isAndroid) {
                 btnHtml = `
-                    <button id="btnDownloadFromPlayerModal" class="pwa-install-button" style="width: 100%; justify-content: center; padding: 14px 20px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; cursor: pointer;">
-                        <i class="fab fa-android" style="font-size: 18px; margin-left: 8px;"></i> تنزيل تطبيق أندرويد (ALmEz0.apk)
-                    </button>
+                    <div style="display: flex; justify-content: center; width: 100%; margin-bottom: 14px;">
+                        <button id="btnDownloadFromPlayerModal" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 330px; margin: 0 auto; padding: 14px 24px; font-size: 15px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #22c55e, #16a34a); border: none; border-radius: 14px; box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35); cursor: pointer; transition: all 0.25s ease;">
+                            <i class="fab fa-android" style="font-size: 19px;"></i>
+                            <span>تنزيل تطبيق أندرويد (ALmEz0.apk)</span>
+                        </button>
+                    </div>
                 `;
             } else if (isWindows) {
                 btnHtml = `
-                    <button id="btnDownloadFromPlayerModal" class="pwa-install-button" style="width: 100%; justify-content: center; padding: 14px 20px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; cursor: pointer;">
-                        <i class="fab fa-windows" style="font-size: 18px; margin-left: 8px;"></i> تنزيل برنامج الكمبيوتر (ALmEz0.exe)
-                    </button>
+                    <div style="display: flex; justify-content: center; width: 100%; margin-bottom: 14px;">
+                        <button id="btnDownloadFromPlayerModal" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 330px; margin: 0 auto; padding: 14px 24px; font-size: 15px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #22c55e, #16a34a); border: none; border-radius: 14px; box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35); cursor: pointer; transition: all 0.25s ease;">
+                            <i class="fab fa-windows" style="font-size: 19px;"></i>
+                            <span>تنزيل برنامج الكمبيوتر (ALmEz0.exe)</span>
+                        </button>
+                    </div>
                 `;
             } else if (isIOS) {
                 btnHtml = `
-                    <button id="btnDownloadFromPlayerModal" class="pwa-install-button" style="width: 100%; justify-content: center; padding: 14px 20px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; cursor: pointer;">
-                        <i class="fab fa-apple" style="font-size: 18px; margin-left: 8px;"></i> طريقة تثبيت التطبيق للايفون
-                    </button>
+                    <div style="display: flex; justify-content: center; width: 100%; margin-bottom: 14px;">
+                        <button id="btnDownloadFromPlayerModal" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 330px; margin: 0 auto; padding: 14px 24px; font-size: 15px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #22c55e, #16a34a); border: none; border-radius: 14px; box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35); cursor: pointer; transition: all 0.25s ease;">
+                            <i class="fab fa-apple" style="font-size: 19px;"></i>
+                            <span>طريقة تثبيت التطبيق للايفون</span>
+                        </button>
+                    </div>
                 `;
             } else {
                 btnHtml = `
-                    <div style="display: flex; gap: 10px; width: 100%; margin-bottom: 12px;">
-                        <a href="https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk" download="ALmEz0.apk" class="pwa-install-button" style="flex: 1; justify-content: center; padding: 12px; font-size: 13px; text-decoration: none;">
+                    <div style="display: flex; gap: 10px; width: 100%; max-width: 330px; margin: 0 auto 14px auto; justify-content: center;">
+                        <a href="https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk" download="ALmEz0.apk" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; font-size: 13.5px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #22c55e, #16a34a); border: none; border-radius: 12px; box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3); text-decoration: none; cursor: pointer;">
                             <i class="fab fa-android"></i> أندرويد APK
                         </a>
-                        <a href="https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe" download="ALmEz0.exe" class="pwa-install-button" style="flex: 1; justify-content: center; padding: 12px; font-size: 13px; text-decoration: none;">
+                        <a href="https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe" download="ALmEz0.exe" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; font-size: 13.5px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #22c55e, #16a34a); border: none; border-radius: 12px; box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3); text-decoration: none; cursor: pointer;">
                             <i class="fab fa-windows"></i> ويندوز EXE
                         </a>
                     </div>
@@ -243,16 +252,16 @@
             }
 
             overlay.innerHTML = `
-                <div class="pwa-fallback-modal" dir="rtl" style="max-width: 440px; padding: 36px 26px; border: 1px solid rgba(76, 175, 80, 0.4); border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 25px rgba(76, 175, 80, 0.2);">
+                <div class="pwa-fallback-modal" dir="rtl" style="max-width: 440px; padding: 36px 26px; border: 1px solid rgba(76, 175, 80, 0.4); border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 25px rgba(76, 175, 80, 0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
                     <div style="width: 76px; height: 76px; margin: 0 auto 20px; border-radius: 50%; background: rgba(76, 175, 80, 0.15); border: 2px solid rgba(76, 175, 80, 0.4); display: flex; align-items: center; justify-content: center; color: #4caf50; font-size: 34px;">
                         <i class="fas fa-tv"></i>
                     </div>
-                    <h3 style="color: #ffffff; font-size: 21px; font-weight: 800; margin-bottom: 12px;">مشغل الميزو متاح حصرياً عبر التطبيق</h3>
-                    <p style="color: #a0aab5; font-size: 14px; line-height: 1.8; margin-bottom: 24px;">
+                    <h3 style="color: #ffffff; font-size: 21px; font-weight: 800; margin-bottom: 12px; text-align: center;">مشغل الميزو متاح حصرياً عبر التطبيق</h3>
+                    <p style="color: #a0aab5; font-size: 14px; line-height: 1.8; margin-bottom: 24px; text-align: center;">
                         للحصول على أعلى دقة مشاهدة بدون تقطيع وبث مباشر سلس بدون قيود المتصفح، يرجى تنزيل وتثبيت تطبيق <b>ALmEz0</b> المخصص لجهازك.
                     </p>
                     ${btnHtml}
-                    <button id="btnClosePlayerExclusiveModal" style="background: transparent; border: none; color: #888; font-size: 13px; cursor: pointer; padding: 8px 16px; margin-top: 4px; transition: color 0.2s;">
+                    <button id="btnClosePlayerExclusiveModal" style="background: transparent; border: none; color: #888; font-size: 13.5px; cursor: pointer; padding: 8px 20px; margin: 0 auto; transition: color 0.2s; text-align: center;">
                         إغلاق
                     </button>
                 </div>
