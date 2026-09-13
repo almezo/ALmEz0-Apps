@@ -394,8 +394,18 @@
 
             if (!versionData || !versionData.version) return;
 
+            let installedVersion = CURRENT_APP_VERSION;
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && typeof window.Capacitor.Plugins.App.getInfo === 'function') {
+                try {
+                    const appInfo = await window.Capacitor.Plugins.App.getInfo();
+                    if (appInfo && appInfo.version) {
+                        installedVersion = appInfo.version;
+                    }
+                } catch (e) {}
+            }
+
             const latestVer = versionData.version;
-            if (compareVersions(latestVer, CURRENT_APP_VERSION) <= 0) {
+            if (compareVersions(latestVer, installedVersion) <= 0) {
                 return; // التطبيق على أحدث إصدار
             }
 
@@ -409,6 +419,18 @@
         } catch (err) {
             console.warn('In-app update check failed:', err);
         }
+    }
+
+    // فحص دوري للتحديثات كل 30 دقيقة وأثناء العودة للتطبيق
+    setInterval(checkInAppUpdate, 30 * 60 * 1000);
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        try {
+            window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+                if (state && state.isActive) {
+                    checkInAppUpdate();
+                }
+            });
+        } catch (e) {}
     }
 
     function showInAppUpdateBanner(info) {

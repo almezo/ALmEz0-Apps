@@ -155,14 +155,18 @@ function injectBroadcastModalHtml() {
     modal.style.position = 'fixed';
     modal.style.top = '0';
     modal.style.left = '0';
-    modal.style.width = '100%';
-    modal.style.height = '100%';
-    modal.style.background = 'rgba(0, 0, 0, 0.75)';
-    modal.style.backdropFilter = 'blur(6px)';
-    modal.style.webkitBackdropFilter = 'blur(6px)';
+    modal.style.width = '100vw';
+    modal.style.height = '100vh';
+    modal.style.height = '100dvh';
+    modal.style.background = 'rgba(0, 0, 0, 0.8)';
+    modal.style.backdropFilter = 'blur(8px)';
+    modal.style.webkitBackdropFilter = 'blur(8px)';
     modal.style.zIndex = '999999';
     modal.style.justifyContent = 'center';
     modal.style.alignItems = 'center';
+    modal.style.padding = '12px';
+    modal.style.boxSizing = 'border-box';
+    modal.style.overflow = 'hidden';
 
     modal.innerHTML = `
         <div class="modal-content broadcast-modal-content">
