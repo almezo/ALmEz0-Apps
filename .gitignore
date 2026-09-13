@@ -7,6 +7,7 @@ dist-hosting/
 dist/
 release/
 www/
+.download_cache/
 functions/node_modules/
 scratch/
 *.zip

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "versionCode": 1,
+  "releaseDate": "2026-09-13",
+  "title": "سيرفرات الميزو - الإصدار الرسمي 🚀",
+  "notes": "تحسينات شاملة في سرعة واستقرار المشغل، ودعم التحديث الذكي الداخلي، والتنزيل المباشر للأندرويد والكمبيوتر.",
+  "minSupportedVersion": "1.0.0",
+  "downloadUrls": {
+    "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
+    "windows": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe"
+  }
+}

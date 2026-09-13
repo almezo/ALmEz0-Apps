@@ -154,20 +154,20 @@ jobs:
           name: ALmEz0-Windows-Installer
           path: release-assets
 
-      - name: Create or Update GitHub Release
+      - name: Create or Update GitHub Release in Public Downloads Repo
         uses: softprops/action-gh-release@v2
         with:
+          repository: almezo/ALmEz0-Downloads
+          token: ${{ secrets.RELEASE_PAT }}
           tag_name: latest
           name: "ALmEz0 Latest Release"
           body: |
             ## تحميل تطبيقات سيرفرات الميزو - ALmEz0
 
-            - 📱 **تطبيق الأندرويد (APK)**: [ALmEz0.apk](https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk)
-            - 💻 **برنامج الكمبيوتر (Windows EXE)**: [ALmEz0.exe](https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe)
+            - 📱 **تطبيق الأندرويد (APK)**: [ALmEz0.apk](https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk)
+            - 💻 **برنامج الكمبيوتر (Windows EXE)**: [ALmEz0.exe](https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe)
 
             تحديث تلقائي مستمر مع كل إصدار جديد.
           files: |
             release-assets/ALmEz0.apk
             release-assets/ALmEz0.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

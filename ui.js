@@ -3136,10 +3136,10 @@ async function handleStaffRoleChange(newRole) {
     const titleEl = installContainer.querySelector('.pwa-install-title');
     const descEl = installContainer.querySelector('.pwa-install-desc');
 
-    // روابط التحميل المباشرة للتطبيقات
+    // روابط التحميل المباشرة للتطبيقات من مستودع التنزيلات العام الآمن
     const DOWNLOAD_URLS = {
-        android: 'https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk',
-        windows: 'https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe'
+        android: 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk',
+        windows: 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe'
     };
 
     // 4. تخصيص محتوى وأزرار الصندوق فورياً حسب جهاز الزائر
