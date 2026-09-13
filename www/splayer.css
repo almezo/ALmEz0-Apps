@@ -4383,68 +4383,80 @@ body.tv-mode {
 }
 
 /* =========================================================
-   DASHBOARD CARD REFRESH FOOTER (طلب المستخدم رقم 1 - شريط احترافي أنيق)
+   DASHBOARD CARD REFRESH FOOTER (طراز احترافي مطابق للصورة 100%)
    ========================================================= */
 .card-update-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    margin-top: 18px;
-    padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.52);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    margin-top: 14px;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     box-sizing: border-box;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
     z-index: 2;
-    transition: all 0.25s ease;
+    direction: ltr !important;
 }
 
 .card-update-text {
-    font-size: 12.5px;
-    color: #cbd5e1;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    font-size: 13.5px;
+    color: #9da0a6;
+    font-weight: 500;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    letter-spacing: -0.2px;
     -webkit-user-select: none;
     user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-update-text span {
+    color: #9da0a6;
     font-weight: 500;
 }
 
-.card-update-text b {
-    color: #f4c242;
-    font-weight: 700;
-}
-
 .card-refresh-btn {
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #ffffff;
-    width: 32px;
+    background: #62656c;
+    border: none;
+    width: 48px;
     height: 32px;
-    min-width: 32px;
+    min-width: 48px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 13px;
-    transition: all 0.25s ease;
+    padding: 0;
+    transition: background 0.2s ease, transform 0.15s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
 }
 
 .card-refresh-btn:hover {
-    background: #f4c242;
-    color: #000000;
-    border-color: #f4c242;
-    transform: scale(1.1);
-    box-shadow: 0 0 14px rgba(244, 194, 66, 0.6);
+    background: #737780;
+    transform: scale(1.04);
 }
 
-.card-refresh-btn.updating i {
-    animation: spRotate 1s infinite linear;
+.card-refresh-btn:active,
+.card-refresh-btn:focus-visible {
+    background: #56585f;
+    transform: scale(0.96);
+    outline: none;
+}
+
+.card-refresh-btn .refresh-icon-svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+.card-refresh-btn.updating .refresh-icon-svg {
+    animation: spRotate 0.8s infinite linear;
 }
 
 @keyframes spRotate {

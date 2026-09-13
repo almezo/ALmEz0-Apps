@@ -1790,16 +1790,17 @@ const fetchCache = {};
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
 function formatRelativeTime(ts) {
-    if (!ts) return 'الآن';
+    if (!ts) return '1 sec ago';
     const diff = Date.now() - ts;
-    if (diff < 60000) return 'منذ ثوانٍ';
+    if (diff < 5000) return '1 sec ago';
+    const seconds = Math.floor(diff / 1000);
+    if (seconds < 60) return `${seconds} secs ago`;
     const minutes = Math.floor(diff / 60000);
-    if (minutes < 60) return `منذ ${minutes} د`;
+    if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `منذ ${hours} س`;
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
     const days = Math.floor(hours / 24);
-    if (days === 1) return 'أمس';
-    return `منذ ${days} أيام`;
+    return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
 function updateCardTimestamps() {
@@ -1817,8 +1818,8 @@ function updateCardTimestamps() {
     if (elSeries) elSeries.innerText = formatRelativeTime(seriesTs);
 }
 
-// تحديث التوقيتات النسبية كل دقيقة تلقائياً
-setInterval(updateCardTimestamps, 60000);
+// تحديث التوقيتات النسبية كل 15 ثانية تلقائياً
+setInterval(updateCardTimestamps, 15000);
 
 async function manualRefreshCategory(type, event) {
     if (event) event.stopPropagation();
@@ -1831,7 +1832,7 @@ async function manualRefreshCategory(type, event) {
     const label = document.getElementById(labelId);
 
     if (btn) btn.classList.add('updating');
-    if (label) label.innerText = 'جاري التحديث...';
+    if (label) label.innerText = 'Updating...';
 
     // مسح الكاش لإجبار السيرفر على إرسال أحدث البيانات
     for (const key in fetchCache) {
