@@ -1450,6 +1450,16 @@ function injectModals() {
         '        <i class="fas fa-phone-alt"></i> <span id="accountUserPhone"></span>',
         '      </div>',
         '      <div class="account-options-list">',
+        '        <button type="button" class="account-btn check-update-btn" id="accountCheckUpdateBtn">',
+        '          <div class="account-btn-content">',
+        '            <div class="btn-icon"><i class="fas fa-sync-alt"></i></div>',
+        '            <div class="account-btn-text">',
+        '              <span class="btn-title">التحقق من وجود تحديثات</span>',
+        '              <span class="btn-desc">فحص أحدث إصدار متاح للبرنامج</span>',
+        '            </div>',
+        '          </div>',
+        '          <i class="fas fa-chevron-left arrow-icon"></i>',
+        '        </button>',
         '        <button type="button" class="account-btn change-pass-btn" id="openChangePassBtn">',
         '          <div class="account-btn-content">',
         '            <div class="btn-icon"><i class="fas fa-key"></i></div>',
@@ -1552,6 +1562,16 @@ function injectModals() {
     var logoutCancelBtn = document.getElementById('logoutCancelBtn');
     if (logoutCancelBtn) {
         logoutCancelBtn.addEventListener('click', closeLogoutModal);
+    }
+
+    if (document.getElementById('accountCheckUpdateBtn')) {
+        document.getElementById('accountCheckUpdateBtn').addEventListener('click', function () {
+            if (typeof window.checkAppUpdateManual === 'function') {
+                window.checkAppUpdateManual();
+            } else if (window.AlMeZ0App && typeof window.AlMeZ0App.checkUpdate === 'function') {
+                window.AlMeZ0App.checkUpdate(true);
+            }
+        });
     }
 
     // ربط التنقل بين واجهات الحساب وتغيير كلمة السر
@@ -2236,14 +2256,42 @@ function updateHeaderLoginState() {
     checkFABMode();
 }
 
+// حقن زر فحص التحديثات في فوتر كافة الصفحات
+function injectFooterUpdateBadge() {
+    try {
+        var copyrightEl = document.querySelector('.copyright');
+        if (!copyrightEl || document.getElementById('footerCheckUpdateBtn')) return;
+        var badge = document.createElement('div');
+        badge.className = 'footer-update-badge-wrap';
+        badge.innerHTML = '<button type="button" id="footerCheckUpdateBtn" class="footer-update-check-btn" title="انقر لفحص أحدث إصدار متاح للبرنامج"><i class="fas fa-sync-alt"></i> الإصدار v1.0.2 • التحقق من التحديثات</button>';
+        copyrightEl.appendChild(badge);
+
+        var btn = badge.querySelector('#footerCheckUpdateBtn');
+        if (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الفحص...';
+                if (typeof window.checkAppUpdateManual === 'function') {
+                    window.checkAppUpdateManual();
+                } else if (window.AlMeZ0App && typeof window.AlMeZ0App.checkUpdate === 'function') {
+                    window.AlMeZ0App.checkUpdate(true);
+                }
+                setTimeout(function () {
+                    if (btn) btn.innerHTML = '<i class="fas fa-sync-alt"></i> الإصدار v1.0.2 • التحقق من التحديثات';
+                }, 3000);
+            });
+        }
+    } catch (e) { }
+}
+
 // تشغيل فوري لحظي عند تحميل السكربت والـ DOM
-try { updateHeaderLoginState(); } catch (e) { }
+try { updateHeaderLoginState(); injectFooterUpdateBadge(); } catch (e) { }
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', function () {
-        try { updateHeaderLoginState(); } catch (e) { }
+        try { updateHeaderLoginState(); injectFooterUpdateBadge(); } catch (e) { }
     });
     window.addEventListener('load', function () {
-        try { updateHeaderLoginState(); } catch (e) { }
+        try { updateHeaderLoginState(); injectFooterUpdateBadge(); } catch (e) { }
     });
 }
 
