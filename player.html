@@ -59,6 +59,18 @@
             setTimeout(applyImmersive, 1000);
         })();
     </script>
+    <!-- Native Guard: Restrict player exclusively to Android and PC applications -->
+    <script>
+        (function enforceNativeOnlyForPlayer() {
+            var isNative = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
+                           !!(window.electronAPI && window.electronAPI.isElectron) ||
+                           !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                           !!(window.AndroidNativeBridge);
+            if (!isNative) {
+                window.location.replace('index.html?app_required=player');
+            }
+        })();
+    </script>
     <!-- Auth Guard: Verify website login before accessing player -->
     <script>
         (function checkWebsiteAuth() {

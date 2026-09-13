@@ -187,51 +187,131 @@
     <script src="ui.js?v=4046.0"></script>
     <script src="whatsapp.js?v=4037.0"></script>
     <script>
-        function handlePlayerCardClick(event) {
-            var isAuth = false;
-            if (typeof isUserLoggedIn === 'function' && isUserLoggedIn()) {
-                isAuth = true;
-            } else {
-                var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
-                if (cached) {
-                    try {
-                        var u = JSON.parse(cached);
-                        if (u && (u.uid || u.phone || u.name)) isAuth = true;
-                    } catch (e) { }
-                }
+        function openPlayerExclusiveModal() {
+            let overlay = document.getElementById('player-exclusive-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'player-exclusive-overlay';
+                overlay.className = 'pwa-fallback-overlay';
+                document.body.appendChild(overlay);
             }
 
-            if (!isAuth) {
-                if (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-                sessionStorage.setItem('almezo_redirect_to_player', '1');
+            const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+            const platform = navigator.platform || '';
+            let isAndroid = /android/i.test(ua);
+            let isIOS = /iPad|iPhone|iPod/.test(ua) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            let isWindows = /Win(dows|32|64|NT)/i.test(ua) || /Win/i.test(platform);
 
-                if (typeof openLoginModal === 'function') {
-                    openLoginModal('login');
-                }
-
-                if (typeof showToast === 'function') {
-                    showToast('يجب تسجيل الدخول أو إنشاء حساب أولاً لفتح مشغل الميزو', 'error', 4500);
-                }
-                return false;
+            let btnHtml = '';
+            if (isAndroid) {
+                btnHtml = `
+                    <button id="btnDownloadFromPlayerModal" class="pwa-install-button" style="width: 100%; justify-content: center; padding: 14px 20px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; cursor: pointer;">
+                        <i class="fab fa-android" style="font-size: 18px; margin-left: 8px;"></i> تنزيل تطبيق أندرويد (ALmEz0.apk)
+                    </button>
+                `;
+            } else if (isWindows) {
+                btnHtml = `
+                    <button id="btnDownloadFromPlayerModal" class="pwa-install-button" style="width: 100%; justify-content: center; padding: 14px 20px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; cursor: pointer;">
+                        <i class="fab fa-windows" style="font-size: 18px; margin-left: 8px;"></i> تنزيل برنامج الكمبيوتر (ALmEz0.exe)
+                    </button>
+                `;
+            } else if (isIOS) {
+                btnHtml = `
+                    <button id="btnDownloadFromPlayerModal" class="pwa-install-button" style="width: 100%; justify-content: center; padding: 14px 20px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; cursor: pointer;">
+                        <i class="fab fa-apple" style="font-size: 18px; margin-left: 8px;"></i> طريقة تثبيت التطبيق للايفون
+                    </button>
+                `;
             } else {
-                if (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-                var isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
-                if ((window.AlMeZ0App && window.AlMeZ0App.isNative) || isLocalDev) {
-                    if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
-                        window.AlMeZ0App.lockLandscape();
+                btnHtml = `
+                    <div style="display: flex; gap: 10px; width: 100%; margin-bottom: 12px;">
+                        <a href="https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk" download="ALmEz0.apk" class="pwa-install-button" style="flex: 1; justify-content: center; padding: 12px; font-size: 13px; text-decoration: none;">
+                            <i class="fab fa-android"></i> أندرويد APK
+                        </a>
+                        <a href="https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe" download="ALmEz0.exe" class="pwa-install-button" style="flex: 1; justify-content: center; padding: 12px; font-size: 13px; text-decoration: none;">
+                            <i class="fab fa-windows"></i> ويندوز EXE
+                        </a>
+                    </div>
+                `;
+            }
+
+            overlay.innerHTML = `
+                <div class="pwa-fallback-modal" dir="rtl" style="max-width: 440px; padding: 36px 26px; border: 1px solid rgba(76, 175, 80, 0.4); border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 25px rgba(76, 175, 80, 0.2);">
+                    <div style="width: 76px; height: 76px; margin: 0 auto 20px; border-radius: 50%; background: rgba(76, 175, 80, 0.15); border: 2px solid rgba(76, 175, 80, 0.4); display: flex; align-items: center; justify-content: center; color: #4caf50; font-size: 34px;">
+                        <i class="fas fa-tv"></i>
+                    </div>
+                    <h3 style="color: #ffffff; font-size: 21px; font-weight: 800; margin-bottom: 12px;">مشغل الميزو متاح حصرياً عبر التطبيق</h3>
+                    <p style="color: #a0aab5; font-size: 14px; line-height: 1.8; margin-bottom: 24px;">
+                        للحصول على أعلى دقة مشاهدة بدون تقطيع وبث مباشر سلس بدون قيود المتصفح، يرجى تنزيل وتثبيت تطبيق <b>ALmEz0</b> المخصص لجهازك.
+                    </p>
+                    ${btnHtml}
+                    <button id="btnClosePlayerExclusiveModal" style="background: transparent; border: none; color: #888; font-size: 13px; cursor: pointer; padding: 8px 16px; margin-top: 4px; transition: color 0.2s;">
+                        إغلاق
+                    </button>
+                </div>
+            `;
+
+            const dlBtn = overlay.querySelector('#btnDownloadFromPlayerModal');
+            if (dlBtn) {
+                dlBtn.addEventListener('click', () => {
+                    if (isAndroid) {
+                        const a = document.createElement('a');
+                        a.href = 'https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk';
+                        a.download = 'ALmEz0.apk';
+                        a.target = '_blank';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => a.remove(), 1000);
+                        if (typeof showToast === 'function') showToast('📥 جاري بدء تنزيل تطبيق أندرويد (ALmEz0.apk)...', 'success', 5000);
+                    } else if (isWindows) {
+                        const a = document.createElement('a');
+                        a.href = 'https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe';
+                        a.download = 'ALmEz0.exe';
+                        a.target = '_blank';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => a.remove(), 1000);
+                        if (typeof showToast === 'function') showToast('📥 جاري بدء تنزيل برنامج الكمبيوتر (ALmEz0.exe)...', 'success', 5000);
+                    } else if (isIOS) {
+                        overlay.classList.remove('active');
+                        const pwaBtn = document.getElementById('pwa-install-btn');
+                        if (pwaBtn) pwaBtn.click();
                     }
-                    window.location.href = 'player.html';
-                } else {
-                    window.open('go-player.php', '_blank');
+                });
+            }
+
+            const closeBtn = overlay.querySelector('#btnClosePlayerExclusiveModal');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    overlay.classList.remove('active');
+                });
+            }
+
+            setTimeout(() => overlay.classList.add('active'), 10);
+        }
+
+        function handlePlayerCardClick(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            // فحص هل المستخدم داخل التطبيق الفعلي المثبت (أندرويد أو كمبيوتر)
+            var isNative = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
+                           !!(window.electronAPI && window.electronAPI.isElectron) ||
+                           !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                           !!(window.AndroidNativeBridge);
+
+            if (isNative) {
+                if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
+                    window.AlMeZ0App.lockLandscape();
                 }
+                window.location.href = 'player.html';
                 return true;
             }
+
+            // إذا كان في متصفح الويب (كمبيوتر أو هاتف)، تخرج الرسالة المخصصة لتنزيل برنامج ALmEz0!
+            openPlayerExclusiveModal();
+            return false;
         }
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -246,12 +326,21 @@
             });
 
             var urlParams = new URLSearchParams(window.location.search);
+            var isAppReq = urlParams.get('app_required') === 'player';
             var isAuthReq = urlParams.get('auth_required') === 'player';
             var isPlayerLimit = urlParams.get('player_limit') === '1';
             var hasRedirect = sessionStorage.getItem('almezo_redirect_to_player') === '1';
 
             // Clean query params immediately so refreshing page will NEVER re-trigger
-            if (isAuthReq || isPlayerLimit) {
+            if (isAppReq || isAuthReq || isPlayerLimit) {
+                try {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } catch (e) { }
+            }
+
+            if (isAppReq) {
+                setTimeout(openPlayerExclusiveModal, 300);
+            }
                 try {
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } catch (e) { }
