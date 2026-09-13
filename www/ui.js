@@ -3064,102 +3064,215 @@ async function handleStaffRoleChange(newRole) {
     }
 }
 
-// =============================================
-// نظام التثبيت الثابت والمستقر (PWA Install Box)
-// =============================================
-// الاعتماد على window.deferredPrompt المعرف في index.html
-const installContainer = document.getElementById('pwa-install-container');
-const installBtnClick = document.getElementById('pwa-install-btn');
-const closeInstallBtn = document.getElementById('pwa-close-btn');
+// =========================================================================
+// نظام التثبيت الذكي متعدد المنصات (Smart Multi-Platform Install System)
+// يكتشف نوع جهاز الزائر: Android -> APK | Windows -> EXE | iOS -> Safari Guide
+// =========================================================================
+(function initSmartInstallBanner() {
+    const installContainer = document.getElementById('pwa-install-container');
+    const installBtn = document.getElementById('pwa-install-btn');
+    const closeBtn = document.getElementById('pwa-close-btn');
 
-// تسجيل الـ Service Worker
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then((reg) => {
-            console.log('SW Registered');
-        }).catch((err) => console.log('SW Error', err));
-    });
-}
+    // تسجيل الـ Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch((err) => console.log('SW Error', err));
+        });
+    }
 
-// إخفاء صندوق التنزيل نهائياً إذا كان المستخدم يفتح التطبيق المثبت (أندرويد، ويندوز، آيفون، أو standalone)
-if (installContainer) {
+    if (!installContainer || !installBtn) return;
+
+    // 1. إخفاء وحذف صندوق التنزيل نهائياً إذا كان المستخدم يفتح التطبيق المثبت بالفعل
     const isNativeApp = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
-                        !!(window.electronAPI && window.electronAPI.isElectron) ||
-                        !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
-                        window.navigator.standalone === true;
+        !!(window.electronAPI && window.electronAPI.isElectron) ||
+        !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+        window.navigator.standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches;
+
     if (isNativeApp) {
         installContainer.style.setProperty('display', 'none', 'important');
         if (installContainer.parentNode) {
             installContainer.parentNode.removeChild(installContainer);
         }
-    }
-}
-
-// تم نقل التقاط حدث التثبيت إلى index.html لضمان التقاطه مبكراً
-
-// دالة عرض النافذة المنبثقة للتنزيل اليدوي
-function showPwaFallbackModal() {
-    if ((window.AlMeZ0App && window.AlMeZ0App.isNative) || window.navigator.standalone) return;
-    let overlay = document.getElementById('pwa-fallback-overlay');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'pwa-fallback-overlay';
-        overlay.className = 'pwa-fallback-overlay';
-        overlay.innerHTML = `
-            <div class="pwa-fallback-modal">
-                <div class="pwa-fallback-icon"><i class="fas fa-info-circle"></i></div>
-                <h3 class="pwa-fallback-title">تنبيه</h3>
-                <p class="pwa-fallback-desc">متصفحك لا يدعم التنزيل التلقائي، أرجو تنزيل الموقع يدويًا عبر قائمة المتصفح واختيار "إضافة إلى الشاشة الرئيسية" (Add to Home Screen).</p>
-                <button class="pwa-fallback-close-btn" id="pwa-fallback-close">حسناً، فهمت</button>
-            </div>
-        `;
-        document.body.appendChild(overlay);
-
-        document.getElementById('pwa-fallback-close').addEventListener('click', () => {
-            overlay.classList.remove('active');
-            setTimeout(() => {
-                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-            }, 300);
-        });
+        return;
     }
 
-    // إظهار النافذة بحركة انسيابية
-    setTimeout(() => {
-        overlay.classList.add('active');
-    }, 10);
-}
+    // 2. إذا أغلق المستخدم الصندوق سابقاً خلال هذه الجلسة
+    if (sessionStorage.getItem('almezo_install_banner_closed') === '1') {
+        installContainer.style.setProperty('display', 'none', 'important');
+        return;
+    }
 
-// عند الضغط على زر التثبيت
-if (installBtnClick) {
-    installBtnClick.addEventListener('click', async () => {
-        if (window.deferredPrompt) {
-            window.deferredPrompt.prompt();
-            const { outcome } = await window.deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-                if (installContainer) installContainer.style.display = 'none';
-            }
-            window.deferredPrompt = null;
+    // 3. دالة فحص منصة ونظام تشغيل جهاز الزائر بدقة
+    function detectVisitorPlatform() {
+        const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+        const platform = navigator.platform || '';
+
+        // أجهزة أندرويد (هواتف، تابلت، أجهزة تلفزيون ذكية)
+        if (/android/i.test(ua)) return 'android';
+
+        // أجهزة آبل (iPhone, iPad, iPod)
+        if (/iPad|iPhone|iPod/.test(ua) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+
+        // أجهزة الكمبيوتر (Windows)
+        if (/Win(dows|32|64|NT)/i.test(ua) || /Win/i.test(platform)) return 'windows';
+
+        // أجهزة ماك
+        if (/Mac|Macintosh/i.test(ua)) return 'mac';
+
+        return 'other';
+    }
+
+    const currentPlatform = detectVisitorPlatform();
+    const titleEl = installContainer.querySelector('.pwa-install-title');
+    const descEl = installContainer.querySelector('.pwa-install-desc');
+
+    // روابط التحميل المباشرة للتطبيقات
+    const DOWNLOAD_URLS = {
+        android: 'https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk',
+        windows: 'https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe'
+    };
+
+    // 4. تخصيص محتوى وأزرار الصندوق فورياً حسب جهاز الزائر
+    if (currentPlatform === 'android') {
+        if (titleEl) titleEl.innerText = 'تطبيق سيرفرات الميزو للأندرويد';
+        if (descEl) descEl.innerText = 'قم بتنزيل ملف (ALmEz0.apk) للوصول المباشر ومشاهدة القنوات';
+        installBtn.innerHTML = '<i class="fab fa-android"></i> تثبيت التطبيق (APK)';
+    } else if (currentPlatform === 'windows') {
+        if (titleEl) titleEl.innerText = 'برنامج سيرفرات الميزو للكمبيوتر';
+        if (descEl) descEl.innerText = 'قم بتنزيل مثبت الويندوز (ALmEz0.exe) لتشغيل سلس ومباشر';
+        installBtn.innerHTML = '<i class="fab fa-windows"></i> تثبيت البرنامج (EXE)';
+    } else if (currentPlatform === 'ios') {
+        if (titleEl) titleEl.innerText = 'تطبيق سيرفرات الميزو للايفون';
+        if (descEl) descEl.innerText = 'أضف التطبيق للشاشة الرئيسية على أجهزة آبل بنقرة واحدة';
+        installBtn.innerHTML = '<i class="fab fa-apple"></i> تثبيت التطبيق (iOS)';
+    } else {
+        if (titleEl) titleEl.innerText = 'تطبيق سيرفرات الميزو - ALmEz0';
+        if (descEl) descEl.innerText = 'قم بتنزيل التطبيق للوصول السريع والمباشر';
+        installBtn.innerHTML = '<i class="fas fa-download"></i> تثبيت التطبيق';
+    }
+
+    // دالة بدء تنزيل الملف مع إشعار للمستخدم
+    function triggerDownload(url, filename, message) {
+        if (typeof showToast === 'function') {
+            showToast(message, 'success', 5000);
+        } else if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                toast: true,
+                position: 'bottom-end',
+                icon: 'success',
+                title: message,
+                showConfirmButton: false,
+                timer: 4000
+            });
+        }
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        link.setAttribute('target', '_blank');
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            if (link.parentNode) link.parentNode.removeChild(link);
+        }, 1500);
+    }
+
+    // دالة عرض النافذة المنبثقة الإرشادية لأجهزة آبل أو المتصفحات غير الداعمة
+    function showPlatformModal(type) {
+        let overlay = document.getElementById('pwa-fallback-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'pwa-fallback-overlay';
+            overlay.className = 'pwa-fallback-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        if (type === 'ios') {
+            overlay.innerHTML = `
+                <div class="pwa-fallback-modal" dir="rtl">
+                    <div class="pwa-fallback-icon" style="color: #ffffff;"><i class="fab fa-apple"></i></div>
+                    <h3 class="pwa-fallback-title">تثبيت التطبيق على آيفون وآيباد</h3>
+                    <div class="pwa-fallback-desc" style="text-align: right; line-height: 2; margin: 15px 0 25px; font-size: 0.95rem;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                            <span style="background: #4caf50; color: #fff; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; flex-shrink: 0;">1</span>
+                            <span>اضغط على زر المشاركة <i class="fas fa-share-square" style="color: #38bdf8;"></i> في شريط Safari بالأسفل.</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                            <span style="background: #4caf50; color: #fff; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; flex-shrink: 0;">2</span>
+                            <span>مرر للأسفل واختر <b>إضافة إلى الشاشة الرئيسية</b> <i class="far fa-plus-square" style="color: #4caf50;"></i></span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="background: #4caf50; color: #fff; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; flex-shrink: 0;">3</span>
+                            <span>اضغط على <b>إضافة (Add)</b> في أعلى الشاشة للتشغيل كبرنامج.</span>
+                        </div>
+                    </div>
+                    <button class="pwa-fallback-close-btn" id="pwa-fallback-close">حسناً، فهمت</button>
+                </div>
+            `;
         } else {
-            // التحقق إذا كان المتصفح يدعم التثبيت التلقائي (مثل كروم وأندرويد)
-            if ('onbeforeinstallprompt' in window) {
-                // إذا كان يدعمه ولكن deferredPrompt فارغ، فهذا يعني غالباً أن التطبيق مثبت بالفعل
-                if (typeof showToast === 'function') {
-                    showToast('التطبيق مثبت بالفعل على جهازك', 'info');
-                } else {
-                    alert('التطبيق مثبت بالفعل على جهازك');
+            overlay.innerHTML = `
+                <div class="pwa-fallback-modal" dir="rtl">
+                    <div class="pwa-fallback-icon"><i class="fas fa-info-circle"></i></div>
+                    <h3 class="pwa-fallback-title">تثبيت التطبيق</h3>
+                    <p class="pwa-fallback-desc">متصفحك لا يدعم التنزيل التلقائي، أرجو فتح الموقع عبر متصفح Chrome واختيار "إضافة إلى الشاشة الرئيسية" (Add to Home Screen) من قائمة المتصفح.</p>
+                    <button class="pwa-fallback-close-btn" id="pwa-fallback-close">حسناً، فهمت</button>
+                </div>
+            `;
+        }
+
+        const modalClose = document.getElementById('pwa-fallback-close');
+        if (modalClose) {
+            modalClose.addEventListener('click', () => {
+                overlay.classList.remove('active');
+                setTimeout(() => {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                }, 300);
+            });
+        }
+
+        setTimeout(() => overlay.classList.add('active'), 10);
+    }
+
+    // 5. حدث الضغط على زر التثبيت الذكي
+    installBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        if (currentPlatform === 'android') {
+            triggerDownload(
+                DOWNLOAD_URLS.android,
+                'ALmEz0.apk',
+                '📥 جاري بدء تنزيل تطبيق أندرويد (ALmEz0.apk)...'
+            );
+        } else if (currentPlatform === 'windows') {
+            triggerDownload(
+                DOWNLOAD_URLS.windows,
+                'ALmEz0.exe',
+                '📥 جاري بدء تنزيل برنامج الكمبيوتر (ALmEz0.exe)...'
+            );
+        } else if (currentPlatform === 'ios') {
+            showPlatformModal('ios');
+        } else {
+            // باقي الأنظمة: تجربة PWA أولاً إذا كانت مدعومة
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                const { outcome } = await window.deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installContainer.style.setProperty('display', 'none', 'important');
                 }
-                if (installContainer) installContainer.style.display = 'none';
+                window.deferredPrompt = null;
             } else {
-                // إذا كان المتصفح لا يدعم التثبيت التلقائي (مثل سفاري في الآيفون) نعرض نافذة التنبيه
-                showPwaFallbackModal();
+                showPlatformModal('general');
             }
         }
     });
-}
 
-// زر إغلاق الصندوق (X)
-if (closeInstallBtn && installContainer) {
-    closeInstallBtn.addEventListener('click', () => {
-        installContainer.style.setProperty('display', 'none', 'important');
-    });
-}
+    // 6. حدث زر إغلاق الصندوق (X)
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            sessionStorage.setItem('almezo_install_banner_closed', '1');
+            installContainer.style.setProperty('display', 'none', 'important');
+        });
+    }
+})();

@@ -130,3 +130,44 @@ jobs:
         with:
           name: AlMeZ0-iOS-Project
           path: AlMeZ0-iOS-Project.tar.gz
+
+  # -------------------------------------------------------------
+  # 4. Automatic GitHub Release (APK & EXE)
+  # -------------------------------------------------------------
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-android, build-windows]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ALmEz0-Android-APK
+          path: release-assets
+
+      - name: Download Windows Installer
+        uses: actions/download-artifact@v4
+        with:
+          name: ALmEz0-Windows-Installer
+          path: release-assets
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "ALmEz0 Latest Release"
+          body: |
+            ## تحميل تطبيقات سيرفرات الميزو - ALmEz0
+
+            - 📱 **تطبيق الأندرويد (APK)**: [ALmEz0.apk](https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.apk)
+            - 💻 **برنامج الكمبيوتر (Windows EXE)**: [ALmEz0.exe](https://github.com/almezo/ALmEz0-Apps/releases/latest/download/ALmEz0.exe)
+
+            تحديث تلقائي مستمر مع كل إصدار جديد.
+          files: |
+            release-assets/ALmEz0.apk
+            release-assets/ALmEz0.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
