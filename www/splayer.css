@@ -1071,8 +1071,6 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    content-visibility: auto;
-    contain-intrinsic-size: 180px 280px;
 }
 
 .vod-card:hover {

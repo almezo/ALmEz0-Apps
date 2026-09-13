@@ -2164,12 +2164,17 @@ async function loadStreams(action, categoryId, type) {
 
     if (type === 'live') {
         container = document.getElementById('liveChannels');
-        container.innerHTML = loadingHtml;
-        container.scrollTop = 0;
+        if (container) {
+            container.innerHTML = loadingHtml;
+            container.scrollTop = 0;
+        }
     } else {
         container = document.getElementById('vodGrid');
-        container.innerHTML = loadingHtml;
-        container.scrollTop = 0;
+        if (container) {
+            container.innerHTML = loadingHtml;
+            container.scrollTop = 0;
+            if (container.parentElement) container.parentElement.scrollTop = 0;
+        }
     }
 
     try {
@@ -3110,34 +3115,78 @@ function applySort() {
 let activeRenderList = [];
 let activeRenderType = '';
 let activeRenderOffset = 0;
-const RENDER_CHUNK_SIZE = 50;
+const RENDER_CHUNK_SIZE = 80;
 let isAppendingChunk = false;
 
-function renderItems(items, type) {
-    let container = type === 'live' ? document.getElementById('liveChannels') : document.getElementById('vodGrid');
-    if (!container) return;
+function cleanImageUrl(url) {
+    if (!url || typeof url !== 'string') return 'photo/logo.ico';
+    url = url.trim();
+    if (!url || url === 'null' || url === 'undefined' || url.length < 5) return 'photo/logo.ico';
+    if (url.includes(' ') && !url.includes('%20')) {
+        url = url.replace(/ /g, '%20');
+    }
+    return url;
+}
 
-    container.innerHTML = '';
-    container.scrollTop = 0;
+function getScrollTarget(type) {
+    if (type === 'live') {
+        return document.getElementById('liveChannels');
+    }
+    const grid = document.getElementById('vodGrid');
+    return (grid && grid.parentElement) ? grid.parentElement : grid;
+}
+
+function handleInfiniteScroll() {
+    if (isAppendingChunk) return;
+    const st = getScrollTarget(activeRenderType);
+    if (!st) return;
+    const remaining = st.scrollHeight - (st.scrollTop + st.clientHeight);
+    if (remaining <= 1200) {
+        appendNextItemChunk();
+    }
+}
+
+function renderItems(items, type) {
+    const gridContainer = type === 'live' ? document.getElementById('liveChannels') : document.getElementById('vodGrid');
+    if (!gridContainer) return;
+
+    const scrollTarget = getScrollTarget(type);
+    if (scrollTarget) {
+        scrollTarget.scrollTop = 0;
+    }
+
+    gridContainer.innerHTML = '';
     activeRenderList = Array.isArray(items) ? items : [];
     activeRenderType = type;
     activeRenderOffset = 0;
 
-    if (!container._hasInfiniteScroll) {
-        container._hasInfiniteScroll = true;
-        container.addEventListener('scroll', () => {
-            if (isAppendingChunk) return;
-            if (container.scrollTop + container.clientHeight >= container.scrollHeight - 500) {
-                appendNextItemChunk();
-            }
-        }, { passive: true });
+    // Attach scroll listener directly to the element with overflow-y: auto
+    if (scrollTarget && !scrollTarget._hasInfiniteScroll) {
+        scrollTarget._hasInfiniteScroll = true;
+        scrollTarget.addEventListener('scroll', handleInfiniteScroll, { passive: true });
     }
 
-    appendNextItemChunk();
+    // Attach to window as global listener
+    if (!window._hasGlobalInfiniteScroll) {
+        window._hasGlobalInfiniteScroll = true;
+        window.addEventListener('scroll', handleInfiniteScroll, { passive: true });
+    }
+
+    // Render initial batch of 80 items immediately
+    appendNextItemChunk(80);
+
+    // If screen has high resolution and hasn't formed a scrollbar yet, append another batch
+    setTimeout(() => {
+        const st = getScrollTarget(activeRenderType);
+        if (st && st.scrollHeight <= st.clientHeight + 400 && activeRenderOffset < activeRenderList.length) {
+            appendNextItemChunk(80);
+        }
+    }, 60);
 }
 
-function appendNextItemChunk() {
-    if (activeRenderOffset >= activeRenderList.length) return;
+function appendNextItemChunk(customSize) {
+    const chunkSize = customSize || RENDER_CHUNK_SIZE;
+    if (activeRenderOffset >= activeRenderList.length || isAppendingChunk) return;
     isAppendingChunk = true;
 
     const container = activeRenderType === 'live' ? document.getElementById('liveChannels') : document.getElementById('vodGrid');
@@ -3146,7 +3195,7 @@ function appendNextItemChunk() {
         return;
     }
 
-    const chunk = activeRenderList.slice(activeRenderOffset, activeRenderOffset + RENDER_CHUNK_SIZE);
+    const chunk = activeRenderList.slice(activeRenderOffset, activeRenderOffset + chunkSize);
     const fragment = document.createDocumentFragment();
 
     if (activeRenderType === 'live') {
@@ -3168,8 +3217,10 @@ function appendNextItemChunk() {
                 el.classList.add('active');
             }
 
+            const iconSrc = cleanImageUrl(item.stream_icon);
+
             el.innerHTML = `
-                <img src="${item.stream_icon || 'photo/logo.ico'}" loading="lazy" decoding="async" class="channel-icon" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                <img src="${iconSrc}" class="channel-icon" onerror="this.onerror=null;this.src='photo/logo.ico'">
                 <span>${item.name || ''}</span>
             `;
             el.onclick = () => {
@@ -3183,13 +3234,13 @@ function appendNextItemChunk() {
         chunk.forEach(item => {
             const card = document.createElement('div');
             card.className = 'vod-card';
-            let id = item.stream_id || item.series_id;
-            let name = item.name || '';
-            let cover = item.stream_icon || item.cover || 'photo/logo.ico';
-            let ext = item.container_extension || 'mp4';
+            const id = item.stream_id || item.series_id;
+            const name = item.name || '';
+            const cover = cleanImageUrl(item.stream_icon || item.cover);
+            const ext = item.container_extension || 'mp4';
 
             card.innerHTML = `
-                <img src="${cover}" loading="lazy" decoding="async" class="vod-poster" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                <img src="${cover}" class="vod-poster" onerror="this.onerror=null;this.src='photo/logo.ico'">
                 <div class="vod-info">
                     <div class="vod-title" title="${name}">${name}</div>
                 </div>
