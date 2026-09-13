@@ -358,6 +358,13 @@
     }
 
     async function checkInAppUpdate() {
+        // يظهر صندوق التحديث فقط داخل تطبيقات الأجهزة المثبتة (أندرويد والكمبيوتر)، ولا يظهر في الموقع
+        if (!isNative) {
+            const existingBanner = document.getElementById('almezo-inapp-update-banner');
+            if (existingBanner) existingBanner.remove();
+            return;
+        }
+
         try {
             let versionData = null;
             const isLocal = window.location.protocol === 'file:' || 
