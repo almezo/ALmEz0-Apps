@@ -32,11 +32,21 @@ def generate_splash():
         splash_img = Image.new('RGBA', (w, h), BG_COLOR)
 
         # Scale logo to ~55% of the narrower dimension so it appears large and clear
-        target_logo_sz = int(min(w, h) * 0.58)
+        target_logo_sz = int(min(w, h) * 0.55)
         logo_resized = logo.resize((target_logo_sz, target_logo_sz), Image.Resampling.LANCZOS)
 
+        # Smooth rounded corners matching modern squircle app icon standard (~26%)
+        from PIL import ImageDraw
+        radius = int(target_logo_sz * 0.26)
+        mask = Image.new('L', (target_logo_sz, target_logo_sz), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rounded_rectangle([0, 0, target_logo_sz - 1, target_logo_sz - 1], radius=radius, fill=255)
+
+        rounded_logo = Image.new('RGBA', (target_logo_sz, target_logo_sz), (0, 0, 0, 0))
+        rounded_logo.paste(logo_resized, (0, 0), mask)
+
         offset = ((w - target_logo_sz) // 2, (h - target_logo_sz) // 2)
-        splash_img.paste(logo_resized, offset, logo_resized)
+        splash_img.paste(rounded_logo, offset, rounded_logo)
 
         out_path = os.path.join(folder_path, 'splash.png')
         splash_img.save(out_path, 'PNG')

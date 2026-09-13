@@ -7562,9 +7562,9 @@ body.platform-electron {
 /* Expanding Sonar Acoustic Wave Rings */
 .splash-sonar-ring {
     position: absolute;
-    width: 280px;
-    height: 280px;
-    border-radius: 50%;
+    width: 250px;
+    height: 250px;
+    border-radius: 28%;
     border: 2px solid rgba(34, 197, 94, 0.45);
     box-shadow: 0 0 30px rgba(34, 197, 94, 0.35);
     animation: splashSonarWave 2.6s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -7582,30 +7582,47 @@ body.platform-electron {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 240px;
+    height: 240px;
+    max-width: 68vw;
+    max-height: 68vw;
+    aspect-ratio: 1 / 1;
+    border-radius: 26%;
+    -webkit-border-radius: 26%;
+    overflow: hidden;
     z-index: 3;
     transform-style: preserve-3d;
+    background: #0d121d;
+    box-shadow: 0 0 45px rgba(34, 197, 94, 0.45), 0 20px 45px rgba(0, 0, 0, 0.9);
+    border: 1.5px solid rgba(34, 197, 94, 0.3);
+    animation: splashLogoCinematic 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    mask-image: radial-gradient(white, black);
+    isolation: isolate;
 }
 
 .splash-main-logo {
-    width: 320px;
-    max-width: 82vw;
-    height: auto;
-    object-fit: contain;
-    filter: drop-shadow(0 0 35px rgba(34, 197, 94, 0.55)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
-    animation: splashLogoCinematic 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 26%;
+    -webkit-border-radius: 26%;
+    display: block;
+    pointer-events: none;
 }
 
 .splash-shimmer-ray {
     position: absolute;
     top: -60%;
     left: -80%;
-    width: 50%;
+    width: 60%;
     height: 220%;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.5) 50%, rgba(34, 197, 94, 0.7) 75%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, rgba(34, 197, 94, 0.75) 75%, transparent 100%);
     transform: rotate(30deg);
     filter: blur(2px);
     animation: splashLaserSweep 2.4s infinite ease-in-out;
     pointer-events: none;
+    z-index: 2;
 }
 
 /* Cinematic Brand Reveal Typography */
@@ -7693,17 +7710,17 @@ body.platform-electron {
     0% {
         opacity: 0;
         transform: scale(0.68) translateY(30px) rotateX(16deg);
-        filter: blur(8px) drop-shadow(0 0 10px rgba(0, 0, 0, 0.8));
+        filter: blur(8px);
     }
     65% {
         opacity: 1;
         transform: scale(1.04) translateY(-4px) rotateX(-2deg);
-        filter: blur(0px) drop-shadow(0 0 45px rgba(56, 189, 248, 0.65)) drop-shadow(0 20px 45px rgba(0, 0, 0, 0.95));
+        filter: blur(0px);
     }
     100% {
         opacity: 1;
         transform: scale(1) translateY(0) rotateX(0deg);
-        filter: blur(0px) drop-shadow(0 0 35px rgba(56, 189, 248, 0.5)) drop-shadow(0 15px 40px rgba(0, 0, 0, 0.95));
+        filter: blur(0px);
     }
 }
 
