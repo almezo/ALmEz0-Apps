@@ -1,96 +1,97 @@
 {
-  "name": "almezo-servers",
-  "version": "1.0.2",
-  "description": "سيرفرات الميزو - AlMeZ0 Servers Multi-Platform App",
-  "main": "electron/main.js",
-  "scripts": {
-    "prepare:app": "node scripts/prepare-app.js",
-    "export:hosting": "node scripts/export-hosting.js",
-    "electron:dev": "electron .",
-    "electron:build": "node scripts/prepare-app.js && electron-builder --win --publish never",
-    "cap:sync": "node scripts/prepare-app.js && cap sync",
-    "cap:android": "node scripts/prepare-app.js && cap open android",
-    "cap:ios": "node scripts/prepare-app.js && cap open ios"
-  },
-  "dependencies": {
-    "@capacitor/android": "^8.5.2",
-    "@capacitor/app": "^8.1.1",
-    "@capacitor/browser": "^8.0.4",
-    "@capacitor/core": "^8.5.2",
-    "@capacitor/ios": "^8.5.2",
-    "@capacitor/screen-orientation": "^8.0.1",
-    "firebase": "^8.10.1",
-    "libsodium-wrappers": "^0.8.4"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "^8.5.2",
-    "electron": "^44.3.0",
-    "electron-builder": "^26.15.3"
-  },
-  "build": {
-    "appId": "com.almezo.servers",
-    "productName": "ALmEz0",
-    "directories": {
-      "output": "dist-electron"
+    "name": "almezo-servers",
+    "version": "1.0.1",
+    "description": "سيرفرات الميزو - AlMeZ0 Servers Multi-Platform App",
+    "main": "electron/main.js",
+    "scripts": {
+        "prepare:app": "node scripts/prepare-app.js",
+        "export:hosting": "node scripts/export-hosting.js",
+        "electron:dev": "electron .",
+        "electron:build": "node scripts/prepare-app.js && electron-builder --win --publish never",
+        "cap:sync": "node scripts/prepare-app.js && cap sync",
+        "cap:android": "node scripts/prepare-app.js && cap open android",
+        "cap:ios": "node scripts/prepare-app.js && cap open ios"
     },
-    "files": [
-      "electron/**/*",
-      "app-bridge.js",
-      "index.html",
-      "admin-dashboard.html",
-      "admin-dashboard.js",
-      "app-details.html",
-      "core.js",
-      "data.js",
-      "devices.html",
-      "firebase-config.js",
-      "iptv.html",
-      "manifest.json",
-      "player.html",
-      "purchases.html",
-      "purchases.js",
-      "security-monitor.html",
-      "security-monitor.js",
-      "server-details.html",
-      "servers.json",
-      "smart.html",
-      "splayer.css",
-      "splayer.js",
-      "staff.html",
-      "staff.js",
-      "style.css",
-      "sw.js",
-      "ui.js",
-      "validation.js",
-      "vip-details.html",
-      "vip.html",
-      "whatsapp.js",
-      "photo/**/*"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+    "dependencies": {
+        "@capacitor/android": "^8.5.2",
+        "@capacitor/app": "^8.1.1",
+        "@capacitor/browser": "^8.0.4",
+        "@capacitor/core": "^8.5.2",
+        "@capacitor/ios": "^8.5.2",
+        "@capacitor/screen-orientation": "^8.0.1",
+        "firebase": "^8.10.1",
+        "libsodium-wrappers": "^0.8.4"
+    },
+    "devDependencies": {
+        "@capacitor/cli": "^8.5.2",
+        "electron": "^44.3.0",
+        "electron-builder": "^26.15.3"
+    },
+    "build": {
+        "appId": "com.almezo.servers",
+        "productName": "ALmEz0",
+        "directories": {
+            "output": "dist-electron"
+        },
+        "files": [
+            "electron/**/*",
+            "app-bridge.js",
+            "index.html",
+            "admin-dashboard.html",
+            "admin-dashboard.js",
+            "app-details.html",
+            "core.js",
+            "data.js",
+            "devices.html",
+            "firebase-config.js",
+            "iptv.html",
+            "manifest.json",
+            "player.html",
+            "purchases.html",
+            "purchases.js",
+            "security-monitor.html",
+            "security-monitor.js",
+            "server-details.html",
+            "servers.json",
+            "smart.html",
+            "splayer.css",
+            "splayer.js",
+            "staff.html",
+            "staff.js",
+            "style.css",
+            "sw.js",
+            "ui.js",
+            "validation.js",
+            "version.json",
+            "vip-details.html",
+            "vip.html",
+            "whatsapp.js",
+            "photo/**/*"
+        ],
+        "win": {
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "icon": "photo/logo.ico",
+            "executableName": "ALmEz0"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true,
+            "shortcutName": "ALmEz0",
+            "artifactName": "ALmEz0.exe",
+            "uninstallDisplayName": "ALmEz0",
+            "installerIcon": "photo/logo.ico",
+            "uninstallerIcon": "photo/logo.ico",
+            "deleteAppDataOnUninstall": false,
+            "runAfterFinish": true
         }
-      ],
-      "icon": "photo/logo.ico",
-      "executableName": "ALmEz0"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "ALmEz0",
-      "artifactName": "ALmEz0.exe",
-      "uninstallDisplayName": "ALmEz0",
-      "installerIcon": "photo/logo.ico",
-      "uninstallerIcon": "photo/logo.ico",
-      "deleteAppDataOnUninstall": false,
-      "runAfterFinish": true
     }
-  }
 }

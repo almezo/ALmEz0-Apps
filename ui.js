@@ -1450,16 +1450,6 @@ function injectModals() {
         '        <i class="fas fa-phone-alt"></i> <span id="accountUserPhone"></span>',
         '      </div>',
         '      <div class="account-options-list">',
-        '        <button type="button" class="account-btn check-update-btn" id="accountCheckUpdateBtn">',
-        '          <div class="account-btn-content">',
-        '            <div class="btn-icon"><i class="fas fa-sync-alt"></i></div>',
-        '            <div class="account-btn-text">',
-        '              <span class="btn-title">التحقق من وجود تحديثات</span>',
-        '              <span class="btn-desc">فحص أحدث إصدار متاح للبرنامج</span>',
-        '            </div>',
-        '          </div>',
-        '          <i class="fas fa-chevron-left arrow-icon"></i>',
-        '        </button>',
         '        <button type="button" class="account-btn change-pass-btn" id="openChangePassBtn">',
         '          <div class="account-btn-content">',
         '            <div class="btn-icon"><i class="fas fa-key"></i></div>',
@@ -1562,16 +1552,6 @@ function injectModals() {
     var logoutCancelBtn = document.getElementById('logoutCancelBtn');
     if (logoutCancelBtn) {
         logoutCancelBtn.addEventListener('click', closeLogoutModal);
-    }
-
-    if (document.getElementById('accountCheckUpdateBtn')) {
-        document.getElementById('accountCheckUpdateBtn').addEventListener('click', function () {
-            if (typeof window.checkAppUpdateManual === 'function') {
-                window.checkAppUpdateManual();
-            } else if (window.AlMeZ0App && typeof window.AlMeZ0App.checkUpdate === 'function') {
-                window.AlMeZ0App.checkUpdate(true);
-            }
-        });
     }
 
     // ربط التنقل بين واجهات الحساب وتغيير كلمة السر
@@ -2256,42 +2236,14 @@ function updateHeaderLoginState() {
     checkFABMode();
 }
 
-// حقن زر فحص التحديثات في فوتر كافة الصفحات
-function injectFooterUpdateBadge() {
-    try {
-        var copyrightEl = document.querySelector('.copyright');
-        if (!copyrightEl || document.getElementById('footerCheckUpdateBtn')) return;
-        var badge = document.createElement('div');
-        badge.className = 'footer-update-badge-wrap';
-        badge.innerHTML = '<button type="button" id="footerCheckUpdateBtn" class="footer-update-check-btn" title="انقر لفحص أحدث إصدار متاح للبرنامج"><i class="fas fa-sync-alt"></i> الإصدار v1.0.2 • التحقق من التحديثات</button>';
-        copyrightEl.appendChild(badge);
-
-        var btn = badge.querySelector('#footerCheckUpdateBtn');
-        if (btn) {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الفحص...';
-                if (typeof window.checkAppUpdateManual === 'function') {
-                    window.checkAppUpdateManual();
-                } else if (window.AlMeZ0App && typeof window.AlMeZ0App.checkUpdate === 'function') {
-                    window.AlMeZ0App.checkUpdate(true);
-                }
-                setTimeout(function () {
-                    if (btn) btn.innerHTML = '<i class="fas fa-sync-alt"></i> الإصدار v1.0.2 • التحقق من التحديثات';
-                }, 3000);
-            });
-        }
-    } catch (e) { }
-}
-
 // تشغيل فوري لحظي عند تحميل السكربت والـ DOM
-try { updateHeaderLoginState(); injectFooterUpdateBadge(); } catch (e) { }
+try { updateHeaderLoginState(); } catch (e) { }
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', function () {
-        try { updateHeaderLoginState(); injectFooterUpdateBadge(); } catch (e) { }
+        try { updateHeaderLoginState(); } catch (e) { }
     });
     window.addEventListener('load', function () {
-        try { updateHeaderLoginState(); injectFooterUpdateBadge(); } catch (e) { }
+        try { updateHeaderLoginState(); } catch (e) { }
     });
 }
 
@@ -3787,20 +3739,7 @@ async function handleStaffRoleChange(newRole) {
         window.navigator.standalone === true ||
         window.matchMedia('(display-mode: standalone)').matches;
 
-    // تسجيل الـ Service Worker فقط في المتصفح العادي على الويب
-    if (isNativeApp) {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                for (let r of registrations) {
-                    r.unregister();
-                }
-            }).catch(function () {});
-        }
-    } else if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').catch((err) => console.log('SW Error', err));
-        });
-    }
+    // ملاحظة: تسجيل الـ Service Worker يتم بالفعل في index.html — لا داعي لتكراره هنا
 
     if (!installContainer || !installBtn) return;
 
@@ -3812,11 +3751,7 @@ async function handleStaffRoleChange(newRole) {
         return;
     }
 
-    // 2. إذا أغلق المستخدم الصندوق سابقاً خلال هذه الجلسة
-    if (sessionStorage.getItem('almezo_install_banner_closed') === '1') {
-        installContainer.style.setProperty('display', 'none', 'important');
-        return;
-    }
+    // 2. (تمت إزالة التحقق من sessionStorage — الصندوق يظهر دائماً عند تحميل/ريفرش الصفحة)
 
     // 3. دالة فحص منصة ونظام تشغيل جهاز الزائر بدقة
     function detectVisitorPlatform() {
@@ -3986,7 +3921,7 @@ async function handleStaffRoleChange(newRole) {
     // 6. حدث زر إغلاق الصندوق (X)
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            sessionStorage.setItem('almezo_install_banner_closed', '1');
+            // إخفاء الصندوق فقط في هذه الصفحة — عند الريفرش سيعود تلقائياً
             installContainer.style.setProperty('display', 'none', 'important');
         });
     }
@@ -4038,7 +3973,7 @@ async function handleStaffRoleChange(newRole) {
         b.style.boxShadow = '0 16px 40px rgba(0, 0, 0, 0.65), 0 0 18px rgba(239, 68, 68, 0.25)';
         b.innerHTML = `
             <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(239, 68, 68, 0.18); display: flex; align-items: center; justify-content: center; color: #ef4444; font-size: 16px; flex-shrink: 0;">
-                <i class="fas fa-wifi-slash"></i>
+                <i class="fas fa-wifi" style="opacity:0.5"></i>
             </div>
             <div style="display: flex; flex-direction: column; text-align: right;">
                 <span style="font-size: 14px; font-weight: 700; color: #ffffff;">لا يوجد اتصال بالإنترنت</span>

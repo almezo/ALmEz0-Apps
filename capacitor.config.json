@@ -4,8 +4,10 @@
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
+    "url": "https://almezo.store/",
     "cleartext": true,
     "allowNavigation": [
+      "*.almezo.store",
       "*.firebaseapp.com",
       "*.googleapis.com"
     ]

@@ -27,7 +27,7 @@
                     for (var r of registrations) {
                         r.unregister();
                     }
-                }).catch(function () {});
+                }).catch(function () { });
             }
         } else if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
@@ -36,8 +36,8 @@
                 });
             });
         }
-        // مسح الكاش كإجراء احترازي إضافي
-        if ('caches' in window) {
+        // مسح الكاش فقط داخل التطبيقات المثبتة (لا حاجة للكاش فيها)
+        if (isNativeEarly && 'caches' in window) {
             caches.keys().then(function (k) {
                 k.forEach(function (key) { caches.delete(key); });
             });
@@ -82,7 +82,7 @@
         </div>
     </div>
     <script>
-        (function() {
+        (function () {
             var splash = document.getElementById('app-launch-splash');
             if (!splash) return;
 
@@ -97,12 +97,12 @@
             function dismissSplash() {
                 if (!splash || splash.classList.contains('splash-dismiss')) return;
                 splash.classList.add('splash-dismiss');
-                setTimeout(function() {
+                setTimeout(function () {
                     if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
                 }, 600);
             }
 
-            window.addEventListener('load', function() {
+            window.addEventListener('load', function () {
                 setTimeout(dismissSplash, 1500);
             });
             setTimeout(dismissSplash, 2500);
@@ -194,11 +194,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
     <!-- سكربتات الموقع -->
-    <script src="app-bridge.js?v=4071.0"></script>
-    <script src="firebase-config.js?v=4071.0"></script>
-    <script src="validation.js?v=4071.0"></script>
-    <script src="ui.js?v=4071.0"></script>
-    <script src="whatsapp.js?v=4071.0"></script>
+    <script src="app-bridge.js?v=4070.0"></script>
+    <script src="firebase-config.js?v=4070.0"></script>
+    <script src="validation.js?v=4070.0"></script>
+    <script src="ui.js?v=4070.0"></script>
+    <script src="whatsapp.js?v=4070.0"></script>
     <script>
         function openPlayerExclusiveModal() {
             let overlay = document.getElementById('player-exclusive-overlay');
@@ -319,10 +319,10 @@
 
             // فحص هل المستخدم داخل التطبيق الفعلي المثبت (أندرويد أو كمبيوتر أو بروتوكول محلي)
             var isNative = (window.AlMeZ0App && window.AlMeZ0App.isNative) ||
-                           !!(window.electronAPI && window.electronAPI.isElectron) ||
-                           !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
-                           !!(window.AndroidNativeBridge) ||
-                           window.location.protocol === 'file:';
+                !!(window.electronAPI && window.electronAPI.isElectron) ||
+                !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                !!(window.AndroidNativeBridge) ||
+                window.location.protocol === 'file:';
 
             if (isNative) {
                 if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
