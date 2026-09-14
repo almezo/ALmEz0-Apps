@@ -177,5 +177,133 @@ public class MainActivity extends BridgeActivity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void downloadAndInstallApk(String apkUrl) {
+            if (apkUrl == null || apkUrl.trim().isEmpty()) return;
+            new Thread(() -> {
+                try {
+                    java.io.File downloadDir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
+                    if (downloadDir == null) {
+                        downloadDir = getFilesDir();
+                    }
+                    java.io.File apkFile = new java.io.File(downloadDir, "ALmEz0.apk");
+                    if (apkFile.exists()) {
+                        apkFile.delete();
+                    }
+
+                    String currentUrl = apkUrl.trim();
+                    java.net.HttpURLConnection conn = null;
+                    int redirects = 0;
+
+                    while (redirects < 8) {
+                        java.net.URL url = new java.net.URL(currentUrl);
+                        conn = (java.net.HttpURLConnection) url.openConnection();
+                        conn.setRequestProperty("User-Agent", "ALmEz0-Android-App");
+                        conn.setInstanceFollowRedirects(false);
+                        conn.connect();
+
+                        int code = conn.getResponseCode();
+                        if (code >= 300 && code < 400) {
+                            String loc = conn.getHeaderField("Location");
+                            if (loc == null || loc.isEmpty()) break;
+                            currentUrl = loc;
+                            conn.disconnect();
+                            redirects++;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (conn == null || conn.getResponseCode() != java.net.HttpURLConnection.HTTP_OK) {
+                        throw new java.io.IOException("HTTP error: " + (conn != null ? conn.getResponseCode() : -1));
+                    }
+
+                    long totalBytes = conn.getContentLengthLong();
+                    java.io.InputStream in = conn.getInputStream();
+                    java.io.FileOutputStream out = new java.io.FileOutputStream(apkFile);
+
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    long downloadedBytes = 0;
+                    long lastReportTime = 0;
+
+                    while ((len = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, len);
+                        downloadedBytes += len;
+
+                        long now = System.currentTimeMillis();
+                        if (now - lastReportTime > 250) {
+                            lastReportTime = now;
+                            final int pct = totalBytes > 0 ? (int) ((downloadedBytes * 100) / totalBytes) : -1;
+                            final long dBytes = downloadedBytes;
+                            final long tBytes = totalBytes;
+                            runOnUiThread(() -> {
+                                if (bridge != null && bridge.getWebView() != null) {
+                                    bridge.getWebView().evaluateJavascript(
+                                        "if (typeof window.onAndroidUpdateProgress === 'function') window.onAndroidUpdateProgress({ percent: " + pct + ", downloadedBytes: " + dBytes + ", totalBytes: " + tBytes + " });",
+                                        null
+                                    );
+                                }
+                            });
+                        }
+                    }
+
+                    out.flush();
+                    out.close();
+                    in.close();
+                    conn.disconnect();
+
+                    // Report 100% complete
+                    final long finalBytes = downloadedBytes;
+                    runOnUiThread(() -> {
+                        if (bridge != null && bridge.getWebView() != null) {
+                            bridge.getWebView().evaluateJavascript(
+                                "if (typeof window.onAndroidUpdateProgress === 'function') window.onAndroidUpdateProgress({ percent: 100, downloadedBytes: " + finalBytes + ", totalBytes: " + finalBytes + " });",
+                                null
+                            );
+                            bridge.getWebView().evaluateJavascript("if (typeof window.onAndroidUpdateComplete === 'function') window.onAndroidUpdateComplete();", null);
+                        }
+                        installDownloadedApk(apkFile);
+                    });
+
+                } catch (Throwable t) {
+                    android.util.Log.e("MainActivity", "APK download failed", t);
+                    final String msg = t.getMessage() != null ? t.getMessage().replace("'", "\\'") : "Download error";
+                    runOnUiThread(() -> {
+                        if (bridge != null && bridge.getWebView() != null) {
+                            bridge.getWebView().evaluateJavascript(
+                                "if (typeof window.onAndroidUpdateError === 'function') window.onAndroidUpdateError('" + msg + "');",
+                                null
+                            );
+                        }
+                    });
+                }
+            }).start();
+        }
+
+        private void installDownloadedApk(java.io.File apkFile) {
+            try {
+                if (apkFile == null || !apkFile.exists()) return;
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                android.net.Uri apkUri;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    apkUri = androidx.core.content.FileProvider.getUriForFile(
+                        MainActivity.this,
+                        getPackageName() + ".fileprovider",
+                        apkFile
+                    );
+                } else {
+                    apkUri = android.net.Uri.fromFile(apkFile);
+                }
+
+                intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                startActivity(intent);
+            } catch (Throwable t) {
+                android.util.Log.e("MainActivity", "Install APK failed", t);
+            }
+        }
     }
 }

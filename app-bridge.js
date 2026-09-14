@@ -221,6 +221,11 @@
             let lastBackPress = 0;
 
             window.Capacitor.Plugins.App.addListener('backButton', function () {
+                // 0. منع الرجوع أو الخروج تماماً أثناء عرض صندوق التحديث الإلزامي المقفل
+                if (document.getElementById('almezo-inapp-update-overlay')) {
+                    return;
+                }
+
                 // 1. إغلاق أي نافذة تنبيه SweetAlert2 مفتوحة
                 if (typeof Swal !== 'undefined' && typeof Swal.isVisible === 'function' && Swal.isVisible()) {
                     Swal.close();
@@ -420,12 +425,7 @@
                 return; // التطبيق على أحدث إصدار
             }
 
-            // إذا قام العميل بتنزيل هذا الإصدار بالفعل، لا نكرر عرض الصندوق أبداً
-            const downloadedVer = localStorage.getItem('almezo_downloaded_version');
-            if (downloadedVer && compareVersions(latestVer, downloadedVer) <= 0) {
-                return;
-            }
-
+            // عرض نافذة التحديث الإجباري في منتصف الشاشة
             showInAppUpdateBanner(versionData);
         } catch (err) {
             console.warn('In-app update check failed:', err);
@@ -445,7 +445,7 @@
     }
 
     function showInAppUpdateBanner(info) {
-        if (document.getElementById('almezo-inapp-update-banner')) return;
+        if (document.getElementById('almezo-inapp-update-overlay')) return;
 
         const ua = navigator.userAgent || navigator.vendor || window.opera || '';
         const isUserAndroid = isAndroid || /android/i.test(ua);
@@ -453,64 +453,163 @@
             ? (info.downloadUrls?.android || 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk')
             : (info.downloadUrls?.windows || 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe');
 
-        const banner = document.createElement('div');
-        banner.id = 'almezo-inapp-update-banner';
-        banner.innerHTML = `
-            <div class="inapp-update-card">
-                <div class="inapp-update-icon-glow">
-                    <i class="fas fa-arrow-circle-down"></i>
+        const overlay = document.createElement('div');
+        overlay.id = 'almezo-inapp-update-overlay';
+        overlay.className = 'inapp-update-overlay';
+        overlay.setAttribute('dir', 'rtl');
+
+        overlay.innerHTML = `
+            <div class="inapp-center-card">
+                <div class="inapp-center-icon-glow">
+                    <div class="inapp-pulse-ring"></div>
+                    <i class="fas fa-arrow-circle-down inapp-main-icon"></i>
                 </div>
-                <div class="inapp-update-body">
-                    <div class="inapp-update-header">
-                        <span class="inapp-update-badge">v${info.version}</span>
-                        <span class="inapp-update-title">يتوفر إصدار جديد للبرنامج ويجب تنزيله للمتابعة</span>
-                    </div>
+                <div class="inapp-center-header">
+                    <span class="inapp-center-badge"><i class="fas fa-shield-alt"></i> تحديث إلزامي v${info.version}</span>
+                    <h2 class="inapp-center-title">يتوفر إصدار جديد ومطلوب للبرنامج</h2>
+                    <p class="inapp-center-desc">يجب تثبيت الإصدار الجديد <strong>v${info.version}</strong> للمتابعة، لضمان استقرار المشغل وتحديث السيرفرات وجودة البث.</p>
                 </div>
-                <div class="inapp-update-actions">
-                    <button type="button" class="inapp-btn-update" id="inappBtnUpdate">
+                ${info.notes ? `
+                <div class="inapp-center-notes">
+                    <div class="inapp-notes-title"><i class="fas fa-sparkles"></i> الجديد في هذا التحديث:</div>
+                    <p class="inapp-notes-text">${info.notes}</p>
+                </div>
+                ` : ''}
+                <div class="inapp-center-action-area">
+                    <button type="button" class="inapp-btn-start-update" id="inappBtnStartUpdate">
                         <i class="fas fa-download"></i> تنزيل وتثبيت التحديث الآن
                     </button>
+
+                    <div class="inapp-progress-box hidden" id="inappProgressBox">
+                        <div class="inapp-progress-top">
+                            <span class="inapp-progress-status" id="inappProgressStatus">
+                                <i class="fas fa-spinner fa-spin"></i> جاري تنزيل التحديث داخلياً...
+                            </span>
+                            <span class="inapp-progress-pct" id="inappProgressPct">0%</span>
+                        </div>
+                        <div class="inapp-progress-track">
+                            <div class="inapp-progress-fill" id="inappProgressFill" style="width: 0%;"></div>
+                        </div>
+                        <div class="inapp-progress-sub">
+                            <span id="inappProgressBytes">جاري الاتصال بالسيرفر...</span>
+                            <span class="inapp-fast-tag"><i class="fas fa-bolt"></i> تثبيت تلقائي</span>
+                        </div>
+                    </div>
+
+                    <div class="inapp-error-box hidden" id="inappErrorBox">
+                        <p class="inapp-error-msg"><i class="fas fa-exclamation-triangle"></i> تعذر إكمال التنزيل التلقائي، يرجى التأكد من اتصال الإنترنت.</p>
+                        <div class="inapp-error-btns">
+                            <button type="button" class="inapp-btn-retry" id="inappBtnRetry"><i class="fas fa-redo-alt"></i> إعادة المحاولة</button>
+                            <button type="button" class="inapp-btn-external-dl" id="inappBtnExternalDl"><i class="fas fa-external-link-alt"></i> تنزيل عبر المتصفح</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
 
-        document.body.appendChild(banner);
+        document.body.appendChild(overlay);
         injectInAppUpdateStyles();
 
-        const btnUpdate = banner.querySelector('#inappBtnUpdate');
+        // منع أي ضغطات مفاتيح لإغلاق الصندوق (Escape, Backspace, etc.)
+        const blockKeys = (e) => {
+            if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 27) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        window.addEventListener('keydown', blockKeys, true);
 
-        btnUpdate.addEventListener('click', () => {
-            btnUpdate.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري بدء التنزيل...';
-            btnUpdate.disabled = true;
+        const btnStart = overlay.querySelector('#inappBtnStartUpdate');
+        const progressBox = overlay.querySelector('#inappProgressBox');
+        const progressStatus = overlay.querySelector('#inappProgressStatus');
+        const progressPct = overlay.querySelector('#inappProgressPct');
+        const progressFill = overlay.querySelector('#inappProgressFill');
+        const progressBytes = overlay.querySelector('#inappProgressBytes');
+        const errorBox = overlay.querySelector('#inappErrorBox');
+        const btnRetry = overlay.querySelector('#inappBtnRetry');
+        const btnExternalDl = overlay.querySelector('#inappBtnExternalDl');
 
-            // حفظ أن العميل قام بتنزيل هذا الإصدار لمنع تكرار الصندوق مستقبلاً
-            localStorage.setItem('almezo_downloaded_version', info.version);
+        function formatBytes(bytes) {
+            if (!bytes || bytes <= 0) return '0.0 MB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
 
-            if (typeof showToast === 'function') {
-                showToast('🚀 جاري بدء تنزيل الإصدار الجديد...', 'success', 5000);
+        function setProgress(pct, downloaded, total) {
+            const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+            progressFill.style.width = clamped + '%';
+            progressPct.innerText = clamped + '%';
+            if (downloaded && total && total > 0) {
+                progressBytes.innerText = `${formatBytes(downloaded)} / ${formatBytes(total)}`;
+            } else if (downloaded) {
+                progressBytes.innerText = formatBytes(downloaded);
+            }
+        }
+
+        function startDownload() {
+            btnStart.classList.add('hidden');
+            errorBox.classList.add('hidden');
+            progressBox.classList.remove('hidden');
+            setProgress(0, 0, 0);
+            progressStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تنزيل التحديث داخلياً...';
+
+            // 1. برمجيات الكمبيوتر (Windows Electron)
+            if (isElectron && window.electronAPI && typeof window.electronAPI.startUpdateDownload === 'function') {
+                window.electronAPI.onUpdateProgress((data) => {
+                    const pct = data.percent !== undefined && data.percent >= 0 ? data.percent : 0;
+                    setProgress(pct, data.downloadedBytes, data.totalBytes);
+                });
+
+                window.electronAPI.onUpdateComplete(() => {
+                    setProgress(100);
+                    progressStatus.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> تم اكتمال التنزيل! جاري التثبيت التلقائي...';
+                });
+
+                window.electronAPI.onUpdateError(() => {
+                    progressBox.classList.add('hidden');
+                    errorBox.classList.remove('hidden');
+                });
+
+                window.electronAPI.startUpdateDownload(downloadUrl);
+                return;
             }
 
-            setTimeout(() => {
-                if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
-                    window.AlMeZ0App.openExternal(downloadUrl);
-                }
-                try {
-                    const dlLink = document.createElement('a');
-                    dlLink.href = downloadUrl;
-                    dlLink.download = isUserAndroid ? 'ALmEz0.apk' : 'ALmEz0.exe';
-                    dlLink.target = '_blank';
-                    document.body.appendChild(dlLink);
-                    dlLink.click();
-                    setTimeout(() => {
-                        if (dlLink.parentNode) dlLink.parentNode.removeChild(dlLink);
-                    }, 1000);
-                } catch (e) { }
+            // 2. تطبيقات الأندرويد (Android Native Bridge)
+            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.downloadAndInstallApk === 'function') {
+                window.onAndroidUpdateProgress = (data) => {
+                    const pct = data.percent !== undefined && data.percent >= 0 ? data.percent : 0;
+                    setProgress(pct, data.downloadedBytes, data.totalBytes);
+                };
 
-                setTimeout(() => {
-                    banner.classList.add('hide');
-                    setTimeout(() => banner.remove(), 400);
-                }, 1200);
-            }, 250);
+                window.onAndroidUpdateComplete = () => {
+                    setProgress(100);
+                    progressStatus.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> تم التنزيل! جاري فتح شاشة التثبيت...';
+                };
+
+                window.onAndroidUpdateError = () => {
+                    progressBox.classList.add('hidden');
+                    errorBox.classList.remove('hidden');
+                };
+
+                window.AndroidNativeBridge.downloadAndInstallApk(downloadUrl);
+                return;
+            }
+
+            // 3. مسار احتياطي عبر المتصفح إذا لم تتوفر البيئة الأصلية
+            if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+                window.AlMeZ0App.openExternal(downloadUrl);
+            } else {
+                window.location.href = downloadUrl;
+            }
+        }
+
+        btnStart.addEventListener('click', startDownload);
+        btnRetry.addEventListener('click', startDownload);
+        btnExternalDl.addEventListener('click', () => {
+            if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+                window.AlMeZ0App.openExternal(downloadUrl);
+            } else {
+                window.location.href = downloadUrl;
+            }
         });
     }
 
@@ -519,108 +618,227 @@
         const style = document.createElement('style');
         style.id = 'inapp-update-styles';
         style.textContent = `
-            #almezo-inapp-update-banner {
+            .inapp-update-overlay {
                 position: fixed;
-                bottom: 24px;
-                left: 50%;
-                transform: translateX(-50%) translateY(0);
-                width: calc(100% - 32px);
-                max-width: 520px;
-                z-index: 9999999;
-                font-family: 'Cairo', 'Tajawal', sans-serif;
-                direction: rtl;
-                text-align: right;
-                animation: inappSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-            }
-            #almezo-inapp-update-banner.hide {
-                animation: inappSlideDown 0.35s ease forwards;
-            }
-            @keyframes inappSlideUp {
-                from { opacity: 0; transform: translateX(-50%) translateY(50px); }
-                to { opacity: 1; transform: translateX(-50%) translateY(0); }
-            }
-            @keyframes inappSlideDown {
-                from { opacity: 1; transform: translateX(-50%) translateY(0); }
-                to { opacity: 0; transform: translateX(-50%) translateY(50px); }
-            }
-            .inapp-update-card {
-                background: linear-gradient(135deg, rgba(15, 23, 21, 0.97), rgba(10, 13, 18, 0.98));
-                backdrop-filter: blur(16px);
-                -webkit-backdrop-filter: blur(16px);
-                border: 1.5px solid rgba(34, 197, 94, 0.45);
-                box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.85), 0 0 25px rgba(34, 197, 94, 0.2);
-                border-radius: 18px;
-                padding: 16px 20px;
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-                gap: 14px;
-            }
-            .inapp-update-icon-glow {
-                width: 44px;
-                height: 44px;
-                border-radius: 12px;
-                background: linear-gradient(135deg, #22c55e, #16a34a);
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(3, 7, 10, 0.88);
+                backdrop-filter: blur(24px);
+                -webkit-backdrop-filter: blur(24px);
+                z-index: 999999999;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #fff;
-                font-size: 20px;
-                flex-shrink: 0;
-                box-shadow: 0 0 16px rgba(34, 197, 94, 0.5);
+                padding: 20px;
+                box-sizing: border-box;
+                font-family: 'Cairo', 'Tajawal', sans-serif;
+                animation: inappOverlayFadeIn 0.35s ease forwards;
             }
-            .inapp-update-body {
-                flex: 1 1 240px;
-                min-width: 200px;
+            @keyframes inappOverlayFadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
             }
-            .inapp-update-header {
+            .inapp-center-card {
+                background: linear-gradient(145deg, rgba(17, 24, 30, 0.98), rgba(9, 13, 17, 0.99));
+                border: 1.5px solid rgba(34, 197, 94, 0.5);
+                border-radius: 26px;
+                padding: 34px 28px;
+                max-width: 520px;
+                width: 100%;
+                text-align: center;
+                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.95), 0 0 35px rgba(34, 197, 94, 0.25);
+                animation: inappCardScaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                direction: rtl;
+                position: relative;
+                box-sizing: border-box;
+            }
+            @keyframes inappCardScaleIn {
+                from { opacity: 0; transform: scale(0.88); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            .inapp-center-icon-glow {
+                width: 72px;
+                height: 72px;
+                margin: 0 auto 16px auto;
+                background: linear-gradient(135deg, #22c55e, #16a34a);
+                border-radius: 22px;
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                justify-content: center;
+                color: #ffffff;
+                font-size: 34px;
+                box-shadow: 0 0 28px rgba(34, 197, 94, 0.6);
+                position: relative;
             }
-            .inapp-update-badge {
-                font-size: 11.5px;
+            .inapp-pulse-ring {
+                position: absolute;
+                inset: -6px;
+                border: 2px solid rgba(34, 197, 94, 0.4);
+                border-radius: 26px;
+                animation: inappPulse 2s infinite ease-in-out;
+            }
+            @keyframes inappPulse {
+                0% { transform: scale(0.95); opacity: 0.8; }
+                50% { transform: scale(1.1); opacity: 0.2; }
+                100% { transform: scale(0.95); opacity: 0.8; }
+            }
+            .inapp-center-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 13px;
                 font-weight: 800;
                 background: rgba(34, 197, 94, 0.18);
                 color: #4ade80;
-                border: 1px solid rgba(34, 197, 94, 0.4);
-                padding: 2px 8px;
+                border: 1px solid rgba(34, 197, 94, 0.45);
+                padding: 4px 14px;
                 border-radius: 20px;
-                letter-spacing: 0.5px;
+                margin-bottom: 12px;
             }
-            .inapp-update-title {
+            .inapp-center-title {
                 color: #ffffff;
-                font-size: 14px;
+                font-size: 21px;
                 font-weight: 800;
+                margin: 0 0 10px 0;
             }
-            .inapp-update-actions {
-                display: flex;
-                align-items: center;
-                width: 100%;
-                margin-top: 2px;
+            .inapp-center-desc {
+                color: #cbd5e1;
+                font-size: 14.5px;
+                line-height: 1.6;
+                margin: 0 0 18px 0;
             }
-            .inapp-btn-update {
+            .inapp-center-notes {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 14px;
+                padding: 12px 16px;
+                text-align: right;
+                margin-bottom: 22px;
+            }
+            .inapp-notes-title {
+                color: #f59e0b;
+                font-size: 12.5px;
+                font-weight: 700;
+                margin-bottom: 6px;
+            }
+            .inapp-notes-text {
+                color: #e2e8f0;
+                font-size: 13px;
+                margin: 0;
+                line-height: 1.5;
+            }
+            .inapp-btn-start-update {
                 width: 100%;
                 background: linear-gradient(135deg, #22c55e, #16a34a);
                 color: #ffffff;
                 border: none;
-                border-radius: 12px;
-                padding: 11px 16px;
-                font-size: 13.5px;
-                font-weight: 700;
+                border-radius: 14px;
+                padding: 14px 20px;
+                font-size: 16px;
+                font-weight: 800;
                 cursor: pointer;
                 transition: all 0.2s ease;
-                display: inline-flex;
+                display: flex;
                 align-items: center;
                 justify-content: center;
-                gap: 8px;
-                box-shadow: 0 4px 16px rgba(34, 197, 94, 0.35);
+                gap: 10px;
+                box-shadow: 0 6px 22px rgba(34, 197, 94, 0.4);
             }
-            .inapp-btn-update:hover {
+            .inapp-btn-start-update:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(34, 197, 94, 0.55);
+                box-shadow: 0 8px 26px rgba(34, 197, 94, 0.6);
                 filter: brightness(1.08);
             }
+            .inapp-progress-box {
+                background: rgba(0, 0, 0, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 16px;
+                padding: 16px;
+                text-align: right;
+            }
+            .inapp-progress-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            .inapp-progress-status {
+                color: #ffffff;
+                font-size: 13.5px;
+                font-weight: 700;
+            }
+            .inapp-progress-pct {
+                color: #4ade80;
+                font-size: 15px;
+                font-weight: 800;
+            }
+            .inapp-progress-track {
+                width: 100%;
+                height: 12px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 10px;
+                overflow: hidden;
+                position: relative;
+            }
+            .inapp-progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #16a34a, #4ade80);
+                border-radius: 10px;
+                transition: width 0.25s ease;
+                box-shadow: 0 0 12px rgba(74, 222, 128, 0.6);
+            }
+            .inapp-progress-sub {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-top: 10px;
+                font-size: 12px;
+                color: #94a3b8;
+            }
+            .inapp-fast-tag {
+                color: #f59e0b;
+                font-weight: 700;
+            }
+            .inapp-error-box {
+                background: rgba(239, 68, 68, 0.12);
+                border: 1px solid rgba(239, 68, 68, 0.35);
+                border-radius: 14px;
+                padding: 14px;
+                text-align: center;
+            }
+            .inapp-error-msg {
+                color: #fca5a5;
+                font-size: 13.5px;
+                margin: 0 0 12px 0;
+            }
+            .inapp-error-btns {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+            }
+            .inapp-btn-retry {
+                background: #ef4444;
+                color: #fff;
+                border: none;
+                border-radius: 10px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            .inapp-btn-external-dl {
+                background: #334155;
+                color: #fff;
+                border: none;
+                border-radius: 10px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            .hidden { display: none !important; }
         `;
         document.head.appendChild(style);
     }

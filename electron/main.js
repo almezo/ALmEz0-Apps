@@ -1,5 +1,9 @@
 const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron');
 const path = require('path');
+const https = require('https');
+const http = require('http');
+const fs = require('fs');
+const { spawn } = require('child_process');
 
 // Ensure single instance of the application
 const gotTheLock = app.requestSingleInstanceLock();
@@ -98,6 +102,81 @@ if (!gotTheLock) {
                 }).show();
             }
         } catch (e) { }
+    });
+
+    // Helper for downloading files following redirects (e.g. GitHub Releases)
+    function downloadFileWithRedirects(url, destPath, onProgress, onComplete, onError, redirectCount = 0) {
+        if (redirectCount > 8) {
+            return onError(new Error('Too many redirects'));
+        }
+        const client = url.startsWith('https') ? https : http;
+        const req = client.get(url, { headers: { 'User-Agent': 'ALmEz0-App' } }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                return downloadFileWithRedirects(res.headers.location, destPath, onProgress, onComplete, onError, redirectCount + 1);
+            }
+            if (res.statusCode !== 200) {
+                return onError(new Error(`HTTP ${res.statusCode}`));
+            }
+
+            const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
+            let downloadedBytes = 0;
+            const fileStream = fs.createWriteStream(destPath);
+
+            res.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                const percent = totalBytes > 0 ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)) : -1;
+                onProgress({ percent, downloadedBytes, totalBytes });
+            });
+
+            res.pipe(fileStream);
+
+            fileStream.on('finish', () => {
+                fileStream.close(() => onComplete(destPath));
+            });
+
+            fileStream.on('error', (err) => {
+                fs.unlink(destPath, () => {});
+                onError(err);
+            });
+        });
+
+        req.on('error', onError);
+    }
+
+    // In-app updater: download EXE and run installer
+    ipcMain.on('start-update-download', (event, downloadUrl) => {
+        const tempExe = path.join(app.getPath('temp'), 'ALmEz0-Update-Setup.exe');
+        downloadFileWithRedirects(
+            downloadUrl,
+            tempExe,
+            (progress) => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('update-download-progress', progress);
+                }
+            },
+            (filePath) => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('update-download-complete', { filePath });
+                }
+                setTimeout(() => {
+                    try {
+                        const child = spawn(filePath, [], {
+                            detached: true,
+                            stdio: 'ignore'
+                        });
+                        child.unref();
+                        app.quit();
+                    } catch (e) {
+                        console.error('Failed to spawn update installer:', e);
+                    }
+                }, 800);
+            },
+            (err) => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('update-download-error', { error: err ? err.message : 'Download failed' });
+                }
+            }
+        );
     });
 
     app.whenReady().then(() => {
