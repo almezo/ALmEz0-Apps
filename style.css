@@ -953,37 +953,6 @@ footer {
     font-size: 0.9rem;
 }
 
-.footer-update-badge-wrap {
-    margin-top: 8px;
-    display: flex;
-    justify-content: center;
-}
-
-.footer-update-check-btn {
-    background: rgba(34, 197, 94, 0.08);
-    border: 1px solid rgba(34, 197, 94, 0.28);
-    color: #86efac;
-    padding: 6px 14px;
-    -webkit-border-radius: 20px;
-    border-radius: 20px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.25s ease;
-}
-
-.footer-update-check-btn:hover {
-    background: rgba(34, 197, 94, 0.2);
-    border-color: #22c55e;
-    color: #ffffff;
-    box-shadow: 0 0 15px rgba(34, 197, 94, 0.35);
-    transform: translateY(-2px);
-}
-
 .social-icons {
     display: flex;
     gap: 12px;
@@ -1478,23 +1447,6 @@ input[type="tel"] {
 .account-btn:hover .arrow-icon {
     transform: translateX(-4px);
     opacity: 1;
-.check-update-btn {
-    background: rgba(34, 197, 94, 0.08);
-    border-color: rgba(34, 197, 94, 0.28);
-    color: #f0fdf4;
-}
-
-.check-update-btn .btn-icon {
-    background: rgba(34, 197, 94, 0.16);
-    color: var(--accent-green, #22c55e);
-    border: 1px solid rgba(34, 197, 94, 0.35);
-}
-
-.check-update-btn:hover {
-    background: rgba(34, 197, 94, 0.16);
-    border-color: var(--accent-green, #22c55e);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 20px rgba(34, 197, 94, 0.25);
 }
 
 .change-pass-btn {
@@ -2322,10 +2274,25 @@ input[type="tel"] {
 }
 
 @keyframes hornWiggle {
-    0%, 100% { transform: rotate(0deg); }
-    10%, 30% { transform: rotate(-10deg); }
-    20%, 40% { transform: rotate(10deg); }
-    50% { transform: rotate(0deg); }
+
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    10%,
+    30% {
+        transform: rotate(-10deg);
+    }
+
+    20%,
+    40% {
+        transform: rotate(10deg);
+    }
+
+    50% {
+        transform: rotate(0deg);
+    }
 }
 
 /* 5. زر لوحة المبيعات للمندوبين بالأصفر المتوهج */
@@ -3491,9 +3458,17 @@ input[type="tel"] {
 }
 
 @keyframes pulseAlertIcon {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+
+    100% {
+        transform: scale(1);
+    }
 }
 
 .custom-alert-box .alert-title {
@@ -3540,6 +3515,7 @@ input[type="tel"] {
     background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
     box-shadow: 0 6px 18px rgba(217, 119, 6, 0.4);
 }
+
 .btn-alert-warning:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 22px rgba(217, 119, 6, 0.55);
@@ -3549,6 +3525,7 @@ input[type="tel"] {
     background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
     box-shadow: 0 6px 18px rgba(220, 38, 38, 0.4);
 }
+
 .btn-alert-error:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 22px rgba(220, 38, 38, 0.55);
@@ -3558,6 +3535,7 @@ input[type="tel"] {
     background: linear-gradient(135deg, #059669 0%, #047857 100%);
     box-shadow: 0 6px 18px rgba(5, 150, 105, 0.4);
 }
+
 .btn-alert-success:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 22px rgba(5, 150, 105, 0.55);
@@ -3567,6 +3545,7 @@ input[type="tel"] {
     background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
     box-shadow: 0 6px 18px rgba(2, 132, 199, 0.4);
 }
+
 .btn-alert-info:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 22px rgba(2, 132, 199, 0.55);
@@ -3749,6 +3728,7 @@ select optgroup {
         width: 100%;
         min-width: 100%;
     }
+
     .history-search-btn-group .btn-product-summary.period-summary-btn {
         width: 100% !important;
         flex: 1 1 100% !important;
@@ -4775,9 +4755,11 @@ th.sortable-th:hover .sort-th-icon {
         flex-direction: column;
         align-items: stretch;
     }
+
     .sales-log-header-left {
         justify-content: space-between;
     }
+
     .product-summary-stats-grid {
         grid-template-columns: 1fr;
     }
@@ -4811,6 +4793,7 @@ th.sortable-th:hover .sort-th-icon {
 
 /* إخفاء صندوق التنزيل نهائياً في جميع التطبيقات المثبتة (أندرويد، آيفون، ويندوز) والـ Standalone */
 @media all and (display-mode: standalone) {
+
     .pwa-install-container-margin,
     #pwa-install-container {
         display: none !important;
@@ -5473,6 +5456,7 @@ body.platform-electron #pwa-install-container,
 
 /* شاشات الهواتف والتابلت: منتجين جنباً إلى جنب في صف واحد بالضبط (2 Columns) */
 @media (max-width: 768px) {
+
     #inventoryGrid,
     #staffInventoryGrid {
         display: grid !important;
@@ -5542,6 +5526,7 @@ body.platform-electron #pwa-install-container,
 }
 
 @media (max-width: 360px) {
+
     #inventoryGrid,
     #staffInventoryGrid {
         gap: 5px !important;
@@ -6011,12 +5996,15 @@ body.platform-electron #pwa-install-container,
 .col-hdr-full {
     display: inline !important;
 }
+
 .col-hdr-mobile {
     display: none !important;
 }
+
 .date-full {
     display: inline !important;
 }
+
 .date-mobile {
     display: none !important;
 }
@@ -6218,18 +6206,22 @@ body.platform-electron #pwa-install-container,
    ============================================= */
 
 /* منع التمدد والتمرير الأفقي غير المرغوب فيه لكامل الصفحة */
-html, body {
+html,
+body {
     overflow-x: hidden !important;
     width: 100% !important;
     max-width: 100vw !important;
     position: relative;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box !important;
 }
 
 @media (max-width: 768px) {
+
     /* ضبط الحاوية لتملأ شاشة الهاتف بهوامش جانبية مناسبة وبدون أي زوائد */
     .container {
         padding-left: 10px !important;
@@ -6632,8 +6624,10 @@ html, body {
     .product-summary-table-wrap {
         width: 100% !important;
         max-width: 100% !important;
-        overflow-x: hidden !important; /* منع التمرير يمين ويسار نهائياً */
-        overflow-y: auto !important;   /* تمرير أعلى وأسفل متاح كما هو */
+        overflow-x: hidden !important;
+        /* منع التمرير يمين ويسار نهائياً */
+        overflow-y: auto !important;
+        /* تمرير أعلى وأسفل متاح كما هو */
         max-height: 520px !important;
         display: block !important;
         box-sizing: border-box !important;
@@ -6669,8 +6663,10 @@ html, body {
         width: 12% !important;
         font-weight: 700 !important;
     }
+
     #masterHistoryContainer .data-table td:nth-child(1) i {
-        display: none !important; /* إخفاء أيقونة المندوب لتوفير المساحة للخط */
+        display: none !important;
+        /* إخفاء أيقونة المندوب لتوفير المساحة للخط */
     }
 
     /* الوقت */
@@ -6685,6 +6681,7 @@ html, body {
     #masterHistoryContainer .data-table td:nth-child(3) {
         width: 12% !important;
     }
+
     #masterHistoryContainer .data-table .badge {
         font-size: 0.55rem !important;
         padding: 2px 2px !important;
@@ -6708,6 +6705,7 @@ html, body {
         width: 12% !important;
         font-size: 0.58rem !important;
     }
+
     #masterHistoryContainer .data-table td:nth-child(5) span {
         font-size: 0.52rem !important;
     }
@@ -6774,6 +6772,7 @@ html, body {
         font-size: 0.6rem !important;
         font-weight: 700 !important;
     }
+
     .company-general-table td.col-cgen-name i {
         display: none !important;
     }
@@ -6783,6 +6782,7 @@ html, body {
         width: 17% !important;
         padding: 3px 0 !important;
     }
+
     .company-general-table .cgen-rate-badge {
         font-size: 0.5rem !important;
         padding: 2px 2px !important;
@@ -6816,6 +6816,7 @@ html, body {
         width: 8% !important;
         padding: 3px 0 !important;
     }
+
     .company-general-table .cgen-count-badge {
         font-size: 0.55rem !important;
         padding: 1px 3px !important;
@@ -6827,6 +6828,7 @@ html, body {
         width: 12% !important;
         padding: 2px 0 !important;
     }
+
     .company-general-table .company-invoice-btn {
         padding: 2px 2px !important;
         font-size: 0.52rem !important;
@@ -6835,9 +6837,11 @@ html, body {
         border-radius: 4px !important;
         margin: 0 !important;
     }
+
     .company-general-table .company-invoice-btn i {
         display: none !important;
     }
+
     .company-general-table tfoot .col-cgen-total-lbl {
         font-size: 0.58rem !important;
         padding: 4px 2px !important;
@@ -7300,8 +7304,15 @@ html, body {
 }
 
 @keyframes fadeInRules {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .rules-section-card {
@@ -7502,13 +7513,35 @@ html, body {
     border-color: #fbbf24;
 }
 
-.icon-sky { color: #38bdf8; }
-.icon-purple { color: #a855f7; }
-.icon-amber { color: #fbbf24; }
-.icon-green { color: #4ade80; }
-.icon-red { color: #f87171; }
-.rules-staff-desc { color: #94a3b8; font-size: 0.85rem; margin-top: 0; }
-.rule-input-padded { padding-left: 14px; }
+.icon-sky {
+    color: #38bdf8;
+}
+
+.icon-purple {
+    color: #a855f7;
+}
+
+.icon-amber {
+    color: #fbbf24;
+}
+
+.icon-green {
+    color: #4ade80;
+}
+
+.icon-red {
+    color: #f87171;
+}
+
+.rules-staff-desc {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin-top: 0;
+}
+
+.rule-input-padded {
+    padding-left: 14px;
+}
 
 /* =============================================
    Cross-Platform App & Safe-Area Enhancements
@@ -7735,6 +7768,7 @@ body.platform-electron {
         transform: translateY(16px) scale(0.92);
         letter-spacing: 2px;
     }
+
     100% {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -7743,15 +7777,33 @@ body.platform-electron {
 }
 
 @keyframes energyFill {
-    0% { width: 0%; }
-    40% { width: 45%; }
-    80% { width: 85%; }
-    100% { width: 100%; }
+    0% {
+        width: 0%;
+    }
+
+    40% {
+        width: 45%;
+    }
+
+    80% {
+        width: 85%;
+    }
+
+    100% {
+        width: 100%;
+    }
 }
 
 @keyframes lensFlarePulse {
-    0% { opacity: 0.4; transform: translate(-50%, -50%) scaleX(0.85); }
-    100% { opacity: 0.95; transform: translate(-50%, -50%) scaleX(1.15); }
+    0% {
+        opacity: 0.4;
+        transform: translate(-50%, -50%) scaleX(0.85);
+    }
+
+    100% {
+        opacity: 0.95;
+        transform: translate(-50%, -50%) scaleX(1.15);
+    }
 }
 
 @keyframes splashLogoCinematic {
@@ -7760,11 +7812,13 @@ body.platform-electron {
         transform: scale(0.68) translateY(30px) rotateX(16deg);
         filter: blur(8px);
     }
+
     65% {
         opacity: 1;
         transform: scale(1.04) translateY(-4px) rotateX(-2deg);
         filter: blur(0px);
     }
+
     100% {
         opacity: 1;
         transform: scale(1) translateY(0) rotateX(0deg);
@@ -7777,6 +7831,7 @@ body.platform-electron {
         transform: scale(0.85);
         opacity: 0.6;
     }
+
     100% {
         transform: scale(1.3);
         opacity: 1;
@@ -7788,6 +7843,7 @@ body.platform-electron {
         transform: scale(0.8);
         opacity: 0.9;
     }
+
     100% {
         transform: scale(2.2);
         opacity: 0;
@@ -7799,12 +7855,15 @@ body.platform-electron {
         left: -90%;
         opacity: 0;
     }
+
     20% {
         opacity: 1;
     }
+
     80% {
         opacity: 1;
     }
+
     100% {
         left: 150%;
         opacity: 0;
@@ -7834,6 +7893,7 @@ body.platform-electron {
     position: relative !important;
     box-sizing: border-box !important;
 }
+
 .broadcast-modal-header {
     flex: 0 0 auto !important;
     display: flex !important;
@@ -7844,6 +7904,7 @@ body.platform-electron {
     background: rgba(15, 23, 42, 0.95) !important;
     z-index: 2 !important;
 }
+
 .broadcast-modal-title {
     font-size: 1.15rem;
     font-weight: 800;
@@ -7853,9 +7914,11 @@ body.platform-electron {
     gap: 10px;
     margin: 0;
 }
+
 .icon-amber {
     color: #22c55e;
 }
+
 .broadcast-modal-body {
     flex: 1 1 auto !important;
     min-height: 0 !important;
@@ -7866,6 +7929,7 @@ body.platform-electron {
     flex-direction: column !important;
     gap: 16px !important;
 }
+
 .broadcast-info-banner {
     display: flex;
     align-items: center;
@@ -7878,19 +7942,23 @@ body.platform-electron {
     font-size: 0.88rem;
     line-height: 1.5;
 }
+
 .broadcast-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 14px;
 }
+
 .broadcast-field-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
+
 .broadcast-field-group.full-width {
     grid-column: 1 / -1;
 }
+
 .broadcast-label {
     font-size: 0.85rem;
     font-weight: 700;
@@ -7899,6 +7967,7 @@ body.platform-electron {
     align-items: center;
     gap: 6px;
 }
+
 .broadcast-input,
 .broadcast-select,
 .broadcast-textarea {
@@ -7913,6 +7982,7 @@ body.platform-electron {
     transition: all 0.2s;
     box-sizing: border-box;
 }
+
 .broadcast-input:focus,
 .broadcast-select:focus,
 .broadcast-textarea:focus {
@@ -7921,16 +7991,19 @@ body.platform-electron {
     box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
     background: rgba(15, 23, 42, 0.98);
 }
+
 .broadcast-preview-container {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
+
 .preview-heading {
     font-size: 0.82rem;
     font-weight: 700;
     color: #64748b;
 }
+
 .broadcast-preview-card {
     background: rgba(30, 41, 59, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -7942,26 +8015,31 @@ body.platform-electron {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     border-right: 4px solid #22c55e;
 }
+
 .preview-top-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-size: 0.78rem;
 }
+
 .preview-app-identity {
     display: flex;
     align-items: center;
     gap: 6px;
 }
+
 .preview-app-icon {
     width: 18px;
     height: 18px;
     border-radius: 4px;
 }
+
 .preview-app-name {
     color: #94a3b8;
     font-weight: 600;
 }
+
 .preview-badge {
     background: rgba(34, 197, 94, 0.15);
     color: #4ade80;
@@ -7971,21 +8049,25 @@ body.platform-electron {
     font-size: 0.72rem;
     font-weight: 700;
 }
+
 .preview-time {
     color: #64748b;
 }
+
 .preview-title {
     color: #fff;
     font-size: 0.95rem;
     font-weight: 800;
     margin: 0 0 4px 0;
 }
+
 .preview-message {
     color: #cbd5e1;
     font-size: 0.85rem;
     margin: 0;
     line-height: 1.4;
 }
+
 .broadcast-history-section {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding-top: 14px;
@@ -7993,11 +8075,13 @@ body.platform-electron {
     flex-direction: column;
     gap: 10px;
 }
+
 .broadcast-history-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
+
 .broadcast-history-title {
     font-size: 0.92rem;
     font-weight: 700;
@@ -8007,6 +8091,7 @@ body.platform-electron {
     align-items: center;
     gap: 6px;
 }
+
 .btn-refresh-history {
     background: transparent;
     border: none;
@@ -8014,9 +8099,11 @@ body.platform-electron {
     cursor: pointer;
     transition: color 0.2s;
 }
+
 .btn-refresh-history:hover {
     color: #22c55e;
 }
+
 .broadcast-history-list {
     display: flex;
     flex-direction: column;
@@ -8024,6 +8111,7 @@ body.platform-electron {
     max-height: 150px;
     overflow-y: auto;
 }
+
 .history-notif-item {
     background: rgba(15, 23, 42, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -8034,20 +8122,24 @@ body.platform-electron {
     justify-content: space-between;
     font-size: 0.82rem;
 }
+
 .history-notif-info {
     display: flex;
     flex-direction: column;
     gap: 2px;
     text-align: right;
 }
+
 .history-notif-title {
     color: #fff;
     font-weight: 700;
 }
+
 .history-notif-time {
     color: #64748b;
     font-size: 0.72rem;
 }
+
 .btn-delete-notif {
     background: transparent;
     border: none;
@@ -8057,9 +8149,11 @@ body.platform-electron {
     border-radius: 6px;
     transition: all 0.2s;
 }
+
 .btn-delete-notif:hover {
     background: rgba(239, 68, 68, 0.15);
 }
+
 .broadcast-modal-footer {
     flex: 0 0 auto !important;
     padding: 14px 22px !important;
@@ -8073,6 +8167,7 @@ body.platform-electron {
     z-index: 5 !important;
     box-sizing: border-box !important;
 }
+
 .btn-send-broadcast {
     background: linear-gradient(135deg, #22c55e, #16a34a) !important;
     color: #fff !important;
@@ -8090,14 +8185,17 @@ body.platform-electron {
     transition: all 0.2s ease !important;
     white-space: nowrap !important;
 }
+
 .btn-send-broadcast:hover {
     background: linear-gradient(135deg, #16a34a, #15803d) !important;
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(34, 197, 94, 0.55) !important;
 }
+
 .btn-send-broadcast:active {
     transform: translateY(0);
 }
+
 .btn-broadcast-cancel {
     background: rgba(255, 255, 255, 0.08) !important;
     color: #cbd5e1 !important;
@@ -8109,35 +8207,43 @@ body.platform-electron {
     cursor: pointer !important;
     transition: all 0.2s !important;
 }
+
 .btn-broadcast-cancel:hover {
     background: rgba(255, 255, 255, 0.15) !important;
     color: #fff !important;
 }
+
 @media (max-width: 640px) {
     .broadcast-modal-content {
         width: 98% !important;
         max-height: calc(100dvh - 16px) !important;
         border-radius: 16px !important;
     }
+
     .broadcast-modal-header {
         padding: 12px 16px !important;
     }
+
     .broadcast-modal-title {
         font-size: 1rem !important;
     }
+
     .broadcast-modal-body {
         padding: 14px 14px !important;
         gap: 12px !important;
     }
+
     .broadcast-form-grid {
         grid-template-columns: 1fr !important;
         gap: 10px !important;
     }
+
     .broadcast-modal-footer {
         padding: 10px 14px !important;
         flex-direction: column-reverse !important;
         gap: 8px !important;
     }
+
     .btn-send-broadcast,
     .btn-broadcast-cancel {
         width: 100% !important;
