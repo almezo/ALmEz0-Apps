@@ -341,7 +341,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.3';
+    const CURRENT_APP_VERSION = '1.0.2';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -357,24 +357,30 @@
         return 0;
     }
 
-    async function checkInAppUpdate() {
-        // يظهر صندوق التحديث فقط داخل تطبيقات الأجهزة المثبتة (أندرويد والكمبيوتر)، ولا يظهر في الموقع
-        if (!isNative) {
+    async function checkInAppUpdate(isManual = false) {
+        // في الفحص التلقائي الدوري: يظهر الصندوق فقط داخل تطبيقات الأجهزة المثبتة (أندرويد والكمبيوتر)
+        // أما في الفحص اليدوي (الضغط على زر التحقق): يعمل في جميع المنصات
+        if (!isManual && !isNative) {
             const existingBanner = document.getElementById('almezo-inapp-update-banner');
             if (existingBanner) existingBanner.remove();
             return;
         }
 
+        if (isManual && typeof showToast === 'function') {
+            showToast('جاري التحقق من التحديثات من السيرفر... 🔄', 'info', 2500);
+        }
+
         try {
             let versionData = null;
-            const isLocal = window.location.protocol === 'file:' ||
-                window.location.protocol === 'capacitor:' ||
-                window.location.hostname === 'localhost' ||
-                window.location.hostname === '127.0.0.1';
+            const isLocal = window.location.protocol === 'file:' || 
+                            window.location.protocol === 'capacitor:' || 
+                            window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1';
 
             const endpoints = [
                 'https://almezo.store/version.json?t=' + Date.now(),
                 (!isLocal && window.location.origin ? window.location.origin + '/version.json?t=' + Date.now() : ''),
+                'https://raw.githubusercontent.com/almezo/ALmEz0-Apps/main/version.json?t=' + Date.now(),
                 'https://raw.githubusercontent.com/almezo/ALmEz0-Downloads/main/version.json?t=' + Date.now(),
                 'version.json?t=' + Date.now()
             ].filter(Boolean);
@@ -389,10 +395,15 @@
                             break;
                         }
                     }
-                } catch (e) { }
+                } catch (e) {}
             }
 
-            if (!versionData || !versionData.version) return;
+            if (!versionData || !versionData.version) {
+                if (isManual && typeof showToast === 'function') {
+                    showToast('تعذر الاتصال بالسيرفر لفحص التحديثات، تأكد من اتصال الإنترنت ⚠️', 'error', 4000);
+                }
+                return;
+            }
 
             let installedVersion = CURRENT_APP_VERSION;
             if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && typeof window.Capacitor.Plugins.App.getInfo === 'function') {
@@ -401,61 +412,55 @@
                     if (appInfo && appInfo.version) {
                         installedVersion = appInfo.version;
                     }
-                } catch (e) { }
+                } catch (e) {}
             }
 
             const latestVer = versionData.version;
-            if (compareVersions(latestVer, installedVersion) <= 0) {
+            const hasNewerVersion = compareVersions(latestVer, installedVersion) > 0;
+
+            if (!hasNewerVersion) {
+                if (isManual && typeof showToast === 'function') {
+                    showToast(`أنت تستخدم أحدث إصدار بالفعل (v${installedVersion}) ✅ لا توجد تحديثات جديدة.`, 'success', 5000);
+                }
                 return; // التطبيق على أحدث إصدار
             }
 
-            // إذا قام العميل بتنزيل هذا الإصدار بالفعل، لا نكرر عرض الصندوق أبداً
-            const downloadedVer = localStorage.getItem('almezo_downloaded_version');
-            if (downloadedVer && compareVersions(latestVer, downloadedVer) <= 0) {
-                return;
+            // في الفحص التلقائي: إذا كان العميل قد ضغط تنزيل سابقاً لهذا الإصدار نتجنب إزعاجه
+            if (!isManual) {
+                const downloadedVer = localStorage.getItem('almezo_downloaded_version');
+                if (downloadedVer && compareVersions(latestVer, downloadedVer) <= 0) {
+                    return;
+                }
             }
 
             showInAppUpdateBanner(versionData);
         } catch (err) {
             console.warn('In-app update check failed:', err);
+            if (isManual && typeof showToast === 'function') {
+                showToast('حدث خطأ أثناء فحص التحديثات', 'error', 3000);
+            }
         }
     }
 
+    // إتاحة دالة الفحص اليدوي والتلقائي عالمياً
+    window.checkAppUpdateManual = function () { return checkInAppUpdate(true); };
+    window.AlMeZ0App.checkUpdate = function (isManual) { return checkInAppUpdate(!!isManual); };
+
     // فحص دوري للتحديثات كل 30 دقيقة وأثناء العودة للتطبيق
-    setInterval(checkInAppUpdate, 30 * 60 * 1000);
+    setInterval(() => checkInAppUpdate(false), 30 * 60 * 1000);
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
         try {
             window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
                 if (state && state.isActive) {
-                    checkInAppUpdate();
+                    checkInAppUpdate(false);
                 }
             });
-        } catch (e) { }
+        } catch (e) {}
     }
 
-    // دوال مساعدة لاستقبال حالة التحميل من الاندرويد
-    window.updateDownloadProgress = function(progress, total, length) {
-        const btn = document.getElementById('inappBtnUpdate');
-        const pb = document.getElementById('inappProgressBar');
-        const pt = document.getElementById('inappProgressText');
-        if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحميل... ' + progress + '%';
-        if (pb) pb.style.width = progress + '%';
-        if (pt) pt.innerHTML = (total / (1024*1024)).toFixed(1) + ' MB / ' + (length / (1024*1024)).toFixed(1) + ' MB';
-    };
-
-    window.updateDownloadError = function() {
-        const btn = document.getElementById('inappBtnUpdate');
-        if (btn) {
-            btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> فشل التحميل، حاول مجدداً';
-            btn.disabled = false;
-        }
-        if (typeof showToast === 'function') {
-            showToast('حدث خطأ أثناء التحميل، يرجى المحاولة مرة أخرى.', 'error', 5000);
-        }
-    };
-
     function showInAppUpdateBanner(info) {
-        if (document.getElementById('almezo-inapp-update-banner')) return;
+        const existing = document.getElementById('almezo-inapp-update-banner');
+        if (existing) existing.remove();
 
         const ua = navigator.userAgent || navigator.vendor || window.opera || '';
         const isUserAndroid = isAndroid || /android/i.test(ua);
@@ -466,26 +471,21 @@
         const banner = document.createElement('div');
         banner.id = 'almezo-inapp-update-banner';
         banner.innerHTML = `
-            <div class="inapp-update-backdrop"></div>
-            <div class="inapp-update-card force-update">
+            <div class="inapp-update-card">
+                <button type="button" class="inapp-btn-close" id="inappBtnClose" title="إغلاق">&times;</button>
                 <div class="inapp-update-icon-glow">
-                    <i class="fas fa-rocket"></i>
+                    <i class="fas fa-arrow-circle-down"></i>
                 </div>
                 <div class="inapp-update-body">
                     <div class="inapp-update-header">
-                        <span class="inapp-update-badge">تحديث إجباري v${info.version}</span>
-                        <span class="inapp-update-title">مرحباً! يجب تنزيل الإصدار الجديد لمتابعة الاستخدام</span>
+                        <span class="inapp-update-badge">v${info.version}</span>
+                        <span class="inapp-update-title">${info.title || 'يتوفر إصدار جديد للبرنامج ويجب تنزيله'}</span>
                     </div>
+                    ${info.notes ? `<p class="inapp-update-notes">${info.notes}</p>` : ''}
                 </div>
-                <div class="inapp-progress-container" id="inappProgressContainer" style="display: none; width: 100%; margin-top: 10px;">
-                    <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 10px; height: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
-                        <div id="inappProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); transition: width 0.3s ease;"></div>
-                    </div>
-                    <div id="inappProgressText" style="font-size: 11px; color: #aaa; text-align: left; margin-top: 4px;">جاري التهيئة...</div>
-                </div>
-                <div class="inapp-update-actions" style="margin-top: 10px;">
+                <div class="inapp-update-actions">
                     <button type="button" class="inapp-btn-update" id="inappBtnUpdate">
-                        <i class="fas fa-download"></i> تنزيل وتثبيت الآن
+                        <i class="fas fa-download"></i> تنزيل وتثبيت التحديث الآن
                     </button>
                 </div>
             </div>
@@ -494,49 +494,47 @@
         document.body.appendChild(banner);
         injectInAppUpdateStyles();
 
-        const btnUpdate = banner.querySelector('#inappBtnUpdate');
-        const progressContainer = banner.querySelector('#inappProgressContainer');
+        const btnClose = banner.querySelector('#inappBtnClose');
+        if (btnClose) {
+            btnClose.addEventListener('click', () => {
+                banner.classList.add('hide');
+                setTimeout(() => banner.remove(), 400);
+            });
+        }
 
+        const btnUpdate = banner.querySelector('#inappBtnUpdate');
         btnUpdate.addEventListener('click', () => {
+            btnUpdate.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري بدء التنزيل...';
             btnUpdate.disabled = true;
 
-            // حفظ أن العميل قام بتنزيل هذا الإصدار (لن ينفع الآن لأنه إجباري لكن نحفظه للاحتياط)
+            // حفظ أن العميل قام بتنزيل هذا الإصدار لمنع تكرار الصندوق مستقبلاً
             localStorage.setItem('almezo_downloaded_version', info.version);
 
-            if (isUserAndroid && window.AndroidNativeBridge && typeof window.AndroidNativeBridge.downloadAndInstallApk === 'function') {
-                progressContainer.style.display = 'block';
-                btnUpdate.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري بدء التحميل...';
-                if (typeof showToast === 'function') {
-                    showToast('🚀 جاري تنزيل التحديث من داخل التطبيق...', 'success', 4000);
-                }
-                window.AndroidNativeBridge.downloadAndInstallApk(downloadUrl);
-            } else {
-                // للكمبيوتر أو الأندرويد القديم الذي لا يدعم
-                btnUpdate.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري فتح رابط التنزيل...';
-                if (typeof showToast === 'function') {
-                    showToast('🚀 جاري فتح رابط التحديث...', 'success', 3000);
-                }
-                setTimeout(() => {
-                    if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
-                        window.AlMeZ0App.openExternal(downloadUrl);
-                    } else {
-                        try {
-                            const dlLink = document.createElement('a');
-                            dlLink.href = downloadUrl;
-                            dlLink.download = isUserAndroid ? 'ALmEz0.apk' : 'ALmEz0.exe';
-                            dlLink.target = '_blank';
-                            document.body.appendChild(dlLink);
-                            dlLink.click();
-                            setTimeout(() => {
-                                if (dlLink.parentNode) dlLink.parentNode.removeChild(dlLink);
-                            }, 1000);
-                        } catch (e) { }
-                    }
-                    // في حالة الكمبيوتر نعيد الزر لحالته
-                    btnUpdate.disabled = false;
-                    btnUpdate.innerHTML = '<i class="fas fa-download"></i> تنزيل وتثبيت الآن';
-                }, 1000);
+            if (typeof showToast === 'function') {
+                showToast('🚀 جاري بدء تنزيل الإصدار الجديد...', 'success', 5000);
             }
+
+            setTimeout(() => {
+                if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+                    window.AlMeZ0App.openExternal(downloadUrl);
+                }
+                try {
+                    const dlLink = document.createElement('a');
+                    dlLink.href = downloadUrl;
+                    dlLink.download = isUserAndroid ? 'ALmEz0.apk' : 'ALmEz0.exe';
+                    dlLink.target = '_blank';
+                    document.body.appendChild(dlLink);
+                    dlLink.click();
+                    setTimeout(() => {
+                        if (dlLink.parentNode) dlLink.parentNode.removeChild(dlLink);
+                    }, 1000);
+                } catch (e) {}
+
+                setTimeout(() => {
+                    banner.classList.add('hide');
+                    setTimeout(() => banner.remove(), 400);
+                }, 1200);
+            }, 250);
         });
     }
 
@@ -547,34 +545,30 @@
         style.textContent = `
             #almezo-inapp-update-banner {
                 position: fixed;
-                top: 0; left: 0; right: 0; bottom: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%) translateY(0);
+                width: calc(100% - 32px);
+                max-width: 520px;
                 z-index: 9999999;
                 font-family: 'Cairo', 'Tajawal', sans-serif;
                 direction: rtl;
                 text-align: right;
-            .inapp-update-backdrop {
-                position: absolute;
-                top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0, 0, 0, 0.85);
-                backdrop-filter: blur(10px);
-                -webkit-backdrop-filter: blur(10px);
-                z-index: 1;
+                animation: inappSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             }
-            .inapp-update-card.force-update {
-                position: relative;
-                z-index: 2;
-                width: 90%;
-                max-width: 400px;
-                animation: inappPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            #almezo-inapp-update-banner.hide {
+                animation: inappSlideDown 0.35s ease forwards;
             }
-            @keyframes inappPop {
-                from { opacity: 0; transform: scale(0.8); }
-                to { opacity: 1; transform: scale(1); }
+            @keyframes inappSlideUp {
+                from { opacity: 0; transform: translateX(-50%) translateY(50px); }
+                to { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+            @keyframes inappSlideDown {
+                from { opacity: 1; transform: translateX(-50%) translateY(0); }
+                to { opacity: 0; transform: translateX(-50%) translateY(50px); }
             }
             .inapp-update-card {
+                position: relative;
                 background: linear-gradient(135deg, rgba(15, 23, 21, 0.97), rgba(10, 13, 18, 0.98));
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
@@ -586,6 +580,22 @@
                 flex-wrap: wrap;
                 align-items: center;
                 gap: 14px;
+            }
+            .inapp-btn-close {
+                position: absolute;
+                top: 8px;
+                left: 10px;
+                background: transparent;
+                border: none;
+                color: #94a3b8;
+                font-size: 22px;
+                cursor: pointer;
+                line-height: 1;
+                padding: 4px 8px;
+                transition: color 0.2s;
+            }
+            .inapp-btn-close:hover {
+                color: #ef4444;
             }
             .inapp-update-icon-glow {
                 width: 44px;
@@ -603,11 +613,13 @@
             .inapp-update-body {
                 flex: 1 1 240px;
                 min-width: 200px;
+                padding-left: 20px;
             }
             .inapp-update-header {
                 display: flex;
                 align-items: center;
                 gap: 10px;
+                flex-wrap: wrap;
             }
             .inapp-update-badge {
                 font-size: 11.5px;
@@ -624,11 +636,17 @@
                 font-size: 14px;
                 font-weight: 800;
             }
+            .inapp-update-notes {
+                margin: 6px 0 0;
+                font-size: 12.5px;
+                color: #94a3b8;
+                line-height: 1.5;
+            }
             .inapp-update-actions {
                 display: flex;
                 align-items: center;
                 width: 100%;
-                margin-top: 2px;
+                margin-top: 4px;
             }
             .inapp-btn-update {
                 width: 100%;
@@ -930,7 +948,7 @@
                 if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0 && typeof firebase.firestore === 'function') {
                     return firebase.firestore();
                 }
-            } catch (e) { }
+            } catch (e) {}
             return null;
         }
 

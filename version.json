@@ -1,9 +1,9 @@
 {
-  "version": "1.0.3",
-  "versionCode": 4,
+  "version": "1.0.2",
+  "versionCode": 3,
   "releaseDate": "2026-09-14",
-  "title": "تحديث جديد لتطبيق وموقع الميزو v1.0.3 🚀",
-  "notes": "إصلاحات هامة، تحسين سرعة واستقرار المشغل، إضافة نظام الإشعارات الفوري، وتحديثات شاملة للأندرويد والكمبيوتر مع نظام التحديث الداخلي الإجباري.",
+  "title": "تحديث جديد لتطبيق وموقع الميزو v1.0.2 🚀",
+  "notes": "تحسين شكل الشعار ليصبح بحواف ناعمة ومنحنية (Squircle)، تسريع تشغيل القنوات واستقرار المشغل، إضافة زر التحقق اليدوي من التحديثات.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

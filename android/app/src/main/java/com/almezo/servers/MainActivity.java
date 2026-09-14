@@ -12,14 +12,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.JavascriptInterface;
 import androidx.core.app.NotificationCompat;
-import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import android.net.Uri;
 
 public class MainActivity extends BridgeActivity {
     private boolean isImmersive = false;
@@ -183,80 +176,6 @@ public class MainActivity extends BridgeActivity {
                     android.util.Log.e("MainActivity", "Failed to post native notification", t);
                 }
             });
-        }
-
-        @JavascriptInterface
-        public void downloadAndInstallApk(final String apkUrl) {
-            new Thread(() -> {
-                try {
-                    URL url = new URL(apkUrl);
-                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                    connection.connect();
-
-                    int fileLength = connection.getContentLength();
-                    File dir = new File(getExternalFilesDir(null), "updates");
-                    if (!dir.exists()) {
-                        dir.mkdirs();
-                    }
-                    File file = new File(dir, "update.apk");
-                    if (file.exists()) {
-                        file.delete();
-                    }
-
-                    InputStream input = connection.getInputStream();
-                    FileOutputStream output = new FileOutputStream(file);
-
-                    byte data[] = new byte[4096];
-                    long total = 0;
-                    int count;
-                    int lastProgress = -1;
-
-                    while ((count = input.read(data)) != -1) {
-                        total += count;
-                        output.write(data, 0, count);
-
-                        if (fileLength > 0) {
-                            int progress = (int) (total * 100 / fileLength);
-                            if (progress != lastProgress) {
-                                lastProgress = progress;
-                                final int p = progress;
-                                final long t = total;
-                                final int f = fileLength;
-                                runOnUiThread(() -> {
-                                    if (bridge != null && bridge.getWebView() != null) {
-                                        bridge.getWebView().evaluateJavascript("window.updateDownloadProgress(" + p + ", " + t + ", " + f + ")", null);
-                                    }
-                                });
-                            }
-                        }
-                    }
-                    output.flush();
-                    output.close();
-                    input.close();
-
-                    // Trigger install
-                    runOnUiThread(() -> {
-                        try {
-                            Intent intent = new Intent(Intent.ACTION_VIEW);
-                            Uri apkUri = FileProvider.getUriForFile(MainActivity.this, getApplicationContext().getPackageName() + ".fileprovider", file);
-                            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                        } catch (Exception e) {
-                            android.util.Log.e("MainActivity", "Install failed", e);
-                        }
-                    });
-
-                } catch (Exception e) {
-                    android.util.Log.e("MainActivity", "Download error", e);
-                    runOnUiThread(() -> {
-                        if (bridge != null && bridge.getWebView() != null) {
-                            bridge.getWebView().evaluateJavascript("window.updateDownloadError()", null);
-                        }
-                    });
-                }
-            }).start();
         }
     }
 }

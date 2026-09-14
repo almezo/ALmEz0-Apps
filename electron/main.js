@@ -39,13 +39,8 @@ if (!gotTheLock) {
         // Hide default top menu for clean native look
         Menu.setApplicationMenu(null);
 
-        // Load the live website from hosting (any update appears instantly)
-        // Falls back to local files if offline
-        const LIVE_URL = 'https://almezo.store/';
-        mainWindow.loadURL(LIVE_URL).catch(() => {
-            console.log('Could not load live URL, falling back to local files...');
-            mainWindow.loadFile(path.join(__dirname, '../index.html'));
-        });
+        // Load the local index.html file
+        mainWindow.loadFile(path.join(__dirname, '../index.html'));
 
         // Handle window title update if needed
         mainWindow.on('page-title-updated', (e) => {
