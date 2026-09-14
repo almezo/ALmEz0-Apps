@@ -216,12 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let storedHost = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
     let storedPass = localStorage.getItem('sp_pass') || sessionStorage.getItem('sp_pass');
 
-    // محاولة الاستعادة من آخر حساب نشط في قوائم التشغيل إن لم تكن المفاتيح المباشرة موجودة
-    if (!storedUser || !storedHost || !storedPass) {
+    const isExplicitlyLoggedOut = localStorage.getItem('sp_logged_out') === 'true';
+
+    // محاولة الاستعادة من آخر حساب نشط في قوائم التشغيل إن لم تكن المفاتيح المباشرة موجودة (فقط إذا لم يكن مسجلاً خروجه يدوياً)
+    if (!isExplicitlyLoggedOut && (!storedUser || !storedHost || !storedPass)) {
         const activeAccId = localStorage.getItem('sp_active_acc_id');
         const savedAccounts = typeof getSavedAccounts === 'function' ? getSavedAccounts() : [];
-        if (savedAccounts.length > 0) {
-            const acc = (activeAccId && savedAccounts.find(a => a.id === activeAccId)) || savedAccounts[0];
+        if (activeAccId && savedAccounts.length > 0) {
+            const acc = savedAccounts.find(a => a.id === activeAccId);
             if (acc && acc.userInfo && acc.host && acc.password) {
                 storedUser = JSON.stringify(acc.userInfo);
                 storedHost = acc.host;
@@ -403,9 +405,22 @@ function showScreen(screenId, isBackNavigation = false) {
     applyAutoScaling();
 }
 
+function backToAuth1() {
+    sessionStorage.removeItem('sp_fixed_host');
+    sessionStorage.removeItem('sp_current_screen');
+    const uInput = document.getElementById('username');
+    if (uInput) uInput.value = '';
+    const pInput = document.getElementById('password');
+    if (pInput) pInput.value = '';
+    showScreen('auth1-screen');
+}
+window.backToAuth1 = backToAuth1;
+
 function goBack() {
     if (currentScreenId === 'movie-details-screen' || currentScreenId === 'series-details-screen') {
         showScreen('vod-screen');
+    } else if (currentScreenId === 'auth2-screen') {
+        backToAuth1();
     } else {
         showScreen('dashboard-screen');
     }
@@ -566,6 +581,7 @@ function activateAccount(accId) {
     if (typeof closeLivePlayer === 'function') closeLivePlayer();
     if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
 
+    localStorage.removeItem('sp_logged_out');
     localStorage.setItem('sp_active_acc_id', target.id);
     localStorage.setItem('sp_user', JSON.stringify(target.userInfo));
     localStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo));
@@ -878,6 +894,7 @@ async function handleLogin() {
             };
 
             saveAccountToStorage(accountObj);
+            localStorage.removeItem('sp_logged_out');
             localStorage.setItem('sp_active_acc_id', accountId);
 
             // حفظ الجلسة محلياً ودائماً لضمان عدم طلب تسجيل الدخول مجدداً إلا عند الخروج يدوياً
@@ -1587,17 +1604,56 @@ function logout() {
     }
 
     document.getElementById('confirmLogoutBtn').onclick = () => {
-        // مسح بيانات سيرفر المشغل النشط فقط مع الحفاظ على القوائم المحفوظة
+        const modal = document.querySelector('.custom-logout-modal');
+        if (modal) modal.remove();
+
+        // 1. إيقاف أي مشغل فيديو شغال فوراً
+        if (typeof closeLivePlayer === 'function') closeLivePlayer();
+        if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
+
+        // 2. مسح بيانات سيرفر المشغل النشط
         localStorage.removeItem('sp_user');
         localStorage.removeItem('sp_host');
         localStorage.removeItem('sp_pass');
         localStorage.removeItem('sp_server_code');
         localStorage.removeItem('sp_server_info');
         localStorage.removeItem('sp_active_acc_id');
+        localStorage.setItem('sp_logged_out', 'true');
         sessionStorage.clear();
 
-        // التوجيه إلى الصفحة الرئيسية للموقع مباشرة
-        window.location.href = 'index.html';
+        // 3. تصفير بيانات الحالة في الذاكرة
+        state.userInfo = null;
+        state.username = '';
+        state.password = '';
+        state.host = '';
+        state.hostUrls = [];
+        state.serverCode = '';
+        state.categories = [];
+        state.streams = [];
+        state.activeCategory = null;
+
+        // 4. إخفاء شريط التنقل العلوي
+        const navEl = document.getElementById('dashboard-nav');
+        if (navEl) navEl.classList.add('hidden');
+
+        // 5. تصفير حقول الإدخال
+        const sCodeInput = document.getElementById('serverCode');
+        if (sCodeInput) sCodeInput.value = '';
+        const uInput = document.getElementById('username');
+        if (uInput) uInput.value = '';
+        const pInput = document.getElementById('password');
+        if (pInput) pInput.value = '';
+
+        // 6. تحديث شارة الحسابات المحفوظة
+        if (typeof updateSavedAccountsBadge === 'function') {
+            updateSavedAccountsBadge();
+        }
+
+        // 7. التوجيه الفوري والحصري لشاشة كتابة كود السيرفر داخل المشغل
+        showScreen('auth1-screen');
+        if (typeof showToast === 'function') {
+            showToast('تم تسجيل الخروج من السيرفر بنجاح', 'success');
+        }
     };
 
     document.getElementById('cancelLogoutBtn').onclick = () => {

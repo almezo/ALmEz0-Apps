@@ -280,8 +280,19 @@
                         }
                     }
 
-                    // ج) إذا كان في شاشة الداشبورد أو شاشة الدخول فقط، يرجع للموقع الرئيسي مع إعادة تدوير الشاشة لوضعها الطبيعي
-                    if (activeScreen === 'dashboard-screen' || activeScreen === 'auth1-screen' || activeScreen === 'auth2-screen' || !activeScreen) {
+                    // ج) إذا كان في شاشة إدخال كلمة المرور (auth2-screen)، يرجع لشاشة كتابة كود السيرفر (auth1-screen)
+                    if (activeScreen === 'auth2-screen') {
+                        if (typeof backToAuth1 === 'function') {
+                            backToAuth1();
+                            return;
+                        } else if (typeof showScreen === 'function') {
+                            showScreen('auth1-screen');
+                            return;
+                        }
+                    }
+
+                    // د) إذا كان في شاشة الداشبورد أو شاشة كود السيرفر، يرجع للموقع الرئيسي مع إعادة تدوير الشاشة لوضعها الطبيعي
+                    if (activeScreen === 'dashboard-screen' || activeScreen === 'auth1-screen' || !activeScreen) {
                         if (window.AlMeZ0App) {
                             if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
                             if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
@@ -341,7 +352,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.1';
+    const CURRENT_APP_VERSION = '1.0.2';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
