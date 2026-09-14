@@ -57,7 +57,7 @@ if (!gotTheLock) {
                 url.startsWith('whatsapp:')
             ) {
                 // If it is an external site (WhatsApp, Facebook, external player, etc.), open externally
-                const isInternalHost = url.includes('localhost') || url.includes('127.0.0.1');
+                const isInternalHost = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('almezo.store');
                 if (!isInternalHost) {
                     shell.openExternal(url);
                     return { action: 'deny' };
@@ -66,9 +66,8 @@ if (!gotTheLock) {
             return { action: 'allow' };
         });
 
-        // Handle will-navigate (when user clicks a link that navigates away)
         mainWindow.webContents.on('will-navigate', (event, url) => {
-            const isLocal = url.startsWith('file://') || url.includes('localhost');
+            const isLocal = url.startsWith('file://') || url.includes('localhost') || url.includes('almezo.store');
             if (!isLocal) {
                 event.preventDefault();
                 shell.openExternal(url);
