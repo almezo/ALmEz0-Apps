@@ -4660,4 +4660,431 @@ body.tv-mode {
         transform: scale(1.08) translate(-1%, -1%);
     }
 }
+
+/* =========================================================
+   DEVICE MODE SELECTOR MODAL & BADGES
+   ========================================================= */
+.device-mode-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.device-mode-modal.hidden {
+    display: none !important;
+}
+
+.device-mode-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+}
+
+.device-mode-content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 880px;
+    background: #0f1523;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 20px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(56, 189, 248, 0.15);
+    padding: 28px;
+    animation: springModalOpen 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.device-mode-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 18px;
+    margin-bottom: 22px;
+}
+
+.device-mode-title-box {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.device-mode-title-box i {
+    font-size: 28px;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.device-mode-title-box h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.device-mode-title-box p {
+    margin: 4px 0 0 0;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+.btn-close-device-mode {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.btn-close-device-mode:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.device-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.device-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 22px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+}
+
+.device-card:hover,
+.device-card.active {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: #38bdf8;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.25);
+}
+
+.device-card.active::before {
+    content: "✓ مفعّل حالياً";
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.18);
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.device-card-icon {
+    width: 58px;
+    height: 58px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: #ffffff;
+    margin-bottom: 14px;
+    transition: all 0.2s ease;
+}
+
+.device-card:hover .device-card-icon,
+.device-card.active .device-card-icon {
+    background: #38bdf8;
+    color: #0b1120;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+}
+
+.device-card h4 {
+    margin: 0 0 6px 0;
+    font-size: 1.05rem;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.device-card-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    margin-bottom: 10px;
+}
+
+.device-card-badge.badge-tv {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+}
+
+.device-card-badge.badge-pc {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+}
+
+.device-card p {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.45;
+    margin: 0 0 16px 0;
+    flex-grow: 1;
+}
+
+.btn-select-mode {
+    width: 100%;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.device-card:hover .btn-select-mode,
+.device-card.active .btn-select-mode {
+    background: #38bdf8;
+    border-color: #38bdf8;
+    color: #0b1120;
+    font-weight: 700;
+}
+
+/* Auth Screen 1 Device Mode Button */
+.btn-device-mode-auth {
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-device-mode-auth:hover {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+}
+
+.btn-device-mode-auth span {
+    font-weight: 700;
+    color: #38bdf8;
+}
+
+/* Nav Device Mode Button */
+.nav-btn-device-mode {
+    background: rgba(56, 189, 248, 0.1) !important;
+    border-color: rgba(56, 189, 248, 0.25) !important;
+    color: #38bdf8 !important;
+}
+
+.nav-btn-device-mode:hover {
+    background: rgba(56, 189, 248, 0.22) !important;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
+}
+
+/* Live Player Native ExoPlayer 60fps Button */
+.action-btn-native-player {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: linear-gradient(135deg, #e50914, #b20710);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-right: 8px;
+    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
+    transition: all 0.2s ease;
+}
+
+.action-btn-native-player:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 14px rgba(229, 9, 20, 0.6);
+}
+
+.action-btn-native-player i {
+    font-size: 11px;
+    color: #fde047;
+}
+
+/* =========================================================
+   TV CHANNEL NUMBER OVERLAY & LIVE OSD BAR
+   ========================================================= */
+.tv-channel-number-overlay {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    z-index: 100;
+    background: rgba(15, 23, 42, 0.92);
+    border: 2px solid #38bdf8;
+    border-radius: 12px;
+    padding: 8px 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.5);
+    animation: tvNumberPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tv-channel-number-overlay.hidden {
+    display: none !important;
+}
+
+.tv-channel-number-overlay span {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: #38bdf8;
+    letter-spacing: 2px;
+    font-family: 'Outfit', sans-serif, system-ui;
+}
+
+@keyframes tvNumberPop {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.tv-live-osd-bar {
+    position: absolute;
+    bottom: 24px;
+    left: 28px;
+    right: 28px;
+    z-index: 90;
+    background: rgba(15, 23, 42, 0.94);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 14px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 30px rgba(56, 189, 248, 0.15);
+    animation: tvOsdSlideUp 0.3s ease-out;
+}
+
+.tv-live-osd-bar.hidden {
+    display: none !important;
+}
+
+@keyframes tvOsdSlideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.tv-osd-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.tv-osd-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 3px;
+}
+
+.tv-osd-text h4 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.tv-osd-text span {
+    font-size: 0.76rem;
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.tv-osd-hints {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tv-hint-badge {
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+/* =========================================================
+   TV MODE HIGH PERFORMANCE & D-PAD FOCUS ENGINE (.tv-device-mode)
+   ========================================================= */
+/* Disable expensive blur filters on low-end TV boxes */
+body.tv-device-mode * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+body.tv-device-mode .auth-card,
+body.tv-device-mode .playlists-modal-content,
+body.tv-device-mode .device-mode-content,
+body.tv-device-mode .live-player-container-rel {
+    background: #0d121f !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* High-Contrast D-Pad Focus Glow for TV Remotes */
+.tv-focused {
+    outline: 3px solid #38bdf8 !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.75), 0 0 6px #ffffff !important;
+    transform: scale(1.04) !important;
+    z-index: 999 !important;
+    transition: transform 0.15s ease, outline 0.15s ease !important;
+}
+
+.device-card.tv-focused {
+    background: rgba(56, 189, 248, 0.15) !important;
+}
+
 

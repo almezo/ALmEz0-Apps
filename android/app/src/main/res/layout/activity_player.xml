@@ -83,7 +83,8 @@
                     android:id="@+id/btn_back"
                     android:layout_width="38dp"
                     android:layout_height="38dp"
-                    android:background="@drawable/bg_circle_purple"
+                    android:background="@drawable/bg_circle_button"
+                    android:focusable="true"
                     android:contentDescription="Back"
                     android:src="@drawable/ic_player_back" />
 
@@ -99,9 +100,25 @@
                     android:textColor="#FFFFFF"
                     android:textSize="18sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/badge_live_indicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_badge_red"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:text="LIVE مباشر"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
             </LinearLayout>
 
-            <!-- Right: Cast, Lock, Purple Round Settings Button -->
+            <!-- Right: Cast, Lock, Settings Button -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
@@ -114,7 +131,8 @@
                     android:layout_width="38dp"
                     android:layout_height="38dp"
                     android:layout_marginEnd="18dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:background="@drawable/bg_circle_button"
+                    android:focusable="true"
                     android:contentDescription="Cast"
                     android:src="@drawable/ic_player_cast" />
 
@@ -123,7 +141,8 @@
                     android:layout_width="38dp"
                     android:layout_height="38dp"
                     android:layout_marginEnd="18dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:background="@drawable/bg_circle_button"
+                    android:focusable="true"
                     android:contentDescription="Lock"
                     android:src="@drawable/ic_player_lock" />
 
@@ -131,19 +150,20 @@
                     android:id="@+id/btn_settings"
                     android:layout_width="38dp"
                     android:layout_height="38dp"
-                    android:background="@drawable/bg_circle_purple"
+                    android:background="@drawable/bg_circle_button"
+                    android:focusable="true"
                     android:contentDescription="Settings"
                     android:src="@drawable/ic_player_settings" />
             </LinearLayout>
         </RelativeLayout>
 
-        <!-- ================= VERTICAL BRIGHTNESS SLIDER (LEFT) ================= -->
+        <!-- ================= VERTICAL BRIGHTNESS SLIDER (STRICT PHYSICAL LEFT) ================= -->
         <LinearLayout
             android:id="@+id/layout_brightness_slider"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical|start"
-            android:layout_marginStart="36dp"
+            android:layout_gravity="center_vertical|left"
+            android:layout_marginLeft="36dp"
             android:gravity="center_horizontal"
             android:orientation="vertical">
 
@@ -168,13 +188,13 @@
             </FrameLayout>
         </LinearLayout>
 
-        <!-- ================= VERTICAL VOLUME SLIDER (RIGHT) ================= -->
+        <!-- ================= VERTICAL VOLUME SLIDER (STRICT PHYSICAL RIGHT) ================= -->
         <LinearLayout
             android:id="@+id/layout_volume_slider"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical|end"
-            android:layout_marginEnd="36dp"
+            android:layout_gravity="center_vertical|right"
+            android:layout_marginRight="36dp"
             android:gravity="center_horizontal"
             android:orientation="vertical">
 
@@ -212,7 +232,8 @@
                 android:layout_width="62dp"
                 android:layout_height="62dp"
                 android:layout_marginEnd="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/bg_circle_button"
+                android:focusable="true"
                 android:contentDescription="Rewind 10 seconds"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -222,7 +243,8 @@
                 android:id="@+id/btn_play_pause"
                 android:layout_width="78dp"
                 android:layout_height="78dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/bg_circle_button"
+                android:focusable="true"
                 android:contentDescription="Play/Pause"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -233,7 +255,8 @@
                 android:layout_width="62dp"
                 android:layout_height="62dp"
                 android:layout_marginStart="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/bg_circle_button"
+                android:focusable="true"
                 android:contentDescription="Forward 10 seconds"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"

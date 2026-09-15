@@ -88,6 +88,8 @@ public class PlayerActivity extends AppCompatActivity {
     private View layoutVolumeSlider;
     private View barVolumeFill;
     private TextView tvSeekFeedback;
+    private TextView badgeLiveIndicator;
+    private boolean isLiveStream = false;
 
     // Settings Drawer (Matching Image 4)
     private View settingsDrawerOverlay;
@@ -279,6 +281,7 @@ public class PlayerActivity extends AppCompatActivity {
         layoutVolumeSlider = findViewById(R.id.layout_volume_slider);
         barVolumeFill = findViewById(R.id.bar_volume_fill);
         tvSeekFeedback = findViewById(R.id.tv_seek_feedback);
+        badgeLiveIndicator = findViewById(R.id.badge_live_indicator);
 
         // Pre-fill initial slider levels so they are immediately accurate on launch
         updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
@@ -822,6 +825,11 @@ public class PlayerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
+                    showControls();
+                    if (btnPlayPause != null) btnPlayPause.requestFocus();
+                    return true;
+                }
                 togglePlayPause();
                 showControls();
                 return true;
@@ -836,28 +844,57 @@ public class PlayerActivity extends AppCompatActivity {
                 showControls();
                 return true;
 
+            case KeyEvent.KEYCODE_MENU:
+                openSettingsDrawer();
+                return true;
+
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_MEDIA_REWIND:
             case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
-                seekRelative(-10000);
-                showSeekFeedback("-10s");
-                showControls();
-                return true;
+                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
+                    break; // Allow D-pad focus to move naturally to left buttons
+                }
+                if (!isLiveStream) {
+                    seekRelative(-10000);
+                    showSeekFeedback("-10s");
+                    showControls();
+                    return true;
+                }
+                break;
 
             case KeyEvent.KEYCODE_DPAD_RIGHT:
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
             case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
-                seekRelative(10000);
-                showSeekFeedback("+10s");
-                showControls();
-                return true;
+                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
+                    break; // Allow D-pad focus to move naturally to right buttons
+                }
+                if (!isLiveStream) {
+                    seekRelative(10000);
+                    showSeekFeedback("+10s");
+                    showControls();
+                    return true;
+                }
+                break;
 
             case KeyEvent.KEYCODE_DPAD_UP:
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
                     showControls();
+                    if (btnPlayPause != null) {
+                        btnPlayPause.requestFocus();
+                    }
                     return true;
                 }
+                break;
+
+            case KeyEvent.KEYCODE_CHANNEL_UP:
+            case KeyEvent.KEYCODE_PAGE_UP:
+                showSeekFeedback("القناة التالية");
+                break;
+
+            case KeyEvent.KEYCODE_CHANNEL_DOWN:
+            case KeyEvent.KEYCODE_PAGE_DOWN:
+                showSeekFeedback("القناة السابقة");
                 break;
 
             case KeyEvent.KEYCODE_MEDIA_STOP:
@@ -878,6 +915,20 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         videoUrl = videoUrl.trim();
+
+        // Detect live stream
+        isLiveStream = getIntent().getBooleanExtra("isLive", false) ||
+                       videoUrl.contains("/live/") ||
+                       (videoUrl.contains(".m3u8") && !videoUrl.contains("/movie/") && !videoUrl.contains("/series/"));
+
+        if (isLiveStream) {
+            if (badgeLiveIndicator != null) badgeLiveIndicator.setVisibility(View.VISIBLE);
+            if (btnRewind10 != null) btnRewind10.setVisibility(View.GONE);
+            if (btnForward10 != null) btnForward10.setVisibility(View.GONE);
+            if (tvDuration != null) tvDuration.setVisibility(View.GONE);
+            if (seekBar != null) seekBar.setEnabled(false);
+            if (tvPosition != null) tvPosition.setText("مباشر");
+        }
 
         try {
             DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()

@@ -94,9 +94,23 @@ function applyAutoScaling() {
         stableLandscapeHeight = 0;
     }
 
-    // الأبعاد الأساسية المتطابقة 100% مع قياسات الـ CSS لحاوية app-scaler
-    const baseWidth = 1650;
-    const baseHeight = 750;
+    const isTvMode = document.body.classList.contains('tv-device-mode');
+    const isDesktopMode = document.body.classList.contains('desktop-device-mode');
+    const ratio = effectiveW / Math.max(1, effectiveH);
+
+    // Adaptive Canvas Base:
+    // For 16:9 Standard TV / PC Monitor (ratio 1.55 to 1.85 or TV/Desktop mode), use 1920x1080 to fill full screen without letterboxing!
+    // For wide modern smartphones (ratio >= 1.86), preserve 1650x750.
+    let baseWidth = 1650;
+    let baseHeight = 750;
+
+    if (isTvMode || isDesktopMode || (ratio >= 1.55 && ratio <= 1.85)) {
+        baseWidth = 1920;
+        baseHeight = 1080;
+    } else if (ratio < 1.55) {
+        baseWidth = 1650;
+        baseHeight = 850;
+    }
 
     const scaleX = effectiveW / baseWidth;
     const scaleY = effectiveH / baseHeight;
@@ -130,6 +144,7 @@ window.addEventListener('pageshow', () => {
     setTimeout(applyAutoScaling, 150);
 });
 document.addEventListener('DOMContentLoaded', () => {
+    initDeviceMode();
     patchVideoJsTech();
     applyAutoScaling();
     if (window.AlMeZ0App && window.AlMeZ0App.isNative) {
@@ -142,10 +157,169 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initDeviceMode();
     patchVideoJsTech();
     applyAutoScaling();
     if (window.AlMeZ0App && window.AlMeZ0App.isNative && typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') {
         window.AlMeZ0App.setImmersiveFullscreen(true);
+    }
+}
+
+// =========================================================
+// DEVICE MODE ENGINE (TV & Remote, Mobile Touch, PC Desktop)
+// =========================================================
+function initDeviceMode() {
+    let mode = localStorage.getItem('mizo_device_mode');
+    if (!mode) {
+        const ua = (navigator.userAgent || '').toLowerCase();
+        const isTvUA = ua.includes('tv') || ua.includes('box') || ua.includes('smart') || ua.includes('large') || ua.includes('amlogic') || ua.includes('rockchip') || ua.includes('allwinner');
+        const isDesktop = !('ontouchstart' in window) && window.innerWidth >= 1024 && !ua.includes('android');
+        if (isTvUA) {
+            mode = 'tv';
+        } else if (isDesktop) {
+            mode = 'desktop';
+        } else {
+            mode = 'touch';
+        }
+        localStorage.setItem('mizo_device_mode', mode);
+    }
+    applyDeviceMode(mode, false);
+}
+
+function applyDeviceMode(mode, showToast = false) {
+    document.body.classList.remove('tv-device-mode', 'desktop-device-mode', 'touch-device-mode');
+    document.body.classList.add(mode + '-device-mode');
+
+    const iconMap = { tv: 'fa-tv', touch: 'fa-mobile-alt', desktop: 'fa-desktop' };
+    const nameMap = { tv: 'تلفزيون ورسيفر', touch: 'هاتف ولمس', desktop: 'كمبيوتر وماوس' };
+
+    const navIcon = document.getElementById('navDeviceModeIcon');
+    if (navIcon) navIcon.className = 'fas ' + (iconMap[mode] || 'fa-tv');
+
+    const authName = document.getElementById('authDeviceModeName');
+    if (authName) authName.innerText = nameMap[mode] || mode;
+
+    const authIcon = document.getElementById('authDeviceModeIcon');
+    if (authIcon) authIcon.className = 'fas ' + (iconMap[mode] || 'fa-tv');
+
+    ['touch', 'tv', 'desktop'].forEach(m => {
+        const card = document.getElementById('deviceCard' + m.charAt(0).toUpperCase() + m.slice(1));
+        if (card) card.classList.toggle('active', m === mode);
+    });
+
+    applyAutoScaling();
+
+    if (showToast && typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'success',
+            title: 'تم تفعيل النمط بنجاح',
+            text: `نمط التشغيل الحالي: ${nameMap[mode]}`,
+            timer: 1800,
+            showConfirmButton: false,
+            background: '#151926',
+            color: '#fff'
+        });
+    }
+}
+
+function selectDeviceMode(mode) {
+    localStorage.setItem('mizo_device_mode', mode);
+    applyDeviceMode(mode, true);
+    closeDeviceModeModal();
+}
+
+function openDeviceModeModal() {
+    const modal = document.getElementById('deviceModeModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        const mode = localStorage.getItem('mizo_device_mode') || 'touch';
+        ['touch', 'tv', 'desktop'].forEach(m => {
+            const card = document.getElementById('deviceCard' + m.charAt(0).toUpperCase() + m.slice(1));
+            if (card) card.classList.toggle('active', m === mode);
+        });
+    }
+}
+
+function closeDeviceModeModal() {
+    const modal = document.getElementById('deviceModeModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// =========================================================
+// LIVE TV REMOTE CONTROL & TUNING HELPERS (0-9, CH+/-, OSD)
+// =========================================================
+let tvNumberBuffer = '';
+let tvNumberTimer = null;
+let tvOsdTimer = null;
+
+function playAdjacentLiveChannel(direction) {
+    if (!currentItemsArray || !currentItemsArray.length || !currentStreamInfo) return;
+    const curId = String(currentStreamInfo.id);
+    const curIndex = currentItemsArray.findIndex(item => String(item.stream_id || item.num) === curId);
+    let nextIndex = 0;
+    if (curIndex !== -1) {
+        nextIndex = curIndex + direction;
+        if (nextIndex < 0) nextIndex = currentItemsArray.length - 1;
+        if (nextIndex >= currentItemsArray.length) nextIndex = 0;
+    }
+    const target = currentItemsArray[nextIndex];
+    if (target) {
+        playStream('live', target.stream_id, target.name, target.stream_icon);
+        showTvLiveOsd(target.name, target.stream_icon);
+    }
+}
+
+function handleTvNumericKey(digit) {
+    tvNumberBuffer += String(digit);
+    const overlay = document.getElementById('tvChannelNumberOverlay');
+    const textEl = document.getElementById('tvChannelNumberText');
+    if (overlay && textEl) {
+        textEl.innerText = tvNumberBuffer;
+        overlay.classList.remove('hidden');
+    }
+    clearTimeout(tvNumberTimer);
+    tvNumberTimer = setTimeout(() => {
+        const targetNum = parseInt(tvNumberBuffer, 10);
+        tvNumberBuffer = '';
+        if (overlay) overlay.classList.add('hidden');
+        if (isNaN(targetNum) || !currentItemsArray || !currentItemsArray.length) return;
+        let target = currentItemsArray.find(item => item.num === targetNum || String(item.stream_id) === String(targetNum));
+        if (!target && targetNum >= 1 && targetNum <= currentItemsArray.length) {
+            target = currentItemsArray[targetNum - 1];
+        }
+        if (target) {
+            playStream('live', target.stream_id, target.name, target.stream_icon);
+            showTvLiveOsd(target.name, target.stream_icon);
+        }
+    }, 1200);
+}
+
+function showTvLiveOsd(name, icon) {
+    const osd = document.getElementById('tvLiveOsdBar');
+    if (!osd) return;
+    const nameEl = document.getElementById('tvOsdChannelName');
+    const iconEl = document.getElementById('tvOsdChannelIcon');
+    const catEl = document.getElementById('tvOsdCategoryName');
+    if (nameEl) nameEl.innerText = name || 'Live Channel';
+    if (iconEl) iconEl.src = icon || 'photo/logo.ico';
+    const activeCat = document.querySelector('#liveCategories .list-item.active .cat-name');
+    if (catEl && activeCat) catEl.innerText = activeCat.innerText;
+    osd.classList.remove('hidden');
+    clearTimeout(tvOsdTimer);
+    tvOsdTimer = setTimeout(() => {
+        osd.classList.add('hidden');
+    }, 3500);
+}
+
+function playCurrentLiveNative() {
+    if (!currentStreamInfo || currentStreamInfo.type !== 'live') return;
+    const host = getBestHost();
+    const user = encodeURIComponent(state.username);
+    const pass = encodeURIComponent(state.password);
+    const ext = currentStreamInfo.extension || 'm3u8';
+    const streamUrl = `${host}/live/${user}/${pass}/${currentStreamInfo.id}.${ext}`;
+    if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
+        window.AndroidNativeBridge.playNativeVideo(streamUrl, currentStreamInfo.name, currentStreamInfo.icon || '', true);
     }
 }
 
@@ -1107,6 +1281,9 @@ function playStream(id, type, extension, name, icon) {
         if (typeof resetCloseBtnInactivityTimer === 'function') resetCloseBtnInactivityTimer();
         history.pushState({ screenId: typeof currentScreenId !== 'undefined' ? currentScreenId : null, modal: 'fullscreen' }, '', window.location.href);
     } else {
+        // Track current live channel info for TV navigation & OSD
+        currentStreamInfo = { type: 'live', id, name, icon };
+
         const wrapper = document.getElementById('liveVideoContainer') || document.getElementById('livePlayerWrapper');
         wrapper.innerHTML = '<video id="mizoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>';
         containerSelector = 'mizoPlayer';
@@ -1121,6 +1298,15 @@ function playStream(id, type, extension, name, icon) {
         const btnLiveFav = document.getElementById('btnLiveFav');
         if (btnLiveFav) btnLiveFav.classList.toggle('active', favsLive.includes(String(id)));
         document.getElementById('playerTopHeader').classList.remove('hidden');
+
+        // Show native player toggle button on Android
+        const btnNative = document.getElementById('btnLiveNativePlayer');
+        if (btnNative) {
+            const hasNative = !!(window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid));
+            btnNative.classList.toggle('hidden', !hasNative);
+        }
+
+        if (typeof showTvLiveOsd === 'function') showTvLiveOsd(name, icon);
     }
 
     let currentTryIndex = 0;
@@ -3731,9 +3917,14 @@ function initTvNavigationEngine() {
         '.vod-card',
         '.episode-card',
         '.server-card',
+        '.device-card',
+        '.btn-select-mode',
+        '.nav-btn-device-mode',
+        '.action-btn-native-player',
         '.action-btn',
         '.btn-primary',
         '.btn-close-playlists',
+        '.btn-close-device-mode',
         '.btn-close-live-player',
         '.btn-server-option',
         'button:not([disabled])',
@@ -3742,7 +3933,7 @@ function initTvNavigationEngine() {
     ].join(',');
 
     function getVisibleFocusables() {
-        const activeModal = document.querySelector('#playlistsModal:not(.hidden), .custom-logout-modal, .swal2-container');
+        const activeModal = document.querySelector('#playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), .custom-logout-modal, .swal2-container');
         const container = activeModal || document.body;
 
         const all = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR));
@@ -3871,6 +4062,34 @@ function initTvNavigationEngine() {
             }
         }
 
+        const isLivePlaying = document.getElementById('livePlayerWrapper')?.classList.contains('is-playing');
+
+        // TV Remote Numeric Tuning (0-9) when watching live
+        if (!isInput && isLivePlaying && e.key >= '0' && e.key <= '9') {
+            e.preventDefault();
+            handleTvNumericKey(e.key);
+            return;
+        }
+
+        // TV Remote Channel Up / Down
+        if (!isInput && isLivePlaying && (e.key === 'ChannelUp' || e.key === 'PageUp')) {
+            e.preventDefault();
+            playAdjacentLiveChannel(-1);
+            return;
+        }
+        if (!isInput && isLivePlaying && (e.key === 'ChannelDown' || e.key === 'PageDown')) {
+            e.preventDefault();
+            playAdjacentLiveChannel(1);
+            return;
+        }
+
+        // TV Remote Info / Menu key on Live
+        if (!isInput && isLivePlaying && (e.key === 'Info' || e.key === 'Menu' || e.key === 'Guide')) {
+            e.preventDefault();
+            if (currentStreamInfo) showTvLiveOsd(currentStreamInfo.name, currentStreamInfo.icon);
+            return;
+        }
+
         if (e.key === 'ArrowUp' || e.keyCode === 38) {
             const next = findNextElement('up');
             if (next) {
@@ -3899,8 +4118,16 @@ function initTvNavigationEngine() {
             if (currentFocusedEl && !['INPUT', 'TEXTAREA'].includes(currentFocusedEl.tagName)) {
                 e.preventDefault();
                 currentFocusedEl.click();
+            } else if (isLivePlaying) {
+                if (currentStreamInfo) showTvLiveOsd(currentStreamInfo.name, currentStreamInfo.icon);
             }
         } else if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 27 || (!isInput && (e.key === 'Backspace' || e.keyCode === 8))) {
+            const devModal = document.getElementById('deviceModeModal');
+            if (devModal && !devModal.classList.contains('hidden')) {
+                e.preventDefault();
+                closeDeviceModeModal();
+                return;
+            }
             const modal = document.getElementById('playlistsModal');
             if (modal && !modal.classList.contains('hidden')) {
                 e.preventDefault();

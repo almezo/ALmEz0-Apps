@@ -39,6 +39,13 @@ public class MainActivity extends BridgeActivity {
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
             settings.setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
+            settings.setMediaPlaybackRequiresUserGesture(false);
+
+            // Enable explicit Hardware Acceleration on the WebView layer for TV Box & Receiver 60fps
+            try {
+                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            } catch (Throwable ignored) { }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 settings.setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
             }
@@ -116,6 +123,11 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void playNativeVideo(String videoUrl, String title, String posterUrl) {
+            playNativeVideo(videoUrl, title, posterUrl, false);
+        }
+
+        @JavascriptInterface
+        public void playNativeVideo(String videoUrl, String title, String posterUrl, boolean isLive) {
             if (videoUrl == null || videoUrl.trim().isEmpty()) return;
             runOnUiThread(() -> {
                 try {
@@ -123,6 +135,7 @@ public class MainActivity extends BridgeActivity {
                     intent.putExtra("videoUrl", videoUrl.trim());
                     intent.putExtra("title", title != null ? title : "ALmEz0 Video");
                     intent.putExtra("posterUrl", posterUrl != null ? posterUrl : "");
+                    intent.putExtra("isLive", isLive);
                     startActivity(intent);
                 } catch (Throwable t) {
                     android.util.Log.e("MainActivity", "Failed to launch PlayerActivity", t);
