@@ -778,16 +778,17 @@ function renderUsersIntelContent() {
         }
 
         let tableHtml = `
+            <div class="intel-table-responsive">
             <table class="intel-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;">#</th>
+                        <th style="width:28px; text-align:center;">#</th>
                         <th>اسم العميل</th>
-                        <th>رقم الهاتف والتواصل</th>
+                        <th>الهاتف والتواصل</th>
                         <th>المدينة</th>
-                        <th>الرتبة في النظام</th>
-                        <th>تاريخ التسجيل</th>
-                        <th>إجراءات</th>
+                        <th>الرتبة</th>
+                        <th>التسجيل</th>
+                        <th style="width:34px; text-align:center;">بطاقة</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -804,29 +805,29 @@ function renderUsersIntelContent() {
 
             const role = c.role || 'customer';
             let roleBadgeClass = 'intel-role-customer';
-            let roleBadgeText = 'عميل عادي';
-            if (role === 'staff') { roleBadgeClass = 'intel-role-staff'; roleBadgeText = 'مندوب مبيعات'; }
-            else if (role === 'admin') { roleBadgeClass = 'intel-role-admin'; roleBadgeText = 'مدير نظام'; }
+            let roleBadgeText = 'عميل';
+            if (role === 'staff') { roleBadgeClass = 'intel-role-staff'; roleBadgeText = 'مندوب'; }
+            else if (role === 'admin') { roleBadgeClass = 'intel-role-admin'; roleBadgeText = 'مدير'; }
             else if (role === 'blocked') { roleBadgeClass = 'intel-role-blocked'; roleBadgeText = 'محظور'; }
 
             let regDateText = 'غير محدد';
             if (c.registeredAt) {
                 const d = c.registeredAt.seconds ? new Date(c.registeredAt.seconds * 1000) : (c.registeredAt.toMillis ? new Date(c.registeredAt.toMillis()) : new Date(c.registeredAt));
                 if (!isNaN(d.getTime())) {
-                    regDateText = d.toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+                    regDateText = d.toLocaleDateString('ar-LY', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 }
             }
 
             tableHtml += `
                 <tr>
-                    <td style="color:#64748b; font-weight:700;">${idx + 1}</td>
-                    <td>
-                        <div style="font-weight:700; color:#fff;">${safeIntelEsc(fullName)}</div>
-                        <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${safeIntelEsc(c.id)}</div>
+                    <td style="color:#64748b; font-weight:700; text-align:center; padding:6px 4px;">${idx + 1}</td>
+                    <td style="padding:6px 6px;">
+                        <div style="font-weight:700; color:#fff; white-space:nowrap; font-size:0.8rem; margin:0;">${safeIntelEsc(fullName)}</div>
+                        <div style="font-size:0.65rem; color:#64748b; font-family:monospace; margin:0; line-height:1;">${safeIntelEsc(c.id.substring(0, 10))}...</div>
                     </td>
-                    <td>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <span style="font-weight:700; color:#cbd5e1; direction:ltr; text-align:right;">${safeIntelEsc(phone)}</span>
+                    <td style="padding:6px 6px;">
+                        <div style="display:inline-flex; align-items:center; gap:4px; flex-wrap:nowrap;">
+                            <span style="font-weight:700; color:#cbd5e1; direction:ltr; text-align:right; font-size:0.75rem;">${safeIntelEsc(phone)}</span>
                             <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(phone)}', this)" title="نسخ الرقم">
                                 <i class="fas fa-copy"></i>
                             </button>
@@ -837,17 +838,17 @@ function renderUsersIntelContent() {
                             ` : ''}
                         </div>
                     </td>
-                    <td><span style="color:#94a3b8;">${safeIntelEsc(c.city || 'ليبيا')}</span></td>
-                    <td>
-                        <select onchange="changeIntelCustomerRole('${c.id}', '${safeIntelEsc(fullName)}', this.value)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:4px 8px; font-family:inherit; font-size:0.78rem; outline:none; cursor:pointer;">
-                            <option value="customer" ${role === 'customer' ? 'selected' : ''}>عميل عادي</option>
-                            <option value="staff" ${role === 'staff' ? 'selected' : ''}>مندوب مبيعات</option>
-                            <option value="admin" ${role === 'admin' ? 'selected' : ''}>مدير نظام</option>
+                    <td style="padding:6px 6px;"><span style="color:#94a3b8; font-size:0.74rem; white-space:nowrap;">${safeIntelEsc(c.city || 'ليبيا')}</span></td>
+                    <td style="padding:6px 6px;">
+                        <select onchange="changeIntelCustomerRole('${c.id}', '${safeIntelEsc(fullName)}', this.value)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:3px 5px; font-family:inherit; font-size:0.72rem; outline:none; cursor:pointer;">
+                            <option value="customer" ${role === 'customer' ? 'selected' : ''}>عميل</option>
+                            <option value="staff" ${role === 'staff' ? 'selected' : ''}>مندوب</option>
+                            <option value="admin" ${role === 'admin' ? 'selected' : ''}>مدير</option>
                             <option value="blocked" ${role === 'blocked' ? 'selected' : ''}>محظور</option>
                         </select>
                     </td>
-                    <td><span style="color:#94a3b8; font-size:0.78rem;">${regDateText}</span></td>
-                    <td>
+                    <td style="padding:6px 6px;"><span style="color:#94a3b8; font-size:0.72rem; white-space:nowrap;">${regDateText}</span></td>
+                    <td style="padding:6px 4px; text-align:center;">
                         <button type="button" class="intel-btn-copy" onclick="openCustomerDetailNotes('${c.id}', '${safeIntelEsc(fullName)}', '${safeIntelEsc(phone)}')" title="عرض البطاقة">
                             <i class="fas fa-id-card"></i>
                         </button>
@@ -859,6 +860,7 @@ function renderUsersIntelContent() {
         tableHtml += `
                 </tbody>
             </table>
+            </div>
         `;
         bodyEl.innerHTML = tableHtml;
 
@@ -921,10 +923,11 @@ function renderUsersIntelContent() {
         }
 
         let tableHtml = `
+            <div class="intel-table-responsive">
             <table class="intel-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;">#</th>
+                        <th style="width:28px; text-align:center;">#</th>
                         <th>التوقيت</th>
                         <th>اسم المستخدم بالسيرفر</th>
                         <th>اسم السيرفر</th>
@@ -940,11 +943,11 @@ function renderUsersIntelContent() {
         filtered.forEach((log, idx) => {
             let timeText = 'غير محدد';
             if (log.timestamp && log.timestamp.seconds) {
-                timeText = new Date(log.timestamp.seconds * 1000).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+                timeText = new Date(log.timestamp.seconds * 1000).toLocaleDateString('ar-LY', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             } else if (log.createdAt) {
-                timeText = new Date(log.createdAt).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+                timeText = new Date(log.createdAt).toLocaleDateString('ar-LY', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             } else if (log.clientTime) {
-                timeText = new Date(log.clientTime).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+                timeText = new Date(log.clientTime).toLocaleDateString('ar-LY', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             }
 
             const username = (log.details && log.details.username) || (log.user && log.user.name) || 'غير محدد';
@@ -964,21 +967,21 @@ function renderUsersIntelContent() {
 
             tableHtml += `
                 <tr>
-                    <td style="color:#64748b; font-weight:700;">${idx + 1}</td>
-                    <td><span style="color:#94a3b8; font-size:0.78rem;">${timeText}</span></td>
-                    <td>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <span style="font-weight:700; color:#fff; font-family:monospace;">${safeIntelEsc(username)}</span>
+                    <td style="color:#64748b; font-weight:700; text-align:center; padding:6px 4px;">${idx + 1}</td>
+                    <td style="padding:6px 6px;"><span style="color:#94a3b8; font-size:0.72rem; white-space:nowrap;">${timeText}</span></td>
+                    <td style="padding:6px 6px;">
+                        <div style="display:inline-flex; align-items:center; gap:4px; flex-wrap:nowrap;">
+                            <span style="font-weight:700; color:#fff; font-family:monospace; font-size:0.78rem;">${safeIntelEsc(username)}</span>
                             <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(username)}', this)" title="نسخ اسم المستخدم">
                                 <i class="fas fa-copy"></i>
                             </button>
                         </div>
                     </td>
-                    <td><span style="font-weight:700; color:#c084fc;">${safeIntelEsc(server)}</span></td>
-                    <td>${statusBadge}</td>
-                    <td><span style="color:#fbbf24; font-size:0.78rem; font-weight:600;">${safeIntelEsc(expDate)}</span></td>
-                    <td><span style="color:#cbd5e1; font-size:0.78rem;">${safeIntelEsc(device)}</span></td>
-                    <td><span style="color:#64748b; font-family:monospace; font-size:0.75rem;">${safeIntelEsc(ip)}</span></td>
+                    <td style="padding:6px 6px;"><span style="font-weight:700; color:#c084fc; font-size:0.76rem; white-space:nowrap;">${safeIntelEsc(server)}</span></td>
+                    <td style="padding:6px 6px;">${statusBadge}</td>
+                    <td style="padding:6px 6px;"><span style="color:#fbbf24; font-size:0.72rem; font-weight:600; white-space:nowrap;">${safeIntelEsc(expDate)}</span></td>
+                    <td style="padding:6px 6px;"><span style="color:#cbd5e1; font-size:0.72rem; white-space:nowrap;">${safeIntelEsc(device)}</span></td>
+                    <td style="padding:6px 6px;"><span style="color:#64748b; font-family:monospace; font-size:0.7rem; white-space:nowrap;">${safeIntelEsc(ip)}</span></td>
                 </tr>
             `;
         });
@@ -986,6 +989,7 @@ function renderUsersIntelContent() {
         tableHtml += `
                 </tbody>
             </table>
+            </div>
         `;
         bodyEl.innerHTML = tableHtml;
     }

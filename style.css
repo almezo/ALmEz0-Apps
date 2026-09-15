@@ -8587,20 +8587,149 @@ body.platform-electron {
 .intel-role-admin { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
 .intel-role-blocked { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
 
+.intel-table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 @media (max-width: 768px) {
+    .users-intel-overlay {
+        padding: 0 !important;
+        align-items: flex-end !important;
+    }
     .users-intel-card {
-        max-height: 96vh;
-        border-radius: 14px;
+        max-width: 100vw !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        border: none !important;
     }
     .users-intel-header {
-        padding: 14px 16px;
+        padding: 10px 14px !important;
+    }
+    .users-intel-title-group {
+        gap: 8px !important;
+    }
+    .users-intel-icon-box {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 15px !important;
+        border-radius: 8px !important;
+    }
+    .users-intel-title {
+        font-size: 0.95rem !important;
+        line-height: 1.2 !important;
+    }
+    .users-intel-sub {
+        font-size: 0.68rem !important;
+        margin-top: 1px !important;
+    }
+    .users-intel-close-btn {
+        width: 32px !important;
+        height: 32px !important;
+        border-radius: 8px !important;
     }
     .users-intel-stats-grid {
-        padding: 10px 14px;
-        grid-template-columns: 1fr;
+        padding: 6px 10px !important;
+        display: flex !important;
+        gap: 6px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
-    .users-intel-tabs, .users-intel-toolbar, .users-intel-body {
-        padding-left: 14px;
-        padding-right: 14px;
+    .intel-stat-card {
+        flex: 1 0 auto !important;
+        min-width: 100px !important;
+        padding: 6px 8px !important;
+        gap: 6px !important;
+        border-radius: 8px !important;
+    }
+    .intel-stat-icon {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 12px !important;
+        border-radius: 6px !important;
+    }
+    .intel-stat-info h5 {
+        font-size: 0.64rem !important;
+        margin-bottom: 0 !important;
+        white-space: nowrap !important;
+    }
+    .intel-stat-value {
+        font-size: 0.95rem !important;
+    }
+    .users-intel-tabs {
+        padding: 6px 10px !important;
+        gap: 6px !important;
+    }
+    .intel-tab-btn {
+        padding: 6px 10px !important;
+        font-size: 0.74rem !important;
+        border-radius: 8px !important;
+        gap: 4px !important;
+        flex: 1 !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+    .users-intel-toolbar {
+        padding: 6px 10px !important;
+        gap: 6px !important;
+    }
+    .intel-search-box {
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    .intel-search-box input {
+        padding: 6px 32px 6px 10px !important;
+        font-size: 0.76rem !important;
+        border-radius: 8px !important;
+    }
+    .intel-search-box i {
+        right: 10px !important;
+        font-size: 12px !important;
+    }
+    .intel-btn-export {
+        padding: 5px 10px !important;
+        font-size: 0.72rem !important;
+        border-radius: 8px !important;
+    }
+    .users-intel-body {
+        padding: 6px 8px 20px 8px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .intel-table {
+        min-width: 580px !important;
+        font-size: 0.74rem !important;
+    }
+    .intel-table th {
+        padding: 7px 6px !important;
+        font-size: 0.7rem !important;
+        white-space: nowrap !important;
+    }
+    .intel-table td {
+        padding: 6px 6px !important;
+        font-size: 0.72rem !important;
+        line-height: 1.25 !important;
+    }
+    .intel-btn-wa {
+        padding: 3px 6px !important;
+        font-size: 0.68rem !important;
+        border-radius: 5px !important;
+        gap: 3px !important;
+    }
+    .intel-btn-copy {
+        padding: 3px 6px !important;
+        font-size: 0.68rem !important;
+        border-radius: 5px !important;
+    }
+    .intel-role-badge {
+        padding: 2px 6px !important;
+        font-size: 0.65rem !important;
+        border-radius: 5px !important;
     }
 }

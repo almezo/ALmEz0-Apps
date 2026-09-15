@@ -1,9 +1,9 @@
 {
-  "version": "1.0.7",
-  "versionCode": 8,
+  "version": "1.0.8",
+  "versionCode": 9,
   "releaseDate": "2026-09-15",
-  "title": "تحديث توجيهات الذكاء الاصطناعي ومعايير التحديثات المرنة v1.0.7 🚀",
-  "notes": "تحديث ملفات التعليمات الصارمة لنماذج الذكاء الاصطناعي وضبط استراتيجية minSupportedVersion لضمان راحة العملاء.",
+  "title": "تحسين تجاوب شاشات الهواتف لقاعدة بيانات العملاء v1.0.8 🚀",
+  "notes": "ضبط الجدول ومساحات النصوص وكروت الإحصائيات لتناسب الهواتف الذكية وتصفح البيانات بسلاسة.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
