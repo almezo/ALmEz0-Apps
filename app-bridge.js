@@ -10,6 +10,20 @@
     const isIOS = isCapacitor && window.Capacitor.getPlatform() === 'ios';
     const isNative = isElectron || isCapacitor || !!(window.AndroidNativeBridge);
 
+    // مزامنة ملف Manifest واسم التطبيق تلقائياً بحسب لغة جهاز العميل (عربي -> "الميزو" / إنجليزي -> "ALmEz0")
+    function syncLocalizedManifest() {
+        try {
+            const lang = (navigator.language || navigator.userLanguage || 'ar').toLowerCase();
+            const isAr = lang.startsWith('ar');
+            const targetManifest = isAr ? 'manifest-ar.json' : 'manifest-en.json';
+            const mLink = document.querySelector('link[rel="manifest"]');
+            if (mLink) mLink.setAttribute('href', targetManifest);
+            const aTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+            if (aTitle) aTitle.setAttribute('content', isAr ? 'الميزو' : 'ALmEz0');
+        } catch (e) { }
+    }
+    syncLocalizedManifest();
+
     window.AlMeZ0App = {
         isElectron: isElectron,
         isCapacitor: isCapacitor,
@@ -352,12 +366,13 @@
                 }
             });
         }
+        syncLocalizedManifest();
     });
 
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.8';
+    const CURRENT_APP_VERSION = '1.0.9';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

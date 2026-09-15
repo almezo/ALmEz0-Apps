@@ -1,14 +1,14 @@
 {
-  "name": "الميزو",
-  "short_name": "الميزو",
+  "name": "ALmEz0",
+  "short_name": "ALmEz0",
   "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0d12",
   "theme_color": "#0a0d12",
-  "dir": "rtl",
-  "lang": "ar",
+  "dir": "ltr",
+  "lang": "en",
   "icons": [
     {
       "src": "photo/logo-192.png",

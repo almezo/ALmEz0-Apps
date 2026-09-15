@@ -1,9 +1,9 @@
 {
-  "version": "1.0.8",
-  "versionCode": 9,
+  "version": "1.0.9",
+  "versionCode": 10,
   "releaseDate": "2026-09-15",
-  "title": "تحسين تجاوب شاشات الهواتف لقاعدة بيانات العملاء v1.0.8 🚀",
-  "notes": "ضبط الجدول ومساحات النصوص وكروت الإحصائيات لتناسب الهواتف الذكية وتصفح البيانات بسلاسة.",
+  "title": "دعم التسمية والتعريب التلقائي حسب لغة الجهاز v1.0.9 🚀",
+  "notes": "تسمية التطبيق تلقائياً (الميزو) للأجهزة باللغة العربية و (ALmEz0) للغات الأخرى عبر الأندرويد والكمبيوتر وتثبيت المتصفح.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

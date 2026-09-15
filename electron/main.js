@@ -19,13 +19,19 @@ if (!gotTheLock) {
         }
     });
 
+    // تحديد لغة نظام المستخدم وتعيين اسم البرنامج (عربي -> "الميزو" / غير ذلك -> "ALmEz0")
+    const userLocale = (app.getLocale() || '').toLowerCase();
+    const isArabicSystem = userLocale.startsWith('ar');
+    const localizedAppName = isArabicSystem ? 'الميزو' : 'ALmEz0';
+    app.setName(localizedAppName);
+
     function createWindow() {
         mainWindow = new BrowserWindow({
             width: 1280,
             height: 820,
             minWidth: 420,
             minHeight: 640,
-            title: 'ALmEz0',
+            title: localizedAppName,
             icon: path.join(__dirname, '../photo/logo.ico'),
             autoHideMenuBar: true,
             backgroundColor: '#0a0d12',
@@ -49,7 +55,33 @@ if (!gotTheLock) {
         // Handle window title update if needed
         mainWindow.on('page-title-updated', (e) => {
             e.preventDefault();
+            mainWindow.setTitle(localizedAppName);
         });
+
+        // مزامنة تسمية اختصار سطح المكتب على الويندوز وفق لغة النظام
+        if (process.platform === 'win32') {
+            try {
+                const desktopPath = app.getPath('desktop');
+                const targetExe = process.execPath;
+                if (isArabicSystem) {
+                    const arLnk = path.join(desktopPath, 'الميزو.lnk');
+                    const enLnk = path.join(desktopPath, 'ALmEz0.lnk');
+                    if (fs.existsSync(enLnk) && !fs.existsSync(arLnk)) {
+                        try { fs.renameSync(enLnk, arLnk); } catch (e) { }
+                    }
+                    if (!fs.existsSync(arLnk) && typeof shell.writeShortcutLink === 'function') {
+                        shell.writeShortcutLink(arLnk, 'create', {
+                            target: targetExe,
+                            description: 'سيرفرات الميزو ومشغل البث',
+                            icon: targetExe,
+                            iconIndex: 0
+                        });
+                    }
+                }
+            } catch (err) {
+                console.warn('Windows shortcut sync notice:', err);
+            }
+        }
 
         // Intercept external links and open in default system browser
         mainWindow.webContents.setWindowOpenHandler(({ url }) => {

@@ -52,11 +52,23 @@
     <link rel="icon" type="image/x-icon" href="photo/logo.ico">
     <link rel="shortcut icon" type="image/x-icon" href="photo/logo.ico">
     <link rel="apple-touch-icon" href="photo/logo.ico">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" id="appManifestLink" href="manifest.json">
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="AlMeZ0">
+    <meta name="apple-mobile-web-app-title" id="appleAppTitle" content="الميزو">
+    <script>
+        (function syncAppLanguage() {
+            try {
+                var lang = (navigator.language || navigator.userLanguage || 'ar').toLowerCase();
+                var isArabic = lang.startsWith('ar');
+                var mLink = document.getElementById('appManifestLink');
+                if (mLink) mLink.href = isArabic ? 'manifest-ar.json' : 'manifest-en.json';
+                var aTitle = document.getElementById('appleAppTitle');
+                if (aTitle) aTitle.content = isArabic ? 'الميزو' : 'ALmEz0';
+            } catch (e) { }
+        })();
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css?v=4051.0">
 </head>
