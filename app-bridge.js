@@ -387,7 +387,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.14';
+    const CURRENT_APP_VERSION = '1.0.15';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -558,8 +558,16 @@
                             <div class="inapp-progress-fill" id="inappProgressFill" style="width: 0%;"></div>
                         </div>
                         <div class="inapp-progress-sub">
-                            <span id="inappProgressBytes">جاري الاتصال بالسيرفر...</span>
-                            <span class="inapp-fast-tag"><i class="fas fa-bolt"></i> تثبيت تلقائي</span>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span id="inappProgressBytes">جاري الاتصال بالسيرفر...</span>
+                                <span id="inappProgressSpeed" class="inapp-speed-tag hidden"><i class="fas fa-arrow-down"></i> 0.0 MB/s</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button type="button" class="inapp-btn-pause-resume" id="inappBtnPauseResume" title="إيقاف مؤقت / استئناف">
+                                    <i class="fas fa-pause"></i> إيقاف مؤقت
+                                </button>
+                                <span class="inapp-fast-tag"><i class="fas fa-bolt"></i> تثبيت تلقائي</span>
+                            </div>
                         </div>
                     </div>
 
@@ -613,9 +621,16 @@
         const progressPct = overlay.querySelector('#inappProgressPct');
         const progressFill = overlay.querySelector('#inappProgressFill');
         const progressBytes = overlay.querySelector('#inappProgressBytes');
+        const progressSpeed = overlay.querySelector('#inappProgressSpeed');
+        const btnPauseResume = overlay.querySelector('#inappBtnPauseResume');
         const errorBox = overlay.querySelector('#inappErrorBox');
         const btnRetry = overlay.querySelector('#inappBtnRetry');
         const btnExternalDl = overlay.querySelector('#inappBtnExternalDl');
+
+        let isDownloadPaused = false;
+        let lastDownloadedBytes = 0;
+        let lastSpeedTime = Date.now();
+        let currentSpeedStr = '0.0 MB/s';
 
         function formatBytes(bytes) {
             if (!bytes || bytes <= 0) return '0.0 MB';
@@ -626,11 +641,65 @@
             const clamped = Math.max(0, Math.min(100, Math.round(pct)));
             progressFill.style.width = clamped + '%';
             progressPct.innerText = clamped + '%';
+
+            // Calculate download speed
+            const now = Date.now();
+            const timeDiff = (now - lastSpeedTime) / 1000;
+            if (timeDiff >= 0.35 && downloaded > lastDownloadedBytes) {
+                const bytesDiff = downloaded - lastDownloadedBytes;
+                const bytesPerSec = bytesDiff / timeDiff;
+                if (bytesPerSec >= 1024 * 1024) {
+                    currentSpeedStr = (bytesPerSec / (1024 * 1024)).toFixed(1) + ' MB/s';
+                } else {
+                    currentSpeedStr = (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+                }
+                lastSpeedTime = now;
+                lastDownloadedBytes = downloaded;
+                if (progressSpeed) {
+                    progressSpeed.innerHTML = `<i class="fas fa-arrow-down"></i> ${currentSpeedStr}`;
+                    progressSpeed.classList.remove('hidden');
+                }
+            }
+
             if (downloaded && total && total > 0) {
                 progressBytes.innerText = `${formatBytes(downloaded)} / ${formatBytes(total)}`;
             } else if (downloaded) {
                 progressBytes.innerText = formatBytes(downloaded);
             }
+        }
+
+        if (btnPauseResume) {
+            btnPauseResume.addEventListener('click', () => {
+                if (!isDownloadPaused) {
+                    isDownloadPaused = true;
+                    btnPauseResume.innerHTML = '<i class="fas fa-play"></i> استئناف';
+                    btnPauseResume.style.background = 'rgba(34, 197, 94, 0.25)';
+                    btnPauseResume.style.borderColor = '#22c55e';
+                    btnPauseResume.style.color = '#4ade80';
+                    progressStatus.innerHTML = '<i class="fas fa-pause-circle" style="color:#fbbf24;"></i> التنزيل متوقف مؤقتاً';
+                    if (progressSpeed) progressSpeed.innerHTML = '<i class="fas fa-pause"></i> متوقف';
+
+                    if (isElectron && window.electronAPI && typeof window.electronAPI.pauseUpdateDownload === 'function') {
+                        window.electronAPI.pauseUpdateDownload();
+                    } else if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.pauseUpdateDownload === 'function') {
+                        window.AndroidNativeBridge.pauseUpdateDownload();
+                    }
+                } else {
+                    isDownloadPaused = false;
+                    btnPauseResume.innerHTML = '<i class="fas fa-pause"></i> إيقاف مؤقت';
+                    btnPauseResume.style.background = 'rgba(255, 255, 255, 0.08)';
+                    btnPauseResume.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    btnPauseResume.style.color = '#ffffff';
+                    progressStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تنزيل التحديث داخلياً...';
+                    lastSpeedTime = Date.now();
+
+                    if (isElectron && window.electronAPI && typeof window.electronAPI.resumeUpdateDownload === 'function') {
+                        window.electronAPI.resumeUpdateDownload(downloadUrl);
+                    } else if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.resumeUpdateDownload === 'function') {
+                        window.AndroidNativeBridge.resumeUpdateDownload();
+                    }
+                }
+            });
         }
 
         function startDownload() {
@@ -898,6 +967,36 @@
             .inapp-fast-tag {
                 color: #f59e0b;
                 font-weight: 700;
+            }
+            .inapp-speed-tag {
+                background: rgba(34, 197, 94, 0.15);
+                border: 1px solid rgba(34, 197, 94, 0.4);
+                color: #4ade80;
+                padding: 2px 8px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 800;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .inapp-btn-pause-resume {
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: #ffffff;
+                border-radius: 8px;
+                padding: 4px 10px;
+                font-size: 11.5px;
+                font-weight: 700;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .inapp-btn-pause-resume:hover {
+                background: rgba(255, 255, 255, 0.18);
+                transform: scale(1.03);
             }
             .inapp-error-box {
                 background: rgba(239, 68, 68, 0.12);

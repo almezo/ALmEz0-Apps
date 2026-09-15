@@ -561,16 +561,18 @@ function showScreen(screenId, isBackNavigation = false) {
                 navRight.style.display = '';
             }
 
-            // Hide/Show secondary action buttons (refresh, profile, logout, accounts)
+            // Hide/Show secondary action buttons (refresh, profile, logout, accounts, device mode)
             const refreshBtn = document.getElementById('navRefreshBtn');
             const profileBtn = document.getElementById('navProfileBtn');
             const logoutBtn = document.getElementById('navLogoutBtn');
             const accountsBtn = document.getElementById('navAccountsBtn');
+            const deviceModeBtn = document.getElementById('navDeviceModeBtn');
 
             if (refreshBtn) refreshBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
             if (profileBtn) profileBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
             if (logoutBtn) logoutBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
             if (accountsBtn) accountsBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
+            if (deviceModeBtn) deviceModeBtn.style.display = isDashboard ? '' : 'none';
 
             // Toggle Return Button (Home on Dashboard -> index.html, Arrow on other screens -> goBack to Dashboard)
             const returnBtn = document.getElementById('navReturnBtn');
@@ -1561,7 +1563,6 @@ function playStream(id, type, extension, name, icon) {
                     <div class="vjs-custom-top-bar">
                         <button class="vjs-top-btn" id="innerPlayerClose" title="إغلاق"><i class="fas fa-times"></i></button>
                         <div class="vjs-custom-title">${name || 'تشغيل'}</div>
-                        <button class="vjs-top-btn" id="innerPlayerExternal" title="تشغيل في مشغل خارجي (VLC)"><i class="fas fa-external-link-alt"></i></button>
                         <button class="vjs-top-btn" id="innerPlayerInfo" title="معلومات البث"><i class="fas fa-info"></i></button>
                     </div>
                 `;
@@ -1573,19 +1574,6 @@ function playStream(id, type, extension, name, icon) {
                         e.stopPropagation();
                         if (isFullscreenModal && typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
                         else if (typeof closeLivePlayer === 'function') closeLivePlayer(true);
-                    };
-                }
-
-                const externalPlayBtn = document.getElementById('innerPlayerExternal');
-                if (externalPlayBtn) {
-                    externalPlayBtn.onclick = (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (window.AlMeZ0App && typeof window.AlMeZ0App.openInExternalPlayer === 'function') {
-                            window.AlMeZ0App.openInExternalPlayer(playUrl, name);
-                        } else {
-                            window.location.href = `vlc://${playUrl}`;
-                        }
                     };
                 }
 

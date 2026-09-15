@@ -772,10 +772,11 @@ body.desktop-device-mode .app-scaler {
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     position: relative;
     padding: 20px;
+    overflow: hidden;
 }
 
 .col-header {
@@ -930,9 +931,13 @@ body.desktop-device-mode .app-scaler {
 
 .player-wrapper {
     width: 100%;
-    height: 100%;
+    max-width: 900px;
+    height: auto;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin: auto;
 }
 
 .player-top-header {
@@ -1050,14 +1055,25 @@ body.desktop-device-mode .app-scaler {
 }
 
 .plyr-container {
-    flex: 1;
+    width: 100%;
+    max-width: 900px;
+    aspect-ratio: 16 / 9;
+    max-height: calc(100vh - 170px);
     background: #000;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+}
+
+.plyr-container .video-js,
+.plyr-container #liveVideoContainer,
+#livePlayerWrapper .video-js {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .empty-state {
@@ -3868,19 +3884,9 @@ i.fas.fa-sync-alt.refresh-icon {
     cursor: pointer;
 }
 
-/* 3. زر المشغل الخارجي VLC / MX Player: ذهبي واضح وأنيق */
+/* 3. زر المشغل الخارجي (تمت إزالته حسب طلب المستخدم) */
 #innerPlayerExternal {
-    background-color: #f4c242 !important;
-    color: #111111 !important;
-    border: 2px solid #f4c242 !important;
-    opacity: 0.95;
-    font-size: 15px !important;
-}
-
-#innerPlayerExternal:hover {
-    background-color: #ffd54f !important;
-    transform: scale(1.08);
-    opacity: 1;
+    display: none !important;
 }
 
 /* ضمان عدم تكبير الشاشة التلقائي على الموبايل عند الكتابة في الحقول */
@@ -4492,7 +4498,9 @@ body.tv-mode {
 .live-player-container-rel {
     position: relative;
     width: 100%;
-    height: 100%;
+    max-width: 900px;
+    aspect-ratio: 16 / 9;
+    max-height: calc(100vh - 170px);
     display: flex;
     flex-direction: column;
 }
@@ -4717,9 +4725,9 @@ body.tv-mode {
     width: 100%;
     max-width: 880px;
     background: #0f1523;
-    border: 1px solid rgba(56, 189, 248, 0.3);
+    border: 1px solid rgba(34, 197, 94, 0.35);
     border-radius: 20px;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(56, 189, 248, 0.15);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(34, 197, 94, 0.2);
     padding: 28px;
     animation: springModalOpen 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
@@ -4741,15 +4749,15 @@ body.tv-mode {
 
 .device-mode-title-box i {
     font-size: 28px;
-    color: #38bdf8;
-    background: rgba(56, 189, 248, 0.12);
+    color: #4ade80;
+    background: rgba(34, 197, 94, 0.12);
     width: 52px;
     height: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 14px;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    border: 1px solid rgba(34, 197, 94, 0.28);
 }
 
 .device-mode-title-box h3 {
@@ -4807,10 +4815,10 @@ body.tv-mode {
 
 .device-card:hover,
 .device-card.active {
-    background: rgba(56, 189, 248, 0.08);
-    border-color: #38bdf8;
+    background: rgba(34, 197, 94, 0.08);
+    border-color: #22c55e;
     transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.25);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 197, 94, 0.3);
 }
 
 .device-card.active::before {
@@ -4820,8 +4828,8 @@ body.tv-mode {
     left: 10px;
     font-size: 0.65rem;
     font-weight: 700;
-    color: #38bdf8;
-    background: rgba(56, 189, 248, 0.18);
+    color: #4ade80;
+    background: rgba(34, 197, 94, 0.2);
     padding: 2px 8px;
     border-radius: 6px;
 }
@@ -4842,9 +4850,9 @@ body.tv-mode {
 
 .device-card:hover .device-card-icon,
 .device-card.active .device-card-icon {
-    background: #38bdf8;
-    color: #0b1120;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+    background: #22c55e;
+    color: #07130b;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.6);
 }
 
 .device-card h4 {
@@ -4859,8 +4867,8 @@ body.tv-mode {
     font-weight: 600;
     padding: 3px 10px;
     border-radius: 20px;
-    background: rgba(56, 189, 248, 0.15);
-    color: #38bdf8;
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
     margin-bottom: 10px;
 }
 
@@ -4897,10 +4905,10 @@ body.tv-mode {
 
 .device-card:hover .btn-select-mode,
 .device-card.active .btn-select-mode {
-    background: #38bdf8;
-    border-color: #38bdf8;
-    color: #0b1120;
-    font-weight: 700;
+    background: #22c55e;
+    border-color: #22c55e;
+    color: #07130b;
+    font-weight: 800;
 }
 
 /* Auth Screen 1 Device Mode Button */
@@ -4922,26 +4930,32 @@ body.tv-mode {
 }
 
 .btn-device-mode-auth:hover {
-    background: rgba(56, 189, 248, 0.12);
-    border-color: rgba(56, 189, 248, 0.3);
-    color: #38bdf8;
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.35);
+    color: #4ade80;
 }
 
 .btn-device-mode-auth span {
     font-weight: 700;
-    color: #38bdf8;
+    color: #4ade80;
 }
 
-/* Nav Device Mode Button */
+/* Nav Device Mode Button (White color on Dashboard) */
 .nav-btn-device-mode {
-    background: rgba(56, 189, 248, 0.1) !important;
-    border-color: rgba(56, 189, 248, 0.25) !important;
-    color: #38bdf8 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #ffffff !important;
 }
 
 .nav-btn-device-mode:hover {
-    background: rgba(56, 189, 248, 0.22) !important;
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
+    background: rgba(255, 255, 255, 0.18) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3) !important;
+    color: #ffffff !important;
+}
+
+.nav-btn-device-mode i {
+    color: #ffffff !important;
 }
 
 /* Live Player Native ExoPlayer 60fps Button */
@@ -4981,10 +4995,10 @@ body.tv-mode {
     right: 28px;
     z-index: 100;
     background: rgba(15, 23, 42, 0.92);
-    border: 2px solid #38bdf8;
+    border: 2px solid #22c55e;
     border-radius: 12px;
     padding: 8px 20px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.5);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8), 0 0 25px rgba(34, 197, 94, 0.5);
     animation: tvNumberPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -4995,7 +5009,7 @@ body.tv-mode {
 .tv-channel-number-overlay span {
     font-size: 2.4rem;
     font-weight: 900;
-    color: #38bdf8;
+    color: #4ade80;
     letter-spacing: 2px;
     font-family: 'Outfit', sans-serif, system-ui;
 }
@@ -5012,13 +5026,13 @@ body.tv-mode {
     right: 28px;
     z-index: 90;
     background: rgba(15, 23, 42, 0.94);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    border: 1px solid rgba(34, 197, 94, 0.35);
     border-radius: 14px;
     padding: 14px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 30px rgba(56, 189, 248, 0.15);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 30px rgba(34, 197, 94, 0.18);
     animation: tvOsdSlideUp 0.3s ease-out;
 }
 
@@ -5056,7 +5070,7 @@ body.tv-mode {
 
 .tv-osd-text span {
     font-size: 0.76rem;
-    color: #38bdf8;
+    color: #4ade80;
     font-weight: 600;
 }
 
@@ -5095,16 +5109,18 @@ body.tv-device-mode .live-player-container-rel {
 
 /* High-Contrast D-Pad Focus Glow for TV Remotes */
 .tv-focused {
-    outline: 3px solid #38bdf8 !important;
+    outline: 3px solid #22c55e !important;
     outline-offset: 2px !important;
-    box-shadow: 0 0 25px rgba(56, 189, 248, 0.75), 0 0 6px #ffffff !important;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 6px #ffffff !important;
     transform: scale(1.04) !important;
     z-index: 999 !important;
     transition: transform 0.15s ease, outline 0.15s ease !important;
 }
 
 .device-card.tv-focused {
-    background: rgba(56, 189, 248, 0.15) !important;
+    background: rgba(34, 197, 94, 0.18) !important;
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 6px #ffffff !important;
 }
 
 

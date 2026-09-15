@@ -207,11 +207,43 @@ public class MainActivity extends BridgeActivity {
             });
         }
 
+        private volatile boolean isApkDownloadPaused = false;
+        private volatile boolean isApkDownloadCancelled = false;
+        private android.os.PowerManager.WakeLock apkWakeLock = null;
+
+        @JavascriptInterface
+        public void pauseUpdateDownload() {
+            isApkDownloadPaused = true;
+        }
+
+        @JavascriptInterface
+        public void resumeUpdateDownload() {
+            isApkDownloadPaused = false;
+            synchronized (MainActivity.this) {
+                MainActivity.this.notifyAll();
+            }
+        }
+
         @JavascriptInterface
         public void downloadAndInstallApk(String apkUrl) {
             if (apkUrl == null || apkUrl.trim().isEmpty()) return;
+            isApkDownloadPaused = false;
+            isApkDownloadCancelled = false;
+
             new Thread(() -> {
                 try {
+                    // Keep CPU awake in background so download never pauses or gets stuck when app is minimized
+                    try {
+                        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                        if (pm != null) {
+                            if (apkWakeLock != null && apkWakeLock.isHeld()) {
+                                apkWakeLock.release();
+                            }
+                            apkWakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ALmEz0:UpdateDownload");
+                            apkWakeLock.acquire(20 * 60 * 1000L);
+                        }
+                    } catch (Throwable ignored) { }
+
                     java.io.File downloadDir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
                     if (downloadDir == null) {
                         downloadDir = getFilesDir();
@@ -257,7 +289,15 @@ public class MainActivity extends BridgeActivity {
                     long downloadedBytes = 0;
                     long lastReportTime = 0;
 
-                    while ((len = in.read(buffer)) != -1) {
+                    while (!isApkDownloadCancelled && (len = in.read(buffer)) != -1) {
+                        while (isApkDownloadPaused && !isApkDownloadCancelled) {
+                            try {
+                                synchronized (MainActivity.this) {
+                                    MainActivity.this.wait(400);
+                                }
+                            } catch (InterruptedException ignored) {}
+                        }
+
                         out.write(buffer, 0, len);
                         downloadedBytes += len;
 
@@ -283,6 +323,11 @@ public class MainActivity extends BridgeActivity {
                     in.close();
                     conn.disconnect();
 
+                    if (isApkDownloadCancelled) {
+                        if (apkFile.exists()) apkFile.delete();
+                        return;
+                    }
+
                     // Report 100% complete
                     final long finalBytes = downloadedBytes;
                     runOnUiThread(() -> {
@@ -307,6 +352,13 @@ public class MainActivity extends BridgeActivity {
                             );
                         }
                     });
+                } finally {
+                    try {
+                        if (apkWakeLock != null && apkWakeLock.isHeld()) {
+                            apkWakeLock.release();
+                            apkWakeLock = null;
+                        }
+                    } catch (Throwable ignored) { }
                 }
             }).start();
         }

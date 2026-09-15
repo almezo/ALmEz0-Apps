@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openExternal: (url) => ipcRenderer.send('open-external', url),
     showNotification: (title, message) => ipcRenderer.send('show-notification', { title, message }),
     startUpdateDownload: (downloadUrl) => ipcRenderer.send('start-update-download', downloadUrl),
+    pauseUpdateDownload: () => ipcRenderer.send('pause-update-download'),
+    resumeUpdateDownload: (downloadUrl) => ipcRenderer.send('resume-update-download', downloadUrl),
     onUpdateProgress: (callback) => {
         ipcRenderer.removeAllListeners('update-download-progress');
         ipcRenderer.on('update-download-progress', (event, data) => callback(data));
