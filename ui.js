@@ -3805,7 +3805,7 @@ async function handleStaffRoleChange(newRole) {
     // دالة بدء تنزيل الملف مع إشعار للمستخدم
     function triggerDownload(url, filename, message) {
         if (typeof showToast === 'function') {
-            showToast(message, 'success', 5000);
+            showToast(message, 'success', 6000);
         } else if (typeof Swal !== 'undefined') {
             Swal.fire({
                 toast: true,
@@ -3813,20 +3813,20 @@ async function handleStaffRoleChange(newRole) {
                 icon: 'success',
                 title: message,
                 showConfirmButton: false,
-                timer: 4000
+                timer: 5000
             });
         }
 
+        // تنزيل مباشر بدون _blank لمنع تعليق مدير تنزيلات كروم على أندرويد
         const link = document.createElement('a');
         link.href = url;
         link.setAttribute('download', filename);
-        link.setAttribute('target', '_blank');
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         setTimeout(() => {
             if (link.parentNode) link.parentNode.removeChild(link);
-        }, 1500);
+        }, 5000);
     }
 
     // دالة عرض النافذة المنبثقة الإرشادية لأجهزة آبل أو المتصفحات غير الداعمة
@@ -3893,7 +3893,7 @@ async function handleStaffRoleChange(newRole) {
             triggerDownload(
                 DOWNLOAD_URLS.android,
                 'ALmEz0.apk',
-                '📥 جاري بدء تنزيل تطبيق أندرويد (ALmEz0.apk)...'
+                '📥 جاري تنزيل تطبيق أندرويد (ALmEz0.apk)... إذا ظهر لك تنبيه اضغط "تنزيل على أي حال".'
             );
         } else if (currentPlatform === 'windows') {
             triggerDownload(

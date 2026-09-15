@@ -279,19 +279,17 @@
                         const a = document.createElement('a');
                         a.href = 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk';
                         a.download = 'ALmEz0.apk';
-                        a.target = '_blank';
                         document.body.appendChild(a);
                         a.click();
-                        setTimeout(() => a.remove(), 1000);
-                        if (typeof showToast === 'function') showToast('📥 جاري بدء تنزيل تطبيق أندرويد (ALmEz0.apk)...', 'success', 5000);
+                        setTimeout(() => a.remove(), 5000);
+                        if (typeof showToast === 'function') showToast('📥 جاري تنزيل تطبيق أندرويد (ALmEz0.apk)... إذا ظهر لك تنبيه اضغط "تنزيل على أي حال".', 'success', 6000);
                     } else if (isWindows) {
                         const a = document.createElement('a');
                         a.href = 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe';
                         a.download = 'ALmEz0.exe';
-                        a.target = '_blank';
                         document.body.appendChild(a);
                         a.click();
-                        setTimeout(() => a.remove(), 1000);
+                        setTimeout(() => a.remove(), 5000);
                         if (typeof showToast === 'function') showToast('📥 جاري بدء تنزيل برنامج الكمبيوتر (ALmEz0.exe)...', 'success', 5000);
                     } else if (isIOS) {
                         overlay.classList.remove('active');
