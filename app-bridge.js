@@ -81,13 +81,28 @@
             return false;
         },
 
-        // Helper to toggle full immersive edge-to-edge mode (hide Android status bar and navigation bar)
+        // Helper to toggle full immersive edge-to-edge mode (hide Android status/nav bars, Windows titlebar and taskbar)
         setImmersiveFullscreen: function (enabled) {
             try {
+                // 1. Android Native Bridge (Immersive sticky mode: hides status bar and navigation bar)
                 if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
                     window.AndroidNativeBridge.setImmersiveFullscreen(!!enabled);
-                    return true;
                 }
+                // 2. Electron on Windows (True Fullscreen: hides top titlebar and covers Windows taskbar)
+                if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
+                    window.electronAPI.setFullScreen(!!enabled);
+                }
+                // 3. HTML5 Fullscreen API fallback for web browsers
+                if (enabled) {
+                    if (!document.fullscreenElement && document.documentElement && typeof document.documentElement.requestFullscreen === 'function') {
+                        document.documentElement.requestFullscreen().catch(() => {});
+                    }
+                } else {
+                    if (document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+                        document.exitFullscreen().catch(() => {});
+                    }
+                }
+                return true;
             } catch (e) {
                 console.warn('setImmersiveFullscreen failed:', e);
             }
@@ -372,7 +387,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.13';
+    const CURRENT_APP_VERSION = '1.0.14';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

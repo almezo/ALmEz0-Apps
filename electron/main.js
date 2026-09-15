@@ -110,10 +110,33 @@ if (!gotTheLock) {
             }
         });
 
+        // Auto-fullscreen when ALmEz0 Player (player.html) is loaded, and exit fullscreen when returning to index.html
+        mainWindow.webContents.on('did-finish-load', () => {
+            try {
+                const currentURL = (mainWindow.webContents.getURL() || '').toLowerCase();
+                if (currentURL.includes('player.html')) {
+                    mainWindow.setFullScreen(true);
+                } else if (currentURL.includes('index.html')) {
+                    mainWindow.setFullScreen(false);
+                }
+            } catch (e) { }
+        });
+
         mainWindow.on('closed', () => {
             mainWindow = null;
         });
     }
+
+    // IPC listener for toggling fullscreen on Windows (removes top titlebar and covers taskbar)
+    ipcMain.on('set-fullscreen', (event, enabled) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setFullScreen(!!enabled);
+        }
+    });
+
+    ipcMain.handle('is-fullscreen', () => {
+        return mainWindow && !mainWindow.isDestroyed() ? mainWindow.isFullScreen() : false;
+    });
 
     // IPC listener for opening external URLs from renderer
     ipcMain.on('open-external', (event, url) => {

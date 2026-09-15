@@ -46,10 +46,16 @@
         (function enforceImmersiveOnPlayer() {
             function applyImmersive() {
                 try {
+                    if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
+                        window.electronAPI.setFullScreen(true);
+                    }
                     if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
                         window.AndroidNativeBridge.setImmersiveFullscreen(true);
                     } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') {
                         window.AlMeZ0App.setImmersiveFullscreen(true);
+                    }
+                    if (!document.fullscreenElement && document.documentElement && typeof document.documentElement.requestFullscreen === 'function') {
+                        document.documentElement.requestFullscreen().catch(() => {});
                     }
                 } catch(e) {}
             }
@@ -60,8 +66,12 @@
             document.addEventListener('visibilitychange', function() {
                 if (!document.hidden) applyImmersive();
             });
-            setTimeout(applyImmersive, 300);
-            setTimeout(applyImmersive, 1000);
+            setTimeout(applyImmersive, 200);
+            setTimeout(applyImmersive, 600);
+            setTimeout(applyImmersive, 1200);
+            document.addEventListener('click', function onceUserInteraction() {
+                applyImmersive();
+            }, { once: true });
         })();
     </script>
     <!-- Native Guard: Restrict player exclusively to Android and PC applications -->
@@ -662,7 +672,7 @@
             <!-- HLS.js -->
             <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
             <!-- Custom Logic -->
-            <script src="splayer.js?v=34.2"></script>
+            <script src="splayer.js?v=34.3"></script>
             <!-- Display Time Script -->
             <script>
                 function updateNavClock() {

@@ -4174,6 +4174,17 @@ function initTvNavigationEngine() {
 
     window.addEventListener('touchstart', clearTvFocus, { passive: true });
     window.addEventListener('mousedown', clearTvFocus, { passive: true });
+
+    // F11 Fullscreen Toggle Shortcut for PC / Windows
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+            e.preventDefault();
+            if (window.AlMeZ0App && typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') {
+                const isCurrentlyFS = !!document.fullscreenElement;
+                window.AlMeZ0App.setImmersiveFullscreen(!isCurrentlyFS);
+            }
+        }
+    });
 }
 
 if (document.readyState === 'loading') {
