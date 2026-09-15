@@ -1,9 +1,9 @@
 {
-  "version": "1.0.6",
-  "versionCode": 7,
+  "version": "1.0.7",
+  "versionCode": 8,
   "releaseDate": "2026-09-15",
-  "title": "مركز ذكاء العملاء ومستخدمي المشغل والتحديثات المرنة v1.0.6 🚀",
-  "notes": "إضافة مركز متكامل لقاعدة بيانات العملاء المسجلين، تتبع مستخدمي المشغل وسيرفرات IPTV، ونظام تحديثات مرن يتيح المتابعة بدون إجبار.",
+  "title": "تحديث توجيهات الذكاء الاصطناعي ومعايير التحديثات المرنة v1.0.7 🚀",
+  "notes": "تحديث ملفات التعليمات الصارمة لنماذج الذكاء الاصطناعي وضبط استراتيجية minSupportedVersion لضمان راحة العملاء.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
