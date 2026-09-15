@@ -568,10 +568,10 @@ function showScreen(screenId, isBackNavigation = false) {
             const accountsBtn = document.getElementById('navAccountsBtn');
             const deviceModeBtn = document.getElementById('navDeviceModeBtn');
 
-            if (refreshBtn) refreshBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
-            if (profileBtn) profileBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
-            if (logoutBtn) logoutBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
-            if (accountsBtn) accountsBtn.style.display = (isDashboard || isProfile) ? '' : 'none';
+            if (refreshBtn) refreshBtn.style.display = isDashboard ? '' : 'none';
+            if (profileBtn) profileBtn.style.display = isDashboard ? '' : 'none';
+            if (logoutBtn) logoutBtn.style.display = isDashboard ? '' : 'none';
+            if (accountsBtn) accountsBtn.style.display = isDashboard ? '' : 'none';
             if (deviceModeBtn) deviceModeBtn.style.display = isDashboard ? '' : 'none';
 
             // Toggle Return Button (Home on Dashboard -> index.html, Arrow on other screens -> goBack to Dashboard)
@@ -2311,8 +2311,15 @@ async function loadCategories(action, type) {
     const favsCount = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]').length;
     const contCount = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]').length;
 
+    // استرجاع العدادات المحفوظة محلياً لضمان ظهور الأرقام فوراً وبدون أي تأخير
+    const countsCacheKey = 'sp_counts_' + (state.username || '') + '_' + effectiveType;
+    let cachedCounts = {};
+    try {
+        cachedCounts = JSON.parse(localStorage.getItem(countsCacheKey) || '{}');
+    } catch (e) { }
+
     let specialCats = [
-        { id: 'all', name: 'الكل', count: '' },
+        { id: 'all', name: 'الكل', count: cachedCounts['all'] || '' },
         { id: 'favs', name: 'المفضلة', count: favsCount > 0 ? favsCount : '' },
         { id: 'continue', name: 'متابعة المشاهدة', count: contCount > 0 ? contCount : '' }
     ];
@@ -2354,10 +2361,18 @@ async function loadCategories(action, type) {
 
             const el = document.createElement('div');
             el.className = 'list-item';
-            const apiCount = cat.count ?? cat.stream_count ?? cat.series_count ?? cat.channel_count ?? '';
+            const apiCount = cat.count ?? cat.stream_count ?? cat.series_count ?? cat.channel_count ?? cat.num ?? cat.total ?? cat.total_items;
+            const displayCount = (apiCount !== undefined && apiCount !== null && apiCount !== '')
+                ? apiCount
+                : (cachedCounts[cat.category_id] ?? '');
+
+            if (apiCount !== undefined && apiCount !== null && apiCount !== '') {
+                cachedCounts[cat.category_id] = apiCount;
+            }
+
             el.innerHTML = `
                 <span class="cat-name">${cat.category_name}</span>
-                <span class="cat-count" data-cat-id="${cat.category_id}">${apiCount}</span>
+                <span class="cat-count" data-cat-id="${cat.category_id}">${displayCount}</span>
             `;
             el.onclick = () => {
                 sessionStorage.setItem('sp_active_cat_' + type, cat.category_id);
@@ -2373,6 +2388,10 @@ async function loadCategories(action, type) {
             };
             container.appendChild(el);
         });
+
+        try {
+            localStorage.setItem(countsCacheKey, JSON.stringify(cachedCounts));
+        } catch (e) { }
 
         fetchCategoryCounts(type, container.id);
 
@@ -2468,8 +2487,16 @@ async function fetchCategoryCounts(type, containerId) {
             }
         }
 
-        // تحديث عدادات باقتي المفضلة ومتابعة المشاهدة فورياً بناء على المحتوى الفعلي
+        // حفظ كافة العدادات المحسوبة في التخزين المحلي لظهور فوري دائم
         const effectiveType = (type === 'movies') ? 'vod' : type;
+        const countsCacheKey = 'sp_counts_' + (state.username || '') + '_' + effectiveType;
+        try {
+            const existing = JSON.parse(localStorage.getItem(countsCacheKey) || '{}');
+            const merged = Object.assign(existing, counts);
+            localStorage.setItem(countsCacheKey, JSON.stringify(merged));
+        } catch (e) { }
+
+        // تحديث عدادات باقتي المفضلة ومتابعة المشاهدة فورياً بناء على المحتوى الفعلي
         const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
         const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
 
@@ -2577,6 +2604,16 @@ async function loadStreams(action, categoryId, type) {
         if (activeCatBadge) {
             activeCatBadge.innerText = items.length;
         }
+
+        // حفظ عداد هذا القسم فوراً في التخزين المحلي ليبقى ظاهراً دوماً
+        try {
+            const effectiveType = (type === 'movies') ? 'vod' : type;
+            const cKey = 'sp_counts_' + (state.username || '') + '_' + effectiveType;
+            const curCounts = JSON.parse(localStorage.getItem(cKey) || '{}');
+            curCounts[categoryId] = items.length;
+            if (categoryId === 'all') curCounts['all'] = items.length;
+            localStorage.setItem(cKey, JSON.stringify(curCounts));
+        } catch (e) { }
 
         renderItems(currentItemsArray, type);
     } catch (e) {

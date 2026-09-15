@@ -746,8 +746,8 @@ body.desktop-device-mode .app-scaler {
 }
 
 .col-sidebar {
-    width: 480px;
-    min-width: 480px;
+    width: 330px;
+    min-width: 330px;
     background: rgba(10, 14, 22, 0.68);
     -webkit-backdrop-filter: blur(24px);
     backdrop-filter: blur(24px);
@@ -757,7 +757,8 @@ body.desktop-device-mode .app-scaler {
 }
 
 .col-list {
-    width: 485px;
+    width: 360px;
+    min-width: 360px;
     background: rgba(12, 16, 26, 0.68);
     -webkit-backdrop-filter: blur(24px);
     backdrop-filter: blur(24px);
@@ -931,7 +932,7 @@ body.desktop-device-mode .app-scaler {
 
 .player-wrapper {
     width: 100%;
-    max-width: 900px;
+    max-width: 1200px;
     height: auto;
     display: flex;
     flex-direction: column;
@@ -1056,9 +1057,9 @@ body.desktop-device-mode .app-scaler {
 
 .plyr-container {
     width: 100%;
-    max-width: 900px;
+    max-width: 1200px;
     aspect-ratio: 16 / 9;
-    max-height: calc(100vh - 170px);
+    max-height: calc(100vh - 150px);
     background: #000;
     border-radius: 16px;
     overflow: hidden;
@@ -1092,8 +1093,28 @@ body.desktop-device-mode .app-scaler {
 
 .vod-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px 14px;
+    width: 100%;
+}
+
+@media (max-width: 1024px) and (min-width: 768px) {
+    .vod-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .vod-grid {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 12px 10px;
+    }
+}
+
+body.desktop-device-mode .vod-grid,
+body.tv-device-mode .vod-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 16px 14px !important;
 }
 
 .vod-card {
@@ -4498,9 +4519,9 @@ body.tv-mode {
 .live-player-container-rel {
     position: relative;
     width: 100%;
-    max-width: 900px;
+    max-width: 1200px;
     aspect-ratio: 16 / 9;
-    max-height: calc(100vh - 170px);
+    max-height: calc(100vh - 150px);
     display: flex;
     flex-direction: column;
 }
