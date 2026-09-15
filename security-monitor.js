@@ -251,6 +251,12 @@
                     (log.title && (log.title.includes('فاشلة') || log.title.includes('غير مصرح') || log.title.includes('مشبو') || log.title.includes('حظر') || log.title.includes('خطر') || log.title.includes('خاطئ') || log.title.includes('كلمة سر') || log.title.includes('هاتف')))
                 ) && log.action !== 'admin_test_ping' && log.action !== 'admin_lift_lockout' && log.severity !== 'success';
                 if (!isSecThreat) return false;
+            } else if (currentFilterCategory === 'iptv') {
+                const isIptv = log.category === 'iptv' ||
+                    (log.action && (log.action.includes('iptv') || log.action.includes('player') || log.action.includes('server'))) ||
+                    (log.page && log.page.includes('player')) ||
+                    (log.title && (log.title.includes('سيرفر') || log.title.includes('المشغل') || log.title.includes('قناة') || log.title.includes('بث')));
+                if (!isIptv) return false;
             } else if (currentFilterCategory === 'admin') {
                 if (!log.user || (log.user.role !== 'admin' && log.user.uid !== ADMIN_TARGET_UID)) return false;
             } else if (currentFilterCategory === 'staff') {
@@ -374,6 +380,19 @@
                         ${detailsSummary && detailsSummary !== '—' ? `<div style="font-size:0.85rem; line-height:1.4; color:var(--text-secondary); word-break:break-word; margin-top:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,0.05);">${detailsSummary}</div>` : ''}
                     </td>
                     <td>
+                        ${(device.appPlatform === 'android_app' || (browserText && browserText.includes('أندرويد'))) ? `
+                            <div style="margin-bottom:5px;">
+                                <span style="background:rgba(34,197,94,0.18); border:1px solid #22c55e; color:#4ade80; padding:2px 7px; border-radius:6px; font-size:0.75rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow: 0 0 10px rgba(34,197,94,0.2);">
+                                    <i class="fab fa-android"></i> تطبيق أندرويد
+                                </span>
+                            </div>
+                        ` : (device.appPlatform === 'windows_app' || (browserText && browserText.includes('ويندوز')) || (device.type && device.type.includes('برنامج ALmEz0'))) ? `
+                            <div style="margin-bottom:5px;">
+                                <span style="background:rgba(56,189,248,0.18); border:1px solid #0288d1; color:#38bdf8; padding:2px 7px; border-radius:6px; font-size:0.75rem; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow: 0 0 10px rgba(56,189,248,0.2);">
+                                    <i class="fab fa-windows"></i> برنامج كمبيوتر
+                                </span>
+                            </div>
+                        ` : ''}
                         <div class="device-pill" style="margin-bottom: 4px; flex-wrap: wrap; word-break: break-word; max-width: 100%;">
                             <i class="fas ${deviceTypeIcon}"></i>
                             <span>${escapeHtml(osText)}</span>
@@ -488,6 +507,24 @@
         }
         if (action === 'demo_account_request') {
             return '<span class="severity-badge sev-info" style="border-color:#2196f3; background:rgba(33,150,243,0.2); color:#40c4ff;"><i class="fas fa-vial"></i> تجريبي</span>';
+        }
+        if (action === 'iptv_login_success') {
+            return '<span class="severity-badge sev-success" style="border-color:#4caf50; background:rgba(76,175,80,0.25); color:#69f0ae;"><i class="fas fa-tv"></i> دخول سيرفر</span>';
+        }
+        if (action === 'player_server_connected') {
+            return '<span class="severity-badge sev-info" style="border-color:#7c4dff; background:rgba(124,77,255,0.25); color:#b388ff;"><i class="fas fa-satellite-dish"></i> ربط سيرفر</span>';
+        }
+        if (action === 'player_server_failed' || action === 'iptv_login_failed') {
+            return '<span class="severity-badge sev-danger"><i class="fas fa-times-circle"></i> خطأ سيرفر</span>';
+        }
+        if (action === 'player_server_logout') {
+            return '<span class="severity-badge sev-info" style="border-color:#9e9e9e; background:rgba(158,158,158,0.2); color:#bdbdbd;"><i class="fas fa-sign-out-alt"></i> خروج سيرفر</span>';
+        }
+        if (action === 'app_download') {
+            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-download"></i> تنزيل تطبيق</span>';
+        }
+        if (action === 'app_inapp_update') {
+            return '<span class="severity-badge sev-info" style="border-color:#ff9100; background:rgba(255,145,0,0.25); color:#ffab40;"><i class="fas fa-sync-alt"></i> تحديث تطبيق</span>';
         }
         if (severity === 'success' || action === 'login_success' || action === 'registration' || action === 'staff_sale') {
             return '<span class="severity-badge sev-success"><i class="fas fa-check-circle"></i> دخول</span>';

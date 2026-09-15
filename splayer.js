@@ -796,6 +796,15 @@ async function handleServerCode() {
     if (!hostUrl) {
         btn.disabled = false;
         btn.innerHTML = 'الاتصال بالسيرفر';
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: 'player_server_failed',
+                category: 'security',
+                severity: 'danger',
+                title: '⚠️ محاولة إدخال كود سيرفر غير صالح في المشغل',
+                details: { attemptedCode: code }
+            });
+        }
         return showAppAlert('كود السيرفر غير صحيح، يرجى التأكد من الكود والمحاولة مجدداً.', 'error');
     }
 
@@ -826,6 +835,16 @@ async function handleServerCode() {
     document.getElementById('auth2Logo').src = sInfo.logo;
 
     showScreen('auth2-screen');
+
+    if (typeof logActivity === 'function') {
+        logActivity({
+            action: 'player_server_connected',
+            category: 'iptv',
+            severity: 'info',
+            title: `دخول لشاشة بيانات: ${sInfo.name}`,
+            details: { serverCode: code, serverName: sInfo.name }
+        });
+    }
 
     btn.disabled = false;
     btn.innerHTML = 'الاتصال بالسيرفر';
@@ -923,7 +942,26 @@ async function handleLogin() {
 
             // الانتقال للوحة التحكم الرئيسية (dashboard-screen)
             showScreen('dashboard-screen');
+
+            if (typeof logActivity === 'function') {
+                logActivity({
+                    action: 'iptv_login_success',
+                    category: 'iptv',
+                    severity: 'success',
+                    title: `دخول ناجح لسيرفر: ${sInfo.name}`,
+                    details: { server: sInfo.name, username: user, expDate: expDateText }
+                });
+            }
         } else {
+            if (typeof logActivity === 'function') {
+                logActivity({
+                    action: 'iptv_login_failed',
+                    category: 'security',
+                    severity: 'danger',
+                    title: `⚠️ محاولة دخول فاشلة لسيرفر: ${sInfo.name || 'سيرفر'}`,
+                    details: { server: sInfo.name, username: user }
+                });
+            }
             showAppAlert('بيانات الدخول غير صحيحة، يرجى التحقق من اسم المستخدم وكلمة المرور', 'error');
         }
     } catch (e) {
@@ -1653,6 +1691,15 @@ function logout() {
         showScreen('auth1-screen');
         if (typeof showToast === 'function') {
             showToast('تم تسجيل الخروج من السيرفر بنجاح', 'success');
+        }
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: 'player_server_logout',
+                category: 'iptv',
+                severity: 'info',
+                title: 'تسجيل خروج من سيرفر مشغل الميزو',
+                details: { activeServer: (state.serverInfo && state.serverInfo.name) || 'سيرفر' }
+            });
         }
     };
 

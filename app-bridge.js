@@ -357,7 +357,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.4';
+    const CURRENT_APP_VERSION = '1.0.5';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -551,6 +551,16 @@
             progressBox.classList.remove('hidden');
             setProgress(0, 0, 0);
             progressStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تنزيل التحديث داخلياً...';
+
+            if (typeof logActivity === 'function') {
+                logActivity({
+                    action: 'app_inapp_update',
+                    category: 'visitor',
+                    severity: 'info',
+                    title: `بدء تحديث التطبيق الداخلي إلى v${info.version}`,
+                    details: { currentVersion: CURRENT_APP_VERSION, targetVersion: info.version }
+                });
+            }
 
             // 1. برمجيات الكمبيوتر (Windows Electron)
             if (isElectron && window.electronAPI && typeof window.electronAPI.startUpdateDownload === 'function') {

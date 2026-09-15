@@ -3827,6 +3827,16 @@ async function handleStaffRoleChange(newRole) {
         setTimeout(() => {
             if (link.parentNode) link.parentNode.removeChild(link);
         }, 5000);
+
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: 'app_download',
+                category: 'visitor',
+                severity: 'success',
+                title: `تنزيل تطبيق: ${filename}`,
+                details: { filename: filename, url: url }
+            });
+        }
     }
 
     // دالة عرض النافذة المنبثقة الإرشادية لأجهزة آبل أو المتصفحات غير الداعمة

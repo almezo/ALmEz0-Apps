@@ -1295,14 +1295,32 @@ function getClientDeviceInfo() {
         else if (/linux/i.test(ua)) os = 'Linux';
 
         let browser = 'غير معروف';
-        if (/edg/i.test(ua)) browser = 'Microsoft Edge';
-        else if (/chrome|crios/i.test(ua) && !/opr|opera/i.test(ua)) browser = 'Chrome';
-        else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
-        else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
-        else if (/opr|opera/i.test(ua)) browser = 'Opera';
+        let appPlatform = 'web'; // 'android_app' | 'windows_app' | 'web'
+
+        // فحص هل العميل داخل تطبيق أندرويد المثبت أو برنامج الكمبيوتر
+        const isAndroidApp = !!(window.AndroidNativeBridge || window.Capacitor || /Capacitor|ALmEz0-Android/i.test(ua));
+        const isWindowsApp = !!(window.AlMeZ0App || window.isElectron || /Electron|ALmEz0-PC/i.test(ua));
+
+        if (isAndroidApp) {
+            appPlatform = 'android_app';
+            browser = 'تطبيق أندرويد (ALmEz0 App)';
+        } else if (isWindowsApp) {
+            appPlatform = 'windows_app';
+            browser = 'برنامج كمبيوتر (ALmEz0 PC)';
+        } else {
+            if (/edg/i.test(ua)) browser = 'Microsoft Edge';
+            else if (/chrome|crios/i.test(ua) && !/opr|opera/i.test(ua)) browser = 'Chrome';
+            else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
+            else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+            else if (/opr|opera/i.test(ua)) browser = 'Opera';
+        }
 
         let deviceType = 'كمبيوتر (Desktop)';
-        if (/mobile/i.test(ua) || /android/i.test(ua) || /iphone/i.test(ua)) {
+        if (isAndroidApp) {
+            deviceType = /tv|smart-tv|box/i.test(ua) ? 'شاشة / TV Box' : 'هاتف (تطبيق أندرويد)';
+        } else if (isWindowsApp) {
+            deviceType = 'كمبيوتر (برنامج ALmEz0)';
+        } else if (/mobile/i.test(ua) || /android/i.test(ua) || /iphone/i.test(ua)) {
             deviceType = 'هاتف (Mobile)';
         } else if (/ipad|tablet/i.test(ua)) {
             deviceType = 'جهاز لوحي (Tablet)';
@@ -1314,6 +1332,7 @@ function getClientDeviceInfo() {
             os: os,
             browser: browser,
             type: deviceType,
+            appPlatform: appPlatform,
             screen: (window.screen ? `${window.screen.width}x${window.screen.height}` : 'unknown'),
             visitorId: getVisitorId(),
             hardwareFingerprint: getHardwareFingerprint(),
@@ -1328,6 +1347,7 @@ function getClientDeviceInfo() {
             os: 'غير معروف',
             browser: 'غير معروف',
             type: 'غير معروف',
+            appPlatform: 'web',
             visitorId: getVisitorId(),
             hardwareFingerprint: getHardwareFingerprint(),
             publicIp: 'غير معروف'
