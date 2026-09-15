@@ -8590,7 +8590,7 @@ body.platform-electron {
 .intel-table-responsive {
     width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -8639,7 +8639,7 @@ body.platform-electron {
         display: flex !important;
         gap: 6px !important;
         overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior-x: contain !important;
     }
     .intel-stat-card {
         flex: 1 0 auto !important;
@@ -8700,7 +8700,7 @@ body.platform-electron {
     .users-intel-body {
         padding: 6px 8px 20px 8px !important;
         overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior-x: contain !important;
     }
     .intel-table {
         min-width: 580px !important;
