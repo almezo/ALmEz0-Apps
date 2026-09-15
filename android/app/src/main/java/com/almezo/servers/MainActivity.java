@@ -122,6 +122,22 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public boolean isTvDevice() {
+            try {
+                android.app.UiModeManager uiModeManager = (android.app.UiModeManager) getSystemService(UI_MODE_SERVICE);
+                if (uiModeManager != null && uiModeManager.getCurrentModeType() == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) {
+                    return true;
+                }
+                android.content.pm.PackageManager pm = getPackageManager();
+                if (pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                        || pm.hasSystemFeature("android.hardware.type.television")) {
+                    return true;
+                }
+            } catch (Throwable ignored) {}
+            return false;
+        }
+
+        @JavascriptInterface
         public void playNativeVideo(String videoUrl, String title, String posterUrl) {
             playNativeVideo(videoUrl, title, posterUrl, false);
         }

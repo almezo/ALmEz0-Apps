@@ -72,6 +72,40 @@ function applyAutoScaling() {
     let windowWidth = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || screen.width;
     let windowHeight = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || screen.height;
 
+    const isTvMode = document.body.classList.contains('tv-device-mode');
+    const isDesktopMode = document.body.classList.contains('desktop-device-mode');
+
+    // On PC & Android TV: Full-Screen 100% Edge-to-Edge with NO letterboxing or margins
+    if (isTvMode || isDesktopMode) {
+        scaler.style.transform = 'none';
+        scaler.style.transformOrigin = 'initial';
+        scaler.style.top = '0';
+        scaler.style.left = '0';
+        scaler.style.width = '100vw';
+        scaler.style.height = '100vh';
+        scaler.style.minWidth = '100vw';
+        scaler.style.minHeight = '100vh';
+        scaler.style.maxWidth = '100vw';
+        scaler.style.maxHeight = '100vh';
+        scaler.style.position = 'fixed';
+        scaler.style.boxShadow = 'none';
+        scaler.style.borderRadius = '0';
+        return;
+    }
+
+    // Touch Mode (Smartphones & Tablets):
+    // Preserves the 1650x750 virtual canvas scaling confirmed excellent on phones & tablets
+    scaler.style.position = 'absolute';
+    scaler.style.top = '50%';
+    scaler.style.left = '50%';
+    scaler.style.width = '1650px';
+    scaler.style.height = '750px';
+    scaler.style.minWidth = '1650px';
+    scaler.style.minHeight = '750px';
+    scaler.style.maxWidth = '1650px';
+    scaler.style.maxHeight = '750px';
+    scaler.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.85)';
+
     const isLandscape = windowWidth > windowHeight || (window.screen && window.screen.orientation && String(window.screen.orientation.type).includes('landscape'));
 
     let effectiveW = windowWidth;
@@ -94,23 +128,8 @@ function applyAutoScaling() {
         stableLandscapeHeight = 0;
     }
 
-    const isTvMode = document.body.classList.contains('tv-device-mode');
-    const isDesktopMode = document.body.classList.contains('desktop-device-mode');
-    const ratio = effectiveW / Math.max(1, effectiveH);
-
-    // Adaptive Canvas Base:
-    // For 16:9 Standard TV / PC Monitor (ratio 1.55 to 1.85 or TV/Desktop mode), use 1920x1080 to fill full screen without letterboxing!
-    // For wide modern smartphones (ratio >= 1.86), preserve 1650x750.
-    let baseWidth = 1650;
-    let baseHeight = 750;
-
-    if (isTvMode || isDesktopMode || (ratio >= 1.55 && ratio <= 1.85)) {
-        baseWidth = 1920;
-        baseHeight = 1080;
-    } else if (ratio < 1.55) {
-        baseWidth = 1650;
-        baseHeight = 850;
-    }
+    const baseWidth = 1650;
+    const baseHeight = 750;
 
     const scaleX = effectiveW / baseWidth;
     const scaleY = effectiveH / baseHeight;
@@ -166,15 +185,19 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 }
 
 // =========================================================
-// DEVICE MODE ENGINE (TV & Remote, Mobile Touch, PC Desktop)
+// DEVICE PROFILE ENGINE (TV Box / Receiver vs Phone vs PC)
 // =========================================================
 function initDeviceMode() {
     let mode = localStorage.getItem('mizo_device_mode');
-    if (!mode) {
-        const ua = (navigator.userAgent || '').toLowerCase();
-        const isTvUA = ua.includes('tv') || ua.includes('box') || ua.includes('smart') || ua.includes('large') || ua.includes('amlogic') || ua.includes('rockchip') || ua.includes('allwinner');
-        const isDesktop = !('ontouchstart' in window) && window.innerWidth >= 1024 && !ua.includes('android');
-        if (isTvUA) {
+    const ua = (navigator.userAgent || '').toLowerCase();
+    const hasNativeTv = window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice();
+    const isAndroidNoTouch = ua.includes('android') && (navigator.maxTouchPoints === 0 || (!('ontouchstart' in window) && !('msMaxTouchPoints' in navigator)));
+    const isTv = hasNativeTv || isAndroidNoTouch || ua.includes('tv') || ua.includes('box') || ua.includes('smart') || ua.includes('large') || ua.includes('amlogic') || ua.includes('rockchip') || ua.includes('allwinner');
+    const isDesktop = !('ontouchstart' in window) && window.innerWidth >= 1024 && !ua.includes('android');
+
+    // Auto-detect or upgrade if default/legacy detection was wrong
+    if (!mode || (!localStorage.getItem('mizo_device_mode_manual') && mode === 'touch' && (isTv || isDesktop))) {
+        if (isTv) {
             mode = 'tv';
         } else if (isDesktop) {
             mode = 'desktop';
@@ -224,6 +247,7 @@ function applyDeviceMode(mode, showToast = false) {
 
 function selectDeviceMode(mode) {
     localStorage.setItem('mizo_device_mode', mode);
+    localStorage.setItem('mizo_device_mode_manual', 'true');
     applyDeviceMode(mode, true);
     closeDeviceModeModal();
 }

@@ -1,9 +1,9 @@
 {
-  "version": "1.0.12",
-  "versionCode": 13,
+  "version": "1.0.13",
+  "versionCode": 14,
   "releaseDate": "2026-09-15",
-  "title": "تحسين توافقية مؤثرات المتصفحات في المشغل v1.0.12 🚀",
-  "notes": "إضافة بادئة -webkit-backdrop-filter لضمان التوافق التام مع متصفحات Safari وiOS.",
+  "title": "ملء الشاشة تلقائياً 100% للكمبيوتر وشاشات التلفزيون والأندرويد بوكس v1.0.13 🖥️📺",
+  "notes": "إلغاء الحواف الفارغة وجعل واجهة المشغل تمتد 100% بعرض وارتفاع الشاشة بالكامل للكمبيوتر وشاشات التلفزيون مع الحفاظ على مقاييس الهواتف والتابلت الممتازة.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
