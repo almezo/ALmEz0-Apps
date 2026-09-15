@@ -8251,3 +8251,356 @@ body.platform-electron {
         padding: 12px 14px !important;
     }
 }
+
+/* ========================================================================= */
+/* زر ونافذة مركز بيانات العملاء والمشغل (Users & Player Intelligence) */
+/* ========================================================================= */
+.floating-btn.users-intel-fab,
+#adminUsersIntelBtn {
+    background: linear-gradient(135deg, #a855f7, #7c3aed, #4c1d95) !important;
+    border: 1.5px solid rgba(216, 180, 254, 0.6) !important;
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.55), 0 0 14px rgba(168, 85, 247, 0.35) !important;
+}
+
+.floating-btn.users-intel-fab:hover,
+#adminUsersIntelBtn:hover {
+    background: linear-gradient(135deg, #c084fc, #9333ea, #6b21a8) !important;
+    box-shadow: 0 6px 24px rgba(147, 51, 234, 0.8), 0 0 20px rgba(192, 132, 252, 0.6) !important;
+}
+
+.users-intel-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(8, 12, 22, 0.88);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fadeInModal 0.25s ease-out;
+}
+
+.users-intel-card {
+    background: #0d121d;
+    border: 1px solid rgba(124, 58, 237, 0.35);
+    border-radius: 20px;
+    max-width: 1020px;
+    width: 100%;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(124, 58, 237, 0.2);
+    overflow: hidden;
+}
+
+.users-intel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.12), transparent);
+}
+
+.users-intel-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.users-intel-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(124, 58, 237, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c084fc;
+    font-size: 20px;
+}
+
+.users-intel-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0;
+}
+
+.users-intel-sub {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin: 2px 0 0 0;
+}
+
+.users-intel-close-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.users-intel-close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #f87171;
+}
+
+.users-intel-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 16px 24px;
+    background: rgba(0, 0, 0, 0.25);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.intel-stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.intel-stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.intel-stat-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+.intel-stat-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+.intel-stat-blue { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+.intel-stat-info h5 {
+    margin: 0 0 2px 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.intel-stat-value {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+.users-intel-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 12px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(13, 18, 29, 0.95);
+}
+
+.intel-tab-btn {
+    padding: 8px 18px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.intel-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.intel-tab-btn.active {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.35), rgba(76, 29, 149, 0.45));
+    border-color: #8b5cf6;
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+}
+
+.users-intel-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 24px;
+    flex-wrap: wrap;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.intel-search-box {
+    flex: 1;
+    min-width: 240px;
+    position: relative;
+}
+
+.intel-search-box input {
+    width: 100%;
+    padding: 9px 38px 9px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.intel-search-box input:focus {
+    border-color: #a855f7;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+}
+
+.intel-search-box i {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+}
+
+.intel-btn-export {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid #22c55e;
+    color: #4ade80;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.intel-btn-export:hover {
+    background: #22c55e;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+}
+
+.users-intel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 24px 20px;
+}
+
+.intel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    color: #e2e8f0;
+}
+
+.intel-table th {
+    background: rgba(0, 0, 0, 0.35);
+    color: #94a3b8;
+    font-weight: 700;
+    text-align: right;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.intel-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: middle;
+}
+
+.intel-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.intel-btn-wa {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid #22c55e;
+    color: #4ade80;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.intel-btn-wa:hover {
+    background: #22c55e;
+    color: #ffffff;
+}
+
+.intel-btn-copy {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.intel-btn-copy:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+}
+
+.intel-role-badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.intel-role-customer { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+.intel-role-staff { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+.intel-role-admin { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+.intel-role-blocked { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+@media (max-width: 768px) {
+    .users-intel-card {
+        max-height: 96vh;
+        border-radius: 14px;
+    }
+    .users-intel-header {
+        padding: 14px 16px;
+    }
+    .users-intel-stats-grid {
+        padding: 10px 14px;
+        grid-template-columns: 1fr;
+    }
+    .users-intel-tabs, .users-intel-toolbar, .users-intel-body {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+}

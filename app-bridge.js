@@ -357,7 +357,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.5';
+    const CURRENT_APP_VERSION = '1.0.6';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -425,8 +425,22 @@
                 return; // التطبيق على أحدث إصدار
             }
 
-            // عرض نافذة التحديث الإجباري في منتصف الشاشة
-            showInAppUpdateBanner(versionData);
+            // التحقق مما إذا كان التحديث إلزامياً أو اختيارياً لتفادي إزعاج العملاء
+            const isMandatory = !!(
+                (versionData.minSupportedVersion && compareVersions(versionData.minSupportedVersion, installedVersion) > 0) ||
+                versionData.mandatory === true
+            );
+
+            // إذا كان التحديث غير إلزامي واختار المستخدم تأجيله في هذه الجلسة، لا نزعجه مجدداً
+            if (!isMandatory) {
+                try {
+                    const dismissed = sessionStorage.getItem('almezo_dismissed_update_' + latestVer);
+                    if (dismissed) return;
+                } catch (e) { }
+            }
+
+            // عرض نافذة التحديث في منتصف الشاشة
+            showInAppUpdateBanner(versionData, isMandatory);
         } catch (err) {
             console.warn('In-app update check failed:', err);
         }
@@ -444,9 +458,10 @@
         } catch (e) { }
     }
 
-    function showInAppUpdateBanner(info) {
+    function showInAppUpdateBanner(info, mandatoryFlag = false) {
         if (document.getElementById('almezo-inapp-update-overlay')) return;
 
+        const isMandatory = !!mandatoryFlag;
         const ua = navigator.userAgent || navigator.vendor || window.opera || '';
         const isUserAndroid = isAndroid || /android/i.test(ua);
         const downloadUrl = (isUserAndroid)
@@ -458,16 +473,37 @@
         overlay.className = 'inapp-update-overlay';
         overlay.setAttribute('dir', 'rtl');
 
+        const badgeHtml = isMandatory
+            ? `<span class="inapp-center-badge"><i class="fas fa-shield-alt"></i> تحديث إلزامي v${info.version}</span>`
+            : `<span class="inapp-center-badge" style="background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.4); color: #4ade80;"><i class="fas fa-sparkles"></i> تحديث جديد متاح v${info.version}</span>`;
+
+        const titleText = isMandatory
+            ? 'يتوفر إصدار جديد ومطلوب للبرنامج'
+            : 'يتوفر إصدار جديد للبرنامج';
+
+        const descText = isMandatory
+            ? `يجب تثبيت الإصدار الجديد <strong>v${info.version}</strong> للمتابعة، لضمان استقرار المشغل وتحديث السيرفرات وجودة البث.`
+            : `يتوفر الإصدار الجديد <strong>v${info.version}</strong> متضمناً تحسينات وميزات جديدة. يمكنك التحديث الآن أو الاستمرار في الاستخدام والتحديث لاحقاً.`;
+
+        const closeBtnHtml = !isMandatory
+            ? `<button type="button" class="inapp-close-btn" id="inappBtnClose" title="إغلاق والتحديث لاحقاً" style="position: absolute; top: 16px; left: 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #94a3b8; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;"><i class="fas fa-times"></i></button>`
+            : '';
+
+        const laterBtnHtml = !isMandatory
+            ? `<button type="button" class="inapp-btn-later" id="inappBtnLater" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-family: inherit; font-size: 0.92rem; cursor: pointer; transition: all 0.2s; margin-top: 10px; width: 100%;"><i class="fas fa-clock"></i> المتابعة والتحديث لاحقاً</button>`
+            : '';
+
         overlay.innerHTML = `
-            <div class="inapp-center-card">
+            <div class="inapp-center-card" style="position: relative;">
+                ${closeBtnHtml}
                 <div class="inapp-center-icon-glow">
                     <div class="inapp-pulse-ring"></div>
                     <i class="fas fa-arrow-circle-down inapp-main-icon"></i>
                 </div>
                 <div class="inapp-center-header">
-                    <span class="inapp-center-badge"><i class="fas fa-shield-alt"></i> تحديث إلزامي v${info.version}</span>
-                    <h2 class="inapp-center-title">يتوفر إصدار جديد ومطلوب للبرنامج</h2>
-                    <p class="inapp-center-desc">يجب تثبيت الإصدار الجديد <strong>v${info.version}</strong> للمتابعة، لضمان استقرار المشغل وتحديث السيرفرات وجودة البث.</p>
+                    ${badgeHtml}
+                    <h2 class="inapp-center-title">${titleText}</h2>
+                    <p class="inapp-center-desc">${descText}</p>
                 </div>
                 ${info.notes ? `
                 <div class="inapp-center-notes">
@@ -479,6 +515,7 @@
                     <button type="button" class="inapp-btn-start-update" id="inappBtnStartUpdate">
                         <i class="fas fa-download"></i> تنزيل وتثبيت التحديث الآن
                     </button>
+                    ${laterBtnHtml}
 
                     <div class="inapp-progress-box hidden" id="inappProgressBox">
                         <div class="inapp-progress-top">
@@ -510,14 +547,35 @@
         document.body.appendChild(overlay);
         injectInAppUpdateStyles();
 
-        // منع أي ضغطات مفاتيح لإغلاق الصندوق (Escape, Backspace, etc.)
-        const blockKeys = (e) => {
-            if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 27) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+        const btnLater = overlay.querySelector('#inappBtnLater');
+        const btnClose = overlay.querySelector('#inappBtnClose');
+        const dismissUpdate = () => {
+            try { sessionStorage.setItem('almezo_dismissed_update_' + info.version, '1'); } catch (e) { }
+            overlay.remove();
         };
-        window.addEventListener('keydown', blockKeys, true);
+
+        if (btnLater) btnLater.addEventListener('click', dismissUpdate);
+        if (btnClose) btnClose.addEventListener('click', dismissUpdate);
+
+        if (isMandatory) {
+            // منع أي ضغطات مفاتيح لإغلاق الصندوق في التحديث الإلزامي (Escape, Backspace, etc.)
+            const blockKeys = (e) => {
+                if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 27) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            };
+            window.addEventListener('keydown', blockKeys, true);
+        } else {
+            // في التحديث الاختياري: زر Escape يغلق النافذة بسلاسة
+            const onEsc = (e) => {
+                if (e.key === 'Escape' || e.keyCode === 27) {
+                    dismissUpdate();
+                    window.removeEventListener('keydown', onEsc, true);
+                }
+            };
+            window.addEventListener('keydown', onEsc, true);
+        }
 
         const btnStart = overlay.querySelector('#inappBtnStartUpdate');
         const progressBox = overlay.querySelector('#inappProgressBox');

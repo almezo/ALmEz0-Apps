@@ -266,6 +266,21 @@ document.addEventListener('DOMContentLoaded', () => {
             updateActiveServerBanner();
         }
 
+        // تسجيل جلسة المشغل النشطة للرادار الأمني ومركز الذكاء (مرة واحدة لكل جلسة)
+        if (!sessionStorage.getItem('sp_session_logged') && typeof logActivity === 'function') {
+            sessionStorage.setItem('sp_session_logged', '1');
+            try {
+                const srvInfo = JSON.parse(localStorage.getItem('sp_server_info') || sessionStorage.getItem('sp_server_info') || '{}');
+                logActivity({
+                    action: 'iptv_player_session',
+                    category: 'iptv',
+                    severity: 'info',
+                    title: `جلسة نشطة في مشغل الميزو: ${state.username}`,
+                    details: { server: srvInfo.name || state.serverCode || 'سيرفر IPTV', username: state.username }
+                });
+            } catch (e) { }
+        }
+
         // إذا كان مسجلاً مسبقاً، اذهب مباشرة للرئيسية
         showScreen('dashboard-screen');
     } else {

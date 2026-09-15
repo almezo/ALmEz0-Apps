@@ -116,6 +116,14 @@ function checkFABMode() {
             purchasesFab.title = 'لوحة المشتريات والمخزون';
             purchasesFab.onclick = function () { window.location.href = 'purchases.html'; };
 
+            // 6. زر مركز ذكاء العملاء ومستخدمي المشغل (يسار - فوق المشتريات والمبيعات)
+            const usersIntelFab = document.createElement('button');
+            usersIntelFab.id = 'adminUsersIntelBtn';
+            usersIntelFab.className = 'floating-btn users-intel-fab';
+            usersIntelFab.innerHTML = '<i class="fas fa-users-gear"></i>';
+            usersIntelFab.title = 'قاعدة بيانات العملاء ومستخدمي المشغل';
+            usersIntelFab.onclick = function () { openUsersIntelModal(); };
+
             // إضافة الأزرار للحاويات المخصصة لها
             fabContainerRight.appendChild(broadcastFab);
             fabContainerRight.appendChild(editFab);
@@ -123,6 +131,7 @@ function checkFABMode() {
 
             fabContainerLeft.appendChild(reportsFab);
             fabContainerLeft.appendChild(purchasesFab);
+            fabContainerLeft.appendChild(usersIntelFab);
 
         } else if (user.role === 'staff') {
             // زر المندوبين (يسار)
@@ -477,6 +486,654 @@ window.deleteBroadcastNotification = async function (docId) {
         }
     }
 };
+
+// =========================================================
+// USERS & IPTV PLAYER INTELLIGENCE CENTER (مركز ذكاء العملاء والمشغل)
+// =========================================================
+let usersIntelModalOpen = false;
+let usersIntelCustomersCache = [];
+let usersIntelIptvLogsCache = [];
+let usersIntelActiveTab = 'customers'; // 'customers' | 'player'
+let usersIntelCustomersUnsub = null;
+let usersIntelLogsUnsub = null;
+
+function safeIntelEsc(s) {
+    if (typeof window.escapeHtml === 'function') return window.escapeHtml(s);
+    return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+window.openUsersIntelModal = function () {
+    let overlay = document.getElementById('usersIntelModalOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'usersIntelModalOverlay';
+        overlay.className = 'users-intel-overlay';
+        overlay.setAttribute('dir', 'rtl');
+        overlay.innerHTML = `
+            <div class="users-intel-card">
+                <div class="users-intel-header">
+                    <div class="users-intel-title-group">
+                        <div class="users-intel-icon-box">
+                            <i class="fas fa-users-gear"></i>
+                        </div>
+                        <div>
+                            <h3 class="users-intel-title">مركز ذكاء العملاء ومستخدمي المشغل</h3>
+                            <p class="users-intel-sub">قاعدة بيانات العملاء المباشرة وسجلات مستخدمي سيرفرات IPTV</p>
+                        </div>
+                    </div>
+                    <button type="button" class="users-intel-close-btn" id="usersIntelCloseBtn" title="إغلاق">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="users-intel-stats-grid" id="usersIntelStatsGrid">
+                    <!-- كروت الإحصائيات الحية ديناميكياً -->
+                </div>
+
+                <div class="users-intel-tabs">
+                    <button type="button" class="intel-tab-btn active" id="tabBtnCustomers" onclick="switchUsersIntelTab('customers')">
+                        <i class="fas fa-user-group"></i> قاعدة بيانات العملاء (<span id="intelCountCustomers">0</span>)
+                    </button>
+                    <button type="button" class="intel-tab-btn" id="tabBtnPlayer" onclick="switchUsersIntelTab('player')">
+                        <i class="fas fa-tv"></i> مستخدمو المشغل وسيرفرات IPTV (<span id="intelCountPlayer">0</span>)
+                    </button>
+                </div>
+
+                <div class="users-intel-toolbar">
+                    <div class="intel-search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="intelSearchInput" placeholder="بحث بالاسم، رقم الهاتف، المدينة، أو المعرف...">
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <select id="intelRoleFilter" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color:#fff; border-radius:10px; padding:9px 14px; font-family:inherit; outline:none; font-size:0.85rem; cursor:pointer;">
+                            <option value="all">كل الرتب</option>
+                            <option value="customer">عملاء فقط</option>
+                            <option value="staff">مناديب فقط</option>
+                            <option value="admin">مدراء فقط</option>
+                            <option value="blocked">محظورين فقط</option>
+                        </select>
+                        <button type="button" class="intel-btn-export" id="intelExportBtn">
+                            <i class="fas fa-file-excel"></i> تصدير البيانات (CSV)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="users-intel-body" id="usersIntelBody">
+                    <div style="text-align:center; padding: 40px 20px; color:#94a3b8;">
+                        <i class="fas fa-spinner fa-spin" style="font-size:28px; color:#a855f7; margin-bottom:12px;"></i>
+                        <p>جاري جلب البيانات المباشرة من السحابة...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        document.getElementById('usersIntelCloseBtn').onclick = closeUsersIntelModal;
+        overlay.onclick = function (e) {
+            if (e.target === overlay) closeUsersIntelModal();
+        };
+
+        document.getElementById('intelSearchInput').addEventListener('input', () => {
+            renderUsersIntelContent();
+        });
+
+        document.getElementById('intelRoleFilter').addEventListener('change', () => {
+            renderUsersIntelContent();
+        });
+
+        document.getElementById('intelExportBtn').onclick = exportUsersIntelData;
+
+        // دعم زر Escape للإغلاق
+        window.addEventListener('keydown', (e) => {
+            if (usersIntelModalOpen && (e.key === 'Escape' || e.keyCode === 27)) {
+                closeUsersIntelModal();
+            }
+        });
+    }
+
+    overlay.style.display = 'flex';
+    usersIntelModalOpen = true;
+
+    // البدء في جلب البيانات الحية
+    subscribeUsersIntelData();
+};
+
+window.closeUsersIntelModal = function () {
+    const overlay = document.getElementById('usersIntelModalOverlay');
+    if (overlay) overlay.style.display = 'none';
+    usersIntelModalOpen = false;
+};
+
+window.switchUsersIntelTab = function (tab) {
+    usersIntelActiveTab = tab;
+    const btnCust = document.getElementById('tabBtnCustomers');
+    const btnPlay = document.getElementById('tabBtnPlayer');
+    const filterRole = document.getElementById('intelRoleFilter');
+    const searchInput = document.getElementById('intelSearchInput');
+
+    if (tab === 'customers') {
+        btnCust?.classList.add('active');
+        btnPlay?.classList.remove('active');
+        if (filterRole) filterRole.style.display = 'inline-block';
+        if (searchInput) searchInput.placeholder = 'بحث بالاسم، رقم الهاتف، المدينة، أو المعرف...';
+    } else {
+        btnCust?.classList.remove('active');
+        btnPlay?.classList.add('active');
+        if (filterRole) filterRole.style.display = 'none';
+        if (searchInput) searchInput.placeholder = 'بحث باسم المستخدم بالسيرفر، اسم السيرفر، الجهاز، أو الـ IP...';
+    }
+    renderUsersIntelContent();
+};
+
+function subscribeUsersIntelData() {
+    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+    if (!firestore) return;
+
+    // 1. الاستماع الحي لبيانات العملاء في مجموعة customers
+    if (!usersIntelCustomersUnsub) {
+        try {
+            usersIntelCustomersUnsub = firestore.collection('customers').onSnapshot((snapshot) => {
+                const list = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    list.push({ id: doc.id, ...data });
+                });
+                usersIntelCustomersCache = list;
+                const countEl = document.getElementById('intelCountCustomers');
+                if (countEl) countEl.innerText = list.length;
+                renderUsersIntelContent();
+            }, (err) => {
+                console.warn('Customers listener notice:', err);
+            });
+        } catch (e) {
+            console.warn('Error subscribing to customers:', e);
+        }
+    }
+
+    // 2. جلب سجلات المشغل والسيرفرات من activity_logs
+    if (!usersIntelLogsUnsub) {
+        try {
+            usersIntelLogsUnsub = firestore.collection('activity_logs')
+                .where('category', '==', 'iptv')
+                .limit(300)
+                .onSnapshot((snapshot) => {
+                    const list = [];
+                    snapshot.forEach((doc) => {
+                        list.push({ id: doc.id, ...doc.data() });
+                    });
+                    list.sort((a, b) => {
+                        const tA = (a.createdAt || (a.timestamp && a.timestamp.seconds ? a.timestamp.seconds * 1000 : 0));
+                        const tB = (b.createdAt || (b.timestamp && b.timestamp.seconds ? b.timestamp.seconds * 1000 : 0));
+                        return tB - tA;
+                    });
+                    usersIntelIptvLogsCache = list;
+                    const countEl = document.getElementById('intelCountPlayer');
+                    if (countEl) countEl.innerText = list.length;
+                    if (usersIntelActiveTab === 'player') {
+                        renderUsersIntelContent();
+                    }
+                }, (err) => {
+                    console.warn('IPTV logs query fallback:', err);
+                    // في حال عدم وجود فهرس مركب، نجلب السجلات العامة ونفلترها
+                    firestore.collection('activity_logs').limit(250).get().then(snap => {
+                        const list = [];
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            if (d.category === 'iptv' || (d.action && d.action.includes('iptv')) || (d.page && d.page.includes('player'))) {
+                                list.push({ id: doc.id, ...d });
+                            }
+                        });
+                        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                        usersIntelIptvLogsCache = list;
+                        const countEl = document.getElementById('intelCountPlayer');
+                        if (countEl) countEl.innerText = list.length;
+                        if (usersIntelActiveTab === 'player') {
+                            renderUsersIntelContent();
+                        }
+                    }).catch(e => console.warn(e));
+                });
+        } catch (e) {
+            console.warn('Error subscribing to activity_logs:', e);
+        }
+    }
+}
+
+function renderUsersIntelContent() {
+    const statsGrid = document.getElementById('usersIntelStatsGrid');
+    const bodyEl = document.getElementById('usersIntelBody');
+    const query = (document.getElementById('intelSearchInput')?.value || '').trim().toLowerCase();
+    const roleFilter = document.getElementById('intelRoleFilter')?.value || 'all';
+
+    if (!statsGrid || !bodyEl) return;
+
+    if (usersIntelActiveTab === 'customers') {
+        // حساب إحصائيات العملاء
+        const totalCustomers = usersIntelCustomersCache.length;
+        const now = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        let countToday = 0;
+        let countStaff = 0;
+        let countAdmins = 0;
+        let countBlocked = 0;
+
+        usersIntelCustomersCache.forEach(c => {
+            if (c.role === 'staff') countStaff++;
+            else if (c.role === 'admin') countAdmins++;
+            else if (c.role === 'blocked') countBlocked++;
+
+            const regTime = c.registeredAt ? (c.registeredAt.seconds ? c.registeredAt.seconds * 1000 : (c.registeredAt.toMillis ? c.registeredAt.toMillis() : new Date(c.registeredAt).getTime())) : 0;
+            if (regTime && (now - regTime) < oneDayMs) {
+                countToday++;
+            }
+        });
+
+        statsGrid.innerHTML = `
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-purple"><i class="fas fa-users"></i></div>
+                <div class="intel-stat-info">
+                    <h5>إجمالي العملاء المسجلين</h5>
+                    <div class="intel-stat-value">${totalCustomers}</div>
+                </div>
+            </div>
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-green"><i class="fas fa-user-shield"></i></div>
+                <div class="intel-stat-info">
+                    <h5>المناديب والمدراء</h5>
+                    <div class="intel-stat-value">${countStaff + countAdmins} <span style="font-size:0.75rem; color:#94a3b8; font-weight:normal;">(${countStaff} مندوب / ${countAdmins} مدير)</span></div>
+                </div>
+            </div>
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-blue"><i class="fas fa-user-plus"></i></div>
+                <div class="intel-stat-info">
+                    <h5>المسجلون الجدد اليوم</h5>
+                    <div class="intel-stat-value">${countToday}</div>
+                </div>
+            </div>
+        `;
+
+        // فلترة العملاء
+        let filtered = usersIntelCustomersCache.filter(c => {
+            if (roleFilter !== 'all') {
+                const r = c.role || 'customer';
+                if (r !== roleFilter) return false;
+            }
+            if (query) {
+                const fullName = `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase();
+                const phone = String(c.phone || '').toLowerCase();
+                const city = String(c.city || '').toLowerCase();
+                const id = String(c.id || '').toLowerCase();
+                return fullName.includes(query) || phone.includes(query) || city.includes(query) || id.includes(query);
+            }
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            bodyEl.innerHTML = `
+                <div style="text-align:center; padding:50px 20px; color:#94a3b8;">
+                    <i class="fas fa-search" style="font-size:32px; color:#64748b; margin-bottom:12px;"></i>
+                    <p>لا توجد نتائج مطابقة لبحثك في قاعدة بيانات العملاء</p>
+                </div>
+            `;
+            return;
+        }
+
+        let tableHtml = `
+            <table class="intel-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>اسم العميل</th>
+                        <th>رقم الهاتف والتواصل</th>
+                        <th>المدينة</th>
+                        <th>الرتبة في النظام</th>
+                        <th>تاريخ التسجيل</th>
+                        <th>إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        filtered.forEach((c, idx) => {
+            const fullName = `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'بدون اسم';
+            const phone = c.phone || 'غير مسجل';
+            const cleanPhone = phone.replace(/[^0-9]/g, '');
+            let waPhone = cleanPhone;
+            if (waPhone.startsWith('09')) waPhone = '218' + waPhone.substring(1);
+            else if (waPhone.startsWith('9') && waPhone.length === 9) waPhone = '218' + waPhone;
+            const waUrl = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent('السلام عليكم ' + fullName + '، معك إدارة سيرفرات الميزو ALmEz0')}` : '#';
+
+            const role = c.role || 'customer';
+            let roleBadgeClass = 'intel-role-customer';
+            let roleBadgeText = 'عميل عادي';
+            if (role === 'staff') { roleBadgeClass = 'intel-role-staff'; roleBadgeText = 'مندوب مبيعات'; }
+            else if (role === 'admin') { roleBadgeClass = 'intel-role-admin'; roleBadgeText = 'مدير نظام'; }
+            else if (role === 'blocked') { roleBadgeClass = 'intel-role-blocked'; roleBadgeText = 'محظور'; }
+
+            let regDateText = 'غير محدد';
+            if (c.registeredAt) {
+                const d = c.registeredAt.seconds ? new Date(c.registeredAt.seconds * 1000) : (c.registeredAt.toMillis ? new Date(c.registeredAt.toMillis()) : new Date(c.registeredAt));
+                if (!isNaN(d.getTime())) {
+                    regDateText = d.toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+                }
+            }
+
+            tableHtml += `
+                <tr>
+                    <td style="color:#64748b; font-weight:700;">${idx + 1}</td>
+                    <td>
+                        <div style="font-weight:700; color:#fff;">${safeIntelEsc(fullName)}</div>
+                        <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${safeIntelEsc(c.id)}</div>
+                    </td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-weight:700; color:#cbd5e1; direction:ltr; text-align:right;">${safeIntelEsc(phone)}</span>
+                            <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(phone)}', this)" title="نسخ الرقم">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            ${waPhone ? `
+                                <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="intel-btn-wa" title="محادثة واتساب">
+                                    <i class="fab fa-whatsapp"></i> واتساب
+                                </a>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td><span style="color:#94a3b8;">${safeIntelEsc(c.city || 'ليبيا')}</span></td>
+                    <td>
+                        <select onchange="changeIntelCustomerRole('${c.id}', '${safeIntelEsc(fullName)}', this.value)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:4px 8px; font-family:inherit; font-size:0.78rem; outline:none; cursor:pointer;">
+                            <option value="customer" ${role === 'customer' ? 'selected' : ''}>عميل عادي</option>
+                            <option value="staff" ${role === 'staff' ? 'selected' : ''}>مندوب مبيعات</option>
+                            <option value="admin" ${role === 'admin' ? 'selected' : ''}>مدير نظام</option>
+                            <option value="blocked" ${role === 'blocked' ? 'selected' : ''}>محظور</option>
+                        </select>
+                    </td>
+                    <td><span style="color:#94a3b8; font-size:0.78rem;">${regDateText}</span></td>
+                    <td>
+                        <button type="button" class="intel-btn-copy" onclick="openCustomerDetailNotes('${c.id}', '${safeIntelEsc(fullName)}', '${safeIntelEsc(phone)}')" title="عرض البطاقة">
+                            <i class="fas fa-id-card"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableHtml += `
+                </tbody>
+            </table>
+        `;
+        bodyEl.innerHTML = tableHtml;
+
+    } else {
+        // تبويب المشغل وسيرفرات IPTV
+        const totalLogs = usersIntelIptvLogsCache.length;
+        const uniqueUsernames = new Set();
+        const uniqueServers = new Set();
+
+        usersIntelIptvLogsCache.forEach(log => {
+            if (log.details && log.details.username) uniqueUsernames.add(log.details.username.toLowerCase());
+            if (log.details && log.details.server) uniqueServers.add(log.details.server);
+        });
+
+        statsGrid.innerHTML = `
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-purple"><i class="fas fa-play-circle"></i></div>
+                <div class="intel-stat-info">
+                    <h5>إجمالي جلسات المشغل</h5>
+                    <div class="intel-stat-value">${totalLogs}</div>
+                </div>
+            </div>
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-green"><i class="fas fa-id-badge"></i></div>
+                <div class="intel-stat-info">
+                    <h5>اشتراكات IPTV فريدة مسجلة</h5>
+                    <div class="intel-stat-value">${uniqueUsernames.size}</div>
+                </div>
+            </div>
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-blue"><i class="fas fa-server"></i></div>
+                <div class="intel-stat-info">
+                    <h5>سيرفرات متصلة حالياً</h5>
+                    <div class="intel-stat-value">${uniqueServers.size}</div>
+                </div>
+            </div>
+        `;
+
+        // فلترة سجلات المشغل
+        let filtered = usersIntelIptvLogsCache.filter(log => {
+            if (query) {
+                const u = (log.details && log.details.username || '').toLowerCase();
+                const s = (log.details && log.details.server || '').toLowerCase();
+                const title = (log.title || '').toLowerCase();
+                const ip = (log.publicIp || '').toLowerCase();
+                const dev = (log.device && (log.device.os + ' ' + (log.device.model || '')) || '').toLowerCase();
+                return u.includes(query) || s.includes(query) || title.includes(query) || ip.includes(query) || dev.includes(query);
+            }
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            bodyEl.innerHTML = `
+                <div style="text-align:center; padding:50px 20px; color:#94a3b8;">
+                    <i class="fas fa-tv" style="font-size:32px; color:#64748b; margin-bottom:12px;"></i>
+                    <p>لا توجد سجلات مسجلة للمشغل مطابقة للبحث</p>
+                </div>
+            `;
+            return;
+        }
+
+        let tableHtml = `
+            <table class="intel-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>التوقيت</th>
+                        <th>اسم المستخدم بالسيرفر</th>
+                        <th>اسم السيرفر</th>
+                        <th>الحالة / الإجراء</th>
+                        <th>انتهاء الاشتراك</th>
+                        <th>الجهاز والمنصة</th>
+                        <th>عنوان IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        filtered.forEach((log, idx) => {
+            let timeText = 'غير محدد';
+            if (log.timestamp && log.timestamp.seconds) {
+                timeText = new Date(log.timestamp.seconds * 1000).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+            } else if (log.createdAt) {
+                timeText = new Date(log.createdAt).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+            } else if (log.clientTime) {
+                timeText = new Date(log.clientTime).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' });
+            }
+
+            const username = (log.details && log.details.username) || (log.user && log.user.name) || 'غير محدد';
+            const server = (log.details && log.details.server) || 'سيرفر IPTV';
+            const expDate = (log.details && log.details.expDate) || 'غير متوفر';
+            const device = (log.device && (log.device.os + ' (' + (log.device.model || log.device.appPlatform || '') + ')')) || 'متصفح / غير معروف';
+            const ip = log.publicIp || 'غير معروف';
+
+            let statusBadge = '<span class="intel-role-badge intel-role-customer"><i class="fas fa-circle-info"></i> نشاط</span>';
+            if (log.action === 'iptv_login_success') {
+                statusBadge = '<span class="intel-role-badge" style="background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3);"><i class="fas fa-check-circle"></i> دخول ناجح</span>';
+            } else if (log.action === 'iptv_login_failed') {
+                statusBadge = '<span class="intel-role-badge intel-role-blocked"><i class="fas fa-times-circle"></i> خطأ دخول</span>';
+            } else if (log.action === 'iptv_player_session') {
+                statusBadge = '<span class="intel-role-badge intel-role-admin"><i class="fas fa-broadcast-tower"></i> جلسة نشطة</span>';
+            }
+
+            tableHtml += `
+                <tr>
+                    <td style="color:#64748b; font-weight:700;">${idx + 1}</td>
+                    <td><span style="color:#94a3b8; font-size:0.78rem;">${timeText}</span></td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-weight:700; color:#fff; font-family:monospace;">${safeIntelEsc(username)}</span>
+                            <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(username)}', this)" title="نسخ اسم المستخدم">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </td>
+                    <td><span style="font-weight:700; color:#c084fc;">${safeIntelEsc(server)}</span></td>
+                    <td>${statusBadge}</td>
+                    <td><span style="color:#fbbf24; font-size:0.78rem; font-weight:600;">${safeIntelEsc(expDate)}</span></td>
+                    <td><span style="color:#cbd5e1; font-size:0.78rem;">${safeIntelEsc(device)}</span></td>
+                    <td><span style="color:#64748b; font-family:monospace; font-size:0.75rem;">${safeIntelEsc(ip)}</span></td>
+                </tr>
+            `;
+        });
+
+        tableHtml += `
+                </tbody>
+            </table>
+        `;
+        bodyEl.innerHTML = tableHtml;
+    }
+}
+
+window.copyIntelText = function (text, btn) {
+    if (!text) return;
+    try {
+        navigator.clipboard.writeText(text).then(() => {
+            if (btn) {
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check" style="color:#4ade80;"></i>';
+                setTimeout(() => { btn.innerHTML = orig; }, 1500);
+            }
+        });
+    } catch (e) {
+        // مسار احتياطي
+        const input = document.createElement('input');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        if (btn) {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check" style="color:#4ade80;"></i>';
+            setTimeout(() => { btn.innerHTML = orig; }, 1500);
+        }
+    }
+};
+
+window.changeIntelCustomerRole = async function (customerId, customerName, newRole) {
+    const roleNames = { customer: 'عميل عادي', staff: 'مندوب مبيعات', blocked: 'محظور', admin: 'مدير نظام' };
+    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+    if (!firestore) return;
+
+    if (typeof Swal !== 'undefined') {
+        const res = await Swal.fire({
+            title: 'تغيير رتبة المستخدم',
+            html: `هل أنت متأكد من تغيير رتبة <strong>${customerName}</strong> إلى <strong>${roleNames[newRole] || newRole}</strong>؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، حفظ التغيير',
+            cancelButtonText: 'إلغاء',
+            background: '#0d121d',
+            color: '#fff',
+            customClass: { popup: 'almezo-swal-popup', confirmButton: 'almezo-swal-btn' }
+        });
+        if (!res.isConfirmed) {
+            renderUsersIntelContent();
+            return;
+        }
+    }
+
+    try {
+        await firestore.collection('customers').doc(customerId).update({ role: newRole });
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: 'customer_role_updated',
+                category: 'admin',
+                severity: 'warning',
+                title: `تعديل رتبة العميل: ${customerName}`,
+                details: { customerId, newRole }
+            });
+        }
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'تم التحديث بنجاح',
+                text: `تم تعيين رتبة ${customerName} بنجاح إلى: ${roleNames[newRole] || newRole}`,
+                icon: 'success',
+                timer: 1800,
+                showConfirmButton: false,
+                background: '#0d121d',
+                color: '#fff',
+                customClass: { popup: 'almezo-swal-popup' }
+            });
+        }
+    } catch (err) {
+        console.error('Error updating role:', err);
+        alert('تعذر تحديث الرتبة: ' + err.message);
+        renderUsersIntelContent();
+    }
+};
+
+window.openCustomerDetailNotes = function (customerId, name, phone) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: `بطاقة العميل: ${name}`,
+            html: `
+                <div style="text-align:right; font-size:0.9rem; line-height:1.7; padding:10px;">
+                    <p><strong>المعرف (UID):</strong> <code>${customerId}</code></p>
+                    <p><strong>رقم الهاتف:</strong> ${phone}</p>
+                    <p><strong>حالة الحساب:</strong> نشط ومسجل في السحابة</p>
+                </div>
+            `,
+            confirmButtonText: 'إغلاق',
+            background: '#0d121d',
+            color: '#fff',
+            customClass: { popup: 'almezo-swal-popup', confirmButton: 'almezo-swal-btn' }
+        });
+    }
+};
+
+function exportUsersIntelData() {
+    let csvContent = '\uFEFF'; // UTF-8 BOM لضمان فتح اللغة العربية بسلاسة في Excel
+    if (usersIntelActiveTab === 'customers') {
+        csvContent += 'الرقم,الاسم الكامل,رقم الهاتف,المدينة,الرتبة,تاريخ التسجيل,معرف الحساب\n';
+        usersIntelCustomersCache.forEach((c, idx) => {
+            const name = `"${((c.firstName || '') + ' ' + (c.lastName || '')).trim()}"`;
+            const phone = `"${c.phone || ''}"`;
+            const city = `"${c.city || ''}"`;
+            const role = `"${c.role || 'customer'}"`;
+            let date = 'غير محدد';
+            if (c.registeredAt) {
+                const d = c.registeredAt.seconds ? new Date(c.registeredAt.seconds * 1000) : (c.registeredAt.toMillis ? new Date(c.registeredAt.toMillis()) : new Date(c.registeredAt));
+                if (!isNaN(d.getTime())) date = d.toLocaleString('ar-LY');
+            }
+            csvContent += `${idx + 1},${name},${phone},${city},${role},"${date}","${c.id}"\n`;
+        });
+        downloadIntelCsv(csvContent, `almezo_customers_${Date.now()}.csv`);
+    } else {
+        csvContent += 'التوقيت,اسم المستخدم بالسيرفر,اسم السيرفر,الحالة,انتهاء الصلاحية,الجهاز والمنصة,عنوان IP\n';
+        usersIntelIptvLogsCache.forEach((log, idx) => {
+            let time = '';
+            if (log.timestamp && log.timestamp.seconds) time = new Date(log.timestamp.seconds * 1000).toLocaleString('ar-LY');
+            else if (log.createdAt) time = new Date(log.createdAt).toLocaleString('ar-LY');
+            const u = `"${(log.details && log.details.username) || ''}"`;
+            const s = `"${(log.details && log.details.server) || ''}"`;
+            const status = `"${log.title || log.action || ''}"`;
+            const exp = `"${(log.details && log.details.expDate) || ''}"`;
+            const dev = `"${(log.device && (log.device.os + ' ' + (log.device.model || ''))) || ''}"`;
+            const ip = `"${log.publicIp || ''}"`;
+            csvContent += `"${time}",${u},${s},${status},${exp},${dev},${ip}\n`;
+        });
+        downloadIntelCsv(csvContent, `almezo_iptv_sessions_${Date.now()}.csv`);
+    }
+}
+
+function downloadIntelCsv(content, fileName) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 // =========================================================
 // نظام استقبال وبث الإشعارات لجميع زوار وعملاء الموقع والتطبيقات
