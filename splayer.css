@@ -480,11 +480,11 @@ body.desktop-device-mode .app-scaler {
 .dash-cards-wrapper {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(3, minmax(340px, 500px));
+    grid-template-columns: repeat(3, minmax(clamp(250px, 25vw, 480px), 1fr));
     justify-content: center;
     align-content: center;
-    gap: 45px;
-    padding: 20px 40px;
+    gap: clamp(18px, 2.8vw, 45px);
+    padding: clamp(14px, 2vh, 30px) clamp(16px, 3vw, 45px);
     perspective: 1000px;
 }
 
@@ -500,10 +500,10 @@ body.desktop-device-mode .app-scaler {
 }
 
 .dash-card {
-    height: 480px;
+    height: clamp(330px, 56vh, 480px);
     align-self: center;
-    border-radius: 28px;
-    padding: 35px 35px 22px 35px;
+    border-radius: var(--screen-card-radius, 28px);
+    padding: clamp(20px, 2.5vw, 35px) clamp(20px, 2.5vw, 35px) 22px clamp(20px, 2.5vw, 35px);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -5119,14 +5119,18 @@ body.tv-device-mode .live-player-container-rel {
    ========================================================= */
 body.desktop-device-mode .col-sidebar,
 body.tv-device-mode .col-sidebar {
-    width: 330px !important;
-    min-width: 330px !important;
+    width: var(--player-sidebar-w, 330px) !important;
+    min-width: var(--player-sidebar-w, 330px) !important;
+    max-width: var(--player-sidebar-w, 330px) !important;
+    flex: 0 0 var(--player-sidebar-w, 330px) !important;
 }
 
 body.desktop-device-mode .col-list,
 body.tv-device-mode .col-list {
-    width: 360px !important;
-    min-width: 360px !important;
+    width: var(--player-list-w, 360px) !important;
+    min-width: var(--player-list-w, 360px) !important;
+    max-width: var(--player-list-w, 360px) !important;
+    flex: 0 0 var(--player-list-w, 360px) !important;
 }
 
 body.desktop-device-mode .col-player,
@@ -5135,12 +5139,14 @@ body.tv-device-mode .col-player {
     align-items: center !important;
     justify-content: center !important;
     overflow: hidden !important;
+    flex: 1 1 auto !important;
+    padding: clamp(10px, 1.8vw, 28px) !important;
 }
 
 body.desktop-device-mode .player-wrapper,
 body.tv-device-mode .player-wrapper {
     width: 100% !important;
-    max-width: 1200px !important;
+    max-width: var(--player-video-max-w, 1350px) !important;
     height: auto !important;
     margin: auto !important;
     display: flex !important;
@@ -5152,10 +5158,10 @@ body.tv-device-mode .player-wrapper {
 body.desktop-device-mode .plyr-container,
 body.tv-device-mode .plyr-container {
     width: 100% !important;
-    max-width: 1200px !important;
+    max-width: var(--player-video-max-w, 1350px) !important;
     aspect-ratio: 16 / 9 !important;
-    max-height: calc(100vh - 150px) !important;
-    border-radius: 16px !important;
+    max-height: calc(100vh - 120px) !important;
+    border-radius: var(--screen-card-radius, 16px) !important;
     flex: none !important;
     display: flex !important;
     align-items: center !important;
@@ -5165,9 +5171,9 @@ body.tv-device-mode .plyr-container {
 body.desktop-device-mode .live-player-container-rel,
 body.tv-device-mode .live-player-container-rel {
     width: 100% !important;
-    max-width: 1200px !important;
+    max-width: var(--player-video-max-w, 1350px) !important;
     aspect-ratio: 16 / 9 !important;
-    max-height: calc(100vh - 150px) !important;
+    max-height: calc(100vh - 120px) !important;
     height: auto !important;
     display: flex !important;
     flex-direction: column !important;
@@ -5175,8 +5181,36 @@ body.tv-device-mode .live-player-container-rel {
 
 body.desktop-device-mode .vod-grid,
 body.tv-device-mode .vod-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 16px 14px !important;
+    grid-template-columns: repeat(var(--player-vod-cols, 5), minmax(0, 1fr)) !important;
+    gap: var(--screen-gap, 16px) !important;
+}
+
+/* Modals & Dialogs adaptive max-width */
+.modal-overlay .modal-card,
+.modal-content,
+.dialog-box,
+.auth-card,
+.profile-card,
+.device-modal-card {
+    max-width: var(--dialog-max-w, 560px) !important;
+    border-radius: var(--screen-card-radius, 24px) !important;
+}
+
+/* High-resolution 4K & Smart TV adaptations */
+[data-device-tier="tv-4k"] .vod-title,
+[data-is-tv="true"] .vod-title {
+    font-size: 26px !important;
+}
+[data-device-tier="tv-4k"] .col-header h3,
+[data-is-tv="true"] .col-header h3 {
+    font-size: 28px !important;
+}
+[data-device-tier="tv-4k"] .cat-item,
+[data-is-tv="true"] .cat-item,
+[data-device-tier="tv-4k"] .channel-item,
+[data-is-tv="true"] .channel-item {
+    padding: 16px 20px !important;
+    font-size: 19px !important;
 }
 
 /* إخفاء شرائح اللمس للسطوع والصوت نهائياً في الكمبيوتر وشاشات التلفزيون والرسيفر وتيفي بوكس */

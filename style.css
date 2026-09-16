@@ -2273,33 +2273,6 @@ input[type="tel"] {
     color: #16a34a !important;
 }
 
-/* 4.6. زر استوديو التحكم في الواجهة والمشغل (Remote UI Studio FAB) */
-.floating-btn.studio-fab,
-#adminStudioFab {
-    background: linear-gradient(135deg, #8b5cf6, #6366f1) !important;
-    border: 1.5px solid rgba(167, 139, 250, 0.95) !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.5), 0 0 14px rgba(99, 102, 241, 0.3) !important;
-}
-
-.floating-btn.studio-fab:hover,
-#adminStudioFab:hover {
-    background: linear-gradient(135deg, #a78bfa, #4f46e5) !important;
-    box-shadow: 0 6px 24px rgba(139, 92, 246, 0.8), 0 0 20px rgba(99, 102, 241, 0.6) !important;
-    transform: scale(1.12) translateY(-2px);
-}
-
-.floating-btn.studio-fab i,
-#adminStudioFab i {
-    color: #ffffff !important;
-    transition: transform 0.2s;
-}
-
-.floating-btn.studio-fab:hover i,
-#adminStudioFab:hover i {
-    transform: rotate(25deg);
-}
-
 @keyframes hornWiggle {
 
     0%,
@@ -8903,4 +8876,32 @@ header, .main-header, .top-nav {
 /* Smooth transitions on orientation and scale adaptation */
 .cards-grid, #homeCategoriesGrid, .container, header {
     transition: max-width 0.25s ease, padding 0.2s ease, gap 0.2s ease;
+}
+
+/* Universal Adaptive Cards, Modals & Dialogs for Website */
+.modal-dialog,
+.modal-content,
+.swal2-popup,
+.almezo-dialog,
+.admin-modal-card,
+.inapp-center-card {
+    max-width: var(--dialog-max-w, 560px) !important;
+    border-radius: var(--screen-card-radius, 20px) !important;
+}
+
+.price-card,
+.feature-card,
+.subscription-card,
+.playlist-card,
+.server-card {
+    border-radius: var(--screen-card-radius, 16px) !important;
+}
+
+@media (min-width: 1921px) {
+    body {
+        font-size: 17px;
+    }
+    .hero-title {
+        font-size: 3.2rem !important;
+    }
 }

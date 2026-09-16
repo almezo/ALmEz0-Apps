@@ -176,6 +176,95 @@
         return false;
     }
 
+    function computePlayerMetrics(width, height, isTV, tier, orientation) {
+        let vodCols = 5;
+        let sidebarW = '330px';
+        let listW = '360px';
+        let videoMaxW = '1280px';
+        let dialogMaxW = '540px';
+
+        if (orientation === 'portrait') {
+            if (width < 400) {
+                vodCols = 2;
+                sidebarW = '100%';
+                listW = '100%';
+                videoMaxW = '100%';
+                dialogMaxW = 'calc(100vw - 24px)';
+            } else if (width < 600) {
+                vodCols = 2;
+                sidebarW = '100%';
+                listW = '100%';
+                videoMaxW = '100%';
+                dialogMaxW = 'min(92vw, 440px)';
+            } else if (width < 992) {
+                vodCols = 3;
+                sidebarW = '100%';
+                listW = '100%';
+                videoMaxW = '100%';
+                dialogMaxW = '500px';
+            } else {
+                vodCols = 4;
+                sidebarW = '320px';
+                listW = '340px';
+                videoMaxW = '100%';
+                dialogMaxW = '560px';
+            }
+        } else {
+            // Landscape
+            if (tier === 'compact-phone' || (width < 750 && height < 500)) {
+                vodCols = 3;
+                sidebarW = '230px';
+                listW = '250px';
+                videoMaxW = '100%';
+                dialogMaxW = 'min(92vw, 480px)';
+            } else if (tier === 'regular-phone' || (width < 950 && height < 550)) {
+                vodCols = 4;
+                sidebarW = '250px';
+                listW = '270px';
+                videoMaxW = '100%';
+                dialogMaxW = 'min(90vw, 500px)';
+            } else if (tier === 'phablet-fold' || tier === 'tablet-portrait') {
+                vodCols = 4;
+                sidebarW = '280px';
+                listW = '300px';
+                videoMaxW = '100%';
+                dialogMaxW = '520px';
+            } else if (tier === 'tablet-landscape' || tier === 'laptop') {
+                vodCols = 5;
+                sidebarW = '310px';
+                listW = '340px';
+                videoMaxW = '1150px';
+                dialogMaxW = '540px';
+            } else if (tier === 'desktop-fhd') {
+                vodCols = 6;
+                sidebarW = '340px';
+                listW = '370px';
+                videoMaxW = '1350px';
+                dialogMaxW = '580px';
+            } else if (tier === 'desktop-2k') {
+                vodCols = 7;
+                sidebarW = '390px';
+                listW = '420px';
+                videoMaxW = '1700px';
+                dialogMaxW = '640px';
+            } else if (isTV || tier === 'tv-4k') {
+                vodCols = width >= 3840 ? 8 : 7;
+                sidebarW = '430px';
+                listW = '460px';
+                videoMaxW = '2100px';
+                dialogMaxW = '720px';
+            }
+        }
+
+        return {
+            vodCols,
+            sidebarW,
+            listW,
+            videoMaxW,
+            dialogMaxW
+        };
+    }
+
     // Core calculation function
     function analyzeScreen() {
         const vp = window.visualViewport;
@@ -211,6 +300,7 @@
         const safeArea = getSafeAreaInsets();
         const scaleFactor = computeScaleFactor(width, height, isTV, tier);
         const gridCols = computeOptimalGridCols(tier, orientation);
+        const playerMetrics = computePlayerMetrics(width, height, isTV, tier, orientation);
 
         return {
             timestamp: Date.now(),
@@ -235,7 +325,8 @@
             platform,
             safeArea,
             scaleFactor,
-            optimalGridCols: gridCols
+            optimalGridCols: gridCols,
+            player: playerMetrics
         };
     }
 
@@ -258,6 +349,25 @@
         root.style.setProperty('--safe-bottom', `${metrics.safeArea.bottom}px`);
         root.style.setProperty('--safe-left', `${metrics.safeArea.left}px`);
         root.style.setProperty('--safe-right', `${metrics.safeArea.right}px`);
+
+        // Player-specific responsive custom properties
+        if (metrics.player) {
+            root.style.setProperty('--player-vod-cols', `${metrics.player.vodCols}`);
+            root.style.setProperty('--player-sidebar-w', `${metrics.player.sidebarW}`);
+            root.style.setProperty('--player-list-w', `${metrics.player.listW}`);
+            root.style.setProperty('--player-video-max-w', `${metrics.player.videoMaxW}`);
+            root.style.setProperty('--dialog-max-w', `${metrics.player.dialogMaxW}`);
+        }
+        root.style.setProperty('--screen-card-radius', `${Math.round(14 * metrics.scaleFactor)}px`);
+        root.style.setProperty('--screen-gap', `${Math.round(16 * metrics.scaleFactor)}px`);
+
+        // Purge legacy UI Studio styles if present
+        try {
+            const oldStyle = document.getElementById('almezo-remote-ui-styles');
+            if (oldStyle) oldStyle.remove();
+            const oldTicker = document.getElementById('almezoRemoteTicker');
+            if (oldTicker) oldTicker.remove();
+        } catch (e) { }
 
         // 2. Set dynamic data-* attributes on html and body for CSS matching
         const attrs = {
@@ -520,7 +630,8 @@
         toggleDiagnostics: toggleHud,
         isTV: () => (cachedMetrics ? cachedMetrics.isTV : detectIsTV()),
         isFoldable: () => (cachedMetrics ? cachedMetrics.isFoldable : false),
-        getTier: () => (cachedMetrics ? cachedMetrics.deviceTier : computeDeviceTier(window.innerWidth || 1024))
+        getTier: () => (cachedMetrics ? cachedMetrics.deviceTier : computeDeviceTier(window.innerWidth || 1024)),
+        getPlayerMetrics: () => (cachedMetrics && cachedMetrics.player ? cachedMetrics.player : computePlayerMetrics(window.innerWidth || 1024, window.innerHeight || 768, detectIsTV(), computeDeviceTier(window.innerWidth || 1024), (window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait')))
     };
 
     global.AlMeZ0Screen = AlMeZ0Screen;

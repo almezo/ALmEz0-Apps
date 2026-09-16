@@ -94,17 +94,10 @@ function applyAutoScaling() {
     }
 
     // Touch Mode (Smartphones & Tablets):
-    // Preserves the 1650x750 virtual canvas scaling confirmed excellent on phones & tablets
+    // نظام ذكي لحساب أبعاد الكانفاس المتكيفة بدقة مع نسبة عرض الشاشة لمنع الحواف السوداء نهائياً
     scaler.style.position = 'absolute';
     scaler.style.top = '50%';
     scaler.style.left = '50%';
-    scaler.style.width = '1650px';
-    scaler.style.height = '750px';
-    scaler.style.minWidth = '1650px';
-    scaler.style.minHeight = '750px';
-    scaler.style.maxWidth = '1650px';
-    scaler.style.maxHeight = '750px';
-    scaler.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.85)';
 
     const isLandscape = windowWidth > windowHeight || (window.screen && window.screen.orientation && String(window.screen.orientation.type).includes('landscape'));
 
@@ -128,15 +121,30 @@ function applyAutoScaling() {
         stableLandscapeHeight = 0;
     }
 
-    const baseWidth = 1650;
     const baseHeight = 750;
+    // حساب النسبة العرضية الفعلية للشاشة لتفادي أي حواف سوداء تماماً على الشاشات العريضة والأجهزة اللوحية
+    const rawAspect = (effectiveH > 0) ? (effectiveW / effectiveH) : (1650 / 750);
+    const clampedAspect = Math.max(1.33, Math.min(2.45, rawAspect));
+    const baseWidth = Math.round(baseHeight * clampedAspect);
 
-    const scaleX = effectiveW / baseWidth;
-    const scaleY = effectiveH / baseHeight;
-    const scale = Math.min(scaleX, scaleY);
+    scaler.style.width = baseWidth + 'px';
+    scaler.style.height = baseHeight + 'px';
+    scaler.style.minWidth = baseWidth + 'px';
+    scaler.style.minHeight = baseHeight + 'px';
+    scaler.style.maxWidth = baseWidth + 'px';
+    scaler.style.maxHeight = baseHeight + 'px';
+    scaler.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.85)';
+
+    const scale = effectiveH / baseHeight;
 
     scaler.style.transform = `translate(-50%, -50%) scale(${scale})`;
     scaler.style.transformOrigin = 'center center';
+}
+
+if (window.AlMeZ0Screen && typeof window.AlMeZ0Screen.onChange === 'function') {
+    window.AlMeZ0Screen.onChange(() => {
+        applyAutoScaling();
+    });
 }
 
 window.addEventListener('resize', applyAutoScaling);
