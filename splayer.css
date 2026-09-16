@@ -4561,8 +4561,8 @@ body.tv-mode {
     position: absolute;
     inset: 0;
     background: rgba(8, 12, 20, 0.76);
-    backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -4582,8 +4582,8 @@ body.tv-mode {
 
 .card-update-overlay.waiting {
     background: rgba(8, 12, 20, 0.52);
-    backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
 }
 
 .card-update-overlay.waiting .card-update-spinner {
