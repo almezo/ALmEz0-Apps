@@ -555,8 +555,8 @@ function showScreen(screenId, isBackNavigation = false) {
         if (typeof updateActiveServerBanner === 'function') {
             updateActiveServerBanner();
         }
-        if (typeof check24HourAutoSync === 'function') {
-            check24HourAutoSync();
+        if (typeof runSequentialAutoSync === 'function') {
+            runSequentialAutoSync();
         } else if (typeof updateCardTimestamps === 'function') {
             updateCardTimestamps();
         }
@@ -2200,117 +2200,186 @@ const fetchCache = {};
 // ==========================================
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
-function formatRelativeTime(ts) {
-    if (!ts) return '1 sec ago';
+function formatRelativeTimeArabic(ts) {
+    if (!ts || ts <= 0) return 'الآن';
     const diff = Date.now() - ts;
-    if (diff < 5000) return '1 sec ago';
+    if (diff < 5000) return 'الآن';
     const seconds = Math.floor(diff / 1000);
-    if (seconds < 60) return `${seconds} secs ago`;
+    if (seconds < 60) return 'منذ ثوانٍ';
     const minutes = Math.floor(diff / 60000);
-    if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+    if (minutes === 1) return 'قبل دقيقة';
+    if (minutes === 2) return 'قبل دقيقتين';
+    if (minutes >= 3 && minutes <= 10) return `قبل ${minutes} دقائق`;
+    if (minutes < 60) return `قبل ${minutes} دقيقة`;
+
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    if (hours === 1) return 'قبل ساعة';
+    if (hours === 2) return 'قبل ساعتين';
+    if (hours >= 3 && hours <= 10) return `قبل ${hours} ساعات`;
+    if (hours < 24) return `قبل ${hours} ساعة`;
+
     const days = Math.floor(hours / 24);
-    return `${days} day${days === 1 ? '' : 's'} ago`;
+    if (days === 1) return 'قبل يوم';
+    if (days === 2) return 'قبل يومين';
+    if (days >= 3 && days <= 10) return `قبل ${days} أيام`;
+    return `قبل ${days} يوماً`;
+}
+
+// دالة تحديث حالة شاشات التحديث على الكروت (نمط مارفل)
+function setCardSyncState(type, syncState, timestamp = null) {
+    const key = type === 'live' ? 'Live' : (type === 'vod' ? 'Vod' : 'Series');
+    const overlay = document.getElementById('overlay' + key);
+    const statusBox = document.getElementById('statusBox' + key);
+    const btn = document.getElementById('btnRefresh' + key);
+
+    if (syncState === 'updating') {
+        if (overlay) {
+            overlay.classList.remove('hidden', 'waiting');
+        }
+        if (btn) btn.classList.add('updating');
+        if (statusBox) {
+            statusBox.innerHTML = `<span class="card-sync-indicator updating"><i class="fas fa-circle-notch fa-spin"></i> جاري التحديث...</span>`;
+        }
+    } else if (syncState === 'waiting') {
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            overlay.classList.add('waiting');
+        }
+        if (btn) btn.classList.remove('updating');
+        if (statusBox) {
+            statusBox.innerHTML = `<span class="card-sync-indicator waiting"><i class="far fa-clock"></i> في الانتظار...</span>`;
+        }
+    } else { // 'idle' or 'done'
+        if (overlay) {
+            overlay.classList.add('hidden');
+            overlay.classList.remove('waiting');
+        }
+        if (btn) btn.classList.remove('updating');
+        const ts = timestamp || parseInt(localStorage.getItem('sp_last_updated_' + type) || '0', 10);
+        if (statusBox) {
+            statusBox.innerHTML = `<span class="card-update-text">آخر تحديث: <span id="lastUpdated${key}">${formatRelativeTimeArabic(ts)}</span></span>`;
+        }
+    }
 }
 
 function updateCardTimestamps() {
-    const liveTs = parseInt(localStorage.getItem('sp_last_updated_live') || '0', 10);
-    const vodTs = parseInt(localStorage.getItem('sp_last_updated_vod') || '0', 10);
-    const seriesTs = parseInt(localStorage.getItem('sp_last_updated_series') || '0', 10);
+    if (isSequentialSyncRunning) return;
 
-    const elLive = document.getElementById('lastUpdatedLive');
-    if (elLive) elLive.innerText = formatRelativeTime(liveTs);
-
-    const elVod = document.getElementById('lastUpdatedVod');
-    if (elVod) elVod.innerText = formatRelativeTime(vodTs);
-
-    const elSeries = document.getElementById('lastUpdatedSeries');
-    if (elSeries) elSeries.innerText = formatRelativeTime(seriesTs);
+    ['live', 'vod', 'series'].forEach(type => {
+        const key = type === 'live' ? 'Live' : (type === 'vod' ? 'Vod' : 'Series');
+        const el = document.getElementById('lastUpdated' + key);
+        if (el) {
+            const ts = parseInt(localStorage.getItem('sp_last_updated_' + type) || '0', 10);
+            el.innerText = formatRelativeTimeArabic(ts);
+        }
+    });
 }
 
 // تحديث التوقيتات النسبية كل 15 ثانية تلقائياً
 setInterval(updateCardTimestamps, 15000);
 
-async function manualRefreshCategory(type, event) {
-    if (event) event.stopPropagation();
+let isSequentialSyncRunning = false;
 
-    const btnId = type === 'live' ? 'btnRefreshLive' : (type === 'vod' ? 'btnRefreshVod' : 'btnRefreshSeries');
-    const labelId = type === 'live' ? 'lastUpdatedLive' : (type === 'vod' ? 'lastUpdatedVod' : 'lastUpdatedSeries');
-    const typeLabel = type === 'live' ? 'البث المباشر' : (type === 'vod' ? 'الأفلام' : 'المسلسلات');
+// 💡 نظام التحديث التلقائي المتسلسل الإجباري عند كل دخول للمشغل (بشكل منفرد ونمط مارفل تماماً)
+async function runSequentialAutoSync() {
+    if (isSequentialSyncRunning) return;
 
-    const btn = document.getElementById(btnId);
-    const label = document.getElementById(labelId);
+    const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+    if (!host || !state.username || !state.password) {
+        updateCardTimestamps();
+        return;
+    }
 
-    if (btn) btn.classList.add('updating');
-    if (label) label.innerText = 'Updating...';
+    isSequentialSyncRunning = true;
 
-    // مسح الكاش لإجبار السيرفر على إرسال أحدث البيانات
+    // مسح الكاش لإجبار السيرفر على إرسال أحدث البيانات لحظياً
     for (const key in fetchCache) {
         delete fetchCache[key];
     }
 
-    try {
-        const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
-        const user = encodeURIComponent(state.username);
-        const pass = encodeURIComponent(state.password);
+    const categories = [
+        { type: 'live', action: 'get_live_categories', name: 'البث المباشر' },
+        { type: 'vod', action: 'get_vod_categories', name: 'الأفلام' },
+        { type: 'series', action: 'get_series_categories', name: 'المسلسلات' }
+    ];
 
-        let action = 'get_live_categories';
-        if (type === 'vod') action = 'get_vod_categories';
-        if (type === 'series') action = 'get_series_categories';
+    // المرحلة الأولى: وضع الأولى في جاري التحديث، والأخريين في الانتظار (مطابق لصورة مارفل)
+    setCardSyncState('live', 'updating');
+    setCardSyncState('vod', 'waiting');
+    setCardSyncState('series', 'waiting');
 
-        if (host && state.username && state.password) {
-            const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
-            await proxyFetch(url, false);
-        }
+    const user = encodeURIComponent(state.username);
+    const pass = encodeURIComponent(state.password);
 
-        const now = Date.now();
-        localStorage.setItem('sp_last_updated_' + type, String(now));
-        updateCardTimestamps();
-        showToast(`تم تحديث قائمة ${typeLabel} بنجاح`, 'success');
-    } catch (e) {
-        console.warn('Manual refresh failed', e);
-        showToast(`تعذر تحديث قائمة ${typeLabel}`, 'warning');
-        updateCardTimestamps();
-    } finally {
-        if (btn) btn.classList.remove('updating');
-    }
-}
+    for (let i = 0; i < categories.length; i++) {
+        const cat = categories[i];
 
-async function check24HourAutoSync() {
-    updateCardTimestamps();
+        // ضع البطاقة الحالية في جاري التحديث
+        setCardSyncState(cat.type, 'updating');
 
-    const lastSync = parseInt(localStorage.getItem('sp_last_auto_sync') || '0', 10);
-    const now = Date.now();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
-    if (!lastSync || (now - lastSync >= TWENTY_FOUR_HOURS)) {
-        console.log('[AutoSync] Running 24-hour automatic IPTV playlist refresh...');
-        const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
-        const user = encodeURIComponent(state.username);
-        const pass = encodeURIComponent(state.password);
-
-        if (!host || !state.username || !state.password) return;
-
-        for (const key in fetchCache) {
-            delete fetchCache[key];
+        // ضع البطاقات اللاحقة في وضع الانتظار
+        for (let j = i + 1; j < categories.length; j++) {
+            setCardSyncState(categories[j].type, 'waiting');
         }
 
         try {
-            await Promise.allSettled([
-                proxyFetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_live_categories`, false),
-                proxyFetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_vod_categories`, false),
-                proxyFetch(`${host}/player_api.php?username=${user}&password=${pass}&action=get_series_categories`, false)
-            ]);
+            const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${cat.action}`;
+            await proxyFetch(url, false);
+            const now = Date.now();
+            localStorage.setItem('sp_last_updated_' + cat.type, String(now));
+            setCardSyncState(cat.type, 'idle', now);
+        } catch (err) {
+            console.warn(`[AutoSync] Error updating ${cat.name}`, err);
+            const now = Date.now();
+            setCardSyncState(cat.type, 'idle', now);
+        }
 
-            localStorage.setItem('sp_last_auto_sync', String(now));
-            localStorage.setItem('sp_last_updated_live', String(now));
-            localStorage.setItem('sp_last_updated_vod', String(now));
-            localStorage.setItem('sp_last_updated_series', String(now));
-            updateCardTimestamps();
-            console.log('[AutoSync] 24-hour auto refresh completed successfully');
-        } catch (e) {
-            console.warn('[AutoSync] Error during background 24-hour sync', e);
+        // مهلة بصرية سلسة لإبراز الانتقال بين الباقات كما في مارفل
+        await new Promise(resolve => setTimeout(resolve, 350));
+    }
+
+    isSequentialSyncRunning = false;
+    updateCardTimestamps();
+}
+
+async function manualRefreshCategory(type, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+    if (!host || !state.username || !state.password) return;
+
+    setCardSyncState(type, 'updating');
+
+    for (const key in fetchCache) {
+        delete fetchCache[key];
+    }
+
+    let action = 'get_live_categories';
+    let typeName = 'البث المباشر';
+    if (type === 'vod') { action = 'get_vod_categories'; typeName = 'الأفلام'; }
+    if (type === 'series') { action = 'get_series_categories'; typeName = 'المسلسلات'; }
+
+    const user = encodeURIComponent(state.username);
+    const pass = encodeURIComponent(state.password);
+
+    try {
+        const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
+        await proxyFetch(url, false);
+        const now = Date.now();
+        localStorage.setItem('sp_last_updated_' + type, String(now));
+        setCardSyncState(type, 'idle', now);
+        if (typeof showToast === 'function') {
+            showToast(`تم تحديث باقة ${typeName} بنجاح`, 'success');
+        }
+    } catch (e) {
+        console.warn('Manual refresh failed', e);
+        const now = Date.now();
+        setCardSyncState(type, 'idle', now);
+        if (typeof showToast === 'function') {
+            showToast(`تعذر تحديث باقة ${typeName}`, 'warning');
         }
     }
 }
