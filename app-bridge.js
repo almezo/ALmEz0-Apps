@@ -24,6 +24,16 @@
     }
     syncLocalizedManifest();
 
+    // تحميل نظام ذكاء الشاشات والتكيف التلقائي (Screen Intelligence Engine)
+    if (!window.AlMeZ0Screen && typeof document !== 'undefined') {
+        try {
+            const screenScript = document.createElement('script');
+            screenScript.src = 'screen-adapter.js';
+            screenScript.async = false;
+            document.head.appendChild(screenScript);
+        } catch (e) { }
+    }
+
     window.AlMeZ0App = {
         isElectron: isElectron,
         isCapacitor: isCapacitor,
@@ -31,6 +41,9 @@
         isIOS: isIOS,
         isNative: isNative,
         platform: isElectron ? 'electron' : (isCapacitor ? window.Capacitor.getPlatform() : 'web'),
+        get screen() {
+            return window.AlMeZ0Screen || null;
+        },
 
         // Helper to lock screen to landscape (e.g. for Player)
         lockLandscape: async function () {
@@ -387,7 +400,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.20';
+    const CURRENT_APP_VERSION = '1.0.21';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -1671,6 +1684,7 @@
     window.AlMeZ0App.showBroadcastPushBanner = showBroadcastPushBanner;
     window.AlMeZ0App.applyRemoteUiConfig = applyRemoteUiConfig;
     window.AlMeZ0App.DEFAULT_UI_CONFIG = DEFAULT_UI_CONFIG;
+    window.AlMeZ0App.screen = window.AlMeZ0Screen || null;
     window.AlMeZ0App.getRemoteUiConfig = function () {
         try {
             const raw = localStorage.getItem('almezo_remote_ui_config');
