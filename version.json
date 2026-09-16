@@ -1,9 +1,9 @@
 {
-  "version": "1.0.29",
-  "versionCode": 30,
+  "version": "1.0.30",
+  "versionCode": 31,
   "releaseDate": "2026-09-16",
-  "title": "تحديث مشغل ميزو ودعم 4K و 60/120 FPS v1.0.29 ⚡✨",
-  "notes": "دعم كامل لدقة 4K الحقيقية، تسريع عتادي 60 و 120 إطار بالثانية، ضبط التحديث التلقائي للمشغل، وإصلاح فرز آخر شيء مضاف.",
+  "title": "ضبط بادئات CSS القياسية وخلو الكود من التحذيرات v1.0.30 ⚡✨",
+  "notes": "ضبط ترتيب خواص transform و backface-visibility بعد بادئات webkit لضمان التوافق التام مع المعايير القياسية.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
