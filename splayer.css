@@ -4266,7 +4266,6 @@ input[type="number"] {
     grid-template-columns: repeat(auto-fill, minmax(clamp(250px, 44vw, 360px), 1fr));
     gap: clamp(10px, 1.5vw, 16px);
     overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
 }
 
 /* Playlist Card */

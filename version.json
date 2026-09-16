@@ -1,9 +1,9 @@
 {
-  "version": "1.0.24",
-  "versionCode": 25,
+  "version": "1.0.25",
+  "versionCode": 26,
   "releaseDate": "2026-09-16",
-  "title": "تحسينات المشغل وتسجيل الخروج والتوافق الذكي v1.0.24 📺📱",
-  "notes": "أزرار دائرية مدمجة للحسابات ونمط الجهاز أعلى اليسار، إصلاح الخروج المباشر دون فتح الباقات، وتحسين استجابة بطاقات السيرفرات في الهواتف.",
+  "title": "تحسين توافقية CSS وإزالة التحذيرات v1.0.25 🎨⚡",
+  "notes": "إزالة خاصية -webkit-overflow-scrolling القديمة لضمان توافق معايير CSS الحديثة وخلو الكود من أي تحذيرات.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
