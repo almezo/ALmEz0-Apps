@@ -1,9 +1,9 @@
 {
-  "version": "1.0.25",
-  "versionCode": 26,
+  "version": "1.0.26",
+  "versionCode": 27,
   "releaseDate": "2026-09-16",
-  "title": "تحسين توافقية CSS وإزالة التحذيرات v1.0.25 🎨⚡",
-  "notes": "إزالة خاصية -webkit-overflow-scrolling القديمة لضمان توافق معايير CSS الحديثة وخلو الكود من أي تحذيرات.",
+  "title": "إصلاح فتح السيرفرات المحفوظة والدخول المباشر v1.0.26 🚀🔓",
+  "notes": "إصلاح مشكلة عدم الاستجابة عند الضغط على السيرفر المحفوظ في شاشة الدخول، وتفعيل زر الدخول المباشر وجعل البطاقة بالكامل قابلة للنقر.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

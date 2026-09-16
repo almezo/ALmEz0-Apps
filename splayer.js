@@ -830,31 +830,34 @@ function activateAccount(accId) {
 
     localStorage.removeItem('sp_logged_out');
     localStorage.setItem('sp_active_acc_id', target.id);
-    localStorage.setItem('sp_user', JSON.stringify(target.userInfo));
-    localStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo));
+    localStorage.setItem('sp_last_used_acc_id', target.id);
+    localStorage.setItem('sp_user', JSON.stringify(target.userInfo || { username: target.username }));
+    localStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo || { username: target.username }));
     localStorage.setItem('sp_host', target.host);
     localStorage.setItem('sp_pass', target.password);
-    localStorage.setItem('sp_server_code', target.serverCode || '001');
+    const code = target.serverCode || '001';
+    localStorage.setItem('sp_server_code', code);
     localStorage.setItem('sp_server_info', JSON.stringify({ name: target.serverName, logo: target.serverLogo }));
 
-    sessionStorage.setItem('sp_user', JSON.stringify(target.userInfo));
-    sessionStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo));
+    sessionStorage.setItem('sp_user', JSON.stringify(target.userInfo || { username: target.username }));
+    sessionStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo || { username: target.username }));
     sessionStorage.setItem('sp_host', target.host);
     sessionStorage.setItem('sp_pass', target.password);
-    sessionStorage.setItem('sp_server_code', target.serverCode || '001');
+    sessionStorage.setItem('sp_server_code', code);
     sessionStorage.setItem('sp_server_info', JSON.stringify({ name: target.serverName, logo: target.serverLogo }));
 
-    state.userInfo = target.userInfo;
+    state.userInfo = target.userInfo || { username: target.username };
     state.username = target.username;
     state.password = target.password;
     state.host = target.host;
     state.hostUrls = [target.host];
-    state.serverCode = target.serverCode || '001';
+    state.serverCode = code;
 
     // مسح كاش القنوات السابقة
     state.categories = [];
     state.streams = [];
     state.activeCategory = null;
+    state.activeTab = 'dashboard';
 
     const navUserEl = document.getElementById('navUsername');
     if (navUserEl) navUserEl.innerText = state.username;
@@ -862,10 +865,20 @@ function activateAccount(accId) {
     const navEl = document.getElementById('dashboard-nav');
     if (navEl) navEl.classList.remove('hidden');
 
-    updateActiveServerBanner();
+    if (typeof updateActiveServerBanner === 'function') {
+        updateActiveServerBanner();
+    }
+    if (typeof updateSavedAccountsBadge === 'function') {
+        updateSavedAccountsBadge();
+    }
+
     closePlaylistsModal();
     showScreen('dashboard-screen');
-    showAppAlert(`تم التبديل بنجاح إلى: ${target.serverName}`, 'success');
+    if (typeof showToast === 'function') {
+        showToast(`تم الدخول بنجاح إلى: ${target.serverName}`, 'success');
+    } else if (typeof showAppAlert === 'function') {
+        showAppAlert(`تم الدخول بنجاح إلى: ${target.serverName}`, 'success');
+    }
 }
 
 function openPlaylistsModal() {
@@ -904,8 +917,6 @@ function renderPlaylists() {
     const accounts = getSavedAccounts();
     if (countEl) countEl.innerText = `${accounts.length} سيرفر(ات) محفوظة`;
 
-    const activeId = localStorage.getItem('sp_active_acc_id') || (accounts[0] ? accounts[0].id : null);
-
     if (accounts.length === 0) {
         grid.innerHTML = `
             <div class="playlists-empty-state">
@@ -917,16 +928,54 @@ function renderPlaylists() {
         return;
     }
 
+    // التحقق الدقيق مما إذا كانت هناك جلسة متصلة حالياً
+    const isSessionActive = !!(state.username && !localStorage.getItem('sp_logged_out'));
+    const currentActiveId = isSessionActive ? (localStorage.getItem('sp_active_acc_id') || (accounts[0] ? accounts[0].id : null)) : null;
+    const lastUsedId = localStorage.getItem('sp_last_used_acc_id') || localStorage.getItem('sp_active_acc_id');
+
     grid.innerHTML = accounts.map(acc => {
-        const isActive = (acc.id === activeId);
+        const isCurrentlyConnected = isSessionActive && (acc.id === currentActiveId);
+        const isLastUsed = !isSessionActive && (acc.id === lastUsedId);
         const serverName = acc.serverName || 'سيرفر IPTV';
         const serverLogo = acc.serverLogo || 'photo/logo.ico';
         const username = acc.username || '--';
         const expDate = acc.expDateText || 'غير متوفر';
 
+        let badgeHtml = '';
+        if (isCurrentlyConnected) {
+            badgeHtml = '<div class="playlist-active-badge"><i class="fas fa-check-circle"></i> متصل حالياً</div>';
+        } else if (isLastUsed) {
+            badgeHtml = '<div class="playlist-active-badge last-used" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5);"><i class="fas fa-history"></i> آخر استخدام</div>';
+        }
+
+        let actionBtnHtml = '';
+        if (isCurrentlyConnected) {
+            actionBtnHtml = `
+                <button type="button" class="btn-playlist-select current" onclick="event.stopPropagation(); closePlaylistsModal(); showScreen('dashboard-screen');" title="فتح لوحة تحكم السيرفر">
+                    <i class="fas fa-tv"></i> متصل حالياً (فتح اللوحة)
+                </button>
+            `;
+        } else if (isSessionActive) {
+            actionBtnHtml = `
+                <button type="button" class="btn-playlist-select" onclick="event.stopPropagation(); activateAccount('${acc.id}')" title="التبديل إلى هذا السيرفر">
+                    <i class="fas fa-exchange-alt"></i> التبديل لهذا السيرفر
+                </button>
+            `;
+        } else {
+            actionBtnHtml = `
+                <button type="button" class="btn-playlist-select btn-playlist-connect" onclick="event.stopPropagation(); activateAccount('${acc.id}')" title="دخول وتشغيل السيرفر">
+                    <i class="fas fa-play-circle"></i> دخول للسيرفر
+                </button>
+            `;
+        }
+
+        const cardClickHandler = isCurrentlyConnected
+            ? "closePlaylistsModal(); showScreen('dashboard-screen');"
+            : `activateAccount('${acc.id}')`;
+
         return `
-            <div class="playlist-card ${isActive ? 'is-active' : ''}">
-                ${isActive ? '<div class="playlist-active-badge"><i class="fas fa-check-circle"></i> السيرفر الحالي</div>' : ''}
+            <div class="playlist-card ${isCurrentlyConnected ? 'is-active' : ''}" onclick="${cardClickHandler}" title="اضغط للدخول إلى ${serverName}">
+                ${badgeHtml}
                 <div class="playlist-card-top">
                     <img src="${serverLogo}" alt="${serverName}" class="playlist-logo" onerror="this.src='photo/logo.ico'" />
                     <div class="playlist-card-meta">
@@ -942,15 +991,8 @@ function renderPlaylists() {
                     </div>
                 </div>
                 <div class="playlist-card-actions">
-                    ${isActive
-                        ? `<button type="button" class="btn-playlist-select current">
-                                <i class="fas fa-check"></i> متصل حالياً
-                           </button>`
-                        : `<button type="button" class="btn-playlist-select" onclick="activateAccount('${acc.id}')">
-                                <i class="fas fa-sign-in-alt"></i> استخدام هذا السيرفر
-                           </button>`
-                    }
-                    <button type="button" class="btn-playlist-delete" onclick="deleteAccount('${acc.id}')" title="حذف من المحفوظات">
+                    ${actionBtnHtml}
+                    <button type="button" class="btn-playlist-delete" onclick="event.stopPropagation(); deleteAccount('${acc.id}')" title="حذف من المحفوظات">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
