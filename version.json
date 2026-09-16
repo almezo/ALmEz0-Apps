@@ -1,9 +1,9 @@
 {
-  "version": "1.0.21",
-  "versionCode": 22,
+  "version": "1.0.22",
+  "versionCode": 23,
   "releaseDate": "2026-09-16",
-  "title": "النظام الذكي للتعرف على قياسات ودقة الشاشات والتكيف التلقائي الشامل v1.0.21 📱🖥️📺",
-  "notes": "إطلاق محرك ذكاء الشاشات AlMeZ0 Screen Intelligence للتكيف التلقائي مع كافة الأجهزة (الهواتف، الأجهزة المطوية، الأجهزة اللوحية، أجهزة الكمبيوتر، وشاشات 4K Smart TVs) مع لوحة تشخيص لحظية.",
+  "title": "تحديث لوحة الإدارة وإزالة أزرار الاستوديو والإشعارات v1.0.22 🎛️",
+  "notes": "إزالة زري استوديو تخصيص الواجهة وإرسال الإشعارات من الشريط العلوي للوحة الإدارة.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
