@@ -5475,50 +5475,62 @@ body.tv-device-mode .live-player-container-rel {
     flex-direction: column !important;
 }
 
-/* ضبط شبكة الأفلام والمسلسلات: 5 أعمدة و 3 صفوف ظاهرة تماماً */
+/* ضبط شبكة الأفلام والمسلسلات: 5 بطاقات في الصف الواحد ومستطيل طولي كامل و 3 صفوف ظاهرة */
 #vodGrid.vod-grid,
 .vod-grid,
 body.desktop-device-mode .vod-grid,
 body.tv-device-mode .vod-grid {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 10px 12px !important;
+    gap: 12px 14px !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    justify-items: center !important;
+    align-items: start !important;
 }
 
 .vod-card {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
+    justify-content: flex-start !important;
     cursor: pointer !important;
     position: relative !important;
     width: 100% !important;
-    max-width: 185px !important;
+    max-width: 135px !important;
     margin: 0 auto !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
+}
+
+.vod-card:hover {
+    transform: scale(1.06) !important;
+    z-index: 5 !important;
 }
 
 .vod-poster {
     width: 100% !important;
-    aspect-ratio: 2 / 2.9 !important;
-    max-height: clamp(115px, 21.5vh, 210px) !important;
+    aspect-ratio: 2 / 3 !important;
+    height: auto !important;
+    max-height: none !important;
     object-fit: cover !important;
-    border-radius: 8px !important;
-    margin-bottom: 4px !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+    border-radius: 10px !important;
+    margin-bottom: 2px !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55) !important;
+    background: #141a29;
 }
 
 .vod-title {
-    font-size: clamp(11px, 0.95vw, 13.5px) !important;
-    line-height: 1.25 !important;
-    font-weight: 600 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
     text-align: center !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     width: 100% !important;
-    color: #f1f5f9 !important;
+    color: #ffffff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+    margin-top: 6px !important;
     padding: 0 2px !important;
 }
 

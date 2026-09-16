@@ -2515,6 +2515,12 @@ function forceRefreshData() {
     for (const key in fetchCache) {
         delete fetchCache[key];
     }
+    for (const key in globalStreamsCache) {
+        delete globalStreamsCache[key];
+    }
+    for (const key in globalStreamsInFlight) {
+        delete globalStreamsInFlight[key];
+    }
     showToast('جاري التحديث...', 'info');
     if (currentScreenId === 'vod-screen') {
         loadCategories(state.activeTab === 'movies' ? 'get_vod_categories' : 'get_series_categories', state.activeTab);
@@ -2707,17 +2713,47 @@ async function loadCategories(action, type) {
 }
 
 // ==========================================
-// 2. دالة إحضار الأرقام (مع حد أقصى 30)
+// 2. محرك كاش وتنسيق طلبات البث الموحد (Shared Streams Cache Engine)
 // ==========================================
-async function fetchCategoryCounts(type, containerId) {
+const globalStreamsCache = {};
+const globalStreamsInFlight = {};
+
+async function getAllStreamsForType(type, action) {
+    const cacheKey = `${state.username || ''}_${action}`;
+
+    if (globalStreamsCache[cacheKey] && Array.isArray(globalStreamsCache[cacheKey].data)) {
+        if (Date.now() - globalStreamsCache[cacheKey].time < 10 * 60 * 1000) {
+            return globalStreamsCache[cacheKey].data;
+        }
+    }
+
+    if (globalStreamsInFlight[cacheKey]) {
+        return await globalStreamsInFlight[cacheKey];
+    }
+
     const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
     const user = encodeURIComponent(state.username);
     const pass = encodeURIComponent(state.password);
-    let action = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
     const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
 
+    globalStreamsInFlight[cacheKey] = proxyFetch(url).then(data => {
+        const list = Array.isArray(data) ? data : [];
+        globalStreamsCache[cacheKey] = { data: list, time: Date.now() };
+        delete globalStreamsInFlight[cacheKey];
+        return list;
+    }).catch(err => {
+        delete globalStreamsInFlight[cacheKey];
+        throw err;
+    });
+
+    return await globalStreamsInFlight[cacheKey];
+}
+
+async function fetchCategoryCounts(type, containerId) {
+    let action = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
+
     try {
-        const streams = await proxyFetch(url);
+        const streams = await getAllStreamsForType(type, action);
         if (!Array.isArray(streams)) return;
 
         const counts = {};
@@ -2782,18 +2818,11 @@ async function fetchCategoryCounts(type, containerId) {
 }
 
 // ==========================================
-// 3. دالة تحميل المحتوى (مع حد أقصى 30)
+// 3. دالة تحميل المحتوى الفورية الذكية
 // ==========================================
 async function loadStreams(action, categoryId, type) {
-    const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
-    const user = encodeURIComponent(state.username);
-    const pass = encodeURIComponent(state.password);
-
     const specialIds = ['all', 'favs', 'continue', 'recent'];
-    let url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
-    if (!specialIds.includes(categoryId)) {
-        url += `&category_id=${categoryId}`;
-    }
+    const cacheKey = `${state.username || ''}_${action}`;
 
     let container = '';
     const loadingHtml = `
@@ -2819,7 +2848,23 @@ async function loadStreams(action, categoryId, type) {
     }
 
     try {
-        let items = await proxyFetch(url);
+        let items = [];
+        // استخدام الكاش المشترك الفوري في حال كانت الباقة محملة أو جاري تحميلها أو لقسم خاص
+        if (specialIds.includes(categoryId) || (globalStreamsCache[cacheKey] && Array.isArray(globalStreamsCache[cacheKey].data)) || globalStreamsInFlight[cacheKey]) {
+            const allStreams = await getAllStreamsForType(type, action);
+            if (specialIds.includes(categoryId)) {
+                items = [...allStreams];
+            } else {
+                items = allStreams.filter(s => String(s.category_id) === String(categoryId) || (Array.isArray(s.category_ids) && s.category_ids.map(String).includes(String(categoryId))));
+            }
+        } else {
+            const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+            const user = encodeURIComponent(state.username);
+            const pass = encodeURIComponent(state.password);
+            let url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}&category_id=${categoryId}`;
+            let itemsRaw = await proxyFetch(url);
+            items = Array.isArray(itemsRaw) ? itemsRaw : [];
+        }
         if (!Array.isArray(items)) {
             items = [];
         }
@@ -3814,7 +3859,7 @@ function applySort() {
 let activeRenderList = [];
 let activeRenderType = '';
 let activeRenderOffset = 0;
-const RENDER_CHUNK_SIZE = 80;
+const RENDER_CHUNK_SIZE = 25;
 let isAppendingChunk = false;
 
 function cleanImageUrl(url) {
@@ -3840,7 +3885,7 @@ function handleInfiniteScroll() {
     const st = getScrollTarget(activeRenderType);
     if (!st) return;
     const remaining = st.scrollHeight - (st.scrollTop + st.clientHeight);
-    if (remaining <= 1200) {
+    if (remaining <= 800) {
         appendNextItemChunk();
     }
 }
@@ -3871,14 +3916,14 @@ function renderItems(items, type) {
         window.addEventListener('scroll', handleInfiniteScroll, { passive: true });
     }
 
-    // Render initial batch of 80 items immediately
-    appendNextItemChunk(80);
+    // Render initial batch of items immediately (25 for VOD/Series, 50 for live)
+    appendNextItemChunk(type === 'live' ? 50 : 25);
 
     // If screen has high resolution and hasn't formed a scrollbar yet, append another batch
     setTimeout(() => {
         const st = getScrollTarget(activeRenderType);
-        if (st && st.scrollHeight <= st.clientHeight + 400 && activeRenderOffset < activeRenderList.length) {
-            appendNextItemChunk(80);
+        if (st && st.scrollHeight <= st.clientHeight + 300 && activeRenderOffset < activeRenderList.length) {
+            appendNextItemChunk(type === 'live' ? 50 : 25);
         }
     }, 60);
 }
@@ -3938,10 +3983,11 @@ function appendNextItemChunk(customSize) {
             card.className = 'vod-card';
             const id = item.stream_id || item.series_id;
             const name = item.name || '';
-            const cover = cleanImageUrl(item.stream_icon || item.cover);
+            const rawCover = item.stream_icon || item.cover || item.poster || (Array.isArray(item.backdrop_path) ? item.backdrop_path[0] : item.backdrop_path);
+            const cover = cleanImageUrl(rawCover);
             const ext = item.container_extension || 'mp4';
 
-            const isPriority = (activeRenderOffset + index) < 14;
+            const isPriority = (activeRenderOffset + index) < 15;
             const loadingAttr = isPriority ? 'eager' : 'lazy';
             const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
 

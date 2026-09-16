@@ -400,7 +400,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.31';
+    const CURRENT_APP_VERSION = '1.0.32';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -548,12 +548,6 @@
                     <h2 class="inapp-center-title">${titleText}</h2>
                     <p class="inapp-center-desc">${descText}</p>
                 </div>
-                ${info.notes ? `
-                <div class="inapp-center-notes">
-                    <div class="inapp-notes-title"><i class="fas fa-sparkles"></i> الجديد في هذا التحديث:</div>
-                    <p class="inapp-notes-text">${info.notes}</p>
-                </div>
-                ` : ''}
                 <div class="inapp-center-action-area">
                     <button type="button" class="inapp-btn-start-update" id="inappBtnStartUpdate">
                         <i class="fas fa-download"></i> تنزيل وتثبيت التحديث الآن
