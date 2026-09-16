@@ -1,9 +1,9 @@
 {
-  "version": "1.0.30",
-  "versionCode": 31,
-  "releaseDate": "2026-09-16",
-  "title": "ضبط بادئات CSS القياسية وخلو الكود من التحذيرات v1.0.30 ⚡✨",
-  "notes": "ضبط ترتيب خواص transform و backface-visibility بعد بادئات webkit لضمان التوافق التام مع المعايير القياسية.",
+  "version": "1.0.31",
+  "versionCode": 32,
+  "releaseDate": "2026-09-17",
+  "title": "تحديث باقة المسلسلات وتنسيق شبكة العرض وسرعة التمرير v1.0.31 🎬✨",
+  "notes": "إضافة خانة المضافة حديثاً للمسلسلات بحد أقصى 20، فتحها افتراضياً، منع وميض الأفلام/المسلسلات، تحديث العدادات فورياً، شبكة 5 أعمدة و3 صفوف، وتمكين سكرول الماوس بالكمبيوتر والريموت.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

@@ -1596,12 +1596,29 @@ function playStream(id, type, extension, name, icon) {
                     }
                 });
 
-                // ميزة استكمال المشاهدة (Resume Playback)
+                // ميزة استكمال المشاهدة (Resume Playback) من النقطة الدقيقة
                 if (type !== 'live') {
-                    const savedTime = localStorage.getItem(progressKey);
-                    if (savedTime && parseFloat(savedTime) > 0) {
-                        player.currentTime(parseFloat(savedTime));
-                        if (typeof showToast === 'function') showToast('تم استكمال المشاهدة من حيث توقفت', 'info');
+                    const savedTime = parseFloat(localStorage.getItem(progressKey) || '0');
+                    if (savedTime > 0) {
+                        let hasResumed = false;
+                        const applyResume = () => {
+                            if (hasResumed) return;
+                            try {
+                                if (player.duration() > 0 || player.readyState() >= 1) {
+                                    player.currentTime(savedTime);
+                                    hasResumed = true;
+                                    if (typeof showToast === 'function') {
+                                        showToast('تم استكمال المشاهدة من حيث توقفت', 'info');
+                                    }
+                                }
+                            } catch (e) { }
+                        };
+
+                        player.one('loadedmetadata', applyResume);
+                        player.one('canplay', applyResume);
+                        player.one('playing', applyResume);
+                        setTimeout(applyResume, 400);
+                        setTimeout(applyResume, 1000);
                     }
 
                     player.on('timeupdate', function () {
@@ -1618,6 +1635,14 @@ function playStream(id, type, extension, name, icon) {
                             } else if ((duration - currentTime) <= 10) {
                                 localStorage.removeItem(progressKey);
                             }
+                        }
+                    });
+
+                    player.on('pause', function () {
+                        const currentTime = player.currentTime();
+                        const duration = player.duration();
+                        if (duration > 0 && currentTime > 5 && (duration - currentTime) > 10) {
+                            localStorage.setItem(progressKey, currentTime);
                         }
                     });
                 }
@@ -2099,9 +2124,33 @@ function switchTab(tabId, element) {
         loadCategories('get_live_categories', 'live');
     } else if (tabId === 'movies') {
         showScreen('vod-screen');
+        sessionStorage.setItem('sp_active_cat_vod', 'recent');
+        const vodGrid = document.getElementById('vodGrid');
+        if (vodGrid) {
+            vodGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; min-height:350px; color:#fff;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:45px; color:#e5b935; margin-bottom:15px;"></i>
+                    <span style="font-size:22px; font-weight:bold;">جاري تحميل الأفلام...</span>
+                </div>
+            `;
+            const scrollEl = getScrollTarget('vod');
+            if (scrollEl) scrollEl.scrollTop = 0;
+        }
         loadCategories('get_vod_categories', 'vod');
     } else if (tabId === 'series') {
         showScreen('vod-screen');
+        sessionStorage.setItem('sp_active_cat_series', 'recent');
+        const vodGrid = document.getElementById('vodGrid');
+        if (vodGrid) {
+            vodGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; min-height:350px; color:#fff;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:45px; color:#e5b935; margin-bottom:15px;"></i>
+                    <span style="font-size:22px; font-weight:bold;">جاري تحميل المسلسلات...</span>
+                </div>
+            `;
+            const scrollEl = getScrollTarget('vod');
+            if (scrollEl) scrollEl.scrollTop = 0;
+        }
         loadCategories('get_series_categories', 'series');
     } else if (tabId === 'profile') {
         showScreen('profile-screen');
@@ -2535,8 +2584,10 @@ async function loadCategories(action, type) {
     container.innerHTML = '';
 
     const effectiveType = (type === 'movies') ? 'vod' : type;
-    const favsCount = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]').length;
-    const contCount = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]').length;
+    const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
+    const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
+    const favsCount = favsList.length;
+    const contCount = contList.length;
 
     // استرجاع العدادات المحفوظة محلياً لضمان ظهور الأرقام فوراً وبدون أي تأخير
     const countsCacheKey = 'sp_counts_' + (state.username || '') + '_' + effectiveType;
@@ -2546,13 +2597,14 @@ async function loadCategories(action, type) {
     } catch (e) { }
 
     let specialCats = [
-        { id: 'all', name: 'الكل', count: cachedCounts['all'] || '' },
-        { id: 'favs', name: 'المفضلة', count: favsCount > 0 ? favsCount : '' },
-        { id: 'continue', name: 'متابعة المشاهدة', count: contCount > 0 ? contCount : '' }
+        { id: 'all', name: 'الكل', count: (cachedCounts['all'] !== undefined && cachedCounts['all'] !== '') ? cachedCounts['all'] : '' },
+        { id: 'favs', name: 'المفضلة', count: favsCount > 0 ? favsCount : (cachedCounts['favs'] !== undefined ? cachedCounts['favs'] : 0) },
+        { id: 'continue', name: 'متابعة المشاهدة', count: contCount > 0 ? contCount : (cachedCounts['continue'] !== undefined ? cachedCounts['continue'] : 0) },
+        { id: 'recent', name: 'المضافة حديثاً', count: cachedCounts['recent'] || 20 }
     ];
 
     if (effectiveType === 'live') {
-        specialCats = specialCats.filter(c => c.id !== 'continue');
+        specialCats = specialCats.filter(c => c.id !== 'continue' && c.id !== 'recent');
     }
 
     specialCats.forEach(cat => {
@@ -2582,8 +2634,9 @@ async function loadCategories(action, type) {
         const categories = await proxyFetch(url);
 
         categories.forEach(cat => {
-            if (cat.category_name && cat.category_name.toUpperCase() === 'LAST ADDED') {
-                cat.category_name = 'المضافة حديثاً';
+            const rawName = (cat.category_name || '').trim().toUpperCase();
+            if (rawName === 'LAST ADDED' || rawName === 'المضافة حديثاً' || rawName === 'المضاف حديثا') {
+                return; // تجنب تكرار خانة المضافة حديثاً لأنها أصبحت خانة خاصة أساسية ثابتة
             }
 
             const el = document.createElement('div');
@@ -2625,7 +2678,14 @@ async function loadCategories(action, type) {
         const savedCatId = sessionStorage.getItem('sp_active_cat_' + type);
         let defaultClicked = false;
 
-        if (savedCatId) {
+        if (type === 'vod' || type === 'series') {
+            // دائماً تفتح خانة المضافة حديثاً عند فتح باقة الأفلام أو المسلسلات
+            const recentCat = container.querySelector('[data-cat-id="recent"]');
+            if (recentCat) {
+                recentCat.click();
+                defaultClicked = true;
+            }
+        } else if (savedCatId) {
             const savedCatEl = Array.from(container.querySelectorAll('.list-item')).find(el => {
                 const countSpan = el.querySelector('.cat-count');
                 return countSpan && countSpan.getAttribute('data-cat-id') === String(savedCatId);
@@ -2633,28 +2693,6 @@ async function loadCategories(action, type) {
             if (savedCatEl) {
                 savedCatEl.click();
                 defaultClicked = true;
-            }
-        }
-
-        if (!defaultClicked) {
-            if (type === 'live') {
-                const xtvCat = Array.from(container.querySelectorAll('.list-item')).find(el => el.innerText.toUpperCase().includes('XTV | LIVE EVENTS'));
-                if (xtvCat) {
-                    xtvCat.click();
-                    defaultClicked = true;
-                }
-            } else if (type === 'vod') {
-                const recentCat = Array.from(container.querySelectorAll('.list-item:not(.special-category)')).find(el => el.innerText.includes('المضافة حديثاً'));
-                if (recentCat) {
-                    recentCat.click();
-                    defaultClicked = true;
-                }
-            } else if (type === 'series') {
-                const firstRealCat = container.querySelector('.list-item:not(.special-category)');
-                if (firstRealCat) {
-                    firstRealCat.click();
-                    defaultClicked = true;
-                }
             }
         }
 
@@ -2694,11 +2732,29 @@ async function fetchCategoryCounts(type, containerId) {
             }
         });
 
+        // حفظ كافة العدادات المحسوبة في التخزين المحلي لظهور فوري دائم
+        const effectiveType = (type === 'movies') ? 'vod' : type;
+        const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
+        const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
+        const validFavs = streams.filter(s => favsList.includes(String(s.stream_id || s.series_id))).length;
+        const validCont = streams.filter(s => contList.includes(String(s.stream_id || s.series_id))).length;
+
+        counts['all'] = streams.length;
+        counts['recent'] = Math.min(streams.length, 20);
+        counts['favs'] = validFavs > 0 ? validFavs : (favsList.length > 0 ? favsList.length : 0);
+        counts['continue'] = validCont > 0 ? validCont : (contList.length > 0 ? contList.length : 0);
+
         const allSpan = document.querySelector(`#${containerId} [data-cat-id="all"]`);
-        if (allSpan) allSpan.innerText = streams.length;
+        if (allSpan) allSpan.innerText = counts['all'];
 
         const recentSpan = document.querySelector(`#${containerId} [data-cat-id="recent"]`);
-        if (recentSpan) recentSpan.innerText = Math.min(streams.length, 30);
+        if (recentSpan) recentSpan.innerText = counts['recent'];
+
+        const favSpan = document.querySelector(`#${containerId} [data-cat-id="favs"]`);
+        if (favSpan) favSpan.innerText = counts['favs'];
+
+        const contSpan = document.querySelector(`#${containerId} [data-cat-id="continue"]`);
+        if (contSpan) contSpan.innerText = counts['continue'];
 
         for (const catId in counts) {
             const span = document.querySelector(`#${containerId} [data-cat-id="${catId}"]`);
@@ -2707,37 +2763,19 @@ async function fetchCategoryCounts(type, containerId) {
                 const text = catNameEl ? catNameEl.innerText.toLowerCase() : '';
 
                 if (text.includes('حديث') || text.includes('recent') || text.includes('added') || text.includes('جديد')) {
-                    span.innerText = Math.min(counts[catId], 30);
+                    span.innerText = Math.min(counts[catId], 20);
                 } else {
                     span.innerText = counts[catId];
                 }
             }
         }
 
-        // حفظ كافة العدادات المحسوبة في التخزين المحلي لظهور فوري دائم
-        const effectiveType = (type === 'movies') ? 'vod' : type;
         const countsCacheKey = 'sp_counts_' + (state.username || '') + '_' + effectiveType;
         try {
             const existing = JSON.parse(localStorage.getItem(countsCacheKey) || '{}');
             const merged = Object.assign(existing, counts);
             localStorage.setItem(countsCacheKey, JSON.stringify(merged));
         } catch (e) { }
-
-        // تحديث عدادات باقتي المفضلة ومتابعة المشاهدة فورياً بناء على المحتوى الفعلي
-        const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
-        const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
-
-        const favSpan = document.querySelector(`#${containerId} [data-cat-id="favs"]`);
-        if (favSpan) {
-            const validFavs = streams.filter(s => favsList.includes(String(s.stream_id || s.series_id))).length;
-            favSpan.innerText = validFavs > 0 ? validFavs : (favsList.length > 0 ? favsList.length : '');
-        }
-
-        const contSpan = document.querySelector(`#${containerId} [data-cat-id="continue"]`);
-        if (contSpan) {
-            const validCont = streams.filter(s => contList.includes(String(s.stream_id || s.series_id))).length;
-            contSpan.innerText = validCont > 0 ? validCont : (contList.length > 0 ? contList.length : '');
-        }
     } catch (e) {
         console.error('Failed to fetch counts', e);
     }
@@ -2807,20 +2845,30 @@ async function loadStreams(action, categoryId, type) {
             items = items.slice(0, 30);
         } else if (categoryId === 'recent' || isRecentCategory(catName)) {
             items.sort((a, b) => {
-                const getTime = (val) => {
-                    if (!val) return 0;
-                    if (!isNaN(val)) {
-                        let timeNum = Number(val);
-                        return timeNum < 100000000000 ? timeNum * 1000 : timeNum;
+                const parseAddedTime = (item) => {
+                    if (!item) return 0;
+                    const val = item.added;
+                    const fallbackId = Number(item.stream_id || item.series_id || 0) || 0;
+                    if (!val) return fallbackId;
+                    if (typeof val === 'number') {
+                        return val < 100000000000 ? val * 1000 : val;
                     }
-                    const d = Date.parse(val);
-                    return isNaN(d) ? 0 : d;
+                    if (typeof val === 'string') {
+                        const trimmed = val.trim();
+                        if (!isNaN(trimmed)) {
+                            const num = Number(trimmed);
+                            return num < 100000000000 ? num * 1000 : num;
+                        }
+                        const parsedIso = Date.parse(trimmed.replace(' ', 'T'));
+                        if (!isNaN(parsedIso)) return parsedIso;
+                        const parsedDirect = Date.parse(trimmed);
+                        if (!isNaN(parsedDirect)) return parsedDirect;
+                    }
+                    return fallbackId;
                 };
-                const dateA = a.added ? getTime(a.added) : (a.stream_id || a.series_id || 0);
-                const dateB = b.added ? getTime(b.added) : (b.stream_id || b.series_id || 0);
-                return dateB - dateA;
+                return parseAddedTime(b) - parseAddedTime(a);
             });
-            items = items.slice(0, 30);
+            items = items.slice(0, 20);
         }
 
         originalItemsArray = items;
@@ -2925,6 +2973,15 @@ document.addEventListener('click', resetCloseBtnInactivityTimer);
 
 function closeFullscreenPlayer(isFromPopState = false) {
     clearTimeout(closeBtnTimeout);
+    if (window.vjsPlayer && currentStreamInfo && currentStreamInfo.type !== 'live') {
+        try {
+            const cur = window.vjsPlayer.currentTime();
+            const dur = window.vjsPlayer.duration();
+            if (dur > 0 && cur > 5 && (dur - cur) > 10) {
+                localStorage.setItem(`sp_progress_${currentStreamInfo.type}_${currentStreamInfo.id}`, cur);
+            }
+        } catch (e) { }
+    }
     exitNativeFullscreen();
     if (window.vjsPlayer) {
         try {
@@ -4243,7 +4300,12 @@ function initTvNavigationEngine() {
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
             const r = el.getBoundingClientRect();
-            return r.width > 0 && r.height > 0 && r.bottom >= 0 && r.top <= (window.innerHeight || document.documentElement.clientHeight);
+            // عناصر الشاشة القابلة للتمرير (البطاقات والقوائم) يجب شملها لتتمكن الأسهم والريموت من النزول إليها
+            const isScrollChild = !!el.closest('#vodGrid, #liveChannels, .list-container, .vod-grid');
+            if (isScrollChild) {
+                return r.width > 0 && r.height > 0;
+            }
+            return r.width > 0 && r.height > 0 && r.bottom >= -100 && r.top <= ((window.innerHeight || document.documentElement.clientHeight) + 100);
         });
     }
 
@@ -4259,7 +4321,7 @@ function initTvNavigationEngine() {
             el.focus({ preventScroll: true });
         } catch (e) {}
         try {
-            el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         } catch (e) {}
     }
 
@@ -4462,8 +4524,23 @@ function initTvNavigationEngine() {
     });
 }
 
+function initVodScrollHandler() {
+    const vodCol = document.querySelector('#vod-screen .col-player');
+    if (vodCol) {
+        vodCol.addEventListener('wheel', (e) => {
+            if (e.deltaY) {
+                vodCol.scrollTop += e.deltaY;
+            }
+        }, { passive: true });
+    }
+}
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initTvNavigationEngine);
+    document.addEventListener('DOMContentLoaded', () => {
+        initTvNavigationEngine();
+        initVodScrollHandler();
+    });
 } else {
     initTvNavigationEngine();
+    initVodScrollHandler();
 }

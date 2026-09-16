@@ -5374,7 +5374,13 @@ body.tv-device-mode .live-player-container-rel {
 /* =========================================================
    DESKTOP & ANDROID TV / RECEIVER OVERRIDES (الكمبيوتر والشاشات والرسيفرات)
    ========================================================= */
-body.desktop-device-mode .col-sidebar,
+body.desktop-device-mode .col-sidebar {
+    width: 365px !important;
+    min-width: 365px !important;
+    max-width: 365px !important;
+    flex: 0 0 365px !important;
+}
+
 body.tv-device-mode .col-sidebar {
     width: var(--player-sidebar-w, 330px) !important;
     min-width: var(--player-sidebar-w, 330px) !important;
@@ -5398,6 +5404,39 @@ body.tv-device-mode .col-player {
     overflow: hidden !important;
     flex: 1 1 auto !important;
     padding: clamp(10px, 1.8vw, 28px) !important;
+}
+
+/* تمكين التمرير وإظهار شريط التمرير الأنيق في شاشة الأفلام والمسلسلات في الكمبيوتر والشاشات */
+#vod-screen .col-player,
+body.desktop-device-mode #vod-screen .col-player,
+body.tv-device-mode #vod-screen .col-player {
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    padding: 10px 14px !important;
+    box-sizing: border-box !important;
+    scroll-behavior: smooth !important;
+}
+
+#vod-screen .col-player::-webkit-scrollbar {
+    width: 8px !important;
+    display: block !important;
+}
+
+#vod-screen .col-player::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 6px !important;
+}
+
+#vod-screen .col-player::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-radius: 6px !important;
+}
+
+#vod-screen .col-player::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-gold, #e5b935) !important;
 }
 
 body.desktop-device-mode .player-wrapper,
@@ -5436,10 +5475,51 @@ body.tv-device-mode .live-player-container-rel {
     flex-direction: column !important;
 }
 
+/* ضبط شبكة الأفلام والمسلسلات: 5 أعمدة و 3 صفوف ظاهرة تماماً */
+#vodGrid.vod-grid,
+.vod-grid,
 body.desktop-device-mode .vod-grid,
 body.tv-device-mode .vod-grid {
-    grid-template-columns: repeat(var(--player-vod-cols, 5), minmax(0, 1fr)) !important;
-    gap: var(--screen-gap, 16px) !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 10px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.vod-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    cursor: pointer !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 185px !important;
+    margin: 0 auto !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.vod-poster {
+    width: 100% !important;
+    aspect-ratio: 2 / 2.9 !important;
+    max-height: clamp(115px, 21.5vh, 210px) !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    margin-bottom: 4px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+}
+
+.vod-title {
+    font-size: clamp(11px, 0.95vw, 13.5px) !important;
+    line-height: 1.25 !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    width: 100% !important;
+    color: #f1f5f9 !important;
+    padding: 0 2px !important;
 }
 
 /* Modals & Dialogs adaptive max-width */
