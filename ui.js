@@ -79,6 +79,16 @@ function checkFABMode() {
                 }
             };
 
+            // 1.5. زر استوديو التحكم في الواجهة والمشغل
+            const studioFab = document.createElement('button');
+            studioFab.id = 'adminStudioFab';
+            studioFab.className = 'floating-btn studio-fab';
+            studioFab.innerHTML = '<i class="fas fa-palette"></i>';
+            studioFab.title = 'استوديو تخصيص الواجهة والمشغل والألوان';
+            studioFab.onclick = function () {
+                window.location.href = 'admin-dashboard.html?openStudio=true';
+            };
+
             // 2. زر التعديل (يمين)
             const editFab = document.createElement('button');
             editFab.id = 'adminFab';
@@ -126,6 +136,7 @@ function checkFABMode() {
 
             // إضافة الأزرار للحاويات المخصصة لها
             fabContainerRight.appendChild(broadcastFab);
+            fabContainerRight.appendChild(studioFab);
             fabContainerRight.appendChild(editFab);
             fabContainerRight.appendChild(securityFab);
 

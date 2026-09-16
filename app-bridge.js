@@ -387,7 +387,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.17';
+    const CURRENT_APP_VERSION = '1.0.18';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -1360,13 +1360,303 @@
         }, 600);
     }
 
+    // =========================================================================
+    // استوديو التحكم السحابي في الواجهة والمشغل (AlMeZ0 Remote UI Studio Engine)
+    // Server-Driven UI & Dynamic Theming for Zero-Update Visual Customization
+    // =========================================================================
+    const DEFAULT_UI_CONFIG = {
+        themePreset: 'emerald',
+        primaryColor: '#2e7d32',
+        accentColor: '#4caf50',
+        glowColor: 'rgba(76, 175, 80, 0.35)',
+        bgDark: '#0a0d12',
+        bgCard: 'rgba(20, 24, 32, 0.85)',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        textPrimary: '#ffffff',
+        textSecondary: '#94a3b8',
+
+        sidebarWidth: 330,
+        channelsWidth: 360,
+        playerMaxWidth: 1200,
+        vodCols: 5,
+        vodGap: 14,
+        cardRadius: 12,
+
+        siteTitle: 'سيرفرات الميزو - ALmEz0',
+        tickerEnabled: false,
+        tickerText: '🔥 مرحباً بكم في سيرفرات الميزو - اشتراكات VIP بدون تقطيع مع دعم فني متواصل 24/7',
+        tickerSpeed: 'normal',
+        tickerBg: 'linear-gradient(90deg, #15803d, #22c55e, #15803d)',
+        whatsappNumber: '+218945772649',
+        supportText: 'تواصل مع الدعم الفني',
+
+        showDeviceSwitcher: true,
+        showDownloads: true,
+        showLiveSection: true,
+        showMoviesSection: true,
+        showSeriesSection: true,
+        forceLowSpecMode: false
+    };
+
+    function applyRemoteUiConfig(config) {
+        if (!config || typeof config !== 'object') config = DEFAULT_UI_CONFIG;
+        const cfg = Object.assign({}, DEFAULT_UI_CONFIG, config);
+
+        // 1. Inject or update CSS Variables & Layout Rules
+        let styleTag = document.getElementById('almezo-remote-ui-styles');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'almezo-remote-ui-styles';
+            (document.head || document.documentElement).appendChild(styleTag);
+        }
+
+        const cssRules = `
+            :root {
+                --green-primary: ${cfg.primaryColor} !important;
+                --green-accent: ${cfg.accentColor} !important;
+                --green-light: ${cfg.accentColor} !important;
+                --green-glow: ${cfg.glowColor} !important;
+                --accent-red: ${cfg.primaryColor} !important;
+                --accent-red-hover: ${cfg.accentColor} !important;
+                --accent-red-glow: ${cfg.glowColor} !important;
+                --bg-dark: ${cfg.bgDark} !important;
+                --bg-main: ${cfg.bgDark} !important;
+                --bg-card: ${cfg.bgCard} !important;
+                --border-color: ${cfg.borderColor} !important;
+                --border-card: ${cfg.borderColor} !important;
+                --text-primary: ${cfg.textPrimary} !important;
+                --text-main: ${cfg.textPrimary} !important;
+                --text-secondary: ${cfg.textSecondary} !important;
+                --text-muted: ${cfg.textSecondary} !important;
+            }
+
+            /* أبعاد الكمبيوتر والتلفزيون للمشغل والبطاقات (مع حماية كانفاس الهواتف الأصلية) */
+            body.desktop-device-mode .col-sidebar,
+            body.tv-device-mode .col-sidebar {
+                width: ${cfg.sidebarWidth}px !important;
+                min-width: ${cfg.sidebarWidth}px !important;
+                max-width: ${cfg.sidebarWidth}px !important;
+                flex: 0 0 ${cfg.sidebarWidth}px !important;
+            }
+
+            body.desktop-device-mode .col-list,
+            body.tv-device-mode .col-list {
+                width: ${cfg.channelsWidth}px !important;
+                min-width: ${cfg.channelsWidth}px !important;
+                max-width: ${cfg.channelsWidth}px !important;
+                flex: 0 0 ${cfg.channelsWidth}px !important;
+            }
+
+            body.desktop-device-mode .player-wrapper,
+            body.tv-device-mode .player-wrapper {
+                max-width: ${cfg.playerMaxWidth}px !important;
+            }
+
+            body.desktop-device-mode .vod-grid,
+            body.tv-device-mode .vod-grid {
+                grid-template-columns: repeat(${cfg.vodCols}, 1fr) !important;
+                gap: ${cfg.vodGap}px !important;
+            }
+
+            .vod-card, .channel-item, .cat-item, .main-category-card, .price-card, .playlist-card {
+                border-radius: ${cfg.cardRadius}px !important;
+            }
+
+            ${cfg.showDeviceSwitcher === false ? `
+                .nav-btn-device-mode, .device-mode-badge, .btn-device-mode-auth {
+                    display: none !important;
+                }
+            ` : ''}
+
+            ${cfg.showDownloads === false ? `
+                .btn-download-stream, .download-btn, .btn-download-header {
+                    display: none !important;
+                }
+            ` : ''}
+
+            ${cfg.showLiveSection === false ? `
+                #navLive, [data-category="live"], .cat-live-btn {
+                    display: none !important;
+                }
+            ` : ''}
+
+            ${cfg.showMoviesSection === false ? `
+                #navMovies, [data-category="movies"], .cat-movies-btn {
+                    display: none !important;
+                }
+            ` : ''}
+
+            ${cfg.showSeriesSection === false ? `
+                #navSeries, [data-category="series"], .cat-series-btn {
+                    display: none !important;
+                }
+            ` : ''}
+
+            /* شريط الإعلانات المتحرك العلوي */
+            .almezo-remote-ticker-bar {
+                position: relative;
+                width: 100%;
+                background: ${cfg.tickerBg || 'linear-gradient(90deg, #15803d, #22c55e, #15803d)'};
+                color: #ffffff;
+                padding: 7px 14px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+                z-index: 99999;
+                font-family: 'Cairo', 'Tajawal', sans-serif;
+                font-size: 0.88rem;
+                overflow: hidden;
+                box-sizing: border-box;
+                direction: rtl;
+            }
+            .almezo-remote-ticker-icon {
+                flex: 0 0 auto;
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 6px;
+                padding: 3px 7px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .almezo-remote-ticker-track {
+                flex: 1 1 auto;
+                overflow: hidden;
+                white-space: nowrap;
+                position: relative;
+            }
+            .almezo-remote-ticker-text {
+                display: inline-block;
+                padding-right: 100%;
+                animation: almezoTickerMarquee ${cfg.tickerSpeed === 'fast' ? '12s' : (cfg.tickerSpeed === 'slow' ? '30s' : '20s')} linear infinite;
+                font-weight: 600;
+            }
+            .almezo-remote-ticker-track:hover .almezo-remote-ticker-text {
+                animation-play-state: paused;
+            }
+            .almezo-remote-ticker-close {
+                flex: 0 0 auto;
+                background: transparent;
+                border: none;
+                color: #ffffff;
+                cursor: pointer;
+                opacity: 0.8;
+                font-size: 1rem;
+                padding: 2px 6px;
+            }
+            .almezo-remote-ticker-close:hover {
+                opacity: 1;
+            }
+            @keyframes almezoTickerMarquee {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(100%); }
+            }
+        `;
+        styleTag.textContent = cssRules;
+
+        // 2. Ticker Banner Management
+        let tickerEl = document.getElementById('almezoRemoteTicker');
+        if (cfg.tickerEnabled && cfg.tickerText && cfg.tickerText.trim()) {
+            if (!tickerEl && document.body) {
+                tickerEl = document.createElement('div');
+                tickerEl.id = 'almezoRemoteTicker';
+                tickerEl.className = 'almezo-remote-ticker-bar';
+                tickerEl.innerHTML = `
+                    <div class="almezo-remote-ticker-icon">
+                        <i class="fas fa-bullhorn"></i> <span>تنبيه</span>
+                    </div>
+                    <div class="almezo-remote-ticker-track">
+                        <span class="almezo-remote-ticker-text" id="almezoRemoteTickerContent"></span>
+                    </div>
+                    <button type="button" class="almezo-remote-ticker-close" onclick="document.getElementById('almezoRemoteTicker').style.display='none';" title="إغلاق التنبيه">
+                        &times;
+                    </button>
+                `;
+                document.body.insertBefore(tickerEl, document.body.firstChild);
+            }
+            if (tickerEl) {
+                tickerEl.style.display = 'flex';
+                const textEl = document.getElementById('almezoRemoteTickerContent');
+                if (textEl) textEl.textContent = cfg.tickerText;
+            }
+        } else if (tickerEl) {
+            tickerEl.style.display = 'none';
+        }
+
+        // 3. Force Low Spec Mode if instructed by Admin
+        if (document.body) {
+            if (cfg.forceLowSpecMode) {
+                document.body.classList.add('low-spec-mode');
+            }
+        }
+
+        // 4. Custom Site Title
+        if (cfg.siteTitle && cfg.siteTitle.trim()) {
+            const logoH1 = document.querySelector('.logo h1, .header-title-text');
+            if (logoH1) logoH1.textContent = cfg.siteTitle;
+        }
+    }
+
+    // Apply Cached Config Immediately (0ms latency, runs synchronously)
+    try {
+        const cachedRaw = localStorage.getItem('almezo_remote_ui_config');
+        if (cachedRaw) {
+            const cached = JSON.parse(cachedRaw);
+            applyRemoteUiConfig(cached);
+        }
+    } catch (e) { }
+
+    function initRemoteUiStudioEngine() {
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        function getFirestoreInstance() {
+            try {
+                if (window.db) return window.db;
+                if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0 && typeof firebase.firestore === 'function') {
+                    return firebase.firestore();
+                }
+            } catch (e) { }
+            return null;
+        }
+
+        const timer = setInterval(() => {
+            attempts++;
+            const firestore = getFirestoreInstance();
+
+            if (firestore) {
+                clearInterval(timer);
+                try {
+                    firestore.collection('siteConfig').doc('ui_customization')
+                        .onSnapshot(doc => {
+                            if (!doc || !doc.exists) return;
+                            const remoteData = doc.data();
+                            if (remoteData) {
+                                localStorage.setItem('almezo_remote_ui_config', JSON.stringify(remoteData));
+                                applyRemoteUiConfig(remoteData);
+                            }
+                        }, err => {
+                            console.warn('[RemoteUiStudio] Sync listener error:', err);
+                        });
+                } catch (e) {
+                    console.warn('[RemoteUiStudio] Setup failed:', e);
+                }
+            } else if (attempts >= maxAttempts) {
+                clearInterval(timer);
+            }
+        }, 600);
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             initBroadcastNotificationListener();
+            initRemoteUiStudioEngine();
             setTimeout(checkInAppUpdate, 1500);
         });
     } else {
         initBroadcastNotificationListener();
+        initRemoteUiStudioEngine();
         setTimeout(checkInAppUpdate, 1500);
     }
 
@@ -1379,5 +1669,15 @@
     window.AlMeZ0App.checkUpdate = checkInAppUpdate;
     window.AlMeZ0App.showInAppUpdateBanner = showInAppUpdateBanner;
     window.AlMeZ0App.showBroadcastPushBanner = showBroadcastPushBanner;
+    window.AlMeZ0App.applyRemoteUiConfig = applyRemoteUiConfig;
+    window.AlMeZ0App.DEFAULT_UI_CONFIG = DEFAULT_UI_CONFIG;
+    window.AlMeZ0App.getRemoteUiConfig = function () {
+        try {
+            const raw = localStorage.getItem('almezo_remote_ui_config');
+            return raw ? Object.assign({}, DEFAULT_UI_CONFIG, JSON.parse(raw)) : Object.assign({}, DEFAULT_UI_CONFIG);
+        } catch (e) {
+            return Object.assign({}, DEFAULT_UI_CONFIG);
+        }
+    };
 })();
 
