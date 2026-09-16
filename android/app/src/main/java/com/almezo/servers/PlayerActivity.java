@@ -208,6 +208,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
 
             enableImmersiveFullscreen();
+            optimizeDisplayRefreshRate();
             initViews();
             setupGestures();
             setupPlayer();
@@ -215,6 +216,34 @@ public class PlayerActivity extends AppCompatActivity {
             Log.e(TAG, "Critical error during PlayerActivity onCreate", t);
             Toast.makeText(this, "تعذر تشغيل الفيديو: " + t.getMessage(), Toast.LENGTH_LONG).show();
             finish();
+        }
+    }
+
+    private void optimizeDisplayRefreshRate() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.view.Display display = getDisplay();
+                if (display != null) {
+                    android.view.Display.Mode[] modes = display.getSupportedModes();
+                    android.view.Display.Mode maxMode = null;
+                    for (android.view.Display.Mode mode : modes) {
+                        if (maxMode == null || mode.getRefreshRate() > maxMode.getRefreshRate()) {
+                            maxMode = mode;
+                        }
+                    }
+                    if (maxMode != null && maxMode.getRefreshRate() >= 60.0f) {
+                        WindowManager.LayoutParams params = getWindow().getAttributes();
+                        params.preferredDisplayModeId = maxMode.getModeId();
+                        getWindow().setAttributes(params);
+                    }
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                WindowManager.LayoutParams params = getWindow().getAttributes();
+                params.preferredRefreshRate = 120.0f;
+                getWindow().setAttributes(params);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "optimizeDisplayRefreshRate error", t);
         }
     }
 
@@ -941,7 +970,12 @@ public class PlayerActivity extends AppCompatActivity {
                     .setDataSourceFactory(httpDataSourceFactory);
 
             DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(15000, 50000, 1500, 3000)
+                    .setBufferDurationsMs(
+                        isLiveStream ? 8000 : 15000,
+                        isLiveStream ? 25000 : 50000,
+                        1000,
+                        2500
+                    )
                     .setPrioritizeTimeOverSizeThresholds(true)
                     .build();
 

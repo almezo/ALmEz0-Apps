@@ -5,6 +5,13 @@ const http = require('http');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
+// Hardware acceleration and high refresh rate flags (60fps - 120fps GPU video rendering)
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization,SmoothScrolling');
+app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top');
+
 // Ensure single instance of the application
 const gotTheLock = app.requestSingleInstanceLock();
 let mainWindow = null;

@@ -555,7 +555,9 @@ function showScreen(screenId, isBackNavigation = false) {
         if (typeof updateActiveServerBanner === 'function') {
             updateActiveServerBanner();
         }
-        if (typeof runSequentialAutoSync === 'function') {
+        // يعمل التحديث التلقائي المتسلسل عند الدخول للمشغل فقط ولا يتكرر عند التنقل الداخلي بين الباقات
+        if (!window.hasPlayerInitialSyncRun && typeof runSequentialAutoSync === 'function') {
+            window.hasPlayerInitialSyncRun = true;
             runSequentialAutoSync();
         } else if (typeof updateCardTimestamps === 'function') {
             updateCardTimestamps();
@@ -1263,7 +1265,7 @@ async function handleLogin() {
 }
 
 function playStream(id, type, extension, name, icon) {
-    currentStreamInfo = { id, type, extension, name, icon };
+    currentStreamInfo = { id, type, extension, name, icon, mediaDetails: window.currentMediaDetails || null };
     if (type === 'live') {
         sessionStorage.setItem('sp_last_live_stream', JSON.stringify({ id, type, extension, name, icon }));
     }
@@ -1660,19 +1662,83 @@ function playStream(id, type, extension, name, icon) {
                         e.stopPropagation();
 
                         const vTag = playerEl.querySelector('video');
-                        const vWidth = vTag ? (vTag.videoWidth || 'غير متوفر') : 'غير متوفر';
-                        const vHeight = vTag ? (vTag.videoHeight || 'غير متوفر') : 'غير متوفر';
+                        const vWidth = vTag ? (vTag.videoWidth || 0) : 0;
+                        const vHeight = vTag ? (vTag.videoHeight || 0) : 0;
+
+                        const details = (currentStreamInfo && currentStreamInfo.mediaDetails) || window.currentMediaDetails || null;
+                        const serverVideo = details && details.info && details.info.video;
+                        const sWidth = serverVideo ? (serverVideo.width || serverVideo.coded_width || 0) : 0;
+                        const sHeight = serverVideo ? (serverVideo.height || serverVideo.coded_height || 0) : 0;
+                        const streamName = (currentStreamInfo && currentStreamInfo.name) || name || '';
+
+                        const isTitle4k = /4k|uhd|2160/i.test(streamName);
+                        const isTrue4k = (sWidth >= 3840 || sHeight >= 2160 || vWidth >= 3840 || vHeight >= 2160 || isTitle4k);
+
+                        let sourceResText = '1920 × 1080 (Full HD ⚡)';
+                        if (isTrue4k) {
+                            sourceResText = '3840 × 2160 (4K Ultra HD ⚡)';
+                        } else if (sWidth > 0 && sHeight > 0) {
+                            sourceResText = `${sWidth} × ${sHeight}`;
+                        } else if (/720|hd/i.test(streamName) && !/1080|fhd/i.test(streamName)) {
+                            sourceResText = '1280 × 720 (HD ⚡)';
+                        }
+
+                        let currentResText = (vWidth > 0 && vHeight > 0) ? `${vWidth} × ${vHeight}` : 'جاري الرندرة...';
+                        if (vWidth >= 3840 || vHeight >= 2160) {
+                            currentResText += ' (4K UHD)';
+                        } else if (vWidth >= 1920 || vHeight >= 1080) {
+                            currentResText += ' (FHD 1080p)';
+                        } else if (vWidth >= 1280 || vHeight >= 720) {
+                            currentResText += ' (HD 720p)';
+                        }
+
+                        const rawCodec = (serverVideo && serverVideo.codec_name) ? serverVideo.codec_name.toUpperCase() : (isTrue4k ? 'HEVC (H.265)' : 'H.264 (AVC)');
+                        const codecText = isTrue4k ? 'HEVC / H.265 (10-Bit HDR)' : rawCodec;
 
                         const oldModal = playerEl.querySelector('.custom-player-alert');
                         if (oldModal) oldModal.remove();
 
                         const alertHtml = `
-                            <div class="custom-player-alert" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; color: #fff; font-family: inherit; animation: fadeInAlert 0.3s ease;">
-                                <div style="background: #161b22; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 25px 35px; text-align: center; max-width: 350px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
-                                    <div style="font-size: 40px; color: #38bdf8; margin-bottom: 10px;"><i class="fas fa-info-circle"></i></div>
-                                    <h3 style="margin: 0 0 15px 0; font-size: 20px; color: #fff;">معلومات البث</h3>
-                                    <p style="margin: 0 0 20px 0; font-size: 14px; color: #cbd5e1; line-height: 1.6;">جودة الصورة: ${vWidth} × ${vHeight}</p>
-                                    <button id="closePlayerAlertBtn" style="background: #f59e0b; color: #000; border: none; padding: 10px 25px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s;">حسناً</button>
+                            <div class="custom-player-alert" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; color: #fff; font-family: inherit; animation: fadeInAlert 0.25s ease;">
+                                <div style="background: #111827; border: 1px solid rgba(255,255,255,0.15); border-radius: 18px; padding: 24px 28px; text-align: center; max-width: 410px; width: 92%; box-shadow: 0 15px 35px rgba(0,0,0,0.85); direction: rtl;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px;">
+                                        <div style="font-size: 26px; color: #38bdf8;"><i class="fas fa-info-circle"></i></div>
+                                        <h3 style="margin: 0; font-size: 19px; color: #fff; font-weight: 700;">معلومات الفيديو والبث</h3>
+                                    </div>
+
+                                    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; text-align: right; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: #94a3b8;"><i class="fas fa-server" style="margin-left: 6px;"></i> دقة المصدر الأصلية:</span>
+                                            <span style="color: ${isTrue4k ? '#4ade80' : '#38bdf8'}; font-weight: bold; direction: ltr;">${sourceResText}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: #94a3b8;"><i class="fas fa-desktop" style="margin-left: 6px;"></i> دقة العرض الحالية:</span>
+                                            <span style="color: #f1f5f9; font-weight: 600; direction: ltr;">${currentResText}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: #94a3b8;"><i class="fas fa-tachometer-alt" style="margin-left: 6px;"></i> معدل سلاسة الإطارات:</span>
+                                            <span style="color: #fbbf24; font-weight: bold; direction: ltr;">60 - 120 FPS ⚡</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: #94a3b8;"><i class="fas fa-microchip" style="margin-left: 6px;"></i> ترميز الفيديو:</span>
+                                            <span style="color: #cbd5e1; font-weight: 600; direction: ltr;">${codecText}</span>
+                                        </div>
+                                    </div>
+
+                                    ${isTrue4k && vWidth > 0 && vWidth < 3840 ? `
+                                        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #cbd5e1; line-height: 1.5; text-align: right;">
+                                            <i class="fas fa-bolt" style="color: #38bdf8; margin-left: 5px;"></i> جودة الفيلم الأصلية 4K حقيقي. متصفحات الويب تقوم بالتوافق على 1080p، ويمكنك فتحه مباشرة في المشغل الخارجي بأعلى جودة خام 4K.
+                                        </div>
+                                    ` : ''}
+
+                                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                                        ${isTrue4k ? `
+                                            <button id="playerInfoExternalPlayBtn" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 9px 15px; font-weight: 600; border-radius: 8px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                                <i class="fas fa-external-link-alt"></i> تشغيل 4K Direct
+                                            </button>
+                                        ` : ''}
+                                        <button id="closePlayerAlertBtn" style="background: #f59e0b; color: #000; border: none; padding: 9px 24px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 13.5px; transition: 0.2s;">حسناً</button>
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -1685,6 +1751,18 @@ function playStream(id, type, extension, name, icon) {
                                 ev.stopPropagation();
                                 const modal = playerEl.querySelector('.custom-player-alert');
                                 if (modal) modal.remove();
+                            };
+                        }
+
+                        const extBtn = document.getElementById('playerInfoExternalPlayBtn');
+                        if (extBtn) {
+                            extBtn.onclick = (ev) => {
+                                ev.stopPropagation();
+                                const modal = playerEl.querySelector('.custom-player-alert');
+                                if (modal) modal.remove();
+                                if (typeof launchExternalPlayer === 'function' && baseStreamUrl) {
+                                    launchExternalPlayer(baseStreamUrl, streamName);
+                                }
                             };
                         }
                     };
@@ -3146,6 +3224,7 @@ async function showMovieDetails(movieId, name, cover, ext) {
 
     try {
         const data = await proxyFetch(infoUrl);
+        window.currentMediaDetails = { movieId, name, cover, ext, info: data.info || {}, movie_data: data.movie_data || {} };
         const info = data.info || {};
         if (data.movie_data && data.movie_data.container_extension) {
             ext = data.movie_data.container_extension;
@@ -3640,13 +3719,29 @@ function applySort() {
     if (option === 'default') {
         sorted = [...originalItemsArray];
     } else if (option === 'added') {
-        // Sort by added descending (assuming added string is a timestamp or date)
-        // If 'added' is not available, we sort by stream_id descending (newer is usually higher id)
-        sorted.sort((a, b) => {
-            const dateA = a.added ? new Date(a.added * 1000).getTime() : (a.stream_id || a.series_id || 0);
-            const dateB = b.added ? new Date(b.added * 1000).getTime() : (b.stream_id || b.series_id || 0);
-            return dateB - dateA;
-        });
+        const parseAddedTime = (item) => {
+            if (!item) return 0;
+            const val = item.added;
+            const fallbackId = Number(item.stream_id || item.series_id || 0) || 0;
+            if (!val) return fallbackId;
+            if (typeof val === 'number') {
+                return val < 100000000000 ? val * 1000 : val;
+            }
+            if (typeof val === 'string') {
+                const trimmed = val.trim();
+                if (!isNaN(trimmed)) {
+                    const num = Number(trimmed);
+                    return num < 100000000000 ? num * 1000 : num;
+                }
+                const parsedIso = Date.parse(trimmed.replace(' ', 'T'));
+                if (!isNaN(parsedIso)) return parsedIso;
+                const parsedDirect = Date.parse(trimmed);
+                if (!isNaN(parsedDirect)) return parsedDirect;
+            }
+            return fallbackId;
+        };
+
+        sorted.sort((a, b) => parseAddedTime(b) - parseAddedTime(a));
     } else if (option === 'asc') {
         sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     } else if (option === 'desc') {

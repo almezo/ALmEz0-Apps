@@ -400,7 +400,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.28';
+    const CURRENT_APP_VERSION = '1.0.29';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -579,7 +579,6 @@
                                 <button type="button" class="inapp-btn-pause-resume" id="inappBtnPauseResume" title="إيقاف مؤقت / استئناف">
                                     <i class="fas fa-pause"></i> إيقاف مؤقت
                                 </button>
-                                <span class="inapp-fast-tag"><i class="fas fa-bolt"></i> تثبيت تلقائي</span>
                             </div>
                         </div>
                     </div>
