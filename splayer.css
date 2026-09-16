@@ -388,6 +388,84 @@ body.desktop-device-mode .app-scaler {
     transform: scale(1.1);
 }
 
+/* أزرار دائرية يسار بطاقة الدخول (الحسابات المحفوظة ونمط الجهاز) بدون أسماء */
+.auth-top-actions-left {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 10;
+}
+
+.btn-auth-circular {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    border: 2.5px solid;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+}
+
+.btn-auth-circular.btn-auth-accounts {
+    background: rgba(245, 158, 11, 0.15) !important;
+    border-color: rgba(245, 158, 11, 0.75) !important;
+    color: #fbbf24 !important;
+    font-size: 28px;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
+.btn-auth-circular.btn-auth-accounts:hover {
+    background: rgba(245, 158, 11, 0.3) !important;
+    border-color: #fbbf24 !important;
+    color: #fff !important;
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.8), inset 0 0 16px rgba(245, 158, 11, 0.5) !important;
+    transform: scale(1.1);
+}
+
+.btn-auth-circular.btn-auth-device {
+    background: rgba(56, 189, 248, 0.15) !important;
+    border-color: rgba(56, 189, 248, 0.75) !important;
+    color: #38bdf8 !important;
+    font-size: 28px;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+}
+
+.btn-auth-circular.btn-auth-device:hover {
+    background: rgba(56, 189, 248, 0.3) !important;
+    border-color: #38bdf8 !important;
+    color: #fff !important;
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.8), inset 0 0 16px rgba(56, 189, 248, 0.5) !important;
+    transform: scale(1.1);
+}
+
+.auth-circular-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    font-family: 'Cairo', sans-serif;
+    border-radius: 12px;
+    padding: 2px 7px;
+    min-width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 10px rgba(239, 68, 68, 0.6);
+    border: 2px solid #161b22;
+}
+
 /* زيادة المسافات بين الأزرار لتتناسب مع الحجم الأكبر */
 /* =========================================================
    زيادة المسافة والتباعد بين أزرار التحكم (الخروج، الملف الشخصي، التحديث)
@@ -4047,7 +4125,8 @@ input[type="number"] {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: clamp(10px, 2vw, 24px);
+    box-sizing: border-box;
 }
 
 .playlists-modal-backdrop {
@@ -4064,26 +4143,28 @@ input[type="number"] {
 .playlists-modal-content {
     position: relative;
     width: 100%;
-    max-width: 820px;
-    max-height: 88vh;
+    max-width: min(94vw, 860px);
+    max-height: min(92vh, 640px);
     background: linear-gradient(145deg, #121722, #0a0d14);
-    border: 1.5px solid rgba(244, 194, 66, 0.3);
-    border-radius: 24px;
-    padding: 28px 32px;
+    border: 1.5px solid rgba(244, 194, 66, 0.35);
+    border-radius: var(--screen-card-radius, 24px);
+    padding: clamp(14px, 2.2vw, 26px) clamp(16px, 2.5vw, 30px);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.95), 0 0 30px rgba(244, 194, 66, 0.1);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.95), 0 0 30px rgba(244, 194, 66, 0.12);
     z-index: 2;
     color: #fff;
     overflow: hidden;
+    box-sizing: border-box;
 }
 
 .playlists-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: 20px;
+    padding-bottom: clamp(10px, 1.6vh, 16px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
 }
 
 .playlists-header-title {
@@ -4093,27 +4174,28 @@ input[type="number"] {
 }
 
 .playlists-header-icon {
-    width: 44px;
-    height: 44px;
+    width: clamp(36px, 4.2vw, 44px);
+    height: clamp(36px, 4.2vw, 44px);
     border-radius: 12px;
     background: rgba(244, 194, 66, 0.15);
     color: #f4c242;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: clamp(16px, 2vw, 20px);
     border: 1px solid rgba(244, 194, 66, 0.3);
+    flex-shrink: 0;
 }
 
 .playlists-header-title h3 {
-    font-size: 22px;
+    font-size: clamp(17px, 2.2vw, 22px);
     font-weight: 800;
     margin: 0;
     color: #fff;
 }
 
 .playlists-header-title p {
-    font-size: 13px;
+    font-size: clamp(11.5px, 1.4vw, 13px);
     color: #94a3b8;
     margin: 2px 0 0 0;
 }
@@ -4143,17 +4225,18 @@ input[type="number"] {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 0 16px 0;
+    padding: clamp(10px, 1.5vh, 14px) 0;
     gap: 12px;
+    flex-shrink: 0;
 }
 
 .btn-add-playlist {
     background: linear-gradient(135deg, #4caf50, #2e7d32);
     border: none;
     color: #fff;
-    padding: 12px 24px;
+    padding: clamp(8px, 1.2vw, 12px) clamp(14px, 2vw, 22px);
     border-radius: 12px;
-    font-size: 15px;
+    font-size: clamp(13px, 1.5vw, 15px);
     font-weight: 700;
     display: inline-flex;
     align-items: center;
@@ -4175,28 +4258,32 @@ input[type="number"] {
 }
 
 .playlists-grid {
-    flex: 1;
+    flex: 1 1 auto;
     overflow-y: auto;
-    max-height: 52vh;
-    padding: 6px 2px 14px 2px;
+    max-height: clamp(240px, 58vh, 480px);
+    padding: 4px 4px 18px 4px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(250px, 44vw, 360px), 1fr));
+    gap: clamp(10px, 1.5vw, 16px);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Playlist Card */
 .playlist-card {
-    background: rgba(22, 28, 42, 0.85);
+    background: rgba(22, 28, 42, 0.9);
     border: 1.5px solid rgba(255, 255, 255, 0.08);
-    border-radius: 18px;
-    padding: 18px;
+    border-radius: var(--screen-card-radius, 18px);
+    padding: clamp(12px, 1.8vw, 18px);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 14px;
+    gap: clamp(8px, 1.2vh, 12px);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
+    box-sizing: border-box;
+    min-height: fit-content;
 }
 
 .playlist-card:hover {
@@ -4218,8 +4305,8 @@ input[type="number"] {
 }
 
 .playlist-logo {
-    width: 52px;
-    height: 52px;
+    width: clamp(44px, 5vw, 52px);
+    height: clamp(44px, 5vw, 52px);
     border-radius: 12px;
     object-fit: cover;
     background: #06090e;
@@ -4238,7 +4325,7 @@ input[type="number"] {
 }
 
 .playlist-card-meta h4 {
-    font-size: 17px;
+    font-size: clamp(15px, 1.8vw, 17px);
     font-weight: 800;
     margin: 0 0 4px 0;
     color: #fff;
@@ -4266,14 +4353,14 @@ input[type="number"] {
 
 .playlist-active-badge {
     position: absolute;
-    top: 14px;
-    left: 14px;
+    top: 12px;
+    left: 12px;
     background: rgba(76, 175, 80, 0.2);
     color: #4caf50;
     border: 1px solid rgba(76, 175, 80, 0.5);
     padding: 3px 10px;
     border-radius: 20px;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -4285,17 +4372,18 @@ input[type="number"] {
     align-items: center;
     gap: 10px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .btn-playlist-select {
-    flex: 1;
+    flex: 1 1 auto;
     background: linear-gradient(135deg, #f4c242, #d4a017);
     color: #111;
     border: none;
-    padding: 10px 16px;
+    padding: clamp(8px, 1.2vw, 10px) clamp(10px, 1.5vw, 16px);
     border-radius: 10px;
-    font-size: 14px;
+    font-size: clamp(12.5px, 1.4vw, 14px);
     font-weight: 700;
     cursor: pointer;
     display: flex;
@@ -4303,6 +4391,7 @@ input[type="number"] {
     justify-content: center;
     gap: 6px;
     transition: all 0.2s ease;
+    min-height: 40px;
 }
 
 .btn-playlist-select:hover {
@@ -4319,24 +4408,54 @@ input[type="number"] {
 }
 
 .btn-playlist-delete {
-    background: rgba(229, 57, 53, 0.12);
-    border: 1px solid rgba(229, 57, 53, 0.3);
-    color: #e53935;
-    padding: 10px 14px;
+    flex-shrink: 0;
+    width: clamp(38px, 4.4vw, 42px);
+    height: clamp(38px, 4.4vw, 42px);
+    background: rgba(229, 57, 53, 0.15);
+    border: 1px solid rgba(229, 57, 53, 0.35);
+    color: #ef5350;
     border-radius: 10px;
-    font-size: 13.5px;
-    font-weight: 700;
+    font-size: 15px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
     transition: all 0.2s ease;
 }
 
 .btn-playlist-delete:hover {
     background: #e53935;
     color: #fff;
+    border-color: #e53935;
     box-shadow: 0 4px 15px rgba(229, 57, 53, 0.4);
+}
+
+@media (max-height: 600px) {
+    .playlists-modal-content {
+        max-height: 95vh !important;
+        padding: 10px 18px !important;
+    }
+    .playlists-modal-header {
+        padding-bottom: 8px !important;
+    }
+    .playlists-toolbar {
+        padding: 6px 0 !important;
+    }
+    .playlists-grid {
+        max-height: 62vh !important;
+        gap: 10px !important;
+    }
+    .playlist-card {
+        padding: 10px 12px !important;
+        gap: 8px !important;
+    }
+    .playlist-logo {
+        width: 44px !important;
+        height: 44px !important;
+    }
+    .playlist-card-meta h4 {
+        font-size: 15px !important;
+    }
 }
 
 .playlists-empty-state {

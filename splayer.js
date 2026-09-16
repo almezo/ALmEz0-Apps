@@ -524,6 +524,12 @@ let currentScreenId = null;
 let isInitialRoute = true;
 
 function showScreen(screenId, isBackNavigation = false) {
+    // حماية أمنية ومنع أخطاء التوجيه: إذا كان المستخدم غير مسجل الدخول، امنع فتح أي شاشة سوى شاشات الدخول
+    const isAuthed = !!(state.username || (localStorage.getItem('sp_user') && !localStorage.getItem('sp_logged_out')) || sessionStorage.getItem('sp_user'));
+    if (!isAuthed && screenId !== 'auth1-screen' && screenId !== 'auth2-screen') {
+        screenId = 'auth1-screen';
+    }
+
     if (currentScreenId === 'live-screen' && screenId !== 'live-screen') {
         closeLivePlayer(false);
     }
@@ -665,6 +671,12 @@ function goBack() {
 // ANDROID HARDWARE / GESTURE BACK BUTTON
 // ==========================================
 window.addEventListener('popstate', function (event) {
+    const isAuthed = !!(state.username || (localStorage.getItem('sp_user') && !localStorage.getItem('sp_logged_out')) || sessionStorage.getItem('sp_user'));
+    if (!isAuthed) {
+        showScreen('auth1-screen', true);
+        return;
+    }
+
     const fullVideoModal = document.getElementById('fullscreenVideoModal');
     if (fullVideoModal && !fullVideoModal.classList.contains('hidden')) {
         if (!event.state || event.state.modal !== 'fullscreen') {
@@ -1835,25 +1847,17 @@ function logout() {
     const oldModal = document.querySelector('.custom-logout-modal');
     if (oldModal) oldModal.remove();
 
-    const accounts = typeof getSavedAccounts === 'function' ? getSavedAccounts() : [];
-    const hasMultiple = accounts.length > 1;
-
     const logoutHtml = `
         <div class="custom-logout-modal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999999; color: #fff; font-family: inherit;">
-            <div class="custom-logout-box" style="background: #161b22; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 24px; padding: 45px 50px; text-align: center; max-width: 600px; width: 92%; box-shadow: 0 30px 80px rgba(0,0,0,0.95);">
+            <div class="custom-logout-box" style="background: #161b22; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 24px; padding: 45px 50px; text-align: center; max-width: 540px; width: 92%; box-shadow: 0 30px 80px rgba(0,0,0,0.95);">
                 <div style="font-size: 70px; color: #f59e0b; margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i></div>
                 <h3 style="margin: 0 0 16px 0; font-size: 30px; color: #fff; font-weight: bold;">تسجيل الخروج</h3>
                 <p style="margin: 0 0 30px 0; font-size: 18px; color: #cbd5e1; line-height: 1.6;">هل أنت متأكد أنك تريد تسجيل الخروج من السيرفر الحالي؟</p>
                 <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
-                    ${hasMultiple ? `
-                    <button id="switchServerLogoutBtn" class="logout-action-btn" style="background: linear-gradient(135deg, #f4c242, #d4a017); color: #111; border: none; padding: 14px 24px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px; box-shadow: 0 5px 20px rgba(244,194,66,0.35);">
-                        <i class="fas fa-layer-group"></i> تبديل السيرفر
-                    </button>
-                    ` : ''}
-                    <button id="confirmLogoutBtn" class="logout-action-btn" style="background: #e53935; color: #fff; border: none; padding: 14px 30px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px; box-shadow: 0 5px 20px rgba(229,57,53,0.4);">
+                    <button id="confirmLogoutBtn" class="logout-action-btn" style="background: #e53935; color: #fff; border: none; padding: 14px 34px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px; box-shadow: 0 5px 20px rgba(229,57,53,0.4);">
                         <i class="fas fa-sign-out-alt"></i> نعم، خروج
                     </button>
-                    <button id="cancelLogoutBtn" class="logout-action-btn" style="background: #374151; color: #fff; border: none; padding: 14px 26px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px;">
+                    <button id="cancelLogoutBtn" class="logout-action-btn" style="background: #374151; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 12px; cursor: pointer; font-size: 17px;">
                         إلغاء
                     </button>
                 </div>
@@ -1863,22 +1867,18 @@ function logout() {
 
     document.body.insertAdjacentHTML('beforeend', logoutHtml);
 
-    if (hasMultiple) {
-        const switchBtn = document.getElementById('switchServerLogoutBtn');
-        if (switchBtn) {
-            switchBtn.onclick = () => {
-                const modal = document.querySelector('.custom-logout-modal');
-                if (modal) modal.remove();
-                if (typeof openPlaylistsModal === 'function') {
-                    openPlaylistsModal();
-                }
-            };
+    document.getElementById('confirmLogoutBtn').onclick = (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
         }
-    }
-
-    document.getElementById('confirmLogoutBtn').onclick = () => {
         const modal = document.querySelector('.custom-logout-modal');
-        if (modal) modal.remove();
+        if (modal) {
+            modal.style.pointerEvents = 'none';
+            modal.style.opacity = '0';
+            setTimeout(() => modal.remove(), 120);
+        }
 
         // 1. إيقاف أي مشغل فيديو شغال فوراً
         if (typeof closeLivePlayer === 'function') closeLivePlayer();
@@ -1904,6 +1904,7 @@ function logout() {
         state.categories = [];
         state.streams = [];
         state.activeCategory = null;
+        state.activeTab = null;
 
         // 4. إخفاء شريط التنقل العلوي
         const navEl = document.getElementById('dashboard-nav');
@@ -1922,8 +1923,13 @@ function logout() {
             updateSavedAccountsBadge();
         }
 
-        // 7. التوجيه الفوري والحصري لشاشة كتابة كود السيرفر داخل المشغل
-        showScreen('auth1-screen');
+        // 7. تثبيت تاريخ المتصفح لمنع أي رجوع خاطئ للباقات
+        try {
+            history.replaceState({ screenId: 'auth1-screen' }, '', window.location.pathname);
+        } catch (err) { }
+
+        // 8. التوجيه الفوري والحصري لشاشة كتابة كود السيرفر داخل المشغل
+        showScreen('auth1-screen', true);
         if (typeof showToast === 'function') {
             showToast('تم تسجيل الخروج من السيرفر بنجاح', 'success');
         }
@@ -1938,13 +1944,23 @@ function logout() {
         }
     };
 
-    document.getElementById('cancelLogoutBtn').onclick = () => {
+    document.getElementById('cancelLogoutBtn').onclick = (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         const modal = document.querySelector('.custom-logout-modal');
         if (modal) modal.remove();
     };
 }
 
 function switchTab(tabId, element) {
+    const isAuthed = !!(state.username || (localStorage.getItem('sp_user') && !localStorage.getItem('sp_logged_out')) || sessionStorage.getItem('sp_user'));
+    if (!isAuthed) {
+        showScreen('auth1-screen');
+        return;
+    }
+
     state.activeTab = tabId;
     document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
     if (element) element.classList.add('active');

@@ -127,6 +127,17 @@
                 <a href="index.html" onclick="if (window.AlMeZ0App) { if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false); if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait(); }" title="الرجوع للرئيسية" class="btn-home-return auto-style-2">
                     <i class="fas fa-home"></i>
                 </a>
+                <!-- زرين دائريين أعلى يسار البطاقة للحسابات المحفوظة ونمط الجهاز بدون أسماء -->
+                <div class="auth-top-actions-left">
+                    <button type="button" onclick="openPlaylistsModal()" id="btnSavedAccountsAuth" class="btn-auth-circular btn-auth-accounts hidden" title="الحسابات المحفوظة وتبديل السيرفر">
+                        <i class="fas fa-layer-group"></i>
+                        <span id="savedAccCountBadge" class="auth-circular-badge">0</span>
+                    </button>
+                    <button type="button" onclick="openDeviceModeModal()" id="btnDeviceModeAuth" class="btn-auth-circular btn-auth-device" title="نمط الجهاز ونظام التحكم">
+                        <i class="fas fa-tv" id="authDeviceModeIcon"></i>
+                        <span id="authDeviceModeName" class="hidden">تلقائي</span>
+                    </button>
+                </div>
                 <img alt="Player Logo" class="auth-logo"
                     onerror="this.src='https://via.placeholder.com/70/0a0d12/4caf50?text=000'" src="photo/logo.ico" />
                 <h2 class="auth-title" dir="rtl"><span>مشغل الميزو</span> - <span dir="ltr">ALmEz0</span></h2>
@@ -138,12 +149,6 @@
                     </div>
                 </div>
                 <button class="btn-primary btn-gold" id="btnConnectServer">الاتصال بالسيرفر</button>
-                <button type="button" onclick="openPlaylistsModal()" id="btnSavedAccountsAuth" class="btn-saved-accounts-auth hidden">
-                    <i class="fas fa-layer-group"></i> الحسابات المحفوظة (<span id="savedAccCountBadge">0</span>)
-                </button>
-                <button type="button" onclick="openDeviceModeModal()" id="btnDeviceModeAuth" class="btn-device-mode-auth">
-                    <i class="fas fa-tv" id="authDeviceModeIcon"></i> نمط الجهاز: <span id="authDeviceModeName">تلقائي</span>
-                </button>
             </div>
             <div class="auth-footer">
                 <div class="copyright auto-style-5" dir="ltr">
