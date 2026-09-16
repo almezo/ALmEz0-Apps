@@ -195,6 +195,15 @@ function initDeviceMode() {
     const isTv = hasNativeTv || isAndroidNoTouch || ua.includes('tv') || ua.includes('box') || ua.includes('smart') || ua.includes('large') || ua.includes('amlogic') || ua.includes('rockchip') || ua.includes('allwinner');
     const isDesktop = !('ontouchstart' in window) && window.innerWidth >= 1024 && !ua.includes('android');
 
+    // فحص مواصفات الجهاز الضعيفة (معالجات 4 أنوية أو أقل ورام 2 جيجا أو أقل أو شاشات تيفي بوكس)
+    try {
+        const lowCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+        const lowRam = navigator.deviceMemory && navigator.deviceMemory <= 2;
+        if (isTv || (lowCores && lowRam)) {
+            document.body.classList.add('low-spec-mode');
+        }
+    } catch (e) { }
+
     // Auto-detect or upgrade if default/legacy detection was wrong
     if (!mode || (!localStorage.getItem('mizo_device_mode_manual') && mode === 'touch' && (isTv || isDesktop))) {
         if (isTv) {
@@ -212,6 +221,9 @@ function initDeviceMode() {
 function applyDeviceMode(mode, showToast = false) {
     document.body.classList.remove('tv-device-mode', 'desktop-device-mode', 'touch-device-mode');
     document.body.classList.add(mode + '-device-mode');
+    if (mode === 'tv') {
+        document.body.classList.add('low-spec-mode');
+    }
 
     const iconMap = { tv: 'fa-tv', touch: 'fa-mobile-alt', desktop: 'fa-desktop' };
     const nameMap = { tv: 'تلفزيون ورسيفر', touch: 'هاتف ولمس', desktop: 'كمبيوتر وماوس' };
@@ -1280,13 +1292,13 @@ function playStream(id, type, extension, name, icon) {
 
     const preferredPlayer = localStorage.getItem('sp_preferred_player') || 'hlsjs';
 
-    // تنظيف أي مشغل يعمل حالياً
+    // تنظيف أي مشغل يعمل حالياً قبل لمس الـ DOM
     if (window.vjsPlayer) {
-        window.vjsPlayer.dispose();
+        try { window.vjsPlayer.dispose(); } catch (e) { }
         window.vjsPlayer = null;
     }
     if (window.hlsInstance) {
-        window.hlsInstance.destroy();
+        try { window.hlsInstance.destroy(); } catch (e) { }
         window.hlsInstance = null;
     }
 
@@ -1414,12 +1426,14 @@ function playStream(id, type, extension, name, icon) {
                                  document.querySelector(`#${containerSelector} video`) ||
                                  document.getElementById(containerSelector);
 
+                const isLowEnd = document.body.classList.contains('tv-device-mode') || document.body.classList.contains('low-spec-mode');
                 window.hlsInstance = new Hls({
                     enableWorker: true,
                     lowLatencyMode: type === 'live',
-                    backBufferLength: type === 'live' ? 15 : 90,
-                    maxBufferLength: type === 'live' ? 8 : 60,
-                    maxMaxBufferLength: type === 'live' ? 16 : 120,
+                    backBufferLength: type === 'live' ? 10 : (isLowEnd ? 20 : 60),
+                    maxBufferLength: type === 'live' ? 6 : (isLowEnd ? 12 : 30),
+                    maxMaxBufferLength: type === 'live' ? 12 : (isLowEnd ? 24 : 60),
+                    maxBufferSize: isLowEnd ? (15 * 1000 * 1000) : (40 * 1000 * 1000),
                     liveSyncDurationCount: 2,
                     liveMaxLatencyDurationCount: 4,
                     startFragPrefetch: true,
@@ -3811,6 +3825,12 @@ let livePlayerBrightness = 1.0;
 let livePlayerVolume = 1.0;
 
 function initLivePlayerGestures() {
+    // شرائح السطوع والصوت العمودية مخصصة حصرياً للهواتف اللمسية (نقالات)
+    // في الكمبيوتر وشاشات التلفزيون والرسيفر وتيفي بوكس: تلغى تماماً لأنها تعمل بالريموت أو الماوس
+    if (document.body.classList.contains('desktop-device-mode') || document.body.classList.contains('tv-device-mode')) {
+        return;
+    }
+
     const wrapper = document.getElementById('livePlayerWrapper');
     if (!wrapper || wrapper._hasGestureEngine) return;
     wrapper._hasGestureEngine = true;

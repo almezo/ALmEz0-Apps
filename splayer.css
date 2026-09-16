@@ -746,8 +746,8 @@ body.desktop-device-mode .app-scaler {
 }
 
 .col-sidebar {
-    width: 330px;
-    min-width: 330px;
+    width: 480px;
+    min-width: 480px;
     background: rgba(10, 14, 22, 0.68);
     -webkit-backdrop-filter: blur(24px);
     backdrop-filter: blur(24px);
@@ -757,8 +757,7 @@ body.desktop-device-mode .app-scaler {
 }
 
 .col-list {
-    width: 360px;
-    min-width: 360px;
+    width: 485px;
     background: rgba(12, 16, 26, 0.68);
     -webkit-backdrop-filter: blur(24px);
     backdrop-filter: blur(24px);
@@ -932,13 +931,9 @@ body.desktop-device-mode .app-scaler {
 
 .player-wrapper {
     width: 100%;
-    max-width: 1200px;
-    height: auto;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    margin: auto;
 }
 
 .player-top-header {
@@ -1056,14 +1051,11 @@ body.desktop-device-mode .app-scaler {
 }
 
 .plyr-container {
-    width: 100%;
-    max-width: 1200px;
-    aspect-ratio: 16 / 9;
-    max-height: calc(100vh - 150px);
+    flex: 1;
     background: #000;
-    border-radius: 16px;
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1093,28 +1085,8 @@ body.desktop-device-mode .app-scaler {
 
 .vod-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 16px 14px;
-    width: 100%;
-}
-
-@media (max-width: 1024px) and (min-width: 768px) {
-    .vod-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 767px) {
-    .vod-grid {
-        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-        gap: 12px 10px;
-    }
-}
-
-body.desktop-device-mode .vod-grid,
-body.tv-device-mode .vod-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 16px 14px !important;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
 }
 
 .vod-card {
@@ -4519,9 +4491,7 @@ body.tv-mode {
 .live-player-container-rel {
     position: relative;
     width: 100%;
-    max-width: 1200px;
-    aspect-ratio: 16 / 9;
-    max-height: calc(100vh - 150px);
+    height: 100%;
     display: flex;
     flex-direction: column;
 }
@@ -5143,5 +5113,129 @@ body.tv-device-mode .live-player-container-rel {
     outline: 3px solid #22c55e !important;
     box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 6px #ffffff !important;
 }
+
+/* =========================================================
+   DESKTOP & ANDROID TV / RECEIVER OVERRIDES (الكمبيوتر والشاشات والرسيفرات)
+   ========================================================= */
+body.desktop-device-mode .col-sidebar,
+body.tv-device-mode .col-sidebar {
+    width: 330px !important;
+    min-width: 330px !important;
+}
+
+body.desktop-device-mode .col-list,
+body.tv-device-mode .col-list {
+    width: 360px !important;
+    min-width: 360px !important;
+}
+
+body.desktop-device-mode .col-player,
+body.tv-device-mode .col-player {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+}
+
+body.desktop-device-mode .player-wrapper,
+body.tv-device-mode .player-wrapper {
+    width: 100% !important;
+    max-width: 1200px !important;
+    height: auto !important;
+    margin: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+body.desktop-device-mode .plyr-container,
+body.tv-device-mode .plyr-container {
+    width: 100% !important;
+    max-width: 1200px !important;
+    aspect-ratio: 16 / 9 !important;
+    max-height: calc(100vh - 150px) !important;
+    border-radius: 16px !important;
+    flex: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+body.desktop-device-mode .live-player-container-rel,
+body.tv-device-mode .live-player-container-rel {
+    width: 100% !important;
+    max-width: 1200px !important;
+    aspect-ratio: 16 / 9 !important;
+    max-height: calc(100vh - 150px) !important;
+    height: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+body.desktop-device-mode .vod-grid,
+body.tv-device-mode .vod-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 16px 14px !important;
+}
+
+/* إخفاء شرائح اللمس للسطوع والصوت نهائياً في الكمبيوتر وشاشات التلفزيون والرسيفر وتيفي بوكس */
+body.desktop-device-mode .live-slider,
+body.tv-device-mode .live-slider {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* =========================================================
+   ULTRA-PERFORMANCE ENGINE FOR TV BOX & LOW-SPEC DEVICES (تسريع فائق للأجهزة الضعيفة)
+   ========================================================= */
+body.tv-device-mode,
+body.low-spec-mode {
+    --glass-bg: rgba(12, 16, 26, 0.98);
+    --glass-border: rgba(255, 255, 255, 0.12);
+}
+
+body.tv-device-mode *,
+body.low-spec-mode * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+body.tv-device-mode .col-sidebar,
+body.low-spec-mode .col-sidebar {
+    background: #0a0e16 !important;
+}
+
+body.tv-device-mode .col-list,
+body.low-spec-mode .col-list {
+    background: #0c101a !important;
+}
+
+body.tv-device-mode .col-player,
+body.low-spec-mode .col-player {
+    background: #080b12 !important;
+}
+
+/* عزل طبقات القوائم والشبكات لتسريع التمرير بالكرت الرسومي */
+body.tv-device-mode #liveChannels,
+body.tv-device-mode #vodGrid,
+body.tv-device-mode .list-container,
+body.low-spec-mode #liveChannels,
+body.low-spec-mode #vodGrid,
+body.low-spec-mode .list-container {
+    contain: content !important;
+    transform: translateZ(0) !important;
+    will-change: scroll-position !important;
+}
+
+body.tv-device-mode .vod-card::after,
+body.low-spec-mode .vod-card::after,
+body.tv-device-mode .episode-card::after,
+body.low-spec-mode .episode-card::after {
+    display: none !important;
+}
+
 
 

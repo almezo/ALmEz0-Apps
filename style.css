@@ -8733,3 +8733,25 @@ body.platform-electron {
         border-radius: 5px !important;
     }
 }
+
+/* =========================================================
+   ULTRA-PERFORMANCE ENGINE FOR LOW-SPEC HARDWARE & TV BOXES (تسريع الموقع للأجهزة الضعيفة)
+   ========================================================= */
+body.tv-device-mode,
+body.low-spec-mode {
+    --glass-bg: rgba(12, 16, 26, 0.98);
+    --glass-border: rgba(255, 255, 255, 0.12);
+}
+
+body.tv-device-mode *,
+body.low-spec-mode * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+body.tv-device-mode .ambient-light,
+body.low-spec-mode .ambient-light,
+body.tv-device-mode .lens-flare,
+body.low-spec-mode .lens-flare {
+    display: none !important;
+}
