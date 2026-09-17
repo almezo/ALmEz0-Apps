@@ -16,7 +16,7 @@
     --accent-gold: #f59e0b;
     --accent-gold-hover: #fbbf24;
 
-    --grad-ambient: 
+    --grad-ambient:
         radial-gradient(circle at 88% 10%, rgba(229, 9, 20, 0.2) 0%, transparent 46%),
         radial-gradient(circle at 12% 88%, rgba(14, 116, 244, 0.18) 0%, transparent 48%),
         radial-gradient(circle at 50% 12%, rgba(168, 85, 247, 0.14) 0%, transparent 45%),
@@ -37,7 +37,8 @@
     font-family: 'Cairo', sans-serif;
 }
 
-html, body {
+html,
+body {
     touch-action: manipulation;
 }
 
@@ -571,6 +572,7 @@ body.desktop-device-mode .app-scaler {
         opacity: 0;
         transform: translateY(45px) scale(0.93);
     }
+
     100% {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -595,9 +597,17 @@ body.desktop-device-mode .app-scaler {
     backdrop-filter: blur(18px);
 }
 
-.dash-card:nth-child(1) { animation: cardEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards 0.1s; }
-.dash-card:nth-child(2) { animation: cardEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards 0.22s; }
-.dash-card:nth-child(3) { animation: cardEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards 0.34s; }
+.dash-card:nth-child(1) {
+    animation: cardEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards 0.1s;
+}
+
+.dash-card:nth-child(2) {
+    animation: cardEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards 0.22s;
+}
+
+.dash-card:nth-child(3) {
+    animation: cardEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards 0.34s;
+}
 
 /* تأثير بريق الضوء المتحرك على البطاقات */
 .dash-card::after {
@@ -1221,7 +1231,7 @@ body.desktop-device-mode .app-scaler {
     -webkit-backdrop-filter: blur(12px) !important;
     backdrop-filter: blur(12px) !important;
     width: 100%;
-    max-width: 650px !important;
+    max-width: 750px !important;
     border-radius: 24px !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5) !important;
@@ -2128,7 +2138,7 @@ span.cat-count:empty {
     left: 0;
     width: 100%;
     height: 100%;
-    background: 
+    background:
         linear-gradient(to left, rgba(6, 8, 13, 0.96) 0%, rgba(6, 8, 13, 0.72) 38%, rgba(6, 8, 13, 0.12) 75%, rgba(6, 8, 13, 0.45) 100%),
         linear-gradient(to bottom, rgba(6, 8, 13, 0.1) 0%, transparent 45%, rgba(6, 8, 13, 0.95) 88%, #06080d 100%);
 }
@@ -3552,6 +3562,7 @@ input.search-input[placeholder*="المسلسلات"] {
     0% {
         transform: rotate(0deg);
     }
+
     100% {
         transform: rotate(360deg);
     }
@@ -4461,24 +4472,30 @@ input[type="number"] {
         max-height: 95vh !important;
         padding: 10px 18px !important;
     }
+
     .playlists-modal-header {
         padding-bottom: 8px !important;
     }
+
     .playlists-toolbar {
         padding: 6px 0 !important;
     }
+
     .playlists-grid {
         max-height: 62vh !important;
         gap: 10px !important;
     }
+
     .playlist-card {
         padding: 10px 12px !important;
         gap: 8px !important;
     }
+
     .playlist-logo {
         width: 44px !important;
         height: 44px !important;
     }
+
     .playlist-card-meta h4 {
         font-size: 15px !important;
     }
@@ -4603,8 +4620,13 @@ body.tv-mode {
 }
 
 @keyframes spMarvelSpin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Card Update Footer (RTL Native) */
@@ -4738,8 +4760,13 @@ body.tv-mode {
 }
 
 @keyframes spRotate {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* =========================================================
@@ -4788,7 +4815,7 @@ body.tv-mode {
     font-size: 18px;
     color: #ffffff;
     margin-bottom: 10px;
-    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.9));
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.9));
 }
 
 .live-slider-track {
@@ -4798,7 +4825,7 @@ body.tv-mode {
     border-radius: 3px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 #liveVideoContainer {
@@ -4895,9 +4922,11 @@ body.tv-mode {
     0% {
         box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8);
     }
+
     70% {
         box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
     }
+
     100% {
         box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
     }
@@ -4915,6 +4944,7 @@ body.tv-mode {
         opacity: 0;
         transform: scale(0.82) translateY(24px);
     }
+
     100% {
         opacity: 1;
         transform: scale(1) translateY(0);
@@ -4931,6 +4961,7 @@ body.tv-mode {
     0% {
         transform: scale(1);
     }
+
     100% {
         transform: scale(1.08) translate(-1%, -1%);
     }
@@ -5263,8 +5294,15 @@ body.tv-mode {
 }
 
 @keyframes tvNumberPop {
-    from { transform: scale(0.7); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+        transform: scale(0.7);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .tv-live-osd-bar {
@@ -5289,8 +5327,15 @@ body.tv-mode {
 }
 
 @keyframes tvOsdSlideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .tv-osd-info {
@@ -5482,7 +5527,7 @@ body.desktop-device-mode .vod-grid,
 body.tv-device-mode .vod-grid {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 12px 14px !important;
+    gap: 8px 10px !important;
     width: 100% !important;
     box-sizing: border-box !important;
     justify-items: center !important;
@@ -5497,7 +5542,7 @@ body.tv-device-mode .vod-grid {
     cursor: pointer !important;
     position: relative !important;
     width: 100% !important;
-    max-width: 135px !important;
+    max-width: 150px !important;
     margin: 0 auto !important;
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
 }
@@ -5539,7 +5584,6 @@ body.tv-device-mode .vod-grid {
 .modal-content,
 .dialog-box,
 .auth-card,
-.profile-card,
 .device-modal-card {
     max-width: var(--dialog-max-w, 560px) !important;
     border-radius: var(--screen-card-radius, 24px) !important;
@@ -5550,10 +5594,12 @@ body.tv-device-mode .vod-grid {
 [data-is-tv="true"] .vod-title {
     font-size: 26px !important;
 }
+
 [data-device-tier="tv-4k"] .col-header h3,
 [data-is-tv="true"] .col-header h3 {
     font-size: 28px !important;
 }
+
 [data-device-tier="tv-4k"] .cat-item,
 [data-is-tv="true"] .cat-item,
 [data-device-tier="tv-4k"] .channel-item,
@@ -5643,7 +5689,3 @@ body.low-spec-mode .playlists-modal {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }
-
-
-
-
