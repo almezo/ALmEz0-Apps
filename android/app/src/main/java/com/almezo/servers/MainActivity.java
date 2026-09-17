@@ -50,6 +50,23 @@ public class MainActivity extends BridgeActivity {
                 settings.setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
             }
         }
+
+        try {
+            if (new NativePlayerBridge().isTvDevice()) {
+                getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+                enableImmersiveFullscreen();
+            }
+        } catch (Throwable ignored) { }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 101);
+                }
+            }
+        } catch (Throwable ignored) { }
     }
 
     public void enableImmersiveFullscreen() {
@@ -131,6 +148,16 @@ public class MainActivity extends BridgeActivity {
                 android.content.pm.PackageManager pm = getPackageManager();
                 if (pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
                         || pm.hasSystemFeature("android.hardware.type.television")) {
+                    return true;
+                }
+                if (!pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)) {
+                    return true;
+                }
+                String model = (Build.MODEL + " " + Build.DEVICE + " " + Build.PRODUCT + " " + Build.HARDWARE).toLowerCase(java.util.Locale.ROOT);
+                if (model.contains("tv") || model.contains("box") || model.contains("atv") || model.contains("shield")
+                        || model.contains("firetv") || model.contains("mibox") || model.contains("chromecast")
+                        || model.contains("amlogic") || model.contains("allwinner") || model.contains("rockchip")
+                        || model.contains("stb") || model.contains("receiver") || model.contains("mstar") || model.contains("realtek")) {
                     return true;
                 }
             } catch (Throwable ignored) {}

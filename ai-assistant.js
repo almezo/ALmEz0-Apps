@@ -14,8 +14,12 @@
     let conversationHistory = [];
 
     // =========================================================================
-    // 1. تهيئة المحرك الصوتي (Speech Recognition & Speech Synthesis)
+    // 1. تهيئة المحرك الصوتي (Speech Recognition & MediaRecorder & TTS)
     // =========================================================================
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecordingMedia = false;
+
     function initSpeechEngine() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRec) {
@@ -23,8 +27,7 @@
                 speechRecognition = new SpeechRec();
                 speechRecognition.continuous = false;
                 speechRecognition.interimResults = false;
-                // ضبط اللغة للعربية بلهجة ليبية مع دعم اللهجات العربية
-                speechRecognition.lang = 'ar-LY';
+                speechRecognition.lang = 'ar-SA';
 
                 speechRecognition.onstart = () => {
                     isListening = true;
@@ -47,17 +50,17 @@
                     console.warn('[AlMeZ0 AI] Speech error:', event.error);
                     isListening = false;
                     updateMicButtonState(false);
-                    // إذا تعذر التعرف بـ ar-LY نجرب بـ ar
-                    if (speechRecognition.lang === 'ar-LY') {
-                        speechRecognition.lang = 'ar';
+                    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                        startMediaRecorderVoice();
+                    } else {
+                        showAiStatus('جاهز لمساعدتك ✨');
                     }
-                    showAiStatus('جاهز للمساعدة ✨');
                 };
 
                 speechRecognition.onend = () => {
                     isListening = false;
                     updateMicButtonState(false);
-                    showAiStatus('جاهز للمساعدة ✨');
+                    showAiStatus('جاهز لمساعدتك ✨');
                 };
             } catch (e) {
                 console.warn('[AlMeZ0 AI] Failed to init SpeechRec', e);
@@ -65,22 +68,76 @@
         }
     }
 
-    function toggleSpeechListening() {
-        if (!speechRecognition) {
-            alert('التعرف الصوتي غير مدعوم في هذا المتصفح، يمكنك الكتابة في الحقل أدناه.');
+    async function startMediaRecorderVoice() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('التعرف الصوتي غير مدعوم في هذا الجهاز، يمكنك الكتابة في الحقل أدناه.');
             return;
         }
-        if (isListening) {
-            speechRecognition.stop();
-        } else {
-            try {
-                speechRecognition.start();
-            } catch (e) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(stream);
+            isRecordingMedia = true;
+            updateMicButtonState(true);
+            showAiStatus('جاري تسجيل صوتك... تحدث واضغط الميكروفون مجدداً للإرسال 🎙️');
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                isRecordingMedia = false;
+                updateMicButtonState(false);
+                stream.getTracks().forEach(t => t.stop());
+                showAiStatus('جاري تحليل وفهم الصوت ⏳...');
+
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                if (audioBlob.size < 100) {
+                    showAiStatus('جاهز لمساعدتك ✨');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = async () => {
+                    const base64Data = (reader.result || '').split(',')[1];
+                    if (base64Data) {
+                        handleSendAudioMessage(base64Data, 'audio/webm');
+                    }
+                };
+            };
+
+            mediaRecorder.start();
+            setTimeout(() => {
+                if (isRecordingMedia && mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            }, 8000);
+        } catch (err) {
+            console.error('[AlMeZ0 AI] getUserMedia error', err);
+            isRecordingMedia = false;
+            updateMicButtonState(false);
+            showAiStatus('جاهز لمساعدتك ✨');
+            alert('يرجى السماح بصلاحية الميكروفون للتحدث صوتياً.');
+        }
+    }
+
+    function toggleSpeechListening() {
+        if (isRecordingMedia && mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            return;
+        }
+        if (speechRecognition) {
+            if (isListening) {
+                speechRecognition.stop();
+            } else {
                 try {
-                    speechRecognition.stop();
-                    setTimeout(() => speechRecognition.start(), 200);
-                } catch (err) { }
+                    speechRecognition.start();
+                } catch (e) {
+                    startMediaRecorderVoice();
+                }
             }
+        } else {
+            startMediaRecorderVoice();
         }
     }
 
@@ -88,7 +145,7 @@
         const micBtn = document.getElementById('aiBtnMic');
         if (micBtn) {
             micBtn.classList.toggle('is-recording', listening);
-            micBtn.title = listening ? 'جاري الاستماع... اضغط للإيقاف' : 'اضغط للتحدث بالصوت';
+            micBtn.title = listening ? 'جاري الاستماع/التسجيل... اضغط للإيقاف والإرسال' : 'اضغط للتحدث بالصوت';
         }
     }
 
@@ -214,16 +271,36 @@
         return results;
     }
 
+    function getApiKey() {
+        return (localStorage.getItem('almezo_gemini_key') || (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.apiKey) || "").trim();
+    }
+
+    function promptApiKey() {
+        const current = getApiKey();
+        const input = prompt("أدخل مفتاح Google Gemini API Key الخاص بك (مجاني من aistudio.google.com):", current);
+        if (input !== null) {
+            const clean = input.trim();
+            if (clean) {
+                localStorage.setItem('almezo_gemini_key', clean);
+                if (window.ALMEZ0_AI_CONFIG) window.ALMEZ0_AI_CONFIG.apiKey = clean;
+                alert("تم حفظ مفتاح API بنجاح! يمكنك الآن استخدام المساعد بحرية.");
+            } else {
+                localStorage.removeItem('almezo_gemini_key');
+                alert("تمت إزالة المفتاح المحفوظ.");
+            }
+        }
+    }
+
     // =========================================================================
-    // 3. استدعاء Google Gemini 2.0 / 1.5 Flash مع بحث الويب (Google Search)
+    // 3. استدعاء Google Gemini 2.5 / 1.5 Flash مع بحث الويب (Google Search)
     // =========================================================================
     async function requestGeminiAi(userMessage, serverContext) {
-        const apiKey = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.apiKey) || "";
-        const model = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.0-flash";
+        const apiKey = getApiKey();
+        const configuredModel = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.5-flash";
         const systemPrompt = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.systemInstruction) || "";
 
         if (!apiKey) {
-            throw new Error('يرجى التأكد من ضبط مفتاح Gemini API Key في ai-config.js');
+            throw new Error('يرجى الضغط على أيقونة المفتاح 🔑 في الأعلى وإدخال مفتاح Gemini API المجاني الخاص بك.');
         }
 
         // صياغة السياق المستخرج من سيرفر العميل الحالي
@@ -259,27 +336,137 @@
             }
         };
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const modelsToTry = [configuredModel, "gemini-1.5-flash"];
+        let lastError = null;
 
-        const res = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        for (const m of modelsToTry) {
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-        if (!res.ok) {
-            const errJson = await res.json().catch(() => ({}));
-            throw new Error(errJson.error ? errJson.error.message : `HTTP ${res.status}`);
+                if (!res.ok) {
+                    const errJson = await res.json().catch(() => ({}));
+                    const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
+                    if (res.status === 403 || errMsg.includes('leaked') || errMsg.includes('API key')) {
+                        throw new Error('مفتاح Gemini API الحالي معطل من جوجل (Leaked Key). يرجى الضغط على زر المفتاح 🔑 في أعلى النافذة وإدخال مفتاح جديد مجاني من aistudio.google.com');
+                    }
+                    if (res.status === 404) {
+                        lastError = new Error(errMsg);
+                        continue;
+                    }
+                    throw new Error(errMsg);
+                }
+
+                const data = await res.json();
+                const candidate = data.candidates && data.candidates[0];
+                if (!candidate || !candidate.content || !candidate.content.parts) {
+                    throw new Error('لم يتم استلام رد من النموذج');
+                }
+
+                const replyText = candidate.content.parts.map(p => p.text || '').join('').trim();
+                return replyText;
+            } catch (err) {
+                lastError = err;
+                if (err.message.includes('Leaked Key') || err.message.includes('🔑')) throw err;
+            }
         }
 
-        const data = await res.json();
-        const candidate = data.candidates && data.candidates[0];
-        if (!candidate || !candidate.content || !candidate.content.parts) {
-            throw new Error('لم يتم استلام رد من النموذج');
+        throw lastError || new Error('فشل الاتصال بنموذج الذكاء الاصطناعي');
+    }
+
+    async function requestGeminiAiAudio(base64Audio, mimeType, serverContext) {
+        const apiKey = getApiKey();
+        const configuredModel = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.5-flash";
+        const systemPrompt = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.systemInstruction) || "";
+
+        if (!apiKey) {
+            throw new Error('يرجى الضغط على زر المفتاح 🔑 أعلى النافذة وإدخال مفتاح Gemini API مجاني خاص بك.');
         }
 
-        const replyText = candidate.content.parts.map(p => p.text || '').join('').trim();
-        return replyText;
+        let contextText = `[سياق محتويات سيرفر العميل الحالي]:\n`;
+        if (serverContext.movies && serverContext.movies.length > 0) {
+            contextText += `- أفلام متوفرة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
+        }
+        if (serverContext.series && serverContext.series.length > 0) {
+            contextText += `- مسلسلات متوفرة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
+        }
+        if (serverContext.channels && serverContext.channels.length > 0) {
+            contextText += `- قنوات بث مباشر: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+        }
+
+        const audioPrompt = `استمع إلى هذا التسجيل الصوتي للعميل، وافهم سؤاله (سواء باللهجة الليبية أو العربية الفصحى أو أي لهجة عربية) وأجب عليه بدقة وود وفق إرشادات النظام، مع الاستفادة من سياق السيرفر إذا كان سؤاله يتعلق بفيلم أو مسلسل أو مباراة أو قناة:\n${contextText}`;
+
+        const payload = {
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            },
+            contents: [
+                ...conversationHistory.slice(-4),
+                {
+                    role: "user",
+                    parts: [
+                        { text: audioPrompt },
+                        {
+                            inlineData: {
+                                mimeType: mimeType || 'audio/webm',
+                                data: base64Audio
+                            }
+                        }
+                    ]
+                }
+            ],
+            tools: [
+                { googleSearch: {} }
+            ],
+            generationConfig: {
+                temperature: 0.6,
+                maxOutputTokens: 650
+            }
+        };
+
+        const modelsToTry = [configuredModel, "gemini-1.5-flash"];
+        let lastError = null;
+
+        for (const m of modelsToTry) {
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const errJson = await res.json().catch(() => ({}));
+                    const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
+                    if (res.status === 403 || errMsg.includes('leaked') || errMsg.includes('API key')) {
+                        throw new Error('مفتاح Gemini API الحالي معطل من جوجل (Leaked Key). يرجى الضغط على زر المفتاح 🔑 في أعلى النافذة وإدخال مفتاح جديد مجاني من aistudio.google.com');
+                    }
+                    if (res.status === 404) {
+                        lastError = new Error(errMsg);
+                        continue;
+                    }
+                    throw new Error(errMsg);
+                }
+
+                const data = await res.json();
+                const candidate = data.candidates && data.candidates[0];
+                if (!candidate || !candidate.content || !candidate.content.parts) {
+                    throw new Error('لم يتم استلام رد من النموذج');
+                }
+
+                return candidate.content.parts.map(p => p.text || '').join('').trim();
+            } catch (err) {
+                lastError = err;
+                if (err.message.includes('Leaked Key') || err.message.includes('🔑')) throw err;
+            }
+        }
+
+        throw lastError || new Error('فشل معالجة المقطع الصوتي');
     }
 
     // =========================================================================
@@ -308,6 +495,9 @@
                         </div>
                     </div>
                     <div class="ai-header-actions">
+                        <button class="ai-btn-icon" id="aiBtnKey" title="تغيير مفتاح Google Gemini API Key" onclick="window.AlMeZ0AI.promptApiKey()">
+                            <i class="fas fa-key"></i>
+                        </button>
                         <button class="ai-btn-icon ${isAiMuted ? 'muted' : ''}" id="aiBtnMute" title="${isAiMuted ? 'تشغيل الصوت' : 'كتم الصوت'}" onclick="window.AlMeZ0AI.toggleMute()">
                             <i class="fas ${isAiMuted ? 'fa-volume-mute' : 'fa-volume-up'}"></i>
                         </button>
@@ -562,6 +752,60 @@
         }
     }
 
+    async function handleSendAudioMessage(base64Data, mimeType) {
+        if (!base64Data) return;
+
+        // 1. إظهار رسالة العميل كرسالة صوتية
+        appendMessage('user', '🎙️ رسالة صوتية مسجلة...');
+
+        // 2. إظهار مؤشر التحليل
+        showAiStatus('جاري الاستماع للصوت وتحليله ⚡...');
+        const typingIndicatorHtml = `
+            <div class="ai-message ai-bot-message ai-typing-msg" id="aiTypingIndicator">
+                <div class="ai-msg-avatar"><i class="fas fa-sparkles"></i></div>
+                <div class="ai-msg-content">
+                    <div class="ai-typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        const container = document.getElementById('aiChatMessages');
+        if (container) {
+            container.insertAdjacentHTML('beforeend', typingIndicatorHtml);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        try {
+            // سياق السيرفر
+            const serverContext = await searchActiveClientServer('');
+
+            // إرسال الصوت للنموذج
+            const aiReply = await requestGeminiAiAudio(base64Data, mimeType, serverContext);
+
+            // إزالة مؤشر التحليل
+            const typingEl = document.getElementById('aiTypingIndicator');
+            if (typingEl) typingEl.remove();
+
+            // تجهيز كروت التشغيل وعرض الرد
+            const actionCardsHtml = buildInteractiveCardsHtml(serverContext);
+            appendMessage('model', aiReply, actionCardsHtml);
+            conversationHistory.push({ role: "model", parts: [{ text: aiReply }] });
+
+            // نطق الرد
+            speakReply(aiReply);
+            showAiStatus('جاهز لمساعدتك ✨');
+        } catch (err) {
+            console.error('[AlMeZ0 AI] Error handling audio message:', err);
+            const typingEl = document.getElementById('aiTypingIndicator');
+            if (typingEl) typingEl.remove();
+
+            let errMsg = err.message || 'يرجى المحاولة مجدداً';
+            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الرسالة الصوتية: ${errMsg}`);
+            showAiStatus('جاهز لمساعدتك ✨');
+        }
+    }
+
     // =========================================================================
     // 7. دوال التحكم والتشغيل المباشر في مشغل الميزو
     // =========================================================================
@@ -664,6 +908,8 @@
         clearChat,
         submitMessage,
         sendQuickPrompt,
+        promptApiKey,
+        handleSendAudioMessage,
         playMovie,
         playSeries,
         playChannel

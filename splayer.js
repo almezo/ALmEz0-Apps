@@ -582,6 +582,11 @@ function showScreen(screenId, isBackNavigation = false) {
 
             const isDashboard = (screenId === 'dashboard-screen');
             const isProfile = (screenId === 'profile-screen');
+            document.body.classList.toggle('screen-is-dashboard', isDashboard);
+            const aiFloatingBtn = document.getElementById('aiFloatingTrigger');
+            if (aiFloatingBtn) {
+                aiFloatingBtn.style.display = isDashboard ? 'inline-flex' : 'none';
+            }
 
             // Make nav-right container always visible so navReturnBtn is always accessible
             const navRight = nav.querySelector('.nav-right');
@@ -1318,8 +1323,8 @@ function playStream(id, type, extension, name, icon) {
     // في تطبيق أندرويد فقط: تشغيل البث المباشر والأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
     // ================================================================
     if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
-        if (type === 'vod' || type === 'series' || type === 'live') {
-            const isLive = (type === 'live');
+        if (type === 'vod' || type === 'series') {
+            const isLive = false;
             const isTv = document.body.classList.contains('tv-device-mode') ||
                          (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
             if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
@@ -3012,6 +3017,66 @@ function exitNativeFullscreen() {
         }
     } catch (e) { }
 }
+
+function toggleLivePlayerFullscreen() {
+    const liveWrap = document.getElementById('livePlayerWrapper');
+    if (!liveWrap) return;
+
+    const isFs = liveWrap.classList.contains('live-fullscreen-mode') || !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const icon1 = document.getElementById('liveFullscreenIcon');
+    const icon2 = document.getElementById('liveOverlayFsIcon');
+
+    if (!isFs) {
+        liveWrap.classList.add('live-fullscreen-mode');
+        document.body.classList.add('in-live-fullscreen');
+        if (icon1) icon1.className = 'fas fa-compress';
+        if (icon2) icon2.className = 'fas fa-compress';
+
+        try {
+            if (liveWrap.requestFullscreen) {
+                liveWrap.requestFullscreen().catch(() => {});
+            } else if (liveWrap.webkitRequestFullscreen) {
+                liveWrap.webkitRequestFullscreen();
+            }
+        } catch (e) { }
+
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
+            window.AndroidNativeBridge.setImmersiveFullscreen(true);
+        }
+    } else {
+        liveWrap.classList.remove('live-fullscreen-mode');
+        document.body.classList.remove('in-live-fullscreen');
+        if (icon1) icon1.className = 'fas fa-expand';
+        if (icon2) icon2.className = 'fas fa-expand';
+
+        try {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+        } catch (e) { }
+
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
+            window.AndroidNativeBridge.setImmersiveFullscreen(false);
+        }
+    }
+}
+
+document.addEventListener('fullscreenchange', () => {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const liveWrap = document.getElementById('livePlayerWrapper');
+    if (!fsEl && liveWrap && liveWrap.classList.contains('live-fullscreen-mode')) {
+        liveWrap.classList.remove('live-fullscreen-mode');
+        document.body.classList.remove('in-live-fullscreen');
+        const icon1 = document.getElementById('liveFullscreenIcon');
+        const icon2 = document.getElementById('liveOverlayFsIcon');
+        if (icon1) icon1.className = 'fas fa-expand';
+        if (icon2) icon2.className = 'fas fa-expand';
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
+            window.AndroidNativeBridge.setImmersiveFullscreen(false);
+        }
+    }
+});
 
 let closeBtnTimeout = null;
 

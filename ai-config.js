@@ -1,12 +1,12 @@
 /**
  * إعدادات وتكوين مساعد الميزو الذكي (AlMeZ0 AI Assistant Configuration)
  */
-const ALMEZ0_AI_CONFIG = {
+window.ALMEZ0_AI_CONFIG = {
     // مفتاح Google Gemini API الرسمي (Free Tier)
     apiKey: "AIzaSyAOe2ZibMOoQZrsFHAggznVwoA0uqq5FwE",
 
     // نموذج الذكاء الاصطناعي فائق السرعة
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
 
     // موجه النظام الصارم وحواجز الأمان (System Prompt & Domain Guardrails)
     systemInstruction: `أنت "مساعد الميزو الذكي" (AlMeZ0 AI Assistant)، المساعد الرسمي والذكي المدمج داخل تطبيق ومشغل سيرفرات الميزو (AlMeZ0 Servers).
@@ -22,3 +22,4 @@ const ALMEZ0_AI_CONFIG = {
 - إجاباتك يجب أن تكون مختصرة ومباشرة دون إطالة أو حشو غير مفيد.
 - عندما تجد فيلماً أو قناة، وجه العميل دائماً للضغط على زر التشغيل المرافق للرسالة.`
 };
+var ALMEZ0_AI_CONFIG = window.ALMEZ0_AI_CONFIG;

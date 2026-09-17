@@ -5729,6 +5729,95 @@ body.low-spec-mode .playlists-modal {
     30%, 100% { transform: translateX(100%) rotate(45deg); }
 }
 
+/* وضع ملء الشاشة لمشغل البث المباشر المدمج */
+#livePlayerWrapper.live-fullscreen-mode {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    z-index: 99999 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    background: #000000 !important;
+}
+
+#livePlayerWrapper.live-fullscreen-mode .video-js,
+#livePlayerWrapper.live-fullscreen-mode #liveVideoContainer,
+#livePlayerWrapper.live-fullscreen-mode video {
+    width: 100vw !important;
+    height: 100vh !important;
+    object-fit: contain;
+}
+
+body.tv-device-mode #livePlayerWrapper video,
+body.tv-device-mode #livePlayerWrapper.live-fullscreen-mode video,
+body.tv-device-mode .video-js video {
+    object-fit: fill !important;
+}
+
+.live-fullscreen-btn-overlay {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 100;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    opacity: 0.85;
+}
+
+.live-fullscreen-btn-overlay:hover {
+    opacity: 1;
+    background: rgba(245, 158, 11, 0.85);
+    transform: scale(1.1);
+    color: #ffffff;
+}
+
+.action-btn-fullscreen {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #cbd5e1;
+    font-size: 14px;
+    margin-right: 6px;
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+}
+
+.action-btn-fullscreen:hover {
+    background: rgba(245, 158, 11, 0.3);
+    border-color: #f59e0b;
+    color: #ffffff;
+    transform: scale(1.12);
+}
+
+/* إظهار زر مساعد الميزو فقط في الشاشة الرئيسية (Dashboard) وإخفاؤه في باقي الشاشات */
+body:not(.screen-is-dashboard) #aiFloatingTrigger {
+    display: none !important;
+}
+
 /* الزر العائم لمساعد الميزو الذكي */
 .ai-floating-trigger {
     position: fixed;

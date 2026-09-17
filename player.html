@@ -218,11 +218,6 @@
             <!-- الجهة اليسرى: الأزرار متساوية الحجم وبترتيبك المطلوب -->
             <div class="nav-right">
                 <div class="nav-user nav-user-custom">
-                    <!-- زر مساعد الميزو الذكي (AI Assistant) -->
-                    <button onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" class="nav-action-btn nav-btn-ai" id="navAiBtn"
-                        title="مساعد الميزو الذكي (بحث صوتي وسينمائي ومباريات)">
-                        <i class="fas fa-sparkles"></i>
-                    </button>
                     <!-- 1. زر الهوم / الرجوع -->
                     <a href="index.html" onclick="if (window.AlMeZ0App) { if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false); if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait(); }" class="nav-action-btn nav-btn-home" id="navReturnBtn" title="الرجوع للرئيسية">
                         <i class="fas fa-home"></i>
@@ -462,6 +457,10 @@
                                 onclick="playCurrentLiveNative()">
                                 <i class="fas fa-bolt"></i> <span>60fps</span>
                             </button>
+                            <button class="action-btn-fullscreen" id="btnLiveFullscreen" title="ملء الشاشة / تصغير"
+                                onclick="toggleLivePlayerFullscreen()">
+                                <i class="fas fa-expand" id="liveFullscreenIcon"></i>
+                            </button>
                             <button class="btn-close-live-player" id="btnCloseLivePlayer" title="إغلاق المشغل"
                                 onclick="closeLivePlayer()">
                                 <i class="fas fa-times"></i>
@@ -469,6 +468,9 @@
                         </div>
                     </div>
                     <div class="plyr-container live-player-container-rel" id="livePlayerWrapper">
+                        <button class="live-fullscreen-btn-overlay" id="btnLiveOverlayFs" onclick="toggleLivePlayerFullscreen()" title="ملء الشاشة / تصغير">
+                            <i class="fas fa-expand" id="liveOverlayFsIcon"></i>
+                        </button>
                         <div id="liveVideoContainer">
                             <div class="empty-state">اختر قناة للمشاهدة</div>
                         </div>

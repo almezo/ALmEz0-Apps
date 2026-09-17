@@ -1,9 +1,9 @@
 {
-  "version": "1.0.39",
-  "versionCode": 40,
+  "version": "1.0.40",
+  "versionCode": 41,
   "releaseDate": "2026-09-17",
-  "title": "تحسين استهلاك خوادم البناء وتعطيل حزم ماك المؤقتة v1.0.39 ⚡🚀",
-  "notes": "تحسين سير عمل GitHub Actions لتوفير حصة دقائق البناء السحابي والتركيز على أندرويد وويندوز.",
+  "title": "إصلاحات مشغل البث المباشر ومساعد الميزو وقياسات الشاشات والرسيفرات v1.0.40 ⚡🎬",
+  "notes": "تشغيل البث المباشر المدمج بحرية مع زر التكبير، وإصلاح قياسات الشاشة على أجهزة الرسيفر، وترقية المساعد الصوتي والذكاء الاصطناعي.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

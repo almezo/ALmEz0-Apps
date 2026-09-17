@@ -193,6 +193,8 @@ public class PlayerActivity extends AppCompatActivity {
 
         try {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
             setContentView(R.layout.activity_player);
 
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -348,6 +350,11 @@ public class PlayerActivity extends AppCompatActivity {
         if (isTvDevice) {
             if (layoutBrightnessSlider != null) layoutBrightnessSlider.setVisibility(View.GONE);
             if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
+            if (playerView != null) {
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                currentAspectIndex = 1;
+                if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
+            }
         } else {
             updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
             updateVerticalSlider(layoutVolumeSlider, barVolumeFill, currentVolumePercent);
