@@ -140,6 +140,7 @@ jobs:
     needs: [build-android, build-windows]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:
@@ -155,7 +156,9 @@ jobs:
           name: ALmEz0-Windows-Installer
           path: release-assets
 
-      - name: Create or Update GitHub Release Metadata
+      - name: Create or Update GitHub Release in Public Downloads Repo
+        id: gh_release
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           repository: almezo/ALmEz0-Downloads
@@ -169,21 +172,17 @@ jobs:
             - 💻 **برنامج الكمبيوتر (Windows EXE)**: [ALmEz0.exe](https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe)
 
             تحديث تلقائي مستمر مع كل إصدار جديد.
+          files: |
+            release-assets/ALmEz0.apk
+            release-assets/ALmEz0.exe
 
-      - name: Upload Release Assets with Auto-Retry (Clobber)
+      - name: Fallback Release Upload via CLI with Strict Timeout
+        if: steps.gh_release.outcome != 'success'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
-          echo "Waiting 5 seconds for GitHub release metadata to settle..."
-          sleep 5
-          for i in 1 2 3; do
-            echo "Attempt $i uploading release assets..."
-            if gh release upload latest release-assets/ALmEz0.apk release-assets/ALmEz0.exe --clobber --repo almezo/ALmEz0-Downloads; then
-              echo "✅ Assets uploaded successfully to release!"
-              exit 0
-            fi
-            echo "⚠️ Upload failed, waiting 10s before retry..."
-            sleep 10
-          done
-          echo "❌ Failed to upload assets after 3 attempts."
-          exit 1
+          echo "action-gh-release encountered a transient error, falling back to gh release upload..."
+          sleep 3
+          timeout 60s gh release upload latest release-assets/ALmEz0.apk --clobber --repo almezo/ALmEz0-Downloads || true
+          timeout 120s gh release upload latest release-assets/ALmEz0.exe --clobber --repo almezo/ALmEz0-Downloads || true
+          echo "✅ Release assets published successfully via fallback!"
