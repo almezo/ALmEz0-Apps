@@ -8,19 +8,194 @@
 
 (function () {
     let aiModal = null;
-    let isAiMuted = localStorage.getItem('almezo_ai_muted') === 'true';
     let isListening = false;
     let speechRecognition = null;
     let conversationHistory = [];
 
     // =========================================================================
-    // 1. تهيئة المحرك الصوتي (Speech Recognition & MediaRecorder & TTS)
+    // 1. إدارة سجل المحادثات السابقة (Chat History Management)
+    // =========================================================================
+    let currentSessionId = null;
+
+    function getSavedSessions() {
+        try {
+            return JSON.parse(localStorage.getItem('almezo_ai_chat_sessions') || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveSessions(sessions) {
+        try {
+            localStorage.setItem('almezo_ai_chat_sessions', JSON.stringify(sessions));
+        } catch (e) { }
+    }
+
+    function getOrCreateCurrentSession(initialTitle) {
+        let sessions = getSavedSessions();
+        if (!currentSessionId) {
+            currentSessionId = 'session_' + Date.now();
+            const newSession = {
+                id: currentSessionId,
+                title: initialTitle ? (initialTitle.length > 30 ? initialTitle.slice(0, 30) + '...' : initialTitle) : 'محادثة جديدة',
+                createdAt: Date.now(),
+                messages: []
+            };
+            sessions.unshift(newSession);
+            saveSessions(sessions);
+            renderHistoryDrawer();
+            return newSession;
+        }
+        let session = sessions.find(s => s.id === currentSessionId);
+        if (!session) {
+            session = {
+                id: currentSessionId,
+                title: initialTitle ? (initialTitle.length > 30 ? initialTitle.slice(0, 30) + '...' : initialTitle) : 'محادثة جديدة',
+                createdAt: Date.now(),
+                messages: []
+            };
+            sessions.unshift(session);
+            saveSessions(sessions);
+            renderHistoryDrawer();
+        }
+        return session;
+    }
+
+    function saveMessageToCurrentSession(sender, text, actionCardsHtml) {
+        try {
+            const session = getOrCreateCurrentSession(sender === 'user' ? text : null);
+            session.messages.push({ sender, text, actionCardsHtml: actionCardsHtml || '', time: Date.now() });
+            const sessions = getSavedSessions().map(s => s.id === session.id ? session : s);
+            saveSessions(sessions);
+            renderHistoryDrawer();
+        } catch (e) { }
+    }
+
+    function startNewChat() {
+        currentSessionId = null;
+        conversationHistory = [];
+        const container = document.getElementById('aiChatMessages');
+        if (container) {
+            container.innerHTML = `
+                <div class="ai-message ai-bot-message">
+                    <div class="ai-msg-avatar"><i class="fas fa-sparkles"></i></div>
+                    <div class="ai-msg-content">
+                        <div class="ai-msg-text">
+                            مرحباً بك في <strong>سيرفرات الميزو</strong>! 🎬⚽<br>
+                            بدأنا محادثة جديدة، تفضل بسؤالي عن أي فيلم، مسلسل، مباراة اليوم أو تشغيل أي قناة.
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        closeHistoryDrawer();
+        renderHistoryDrawer();
+        showAiStatus('جاهز لمساعدتك ✨');
+    }
+
+    function loadSession(sessionId) {
+        const sessions = getSavedSessions();
+        const session = sessions.find(s => s.id === sessionId);
+        if (!session) return;
+
+        currentSessionId = session.id;
+        conversationHistory = [];
+        const container = document.getElementById('aiChatMessages');
+        if (!container) return;
+
+        container.innerHTML = '';
+        if (session.messages && session.messages.length > 0) {
+            session.messages.forEach(m => {
+                appendMessage(m.sender, m.text, m.actionCardsHtml || '', false);
+                conversationHistory.push({
+                    role: m.sender === 'user' ? 'user' : 'model',
+                    parts: [{ text: m.text }]
+                });
+            });
+        } else {
+            appendMessage('model', 'محادثة سابقة فارغة. كيف يمكنني مساعدتك؟', '', false);
+        }
+        closeHistoryDrawer();
+        renderHistoryDrawer();
+        showAiStatus('تم استرجاع المحادثة ✨');
+    }
+
+    function deleteSession(sessionId, event) {
+        if (event) event.stopPropagation();
+        let sessions = getSavedSessions();
+        sessions = sessions.filter(s => s.id !== sessionId);
+        saveSessions(sessions);
+        if (currentSessionId === sessionId) {
+            startNewChat();
+        } else {
+            renderHistoryDrawer();
+        }
+    }
+
+    function toggleHistoryDrawer() {
+        const drawer = document.getElementById('aiHistoryDrawer');
+        if (drawer) {
+            drawer.classList.toggle('hidden');
+            if (!drawer.classList.contains('hidden')) {
+                renderHistoryDrawer();
+            }
+        }
+    }
+
+    function closeHistoryDrawer() {
+        const drawer = document.getElementById('aiHistoryDrawer');
+        if (drawer) drawer.classList.add('hidden');
+    }
+
+    function renderHistoryDrawer() {
+        const listEl = document.getElementById('aiHistoryList');
+        if (!listEl) return;
+
+        const sessions = getSavedSessions();
+        if (sessions.length === 0) {
+            listEl.innerHTML = `<div class="ai-history-empty">لا توجد محادثات سابقة محفوظة</div>`;
+            return;
+        }
+
+        listEl.innerHTML = sessions.map(s => {
+            const isActive = s.id === currentSessionId ? 'active' : '';
+            const d = new Date(s.createdAt);
+            const dateStr = `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const safeTitle = (s.title || 'محادثة').replace(/"/g, '&quot;');
+            return `
+                <div class="ai-history-item ${isActive}" onclick="window.AlMeZ0AI.loadSession('${s.id}')">
+                    <div class="ai-history-item-info">
+                        <span class="ai-history-item-title" title="${safeTitle}">${s.title || 'محادثة'}</span>
+                        <span class="ai-history-item-date">${dateStr}</span>
+                    </div>
+                    <button class="ai-history-btn-del" title="حذف" onclick="window.AlMeZ0AI.deleteSession('${s.id}', event)">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // =========================================================================
+    // 2. تهيئة المحرك الصوتي (إصلاح ميكروفون الكمبيوتر وإلغاء الصوت الخارج)
     // =========================================================================
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecordingMedia = false;
 
+    function isElectronEnvironment() {
+        return !!(window.electronAPI && window.electronAPI.isElectron) ||
+               (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Electron'));
+    }
+
     function initSpeechEngine() {
+        // في بيئة تطبيق الكمبيوتر Electron: متصفح كروميوم يفتقد لمفاتيح جوجل الرسمية للتعرف الصوتي السحابي
+        // لذلك نعتمد مباشرة على MediaRecorder وتسجيل الميكروفون الحقيقي
+        if (isElectronEnvironment()) {
+            speechRecognition = null;
+            return;
+        }
+
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRec) {
             try {
@@ -50,11 +225,8 @@
                     console.warn('[AlMeZ0 AI] Speech error:', event.error);
                     isListening = false;
                     updateMicButtonState(false);
-                    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                        startMediaRecorderVoice();
-                    } else {
-                        showAiStatus('جاهز لمساعدتك ✨');
-                    }
+                    // في حال حدوث أي خطأ في التعرف الصوتي (network, not-allowed, إلخ) نتحول فوراً للتسجيل العتادي المباشر
+                    startMediaRecorderVoice();
                 };
 
                 speechRecognition.onend = () => {
@@ -127,6 +299,12 @@
             return;
         }
 
+        // في برنامج الكمبيوتر: الانتقال فورياً للتسجيل بالميكروفون المباشر
+        if (isElectronEnvironment()) {
+            startMediaRecorderVoice();
+            return;
+        }
+
         // فحص وطلب صلاحية الميكروفون في تطبيق الأندرويد فقط عند الضغط
         if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.hasRecordAudioPermission === 'function') {
             if (!window.AndroidNativeBridge.hasRecordAudioPermission()) {
@@ -162,30 +340,9 @@
     }
 
     function speakReply(text) {
-        if (isAiMuted || !window.speechSynthesis) return;
-        try {
-            window.speechSynthesis.cancel();
-            // تنظيف النص من الرموز والروابط لتوفير نطق طبيعي
-            let clean = text.replace(/[*#_`~]/g, '')
-                .replace(/https?:\/\/\S+/g, '')
-                .replace(/\[.*?\]/g, '')
-                .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // Emojis
-                .trim();
-
-            if (!clean) return;
-
-            const utterance = new SpeechSynthesisUtterance(clean);
-            utterance.lang = 'ar';
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-
-            const voices = window.speechSynthesis.getVoices();
-            const arVoice = voices.find(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'));
-            if (arVoice) utterance.voice = arVoice;
-
-            window.speechSynthesis.speak(utterance);
-        } catch (e) {
-            console.warn('[AlMeZ0 AI] TTS error', e);
+        // تم إيقاف الصوت كلياً بناءً على طلب العميل رقم 1
+        if (window.speechSynthesis) {
+            try { window.speechSynthesis.cancel(); } catch (e) { }
         }
     }
 
@@ -250,6 +407,29 @@
         return Object.values(grouped);
     }
 
+    const GENRE_KEYWORD_MAP = {
+        action: ['اكشن', 'قتال', 'معارك', 'حروب', 'حرب', 'مطاردة', 'اثاره', 'إثاره', 'action'],
+        comedy: ['كوميد', 'ضحك', 'مضحك', 'فرفش', 'طاش', 'comedy'],
+        horror: ['رعب', 'مخيف', 'ارواح', 'اشباح', 'جن', 'زومبي', 'horror'],
+        drama: ['درام', 'حزين', 'مؤثر', 'اجتماعي', 'drama'],
+        scifi: ['خيال', 'علمي', 'فضاء', 'كائنات', 'مستقبل', 'sci fi', 'scifi', 'fiction'],
+        animation: ['كرتون', 'انمي', 'اطفال', 'أنمي', 'anime', 'animation', 'cartoon'],
+        arabic: ['عربي', 'مصر', 'سوري', 'لبنان', 'خليج', 'تونسي', 'مغرب'],
+        turkish: ['تركي', 'تركيه', 'turk'],
+        foreign: ['اجنبي', 'امريكي', 'هوليوود', 'foreign', 'english'],
+        indian: ['هندي', 'بوليوود', 'indian', 'hindi']
+    };
+
+    function detectGenres(normText) {
+        const detected = [];
+        for (const [genre, keywords] of Object.entries(GENRE_KEYWORD_MAP)) {
+            if (keywords.some(kw => normText.includes(kw))) {
+                detected.push(genre);
+            }
+        }
+        return detected;
+    }
+
     async function searchActiveClientServer(query) {
         const normQuery = normalizeArabic(query);
         const allWords = normQuery.split(' ').filter(w => w.length > 1);
@@ -280,21 +460,80 @@
                 return results;
             }
 
-            // 2. للأفلام والمسلسلات: نعتمد فقط على الكلمات الفعلية بعد استبعاد الكلمات الشائعة
+            // 2. فحص التصنيف وكلمات البحث في الأفلام والمسلسلات
             const searchWords = meaningfulWords.length > 0 ? meaningfulWords : allWords;
+            const detectedGenres = detectGenres(normQuery);
+            const isNightMovie = normQuery.includes('سهرة') || normQuery.includes('سهره') || normQuery.includes('الليلة') || normQuery.includes('افضل') || normQuery.includes('أفضل');
+
+            let vodCategories = [];
+            if (typeof window.getAllCategoriesForType === 'function') {
+                vodCategories = await window.getAllCategoriesForType('vod').catch(() => []);
+            }
 
             if (window.getAllStreamsForType) {
                 const movies = await window.getAllStreamsForType('vod', 'get_vod_streams').catch(() => []);
                 if (Array.isArray(movies) && movies.length > 0) {
-                    if (searchWords.length > 0) {
-                        results.movies = movies.filter(m => {
+                    // أ. إذا طلب المستخدم تصنيفاً معيناً (مثل أكشن، كوميدي، رعب)
+                    if (detectedGenres.length > 0) {
+                        const matchingCatIds = new Set();
+                        if (Array.isArray(vodCategories)) {
+                            vodCategories.forEach(cat => {
+                                const catNameNorm = normalizeArabic(cat.category_name || '');
+                                for (const g of detectedGenres) {
+                                    const kws = GENRE_KEYWORD_MAP[g] || [];
+                                    if (kws.some(kw => catNameNorm.includes(kw))) {
+                                        matchingCatIds.add(String(cat.category_id));
+                                    }
+                                }
+                            });
+                        }
+
+                        const genreMatches = movies.filter(m => {
+                            if (m.category_id && matchingCatIds.has(String(m.category_id))) return true;
+                            if (m.category_ids && Array.isArray(m.category_ids) && m.category_ids.some(cid => matchingCatIds.has(String(cid)))) return true;
                             const mName = normalizeArabic(m.name || '');
-                            return searchWords.some(w => mName.includes(w));
-                        }).slice(0, 4);
+                            return detectedGenres.some(g => (GENRE_KEYWORD_MAP[g] || []).some(kw => mName.includes(kw)));
+                        });
+
+                        if (genreMatches.length > 0) {
+                            genreMatches.sort((a, b) => {
+                                const rA = parseFloat(a.rating || a.rating_5based || 0);
+                                const rB = parseFloat(b.rating || b.rating_5based || 0);
+                                if (rB !== rA) return rB - rA;
+                                return (b.stream_id || 0) - (a.stream_id || 0);
+                            });
+                            results.movies = genreMatches.slice(0, 4);
+                        }
                     }
-                    // إذا كان السؤال عن تصنيف مثل أكشن أو فيلم سهرة ولم نجد تطابقاً حرفياً، نجلب أفلاماً ممتازة
-                    if (results.movies.length === 0 && (normQuery.includes('اكشن') || normQuery.includes('سهرة') || normQuery.includes('افضل'))) {
-                        results.movies = movies.slice(0, 4);
+
+                    // ب. إذا كان البحث عن اسم فيلم محدد
+                    if (results.movies.length === 0 && searchWords.length > 0) {
+                        const titleMatches = movies.filter(m => {
+                            const mName = normalizeArabic(m.name || '');
+                            return searchWords.every(w => mName.includes(w));
+                        });
+                        if (titleMatches.length > 0) {
+                            results.movies = titleMatches.slice(0, 4);
+                        } else {
+                            const partialMatches = movies.filter(m => {
+                                const mName = normalizeArabic(m.name || '');
+                                return searchWords.some(w => mName.includes(w));
+                            });
+                            if (partialMatches.length > 0) {
+                                results.movies = partialMatches.slice(0, 4);
+                            }
+                        }
+                    }
+
+                    // ج. إذا كان السؤال عام عن فيلم سهرة أو أفضل فيلم
+                    if (results.movies.length === 0 && isNightMovie) {
+                        const topRatedMovies = [...movies].sort((a, b) => {
+                            const rA = parseFloat(a.rating || a.rating_5based || 0);
+                            const rB = parseFloat(b.rating || b.rating_5based || 0);
+                            if (rB !== rA) return rB - rA;
+                            return (b.stream_id || 0) - (a.stream_id || 0);
+                        });
+                        results.movies = topRatedMovies.slice(0, 4);
                     }
                 }
             }
@@ -304,16 +543,17 @@
                 const series = await window.getAllStreamsForType('series', 'get_series').catch(() => []);
                 if (Array.isArray(series) && series.length > 0) {
                     if (searchWords.length > 0) {
-                        results.series = series.filter(s => {
+                        const seriesMatches = series.filter(s => {
                             const sName = normalizeArabic(s.name || '');
                             return searchWords.some(w => sName.includes(w));
-                        }).slice(0, 4);
+                        });
+                        results.series = seriesMatches.slice(0, 4);
                     }
                 }
             }
 
             // 4. فحص قنوات البث المباشر العامة إذا طُلبت صراحة
-            if (window.getAllStreamsForType && (normQuery.includes('قناة') || normQuery.includes('شغل'))) {
+            if (window.getAllStreamsForType && (normQuery.includes('قناة') || normQuery.includes('شغل') || normQuery.includes('بث'))) {
                 const live = await window.getAllStreamsForType('live', 'get_live_streams').catch(() => []);
                 if (Array.isArray(live)) {
                     const matched = live.filter(c => {
@@ -362,24 +602,27 @@
             throw new Error('يرجى الضغط على أيقونة المفتاح 🔑 في الأعلى وإدخال مفتاح Gemini API المجاني الخاص بك.');
         }
 
-        // صياغة السياق المستخرج من سيرفر العميل الحالي بدقة تامة
+        // صياغة السياق المستخرج من سيرفر العميل الحالي بدقة تامة وبدون أي هلوسة
         let contextText = '';
         if (serverContext.isSports) {
             contextText += `[سياق رياضي ومباريات اليوم]:\n`;
             if (serverContext.channels && serverContext.channels.length > 0) {
                 contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
             }
-            contextText += `[توجيه حاسم ومطلوب]: العميل يسأل عن مباريات كرة قدم أو رياضة. استخدم Google Search لمعرفة مباريات اليوم وتوقيتها بدقة بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3) والقنوات الناقلة الرسمية. يمنع منعاً باتاً التحدث عن أي أفلام أو مسلسلات!\n`;
+            contextText += `[توجيه حاسم]: العميل يسأل عن مباريات كرة قدم أو رياضة. استخدم بحث جوجل المباشر (Google Search) لمعرفة المباريات الحقيقية المقامة اليوم وتوقيتها الدقيق بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3) والقنوات الناقلة الرسمية. يمنع منعاً باتاً ذكر أي أفلام أو مسلسلات إذا كان السؤال رياضياً!\n`;
         } else {
             contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
             if (serverContext.movies && serverContext.movies.length > 0) {
-                contextText += `- أفلام متوفرة في سيرفر العميل مطابقة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
-            }
-            if (serverContext.series && serverContext.series.length > 0) {
-                contextText += `- مسلسلات متوفرة في سيرفر العميل مطابقة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
-            }
-            if (serverContext.channels && serverContext.channels.length > 0) {
+                contextText += `- أفلام متوفرة في سيرفر العميل مطابقة للطلب:\n${serverContext.movies.map((m, idx) => `  ${idx + 1}. "${m.name}" (التقييم: ${m.rating || 'ممتاز'}, المعرف: ${m.stream_id})`).join('\n')}\n`;
+                contextText += `[توجيه صارم لمنع الهلوسة]: رشّح للعميل حصرياً من قائمة الأفلام المذكورة أعلاه المتوفرة في سيرفره، واذكر له نبذة عنها، ولا ترشح أي فيلم آخر غير موجود في هذه القائمة حتى يتطابق كلامك تماماً مع كروت التشغيل المعروضة أمامه بالأسفل!\n`;
+            } else if (serverContext.series && serverContext.series.length > 0) {
+                contextText += `- مسلسلات متوفرة في سيرفر العميل مطابقة للطلب:\n${serverContext.series.map((s, idx) => `  ${idx + 1}. "${s.name}" (التقييم: ${s.rating || 'ممتاز'}, المعرف: ${s.series_id})`).join('\n')}\n`;
+                contextText += `[توجيه صارم لمنع الهلوسة]: رشّح للعميل حصرياً من قائمة المسلسلات المذكورة أعلاه المتوفرة في سيرفره، ولا ترشح أي مسلسل خارج هذه القائمة!\n`;
+            } else if (serverContext.channels && serverContext.channels.length > 0) {
                 contextText += `- قنوات بث مباشر متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+            } else {
+                contextText += `- لم يتم العثور على عمل مطابق بالاسم المطلوب داخل السيرفر حالياً.\n`;
+                contextText += `[توجيه صارم]: أبلغ العميل بلباقة أن هذا العمل المحدد غير متوفر حالياً في السيرفر، وقدم له اقتراحاً عاماً مشوقاً مع توجيهه لأقسام السيرفر دون إعطاء انطباع كاذب بوجوده.\n`;
             }
         }
 
@@ -557,6 +800,20 @@
 
         modal.innerHTML = `
             <div class="ai-modal-card" role="dialog" aria-modal="true">
+                <!-- درج وسجل المحادثات الجانبي -->
+                <div class="ai-history-drawer hidden" id="aiHistoryDrawer">
+                    <div class="ai-history-header">
+                        <div class="ai-history-title-wrap">
+                            <i class="fas fa-history"></i>
+                            <span>سجل المحادثات</span>
+                        </div>
+                        <button class="ai-btn-new-chat" onclick="window.AlMeZ0AI.startNewChat()">
+                            <i class="fas fa-plus"></i> جديدة
+                        </button>
+                    </div>
+                    <div class="ai-history-list" id="aiHistoryList"></div>
+                </div>
+
                 <!-- الترويسة -->
                 <div class="ai-modal-header">
                     <div class="ai-header-profile">
@@ -570,8 +827,8 @@
                         </div>
                     </div>
                     <div class="ai-header-actions">
-                        <button class="ai-btn-icon ${isAiMuted ? 'muted' : ''}" id="aiBtnMute" title="${isAiMuted ? 'تشغيل الصوت' : 'كتم الصوت'}" onclick="window.AlMeZ0AI.toggleMute()">
-                            <i class="fas ${isAiMuted ? 'fa-volume-mute' : 'fa-volume-up'}"></i>
+                        <button class="ai-btn-icon" id="aiBtnToggleHistory" title="سجل المحادثات السابقة" onclick="window.AlMeZ0AI.toggleHistory()">
+                            <i class="fas fa-history"></i>
                         </button>
                         <button class="ai-btn-icon" id="aiBtnClear" title="مسح المحادثة" onclick="window.AlMeZ0AI.clearChat()">
                             <i class="fas fa-trash-alt"></i>
@@ -648,7 +905,7 @@
         if (el) el.innerText = text;
     }
 
-    function appendMessage(sender, text, actionCardsHtml = '') {
+    function appendMessage(sender, text, actionCardsHtml = '', saveToSession = true) {
         const messagesContainer = document.getElementById('aiChatMessages');
         if (!messagesContainer) return;
 
@@ -674,6 +931,10 @@
         messagesContainer.appendChild(msgDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
+        if (saveToSession) {
+            saveMessageToCurrentSession(sender, text, actionCardsHtml);
+        }
+
         // تحديث محرك الريموت لتسجيل الأزرار الجديدة
         if (typeof initTvNavigationEngine === 'function') {
             try { initTvNavigationEngine(); } catch (e) { }
@@ -694,7 +955,7 @@
                 const ext = m.container_extension || 'mp4';
                 cards += `
                     <div class="ai-card-item movie">
-                        <img src="${cover}" class="ai-card-poster" onerror="this.src='photo/logo.ico'">
+                        <img src="${cover}" class="ai-card-poster" onerror="this.src='photo/logo.ico'" style="width:48px;height:68px;min-width:48px;max-width:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">
                         <div class="ai-card-info">
                             <div class="ai-card-name" title="${name}">${m.name}</div>
                             <span class="ai-card-badge">فيلم متوفر</span>
@@ -714,7 +975,7 @@
                 const name = (s.name || '').replace(/'/g, "\\'");
                 cards += `
                     <div class="ai-card-item series">
-                        <img src="${cover}" class="ai-card-poster" onerror="this.src='photo/logo.ico'">
+                        <img src="${cover}" class="ai-card-poster" onerror="this.src='photo/logo.ico'" style="width:48px;height:68px;min-width:48px;max-width:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">
                         <div class="ai-card-info">
                             <div class="ai-card-name" title="${name}">${s.name}</div>
                             <span class="ai-card-badge">مسلسل متوفر</span>
@@ -727,13 +988,13 @@
             });
         }
 
-        // قنوات البث المباشر مع أزرار الجودات
+        // قنوات البث المباشر مع أزرار الجودات (أيقونات مصغرة وأنيقة جداً)
         if (serverContext.channels && serverContext.channels.length > 0) {
             serverContext.channels.forEach(ch => {
                 cards += `
                     <div class="ai-channel-block">
                         <div class="ai-channel-header">
-                            <img src="${ch.icon}" class="ai-channel-icon" onerror="this.src='photo/logo.ico'">
+                            <img src="${ch.icon}" class="ai-channel-icon" onerror="this.src='photo/logo.ico'" style="width:40px;height:40px;min-width:40px;max-width:40px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,0.06);padding:3px;flex-shrink:0;">
                             <span class="ai-channel-name">${ch.baseName}</span>
                         </div>
                         <div class="ai-qualities-row">
@@ -765,7 +1026,7 @@
         if (inputEl) inputEl.value = '';
 
         // 1. إظهار رسالة العميل
-        appendMessage('user', text);
+        appendMessage('user', text, '', true);
         conversationHistory.push({ role: "user", parts: [{ text }] });
 
         // 2. إظهار مؤشر الكتابة
@@ -800,19 +1061,17 @@
             // 5. تجهيز الكروت التفاعلية للتشغيل
             const actionCardsHtml = buildInteractiveCardsHtml(serverContext);
 
-            // 6. إظهار رد الذكاء الاصطناعي مع الكروت
-            appendMessage('model', aiReply, actionCardsHtml);
+            // 6. إظهار رد الذكاء الاصطناعي مع الكروت وحفظه
+            appendMessage('model', aiReply, actionCardsHtml, true);
             conversationHistory.push({ role: "model", parts: [{ text: aiReply }] });
 
-            // 7. نطق الرد صوتياً
-            speakReply(aiReply);
             showAiStatus('جاهز لمساعدتك ✨');
         } catch (err) {
             console.error('[AlMeZ0 AI] Error handling message:', err);
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
 
-            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الطلب: ${err.message || 'يرجى المحاولة مجدداً'}.`);
+            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الطلب: ${err.message || 'يرجى المحاولة مجدداً'}.`, '', true);
             showAiStatus('جاهز لمساعدتك ✨');
         }
     }
@@ -828,7 +1087,7 @@
         if (!base64Data) return;
 
         // 1. إظهار رسالة العميل كرسالة صوتية
-        appendMessage('user', '🎙️ رسالة صوتية مسجلة...');
+        appendMessage('user', '🎙️ رسالة صوتية مسجلة...', '', true);
 
         // 2. إظهار مؤشر التحليل
         showAiStatus('جاري الاستماع للصوت وتحليله ⚡...');
@@ -867,11 +1126,9 @@
 
             // تجهيز كروت التشغيل وعرض الرد
             const actionCardsHtml = buildInteractiveCardsHtml(serverContext);
-            appendMessage('model', aiReply, actionCardsHtml);
+            appendMessage('model', aiReply, actionCardsHtml, true);
             conversationHistory.push({ role: "model", parts: [{ text: aiReply }] });
 
-            // نطق الرد
-            speakReply(aiReply);
             showAiStatus('جاهز لمساعدتك ✨');
         } catch (err) {
             console.error('[AlMeZ0 AI] Error handling audio message:', err);
@@ -879,7 +1136,7 @@
             if (typingEl) typingEl.remove();
 
             let errMsg = err.message || 'يرجى المحاولة مجدداً';
-            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الرسالة الصوتية: ${errMsg}`);
+            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الرسالة الصوتية: ${errMsg}`, '', true);
             showAiStatus('جاهز لمساعدتك ✨');
         }
     }
@@ -932,41 +1189,15 @@
         if (window.speechSynthesis) {
             try { window.speechSynthesis.cancel(); } catch (e) { }
         }
+        closeHistoryDrawer();
         const modal = document.getElementById('almezoAiModal');
         if (modal) {
             modal.classList.add('hidden');
         }
     }
 
-    function toggleMute() {
-        isAiMuted = !isAiMuted;
-        localStorage.setItem('almezo_ai_muted', String(isAiMuted));
-        const btn = document.getElementById('aiBtnMute');
-        if (btn) {
-            btn.classList.toggle('muted', isAiMuted);
-            btn.title = isAiMuted ? 'تشغيل الصوت' : 'كتم الصوت';
-            btn.innerHTML = `<i class="fas ${isAiMuted ? 'fa-volume-mute' : 'fa-volume-up'}"></i>`;
-        }
-        if (isAiMuted && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-        }
-    }
-
     function clearChat() {
-        conversationHistory = [];
-        const container = document.getElementById('aiChatMessages');
-        if (container) {
-            container.innerHTML = `
-                <div class="ai-message ai-bot-message">
-                    <div class="ai-msg-avatar"><i class="fas fa-sparkles"></i></div>
-                    <div class="ai-msg-content">
-                        <div class="ai-msg-text">
-                            تم مسح المحادثة السابقة. كيف يمكنني مساعدتك الآن؟ 🎬⚽
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+        startNewChat();
     }
 
     function sendQuickPrompt(promptText) {
@@ -982,7 +1213,10 @@
         openModal,
         closeModal,
         toggleMic: toggleSpeechListening,
-        toggleMute,
+        toggleHistory: toggleHistoryDrawer,
+        startNewChat,
+        loadSession,
+        deleteSession,
         clearChat,
         submitMessage,
         sendQuickPrompt,

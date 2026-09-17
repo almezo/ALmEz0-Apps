@@ -56,13 +56,13 @@ if (!gotTheLock) {
 
         // Allow microphone permissions for AI voice assistant
         mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-            if (permission === 'media') {
+            if (permission === 'media' || permission === 'microphone' || permission === 'audio-capture') {
                 return callback(true);
             }
             callback(false);
         });
         mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
-            if (permission === 'media') return true;
+            if (permission === 'media' || permission === 'microphone' || permission === 'audio-capture') return true;
             return false;
         });
 

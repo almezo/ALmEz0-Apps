@@ -1334,11 +1334,12 @@ function playStream(id, type, extension, name, icon) {
     }
 
     // ================================================================
-    // في تطبيق أندرويد فقط: تشغيل البث المباشر والأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
+    // في تطبيق أندرويد فقط: تشغيل الأفلام والمسلسلات في المشغل المدمج الداخلي بوضعية ملء الشاشة الفورية (ExoPlayer)
+    // أما البث المباشر فيبدأ في الوضع العادي المدمج بجانب القنوات، مع توفير زر ملء الشاشة إذا رغب العميل
     // ================================================================
     if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
-        if (type === 'vod' || type === 'series' || type === 'live') {
-            const isLive = (type === 'live');
+        if (type === 'vod' || type === 'series') {
+            const isLive = false;
             const isTv = document.body.classList.contains('tv-device-mode') ||
                          (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
             if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
@@ -1506,7 +1507,13 @@ function playStream(id, type, extension, name, icon) {
                     skipButtons: (type === 'live') ? false : {
                         forward: 10,
                         backward: 10
-                    }
+                    },
+                    progressControl: (type !== 'live'),
+                    remainingTimeDisplay: (type !== 'live'),
+                    currentTimeDisplay: (type !== 'live'),
+                    timeDivider: (type !== 'live'),
+                    durationDisplay: (type !== 'live'),
+                    liveDisplay: (type === 'live')
                 },
                 html5: {
                     nativeAudioTracks: false,
@@ -2799,6 +2806,17 @@ async function getAllStreamsForType(type, action) {
 
 window.getAllStreamsForType = getAllStreamsForType;
 window.globalStreamsCache = globalStreamsCache;
+window.proxyFetch = proxyFetch;
+
+async function getAllCategoriesForType(type) {
+    let action = type === 'live' ? 'get_live_categories' : (type === 'vod' ? 'get_vod_categories' : 'get_series_categories');
+    const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+    const user = encodeURIComponent(state.username);
+    const pass = encodeURIComponent(state.password);
+    const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
+    return await proxyFetch(url).catch(() => []);
+}
+window.getAllCategoriesForType = getAllCategoriesForType;
 
 async function fetchCategoryCounts(type, containerId) {
     let action = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');

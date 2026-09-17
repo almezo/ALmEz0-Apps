@@ -297,6 +297,7 @@
 
             <!-- Seek Bar Row with Timestamps -->
             <LinearLayout
+                android:id="@+id/layout_seekbar_row"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"

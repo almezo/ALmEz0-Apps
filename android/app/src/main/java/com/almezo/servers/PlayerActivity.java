@@ -72,6 +72,7 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView tvPosition;
     private TextView tvDuration;
     private SeekBar seekBar;
+    private View layoutSeekbarRow;
 
     // Aspect & Speed
     private View btnAspect;
@@ -116,6 +117,7 @@ public class PlayerActivity extends AppCompatActivity {
         @Override
         public void run() {
             try {
+                if (isLiveStream) return;
                 if (player != null && !isFinishing() && !isDestroyed()) {
                     long dur = player.getDuration();
                     long pos = player.getCurrentPosition();
@@ -333,6 +335,7 @@ public class PlayerActivity extends AppCompatActivity {
         tvPosition = findViewById(R.id.tv_position);
         tvDuration = findViewById(R.id.tv_duration);
         seekBar = findViewById(R.id.seek_bar);
+        layoutSeekbarRow = findViewById(R.id.layout_seekbar_row);
 
         btnAspect = findViewById(R.id.btn_aspect);
         tvAspectText = findViewById(R.id.tv_aspect_text);
@@ -895,6 +898,16 @@ public class PlayerActivity extends AppCompatActivity {
     // ==========================================
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+            keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+            keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_ENTER ||
+            keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER || keyCode == KeyEvent.KEYCODE_CHANNEL_UP ||
+            keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN || keyCode == KeyEvent.KEYCODE_MENU) {
+            isTvDevice = true;
+            if (layoutBrightnessSlider != null) layoutBrightnessSlider.setVisibility(View.GONE);
+            if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
+        }
+
         if (settingsDrawerOverlay != null && settingsDrawerOverlay.getVisibility() == View.VISIBLE) {
             if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
                 closeSettingsDrawer();
@@ -1042,9 +1055,16 @@ public class PlayerActivity extends AppCompatActivity {
             if (badgeLiveIndicator != null) badgeLiveIndicator.setVisibility(View.VISIBLE);
             if (btnRewind10 != null) btnRewind10.setVisibility(View.GONE);
             if (btnForward10 != null) btnForward10.setVisibility(View.GONE);
+            if (layoutSeekbarRow != null) layoutSeekbarRow.setVisibility(View.GONE);
+            if (seekBar != null) seekBar.setVisibility(View.GONE);
             if (tvDuration != null) tvDuration.setVisibility(View.GONE);
-            if (seekBar != null) seekBar.setEnabled(false);
-            if (tvPosition != null) tvPosition.setText("مباشر");
+            if (tvPosition != null) tvPosition.setVisibility(View.GONE);
+            handler.removeCallbacks(updateProgressRunnable);
+        } else {
+            if (layoutSeekbarRow != null) layoutSeekbarRow.setVisibility(View.VISIBLE);
+            if (seekBar != null) seekBar.setVisibility(View.VISIBLE);
+            if (tvDuration != null) tvDuration.setVisibility(View.VISIBLE);
+            if (tvPosition != null) tvPosition.setVisibility(View.VISIBLE);
         }
 
         try {

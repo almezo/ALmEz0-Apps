@@ -6270,13 +6270,26 @@ body.in-fullscreen-player .ai-floating-trigger,
 .ai-channel-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
+}
+
+.ai-channel-icon {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    object-fit: contain !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    padding: 3px !important;
+    flex-shrink: 0 !important;
 }
 
 .ai-channel-name {
     font-size: 14px;
     font-weight: 700;
     color: #f8fafc;
+    flex: 1;
 }
 
 .ai-channel-qualities {
@@ -6454,4 +6467,173 @@ body.tv-device-mode .ai-floating-trigger:focus {
     0% { transform: scale(0.95); opacity: 0.8; }
     50% { transform: scale(1.15); opacity: 1; }
     100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* =========================================================
+   AI ASSISTANT CHAT HISTORY DRAWER (سجل المحادثات السابق)
+   ========================================================= */
+.ai-modal-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.ai-history-drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 290px;
+    max-width: 85%;
+    background: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.7);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-history-drawer.hidden {
+    display: none !important;
+}
+
+.ai-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-history-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #f8fafc;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ai-btn-new-chat {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: none;
+    color: #000000;
+    font-weight: 700;
+    font-size: 11.5px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.ai-btn-new-chat:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.ai-history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ai-history-item {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ai-history-item:hover,
+.ai-history-item.active {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.ai-history-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+    flex: 1;
+}
+
+.ai-history-item-title {
+    color: #f1f5f9;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-history-item-date {
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.ai-history-btn-del {
+    background: transparent;
+    border: none;
+    color: #ef4444;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.ai-history-btn-del:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.ai-history-empty {
+    text-align: center;
+    padding: 40px 15px;
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+/* =========================================================
+   LIVE STREAM TIMELINE & COUNTER REMOVAL (طلب المستخدم 7-ب)
+   إزالة شريط العداد وعداد الثواني من البث المباشر (كمبيوتر + أندرويد)
+   ========================================================= */
+#livePlayerWrapper .vjs-progress-control,
+#livePlayerWrapper .vjs-current-time,
+#livePlayerWrapper .vjs-time-divider,
+#livePlayerWrapper .vjs-duration,
+#livePlayerWrapper .vjs-remaining-time,
+#livePlayerWrapper .vjs-time-control,
+.live-fullscreen-mode .vjs-progress-control,
+.live-fullscreen-mode .vjs-current-time,
+.live-fullscreen-mode .vjs-time-divider,
+.live-fullscreen-mode .vjs-duration,
+.live-fullscreen-mode .vjs-remaining-time,
+.live-fullscreen-mode .vjs-time-control {
+    display: none !important;
+}
+
+/* =========================================================
+   ANDROID TV / REMOTE GESTURE SLIDERS REMOVAL (طلب المستخدم 7-أ)
+   إزالة أشرطة رفع الصوت والإضاءة في أجهزة التلفزيون التي تعمل بريموت
+   ========================================================= */
+body.tv-device-mode #liveSliderBrightness,
+body.tv-device-mode #liveSliderVolume,
+body.tv-mode #liveSliderBrightness,
+body.tv-mode #liveSliderVolume {
+    display: none !important;
 }
