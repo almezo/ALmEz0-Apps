@@ -106,6 +106,7 @@ public class PlayerActivity extends AppCompatActivity {
     private boolean isScreenLocked = false;
     private boolean isUserSeeking = false;
     private boolean isRetried = false;
+    private boolean isTvDevice = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private GestureDetector gestureDetector;
@@ -208,6 +209,8 @@ public class PlayerActivity extends AppCompatActivity {
                 currentBrightness = 0.5f;
             }
 
+            isTvDevice = checkIsTvDevice();
+
             enableImmersiveFullscreen();
             optimizeDisplayRefreshRate();
             initViews();
@@ -218,6 +221,33 @@ public class PlayerActivity extends AppCompatActivity {
             Toast.makeText(this, "تعذر تشغيل الفيديو: " + t.getMessage(), Toast.LENGTH_LONG).show();
             finish();
         }
+    }
+
+    private boolean checkIsTvDevice() {
+        try {
+            if (getIntent().hasExtra("isTv")) {
+                return getIntent().getBooleanExtra("isTv", false);
+            }
+            android.app.UiModeManager uiModeManager = (android.app.UiModeManager) getSystemService(Context.UI_MODE_SERVICE);
+            if (uiModeManager != null && uiModeManager.getCurrentModeType() == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) {
+                return true;
+            }
+            android.content.pm.PackageManager pm = getPackageManager();
+            if (pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                    || pm.hasSystemFeature("android.hardware.type.television")) {
+                return true;
+            }
+            if (!pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)) {
+                return true;
+            }
+            String model = (Build.MODEL + " " + Build.DEVICE + " " + Build.PRODUCT + " " + Build.HARDWARE).toLowerCase(Locale.ROOT);
+            if (model.contains("tv") || model.contains("box") || model.contains("atv") || model.contains("shield")
+                    || model.contains("firetv") || model.contains("mibox") || model.contains("chromecast")
+                    || model.contains("amlogic") || model.contains("allwinner") || model.contains("rockchip")) {
+                return true;
+            }
+        } catch (Throwable ignored) { }
+        return false;
     }
 
     private void optimizeDisplayRefreshRate() {
@@ -314,8 +344,13 @@ public class PlayerActivity extends AppCompatActivity {
         badgeLiveIndicator = findViewById(R.id.badge_live_indicator);
 
         // Pre-fill initial slider levels so they are immediately accurate on launch
-        updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
-        updateVerticalSlider(layoutVolumeSlider, barVolumeFill, currentVolumePercent);
+        if (isTvDevice) {
+            if (layoutBrightnessSlider != null) layoutBrightnessSlider.setVisibility(View.GONE);
+            if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
+        } else {
+            updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
+            updateVerticalSlider(layoutVolumeSlider, barVolumeFill, currentVolumePercent);
+        }
 
         settingsDrawerOverlay = findViewById(R.id.settings_drawer_overlay);
         settingsDrawer = findViewById(R.id.settings_drawer);
@@ -511,7 +546,7 @@ public class PlayerActivity extends AppCompatActivity {
 
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
-                    if (isScreenLocked) {
+                    if (isScreenLocked || isTvDevice) {
                         return gestureDetector.onTouchEvent(event);
                     }
 
@@ -561,7 +596,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void adjustVolume(float delta) {
-        if (audioManager == null) return;
+        if (isTvDevice || audioManager == null) return;
         try {
             // Smooth float-based volume tracking on every single pixel of touch
             currentVolumePercent = Math.max(0.0f, Math.min(1.0f, currentVolumePercent + delta));
@@ -577,6 +612,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void adjustBrightness(float delta) {
+        if (isTvDevice) return;
         try {
             currentBrightness = Math.max(0.05f, Math.min(1.0f, currentBrightness + delta));
             WindowManager.LayoutParams lp = getWindow().getAttributes();
@@ -590,6 +626,10 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void updateVerticalSlider(View layout, View fillBar, float percent) {
+        if (isTvDevice) {
+            if (layout != null) layout.setVisibility(View.GONE);
+            return;
+        }
         try {
             handler.removeCallbacks(hideSlidersRunnable);
             if (layout != null) {
@@ -669,6 +709,9 @@ public class PlayerActivity extends AppCompatActivity {
             populateSettingsTracks();
             settingsDrawerOverlay.setVisibility(View.VISIBLE);
             handler.removeCallbacks(hideControlsRunnable);
+            if (btnCloseSettings != null) {
+                btnCloseSettings.requestFocus();
+            }
         }
     }
 
@@ -676,6 +719,9 @@ public class PlayerActivity extends AppCompatActivity {
         if (settingsDrawerOverlay != null) {
             settingsDrawerOverlay.setVisibility(View.GONE);
             resetControlsHideTimer();
+            if (btnSettings != null) {
+                btnSettings.requestFocus();
+            }
         }
     }
 
@@ -830,6 +876,8 @@ public class PlayerActivity extends AppCompatActivity {
         rb.setChecked(isChecked);
         rb.setPadding(12, 10, 12, 10);
         rb.setButtonTintList(ColorStateList.valueOf(Color.parseColor("#5240d8")));
+        rb.setFocusable(true);
+        rb.setFocusableInTouchMode(true);
         rb.setOnCheckedChangeListener(listener);
         group.addView(rb);
     }
@@ -844,6 +892,14 @@ public class PlayerActivity extends AppCompatActivity {
                 closeSettingsDrawer();
                 return true;
             }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                View focused = getCurrentFocus();
+                if (focused != null) {
+                    focused.performClick();
+                    return true;
+                }
+            }
+            return super.onKeyDown(keyCode, event);
         }
 
         if (isScreenLocked && keyCode != KeyEvent.KEYCODE_BACK) {
@@ -854,14 +910,25 @@ public class PlayerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
                     showControls();
-                    if (btnPlayPause != null) btnPlayPause.requestFocus();
+                    return true;
+                }
+                View focused = getCurrentFocus();
+                if (focused != null && focused != playerView && focused != controlsOverlay && focused.getId() != R.id.player_root) {
+                    focused.performClick();
+                    resetControlsHideTimer();
                     return true;
                 }
                 togglePlayPause();
                 showControls();
+                return true;
+
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
+                    showControls();
+                }
+                togglePlayPause();
                 return true;
 
             case KeyEvent.KEYCODE_MEDIA_PLAY:
@@ -882,39 +949,43 @@ public class PlayerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_MEDIA_REWIND:
             case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
-                    break; // Allow D-pad focus to move naturally to left buttons
+                    resetControlsHideTimer();
+                    break;
                 }
                 if (!isLiveStream) {
                     seekRelative(-10000);
                     showSeekFeedback("-10s");
                     showControls();
                     return true;
+                } else {
+                    showControls();
+                    return true;
                 }
-                break;
 
             case KeyEvent.KEYCODE_DPAD_RIGHT:
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
             case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
-                    break; // Allow D-pad focus to move naturally to right buttons
+                    resetControlsHideTimer();
+                    break;
                 }
                 if (!isLiveStream) {
                     seekRelative(10000);
                     showSeekFeedback("+10s");
                     showControls();
                     return true;
+                } else {
+                    showControls();
+                    return true;
                 }
-                break;
 
             case KeyEvent.KEYCODE_DPAD_UP:
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
                     showControls();
-                    if (btnPlayPause != null) {
-                        btnPlayPause.requestFocus();
-                    }
                     return true;
                 }
+                resetControlsHideTimer();
                 break;
 
             case KeyEvent.KEYCODE_CHANNEL_UP:
@@ -928,7 +999,15 @@ public class PlayerActivity extends AppCompatActivity {
                 break;
 
             case KeyEvent.KEYCODE_MEDIA_STOP:
+                finish();
+                return true;
+
             case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_ESCAPE:
+                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
+                    hideControls();
+                    return true;
+                }
                 finish();
                 return true;
         }
@@ -1100,13 +1179,25 @@ public class PlayerActivity extends AppCompatActivity {
             if (controlsOverlay != null) {
                 controlsOverlay.setVisibility(View.VISIBLE);
             }
-            if (layoutBrightnessSlider != null) {
-                layoutBrightnessSlider.setVisibility(View.VISIBLE);
-            }
-            if (layoutVolumeSlider != null) {
-                layoutVolumeSlider.setVisibility(View.VISIBLE);
+            if (!isTvDevice) {
+                if (layoutBrightnessSlider != null) {
+                    layoutBrightnessSlider.setVisibility(View.VISIBLE);
+                }
+                if (layoutVolumeSlider != null) {
+                    layoutVolumeSlider.setVisibility(View.VISIBLE);
+                }
+            } else {
+                if (layoutBrightnessSlider != null) {
+                    layoutBrightnessSlider.setVisibility(View.GONE);
+                }
+                if (layoutVolumeSlider != null) {
+                    layoutVolumeSlider.setVisibility(View.GONE);
+                }
             }
             resetControlsHideTimer();
+            if (isTvDevice && btnPlayPause != null) {
+                btnPlayPause.requestFocus();
+            }
         } catch (Throwable t) {
             Log.w(TAG, "showControls error", t);
         }

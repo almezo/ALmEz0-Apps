@@ -123,10 +123,12 @@
         },
 
         // Helper to launch hardware-accelerated internal native video player (ExoPlayer)
-        playNativeVideo: function (videoUrl, title, posterUrl, isLive) {
+        playNativeVideo: function (videoUrl, title, posterUrl, isLive, isTv) {
             try {
                 if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
-                    if (typeof isLive !== 'undefined') {
+                    if (typeof isTv !== 'undefined') {
+                        window.AndroidNativeBridge.playNativeVideo(videoUrl, title || 'ALmEz0 Video', posterUrl || '', !!isLive, !!isTv);
+                    } else if (typeof isLive !== 'undefined') {
                         window.AndroidNativeBridge.playNativeVideo(videoUrl, title || 'ALmEz0 Video', posterUrl || '', !!isLive);
                     } else {
                         window.AndroidNativeBridge.playNativeVideo(videoUrl, title || 'ALmEz0 Video', posterUrl || '');
@@ -404,7 +406,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.35';
+    const CURRENT_APP_VERSION = '1.0.36';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

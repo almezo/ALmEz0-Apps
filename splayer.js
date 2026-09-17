@@ -1320,12 +1320,14 @@ function playStream(id, type, extension, name, icon) {
     if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
         if (type === 'vod' || type === 'series' || type === 'live') {
             const isLive = (type === 'live');
+            const isTv = document.body.classList.contains('tv-device-mode') ||
+                         (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
             if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
-                const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon, isLive);
+                const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon, isLive, isTv);
                 if (handled) return;
             }
             if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
-                window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '', isLive);
+                window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '', isLive, isTv);
                 return;
             }
         }

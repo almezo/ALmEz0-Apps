@@ -85,6 +85,8 @@
                     android:layout_height="38dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
+                    android:nextFocusRight="@+id/btn_cast"
+                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Back"
                     android:src="@drawable/ic_player_back" />
 
@@ -133,6 +135,9 @@
                     android:layout_marginEnd="18dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
+                    android:nextFocusLeft="@+id/btn_back"
+                    android:nextFocusRight="@+id/btn_lock"
+                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Cast"
                     android:src="@drawable/ic_player_cast" />
 
@@ -143,6 +148,9 @@
                     android:layout_marginEnd="18dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
+                    android:nextFocusLeft="@+id/btn_cast"
+                    android:nextFocusRight="@+id/btn_settings"
+                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Lock"
                     android:src="@drawable/ic_player_lock" />
 
@@ -152,6 +160,8 @@
                     android:layout_height="38dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
+                    android:nextFocusLeft="@+id/btn_lock"
+                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Settings"
                     android:src="@drawable/ic_player_settings" />
             </LinearLayout>
@@ -234,6 +244,9 @@
                 android:layout_marginEnd="40dp"
                 android:background="@drawable/bg_circle_button"
                 android:focusable="true"
+                android:nextFocusUp="@+id/btn_back"
+                android:nextFocusRight="@+id/btn_play_pause"
+                android:nextFocusDown="@+id/seek_bar"
                 android:contentDescription="Rewind 10 seconds"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -245,6 +258,10 @@
                 android:layout_height="78dp"
                 android:background="@drawable/bg_circle_button"
                 android:focusable="true"
+                android:nextFocusUp="@+id/btn_settings"
+                android:nextFocusLeft="@+id/btn_rewind_10"
+                android:nextFocusRight="@+id/btn_forward_10"
+                android:nextFocusDown="@+id/seek_bar"
                 android:contentDescription="Play/Pause"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -257,6 +274,9 @@
                 android:layout_marginStart="40dp"
                 android:background="@drawable/bg_circle_button"
                 android:focusable="true"
+                android:nextFocusUp="@+id/btn_settings"
+                android:nextFocusLeft="@+id/btn_play_pause"
+                android:nextFocusDown="@+id/seek_bar"
                 android:contentDescription="Forward 10 seconds"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -298,6 +318,9 @@
                     android:layout_weight="1"
                     android:max="1000"
                     android:progress="0"
+                    android:focusable="true"
+                    android:nextFocusUp="@+id/btn_play_pause"
+                    android:nextFocusDown="@+id/btn_aspect"
                     android:progressBackgroundTint="#4DFFFFFF"
                     android:progressTint="#FFFFFF"
                     android:thumbTint="#FFFFFF" />
@@ -330,6 +353,8 @@
                     android:background="@drawable/bg_pill_button"
                     android:clickable="true"
                     android:focusable="true"
+                    android:nextFocusUp="@+id/seek_bar"
+                    android:nextFocusRight="@+id/btn_speed"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:paddingStart="14dp"
@@ -359,6 +384,8 @@
                     android:background="@drawable/bg_pill_button"
                     android:clickable="true"
                     android:focusable="true"
+                    android:nextFocusLeft="@+id/btn_aspect"
+                    android:nextFocusUp="@+id/seek_bar"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:paddingStart="14dp"
