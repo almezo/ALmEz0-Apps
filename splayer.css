@@ -5751,6 +5751,7 @@ body.low-spec-mode .playlists-modal {
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     direction: rtl;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -5948,8 +5949,6 @@ body.in-fullscreen-player .ai-floating-trigger,
     flex-direction: column;
     gap: 16px;
     direction: rtl;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(245, 158, 11, 0.3) transparent;
 }
 
 .ai-chat-messages::-webkit-scrollbar {
@@ -6192,7 +6191,6 @@ body.in-fullscreen-player .ai-floating-trigger,
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     background: rgba(15, 23, 42, 0.5);
     flex-shrink: 0;
-    scrollbar-width: none;
 }
 
 .ai-quick-chips::-webkit-scrollbar {
