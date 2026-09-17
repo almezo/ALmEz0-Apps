@@ -101,6 +101,7 @@ jobs:
   # -------------------------------------------------------------
   build-ios:
     name: Build iOS Archive
+    if: false # Disabled to save 90% Actions quota (macOS runner consumes 10x multiplier)
     runs-on: macos-latest
     steps:
       - name: Checkout repository

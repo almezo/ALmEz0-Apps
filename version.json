@@ -1,9 +1,9 @@
 {
-  "version": "1.0.38",
-  "versionCode": 39,
+  "version": "1.0.39",
+  "versionCode": 40,
   "releaseDate": "2026-09-17",
-  "title": "إصلاح بناء أندرويد واستقرار مشغل الفيديو الذكي v1.0.38 🛠️📱",
-  "notes": "معالجة خطأ الترجمة البرمجية (compileReleaseJavaWithJavac) في مشغل ExoPlayer للأندرويد لضمان نجاح بناء تطبيق APK عبر GitHub Actions.",
+  "title": "تحسين استهلاك خوادم البناء وتعطيل حزم ماك المؤقتة v1.0.39 ⚡🚀",
+  "notes": "تحسين سير عمل GitHub Actions لتوفير حصة دقائق البناء السحابي والتركيز على أندرويد وويندوز.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
