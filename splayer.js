@@ -2749,6 +2749,9 @@ async function getAllStreamsForType(type, action) {
     return await globalStreamsInFlight[cacheKey];
 }
 
+window.getAllStreamsForType = getAllStreamsForType;
+window.globalStreamsCache = globalStreamsCache;
+
 async function fetchCategoryCounts(type, containerId) {
     let action = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
 

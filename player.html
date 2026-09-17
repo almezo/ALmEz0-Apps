@@ -218,6 +218,11 @@
             <!-- الجهة اليسرى: الأزرار متساوية الحجم وبترتيبك المطلوب -->
             <div class="nav-right">
                 <div class="nav-user nav-user-custom">
+                    <!-- زر مساعد الميزو الذكي (AI Assistant) -->
+                    <button onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" class="nav-action-btn nav-btn-ai" id="navAiBtn"
+                        title="مساعد الميزو الذكي (بحث صوتي وسينمائي ومباريات)">
+                        <i class="fas fa-sparkles"></i>
+                    </button>
                     <!-- 1. زر الهوم / الرجوع -->
                     <a href="index.html" onclick="if (window.AlMeZ0App) { if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false); if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait(); }" class="nav-action-btn nav-btn-home" id="navReturnBtn" title="الرجوع للرئيسية">
                         <i class="fas fa-home"></i>
@@ -694,6 +699,9 @@
             <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
             <!-- Custom Logic -->
             <script src="splayer.js?v=34.6"></script>
+            <!-- AlMeZ0 AI Assistant (Voice & Text Intelligence) -->
+            <script src="ai-config.js"></script>
+            <script src="ai-assistant.js"></script>
             <!-- Display Time Script -->
             <script>
                 function updateNavClock() {
@@ -796,6 +804,12 @@
             </script>
 
         </div> <!-- END #app-scaler -->
+
+        <!-- زر عائم لمساعد الميزو الذكي للوصول السريع -->
+        <button id="aiFloatingTrigger" class="ai-floating-trigger" onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" title="مساعد الميزو الذكي">
+            <span class="ai-floating-icon"><i class="fas fa-sparkles"></i></span>
+            <span class="ai-floating-label">مساعد الميزو</span>
+        </button>
 
         <!-- DEDICATED FULLSCREEN VIDEO PLAYER MODAL -->
         <div id="fullscreenVideoModal" class="fullscreen-video-modal hidden">
