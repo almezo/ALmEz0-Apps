@@ -3534,8 +3534,9 @@ async function showMovieDetails(movieId, name, cover, ext) {
         backdropEl.style.backgroundImage = `url('${cover || 'photo/logo.ico'}')`;
     }
 
-    // عرض قسم الأفلام الرائجة فوراً من الكاش أو القائمة الحالية
-    renderPopularShelf('vod', movieId);
+    // عرض قسم الأفلام المقترحة فوراً من نفس التصنيف
+    let currentVodItem = (originalItemsArray || []).find(item => String(item.stream_id || '') === String(movieId));
+    renderPopularShelf('vod', movieId, currentVodItem ? currentVodItem.category_id : null);
 
     // إخفاء زر الإعلان مؤقتاً لحين جلبه
     const movieTrailerBtn = document.getElementById('btnPlayMovieTrailer');
@@ -3643,6 +3644,9 @@ async function showMovieDetails(movieId, name, cover, ext) {
         } else {
             document.getElementById('moviePlot').innerText = 'لا توجد قصة متاحة.';
         }
+
+        // تحديث قسم الاقتراحات بدقة وفق تصنيف الفيلم ونوعه المستخرج من السيرفر
+        renderPopularShelf('vod', movieId, (data.movie_data && data.movie_data.category_id) || (currentVodItem ? currentVodItem.category_id : null), info.genre);
     } catch (e) {
         console.error(e);
     }
@@ -3667,8 +3671,9 @@ async function showSeriesDetails(seriesId, name, cover) {
         backdropEl.style.backgroundImage = `url('${cover || 'photo/logo.ico'}')`;
     }
 
-    // عرض قسم المسلسلات الرائجة فوراً
-    renderPopularShelf('series', seriesId);
+    // عرض قسم المسلسلات المقترحة فوراً من نفس التصنيف
+    let currentSeriesItem = (originalItemsArray || []).find(item => String(item.series_id || '') === String(seriesId));
+    renderPopularShelf('series', seriesId, currentSeriesItem ? currentSeriesItem.category_id : null);
 
     // إخفاء زر الإعلان مؤقتاً لحين جلبه
     const seriesTrailerBtn = document.getElementById('btnPlaySeriesTrailer');
@@ -3699,6 +3704,9 @@ async function showSeriesDetails(seriesId, name, cover) {
     try {
         const data = await proxyFetch(infoUrl);
         const info = data.info || {};
+
+        // تحديث قسم الاقتراحات بدقة وفق تصنيف ونوع المسلسل المستخرج من السيرفر
+        renderPopularShelf('series', seriesId, info.category_id || (currentSeriesItem ? currentSeriesItem.category_id : null), info.genre);
 
         // 1. استخراج الباك دروب عالي الدقة للمسلسلات وترقية جودته
         let backdropUrl = null;
@@ -3867,14 +3875,20 @@ async function showSeriesDetails(seriesId, name, cover) {
 // ==========================================
 // POPULAR SHELF & CINEMATIC HELPERS
 // ==========================================
-function renderPopularShelf(type, currentId) {
+function renderPopularShelf(type, currentId, targetCategoryId, genreText) {
     const containerId = type === 'vod' ? 'popularMoviesGrid' : 'popularSeriesGrid';
     const sectionId = type === 'vod' ? 'moviePopularSection' : 'seriesPopularSection';
+    const titleId = type === 'vod' ? 'moviePopularTitle' : 'seriesPopularTitle';
     const container = document.getElementById(containerId);
     const section = document.getElementById(sectionId);
+    const titleEl = document.getElementById(titleId);
     if (!container || !section) return;
 
     let sourceItems = (originalItemsArray && originalItemsArray.length > 0) ? originalItemsArray : (currentItemsArray || []);
+
+    // تحديد العمل الحالي لمعرفة تصنيفه
+    let currentItem = sourceItems.find(item => String(item.stream_id || item.series_id || '') === String(currentId));
+    let catId = targetCategoryId || (currentItem ? currentItem.category_id : null);
 
     // فلترة العنصر الحالي حتى لا يتكرر
     let candidateItems = sourceItems.filter(item => {
@@ -3887,11 +3901,61 @@ function renderPopularShelf(type, currentId) {
         return;
     }
 
+    // مطابقة ذكية حسب التصنيف (شرط المستخدم: عند اختيار فيلم أكشن تكون الاقتراحات لنفس التصنيف):
+    // 1. الأولوية الأولى: الأعمال من نفس التصنيف المختار (category_id)
+    let categoryMatches = [];
+    if (catId) {
+        categoryMatches = candidateItems.filter(item => {
+            if (String(item.category_id) === String(catId)) return true;
+            if (item.category_ids && Array.isArray(item.category_ids) && item.category_ids.some(cid => String(cid) === String(catId))) return true;
+            return false;
+        });
+    }
+
+    // 2. الأولوية الثانية: مطابقة الكلمات الدلالية لنوع العمل (Genre)
+    let genreMatches = [];
+    if (genreText && typeof genreText === 'string') {
+        const normGenre = genreText.toLowerCase();
+        const keywords = normGenre.split(/[\s,/|]+/).filter(k => k.length > 2);
+        if (keywords.length > 0) {
+            genreMatches = candidateItems.filter(item => {
+                const itemName = (item.name || '').toLowerCase();
+                return keywords.some(k => itemName.includes(k));
+            });
+        }
+    }
+
+    // تجميع الاقتراحات بحيث تكون أعمال نفس التصنيف في المقدمة دائماً
+    let sortedCandidates = [];
+    const seenIds = new Set();
+
+    [...categoryMatches, ...genreMatches, ...candidateItems].forEach(item => {
+        const itemId = String(item.stream_id || item.series_id || '');
+        if (itemId && !seenIds.has(itemId)) {
+            seenIds.add(itemId);
+            sortedCandidates.push(item);
+        }
+    });
+
+    if (sortedCandidates.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    // تحديث عنوان شريط الاقتراحات ليعكس التصنيف المطابق
+    if (titleEl) {
+        if (categoryMatches.length > 0 && typeof currentCategoryName !== 'undefined' && currentCategoryName && currentCategoryName !== 'الكل') {
+            titleEl.innerHTML = `<i class="fas fa-film" style="color:var(--accent-red); margin-left:8px;"></i> أعمال أخرى في قسم "${currentCategoryName}"`;
+        } else {
+            titleEl.innerHTML = `<i class="fas fa-film" style="color:var(--accent-red); margin-left:8px;"></i> ${type === 'vod' ? 'أفلام' : 'مسلسلات'} مقترحة من نفس التصنيف`;
+        }
+    }
+
     section.style.display = 'flex';
     container.innerHTML = '';
 
     // اختيار أول 18 عنصراً للعرض في الشريط
-    const displayItems = candidateItems.slice(0, 18);
+    const displayItems = sortedCandidates.slice(0, 18);
 
     displayItems.forEach(item => {
         const id = item.stream_id || item.series_id;
@@ -4306,7 +4370,8 @@ function toggleFavorite(id, type) {
     localStorage.setItem(storageKey, JSON.stringify(favs));
     updateCategoryBadges(effectiveType);
 
-    if (currentSortContext === effectiveType && document.querySelector('.special-category.active span')?.innerText === 'المفضلة') {
+    const activeSpecialSpan = document.querySelector('.special-category.active span');
+    if (currentSortContext === effectiveType && activeSpecialSpan && activeSpecialSpan.innerText === 'المفضلة') {
         const action = effectiveType === 'live' ? 'get_live_streams' : (effectiveType === 'vod' ? 'get_vod_streams' : 'get_series');
         loadStreams(action, 'favs', effectiveType);
     }
@@ -4746,7 +4811,8 @@ function initTvNavigationEngine() {
             }
         }
 
-        const isLivePlaying = document.getElementById('livePlayerWrapper')?.classList.contains('is-playing');
+        const liveWrapperEl = document.getElementById('livePlayerWrapper');
+        const isLivePlaying = !!(liveWrapperEl && liveWrapperEl.classList.contains('is-playing'));
 
         // TV Remote Numeric Tuning (0-9) when watching live
         if (!isInput && isLivePlaying && e.key >= '0' && e.key <= '9') {

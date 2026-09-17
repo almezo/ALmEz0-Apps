@@ -425,7 +425,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.51';
+    const CURRENT_APP_VERSION = '1.0.52';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -531,10 +531,9 @@
 
         const isMandatory = !!mandatoryFlag;
         const ua = navigator.userAgent || navigator.vendor || window.opera || '';
-        const isUserAndroid = isAndroid || /android/i.test(ua);
         const downloadUrl = (isUserAndroid)
-            ? (info.downloadUrls?.android || 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk')
-            : (info.downloadUrls?.windows || 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe');
+            ? ((info.downloadUrls && info.downloadUrls.android) ? info.downloadUrls.android : 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk')
+            : ((info.downloadUrls && info.downloadUrls.windows) ? info.downloadUrls.windows : 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe');
 
         const overlay = document.createElement('div');
         overlay.id = 'almezo-inapp-update-overlay';

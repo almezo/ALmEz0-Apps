@@ -612,13 +612,13 @@ window.switchUsersIntelTab = function (tab) {
     const searchInput = document.getElementById('intelSearchInput');
 
     if (tab === 'customers') {
-        btnCust?.classList.add('active');
-        btnPlay?.classList.remove('active');
+        if (btnCust) btnCust.classList.add('active');
+        if (btnPlay) btnPlay.classList.remove('active');
         if (filterRole) filterRole.style.display = 'inline-block';
         if (searchInput) searchInput.placeholder = 'بحث بالاسم، رقم الهاتف، المدينة، أو المعرف...';
     } else {
-        btnCust?.classList.remove('active');
-        btnPlay?.classList.add('active');
+        if (btnCust) btnCust.classList.remove('active');
+        if (btnPlay) btnPlay.classList.add('active');
         if (filterRole) filterRole.style.display = 'none';
         if (searchInput) searchInput.placeholder = 'بحث باسم المستخدم بالسيرفر، اسم السيرفر، الجهاز، أو الـ IP...';
     }
@@ -700,9 +700,10 @@ function subscribeUsersIntelData() {
 
 function renderUsersIntelContent() {
     const statsGrid = document.getElementById('usersIntelStatsGrid');
-    const bodyEl = document.getElementById('usersIntelBody');
-    const query = (document.getElementById('intelSearchInput')?.value || '').trim().toLowerCase();
-    const roleFilter = document.getElementById('intelRoleFilter')?.value || 'all';
+    const searchInputEl = document.getElementById('intelSearchInput');
+    const query = (searchInputEl && searchInputEl.value ? searchInputEl.value : '').trim().toLowerCase();
+    const roleFilterEl = document.getElementById('intelRoleFilter');
+    const roleFilter = (roleFilterEl && roleFilterEl.value) ? roleFilterEl.value : 'all';
 
     if (!statsGrid || !bodyEl) return;
 
@@ -1567,6 +1568,14 @@ function renderHomeCards() {
 
     container.innerHTML = html;
 }
+
+// تشغيل فوري لكروت الصفحة الرئيسية لضمان ظهورها حتى لو تأخر فايربيز أو في بيئات TV Box الضعيفة
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderHomeCards);
+} else {
+    renderHomeCards();
+}
+
 
 /**
  * حفظ تعديلات كارت الصفحة الرئيسية (الاسم/الصورة/التفعيل) في Firestore
@@ -4478,16 +4487,25 @@ async function handleStaffRoleChange(newRole) {
             });
         }
 
-        // تنزيل مباشر بدون _blank لمنع تعليق مدير تنزيلات كروم على أندرويد
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', filename);
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
+        // تنزيل مباشر متوافق مع كافة المتصفحات وبرنامج Downloader على أجهزة TV Box
+        try {
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+                if (link.parentNode) link.parentNode.removeChild(link);
+            }, 5000);
+        } catch (e) { }
+
+        // توجيه فوري للملف لضمان التقاط برنامج Downloader أو متصفحات TV Box للرابط وبدء التنزيل تلقائياً
         setTimeout(() => {
-            if (link.parentNode) link.parentNode.removeChild(link);
-        }, 5000);
+            try {
+                window.location.href = url;
+            } catch (err) { }
+        }, 200);
 
         if (typeof logActivity === 'function') {
             logActivity({

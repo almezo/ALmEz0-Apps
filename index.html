@@ -155,8 +155,27 @@
     <main class="container">
         <h2 class="page-title">مرحبا بك في عالم الترفيه والخدمات الرقمية، اختر التصنيف المناسب لطلبك:</h2>
         <div class="main-categories-grid" id="homeCategoriesGrid">
-            <!-- يتم حقن كروت الصفحة الرئيسية هنا ديناميكياً عبر renderHomeCards() في ui.js
-                 (تُقرأ من Firestore: siteConfig/homeCards) -->
+            <!-- كروت الصفحة الرئيسية الأساسية ظاهرة دائماً فوراً لضمان عدم اختفائها في شاشات TV Box ومتصفح Downloader -->
+            <a href="iptv.html" class="main-category-card iptv">
+                <img src="photo/iptv.jpg" alt="اشتراكات IPTV" class="category-card-img" onerror="this.src='https://via.placeholder.com/300x180/141820/4caf50?text=IPTV'">
+                <h3>اشتراكات IPTV</h3>
+            </a>
+            <a href="smart.html" class="main-category-card smart">
+                <img src="photo/smart.jpg" alt="تطبيقات شاشات السمارت" class="category-card-img" onerror="this.src='https://via.placeholder.com/300x180/141820/4caf50?text=Smart'">
+                <h3>تطبيقات شاشات السمارت</h3>
+            </a>
+            <a href="vip.html" class="main-category-card vip">
+                <img src="photo/vip.jpeg" alt="باقات VIP (Mango)" class="category-card-img" onerror="this.src='https://via.placeholder.com/300x180/141820/4caf50?text=VIP'">
+                <h3>باقات VIP (Mango)</h3>
+            </a>
+            <a href="devices.html" class="main-category-card devices">
+                <img src="photo/tvbox.jpg" alt="الأجهزة الإلكترونية" class="category-card-img" onerror="this.src='https://via.placeholder.com/300x180/141820/4caf50?text=TV+Box'">
+                <h3>الأجهزة الإلكترونية</h3>
+            </a>
+            <a href="player.html" class="main-category-card web-player" id="mainWebPlayerCard" onclick="return (typeof handlePlayerCardClick === 'function' ? handlePlayerCardClick(event) : true)">
+                <div class="web-player-icon-wrapper"><i class="fas fa-tv"></i></div>
+                <h3 dir="rtl">مشغل الميزو - ALmEz0</h3>
+            </a>
         </div>
     </main>
 
@@ -172,9 +191,8 @@
                 </div>
             </div>
             <div class="pwa-install-actions">
-                <button id="pwa-install-btn" class="pwa-install-button"><i class="fas fa-download"></i> تثبيت
-                    التطبيق</button>
-                <button id="pwa-close-btn" class="pwa-close-button" title="إغلاق"><i class="fas fa-times"></i></button>
+                <button id="pwa-install-btn" class="pwa-install-button" onclick="if (typeof promptPwaInstall === 'function') { promptPwaInstall(); } else { window.location.href='https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk'; }"><i class="fas fa-download"></i> تثبيت التطبيق</button>
+                <button id="pwa-close-btn" class="pwa-close-button" title="إغلاق" onclick="const b = document.getElementById('pwa-install-container'); if (b) b.style.display='none';"><i class="fas fa-times"></i></button>
             </div>
         </div>
     </div>
