@@ -1,9 +1,9 @@
 {
-  "version": "1.0.48",
-  "versionCode": 49,
+  "version": "1.0.49",
+  "versionCode": 50,
   "releaseDate": "2026-09-17",
-  "title": "تحديث ذكاء مساعد الميزو وسجل المحادثات وتحسينات المشغل المباشر v1.0.48 🚀",
-  "notes": "ترقية ذكاء المساعد والبحث الفعلي داخل السيرفر، إضافة سجل المحادثات الجانبي، إصلاح مايك الكمبيوتر، إزالة الصوت، وتخصيص مشغل البث المباشر (إلغاء شريط الوقت وسلايدر الصوت/السطوع على الشاشات).",
+  "title": "تحسين التوافق مع متصفحات Safari و iOS v1.0.49 🍎✨",
+  "notes": "إضافة بادئة -webkit-backdrop-filter لضمان التوافق التام لمظهر قائمة المحادثات مع متصفحات Safari و iOS.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
