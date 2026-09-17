@@ -155,7 +155,7 @@ jobs:
           name: ALmEz0-Windows-Installer
           path: release-assets
 
-      - name: Create or Update GitHub Release in Public Downloads Repo
+      - name: Create or Update GitHub Release Metadata
         uses: softprops/action-gh-release@v2
         with:
           repository: almezo/ALmEz0-Downloads
@@ -169,6 +169,21 @@ jobs:
             - 💻 **برنامج الكمبيوتر (Windows EXE)**: [ALmEz0.exe](https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe)
 
             تحديث تلقائي مستمر مع كل إصدار جديد.
-          files: |
-            release-assets/ALmEz0.apk
-            release-assets/ALmEz0.exe
+
+      - name: Upload Release Assets with Auto-Retry (Clobber)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          echo "Waiting 5 seconds for GitHub release metadata to settle..."
+          sleep 5
+          for i in 1 2 3; do
+            echo "Attempt $i uploading release assets..."
+            if gh release upload latest release-assets/ALmEz0.apk release-assets/ALmEz0.exe --clobber --repo almezo/ALmEz0-Downloads; then
+              echo "✅ Assets uploaded successfully to release!"
+              exit 0
+            fi
+            echo "⚠️ Upload failed, waiting 10s before retry..."
+            sleep 10
+          done
+          echo "❌ Failed to upload assets after 3 attempts."
+          exit 1
