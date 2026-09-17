@@ -140,7 +140,7 @@ jobs:
     needs: [build-android, build-windows]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     permissions:
       contents: write
     steps:
@@ -156,9 +156,7 @@ jobs:
           name: ALmEz0-Windows-Installer
           path: release-assets
 
-      - name: Create or Update GitHub Release in Public Downloads Repo
-        id: gh_release
-        continue-on-error: true
+      - name: Create or Update GitHub Release Metadata
         uses: softprops/action-gh-release@v2
         with:
           repository: almezo/ALmEz0-Downloads
@@ -172,17 +170,20 @@ jobs:
             - 💻 **برنامج الكمبيوتر (Windows EXE)**: [ALmEz0.exe](https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe)
 
             تحديث تلقائي مستمر مع كل إصدار جديد.
-          files: |
-            release-assets/ALmEz0.apk
-            release-assets/ALmEz0.exe
 
-      - name: Fallback Release Upload via CLI with Strict Timeout
-        if: steps.gh_release.outcome != 'success'
+      - name: Purge Stale Assets and Upload Fresh Binaries
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
-          echo "action-gh-release encountered a transient error, falling back to gh release upload..."
-          sleep 3
-          timeout 60s gh release upload latest release-assets/ALmEz0.apk --clobber --repo almezo/ALmEz0-Downloads || true
-          timeout 120s gh release upload latest release-assets/ALmEz0.exe --clobber --repo almezo/ALmEz0-Downloads || true
-          echo "✅ Release assets published successfully via fallback!"
+          echo "Purging any stale or corrupted assets..."
+          gh release delete-asset latest ALmEz0.apk --yes --repo almezo/ALmEz0-Downloads 2>/dev/null || true
+          gh release delete-asset latest ALmEz0.exe --yes --repo almezo/ALmEz0-Downloads 2>/dev/null || true
+          sleep 2
+
+          echo "Uploading ALmEz0.apk..."
+          gh release upload latest release-assets/ALmEz0.apk --repo almezo/ALmEz0-Downloads
+
+          echo "Uploading ALmEz0.exe..."
+          gh release upload latest release-assets/ALmEz0.exe --repo almezo/ALmEz0-Downloads
+
+          echo "✅ Both ALmEz0.apk and ALmEz0.exe published successfully!"
