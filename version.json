@@ -1,9 +1,9 @@
 {
-  "version": "1.0.37",
-  "versionCode": 38,
+  "version": "1.0.38",
+  "versionCode": 39,
   "releaseDate": "2026-09-17",
-  "title": "تحسينات الأداء وتوافق المتصفحات في مشغل الميزو الذكي v1.0.37 ⚡🎨",
-  "notes": "إصلاح التوافقية لخصائص CSS وتناسق أشرطة التمرير ومحددات النصوص عبر جميع المتصفحات والشاشات.",
+  "title": "إصلاح بناء أندرويد واستقرار مشغل الفيديو الذكي v1.0.38 🛠️📱",
+  "notes": "معالجة خطأ الترجمة البرمجية (compileReleaseJavaWithJavac) في مشغل ExoPlayer للأندرويد لضمان نجاح بناء تطبيق APK عبر GitHub Actions.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

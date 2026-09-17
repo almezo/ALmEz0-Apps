@@ -90,6 +90,7 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView tvSeekFeedback;
     private TextView badgeLiveIndicator;
     private boolean isLiveStream = false;
+    private String videoUrl = null;
 
     // Settings Drawer (Matching Image 4)
     private View settingsDrawerOverlay;
@@ -1016,7 +1017,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void setupPlayer() {
-        String videoUrl = getIntent().getStringExtra("videoUrl");
+        videoUrl = getIntent().getStringExtra("videoUrl");
         if (videoUrl == null || videoUrl.trim().isEmpty()) {
             Toast.makeText(this, "رابط الفيديو غير صالح", Toast.LENGTH_LONG).show();
             finish();
