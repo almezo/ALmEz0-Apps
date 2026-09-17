@@ -5759,10 +5759,10 @@ body.low-spec-mode .playlists-modal {
 .video-js video,
 #liveVideoContainer video {
     object-fit: contain !important;
-    transform: translateZ(0);
     -webkit-transform: translateZ(0);
-    backface-visibility: hidden;
+    transform: translateZ(0);
     -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
     image-rendering: -webkit-optimize-contrast;
     image-rendering: auto;
 }

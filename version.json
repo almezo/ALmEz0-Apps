@@ -1,9 +1,9 @@
 {
-  "version": "1.0.41",
-  "versionCode": 42,
+  "version": "1.0.42",
+  "versionCode": 43,
   "releaseDate": "2026-09-17",
-  "title": "تحسين جودة البث المباشر ودعم سلاسة 60fps - 120fps للأجهزة والشاشات v1.0.41 ⚡📺",
-  "notes": "ضبط تخزين HLS المؤقت لمنع التقطيع والتشويش، وتفعيل تسريع العتاد ودعم معدل التحديث العالي 60Hz إلى 120Hz على الكمبيوتر والأندرويد والرسيفرات.",
+  "title": "إصلاح معايير بادئات CSS وضمان التوافقية v1.0.42 ⚡🎨",
+  "notes": "ترتيب بادئات vendor prefixes في splayer.css وفق المعايير القياسية لـ WebKit.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
