@@ -116,24 +116,15 @@ body {
     box-shadow: 0 0 60px rgba(0, 0, 0, 0.85);
 }
 
-/* FULL-SCREEN RESPONSIVE CANVAS FOR PC & ANDROID TV (Edge-to-Edge 100%) */
+/* FULL-SCREEN RESPONSIVE CANVAS FOR ALL DEVICES (Edge-to-Edge 100% Proportional Engine) */
 body.tv-device-mode #app-scaler,
 body.desktop-device-mode #app-scaler,
-body.tv-device-mode .app-scaler,
-body.desktop-device-mode .app-scaler {
-    width: 100vw !important;
-    height: 100vh !important;
-    min-width: 100vw !important;
-    min-height: 100vh !important;
-    max-width: 100vw !important;
-    max-height: 100vh !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
+body.touch-device-mode #app-scaler {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
 }
+
 
 .app-screen-container {
     width: 100%;
@@ -5461,26 +5452,39 @@ body.tv-device-mode .live-player-container-rel {
 /* =========================================================
    DESKTOP & ANDROID TV / RECEIVER OVERRIDES (الكمبيوتر والشاشات والرسيفرات)
    ========================================================= */
-body.desktop-device-mode .col-sidebar {
-    width: 365px !important;
-    min-width: 365px !important;
-    max-width: 365px !important;
-    flex: 0 0 365px !important;
+/* إخفاء بطاقات الهواتف والشاشات في برنامج الكمبيوتر (Electron/Windows) */
+body.platform-electron #deviceCardTouch,
+body.platform-electron #deviceCardTv,
+body.desktop-device-mode #deviceCardTouch,
+body.desktop-device-mode #deviceCardTv {
+    display: none !important;
 }
 
+/* إخفاء بطاقة الكمبيوتر نهائياً في تطبيق الأندرويد وتقسيم الشاشة لنمطين (لمس وريموت) */
+body.platform-android #deviceCardDesktop {
+    display: none !important;
+}
+
+body.platform-android .device-mode-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    max-width: 680px !important;
+    margin: 0 auto !important;
+}
+
+body.desktop-device-mode .col-sidebar,
 body.tv-device-mode .col-sidebar {
-    width: var(--player-sidebar-w, 330px) !important;
-    min-width: var(--player-sidebar-w, 330px) !important;
-    max-width: var(--player-sidebar-w, 330px) !important;
-    flex: 0 0 var(--player-sidebar-w, 330px) !important;
+    width: 380px !important;
+    min-width: 380px !important;
+    max-width: 380px !important;
+    flex: 0 0 380px !important;
 }
 
 body.desktop-device-mode .col-list,
 body.tv-device-mode .col-list {
-    width: var(--player-list-w, 360px) !important;
-    min-width: var(--player-list-w, 360px) !important;
-    max-width: var(--player-list-w, 360px) !important;
-    flex: 0 0 var(--player-list-w, 360px) !important;
+    width: 390px !important;
+    min-width: 390px !important;
+    max-width: 390px !important;
+    flex: 0 0 390px !important;
 }
 
 body.desktop-device-mode .col-player,
@@ -5490,7 +5494,7 @@ body.tv-device-mode .col-player {
     justify-content: center !important;
     overflow: hidden !important;
     flex: 1 1 auto !important;
-    padding: clamp(10px, 1.8vw, 28px) !important;
+    padding: clamp(10px, 1.8vw, 24px) !important;
 }
 
 /* تمكين التمرير وإظهار شريط التمرير الأنيق في شاشة الأفلام والمسلسلات في الكمبيوتر والشاشات */
@@ -5526,11 +5530,11 @@ body.tv-device-mode #vod-screen .col-player {
     background: var(--accent-gold, #e5b935) !important;
 }
 
+.player-wrapper,
 body.desktop-device-mode .player-wrapper,
 body.tv-device-mode .player-wrapper {
     width: 100% !important;
-    max-width: var(--player-video-max-w, 1350px) !important;
-    height: auto !important;
+    height: 100% !important;
     margin: auto !important;
     display: flex !important;
     flex-direction: column !important;
@@ -5538,29 +5542,141 @@ body.tv-device-mode .player-wrapper {
     align-items: center !important;
 }
 
-body.desktop-device-mode .plyr-container,
-body.tv-device-mode .plyr-container {
+/* نافذة مشغل البث المباشر في وضعية النافذة: مستطيل بنسبة العرض 1.5 ضعف الطول (شرط أساسي) */
+#livePlayerWrapper:not(.live-fullscreen-mode),
+.plyr-container.live-player-container-rel:not(.live-fullscreen-mode) {
     width: 100% !important;
-    max-width: var(--player-video-max-w, 1350px) !important;
-    aspect-ratio: 16 / 9 !important;
+    max-width: min(100%, calc((100vh - 140px) * 1.5)) !important;
+    aspect-ratio: 1.5 / 1 !important;
+    height: auto !important;
     max-height: calc(100vh - 120px) !important;
     border-radius: var(--screen-card-radius, 16px) !important;
-    flex: none !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-body.desktop-device-mode .live-player-container-rel,
-body.tv-device-mode .live-player-container-rel {
-    width: 100% !important;
-    max-width: var(--player-video-max-w, 1350px) !important;
-    aspect-ratio: 16 / 9 !important;
-    max-height: calc(100vh - 120px) !important;
-    height: auto !important;
+    overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #000000 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
 }
+
+/* إلغاء وإخفاء زر التشغيل والإيقاف الكبير الرمادي نهائياً في مشغل البث المباشر */
+.vjs-big-play-button,
+.video-js .vjs-big-play-button,
+#livePlayerWrapper .vjs-big-play-button,
+#fullscreenVideoContainer .vjs-big-play-button {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* سواد حالك 100% لخلفية المشغل وعناصر الفيديو */
+#livePlayerWrapper,
+#livePlayerWrapper .video-js,
+#livePlayerWrapper video,
+#livePlayerWrapper .vjs-tech,
+#livePlayerWrapper .vjs-poster,
+#fullscreenVideoContainer,
+#fullscreenVideoContainer .video-js,
+#fullscreenVideoContainer video,
+#fullscreenVideoContainer .vjs-tech,
+.video-js.vjs-waiting,
+.video-js.vjs-seeking,
+.video-js.vjs-paused {
+    background: #000000 !important;
+    background-color: #000000 !important;
+}
+
+/* شاشة التحميل الدوارة الفاخرة بالخلفية السوداء للمشغل في الكمبيوتر والأندرويد */
+.live-channel-loading-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000 !important;
+    background-color: #000000 !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 85;
+    pointer-events: none;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.live-channel-loading-overlay.hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.live-spinner-box {
+    position: relative;
+    width: 74px;
+    height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.live-spinner-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.08);
+    border-top-color: #e5b935;
+    border-right-color: #e50914;
+    animation: liveSpin 0.9s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    filter: drop-shadow(0 0 12px rgba(229, 9, 20, 0.65));
+}
+
+.live-spinner-ring-inner {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3.5px solid transparent;
+    border-bottom-color: #22c55e;
+    border-left-color: #3b82f6;
+    animation: liveSpinReverse 1.2s linear infinite;
+}
+
+.live-spinner-glow {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(229, 9, 20, 0.5) 0%, transparent 70%);
+    animation: livePulse 1.8s ease-in-out infinite;
+}
+
+.live-loading-title {
+    margin-top: 18px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+    letter-spacing: 0.5px;
+    opacity: 0.95;
+}
+
+@keyframes liveSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes liveSpinReverse {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+}
+
+@keyframes livePulse {
+    0%, 100% { transform: scale(0.85); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+
 
 /* ضبط شبكة الأفلام والمسلسلات: 5 بطاقات في الصف الواحد ومستطيل طولي كامل و 3 صفوف ظاهرة */
 #vodGrid.vod-grid,

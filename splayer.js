@@ -75,23 +75,9 @@ function applyAutoScaling() {
     const isTvMode = document.body.classList.contains('tv-device-mode');
     const isDesktopMode = document.body.classList.contains('desktop-device-mode');
 
-    // On PC & Android TV: Full-Screen 100% Edge-to-Edge with NO letterboxing or margins
-    if (isTvMode || isDesktopMode) {
-        scaler.style.transform = 'none';
-        scaler.style.transformOrigin = 'initial';
-        scaler.style.top = '0';
-        scaler.style.left = '0';
-        scaler.style.width = '100vw';
-        scaler.style.height = '100vh';
-        scaler.style.minWidth = '100vw';
-        scaler.style.minHeight = '100vh';
-        scaler.style.maxWidth = '100vw';
-        scaler.style.maxHeight = '100vh';
-        scaler.style.position = 'fixed';
-        scaler.style.boxShadow = 'none';
-        scaler.style.borderRadius = '0';
-        return;
-    }
+    // Proportional Auto-Scaler Engine for All Devices:
+    // يملأ الشاشة 100% بنسبة تكبير متناسقة دقيقة تمنع صغر الخطوط أو تشوه القياسات
+
 
     // Touch Mode (Smartphones & Tablets):
     // نظام ذكي لحساب أبعاد الكانفاس المتكيفة بدقة مع نسبة عرض الشاشة لمنع الحواف السوداء نهائياً
@@ -198,12 +184,26 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 function initDeviceMode() {
     let mode = localStorage.getItem('mizo_device_mode');
     const ua = (navigator.userAgent || '').toLowerCase();
+    const isElectronPlatform = document.body.classList.contains('platform-electron') || (window.AlMeZ0App && window.AlMeZ0App.isElectron) || ua.includes('electron');
+    const isAndroidPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || ua.includes('android');
     const hasNativeTv = window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice();
-    const isAndroidNoTouch = ua.includes('android') && (navigator.maxTouchPoints === 0 || (!('ontouchstart' in window) && !('msMaxTouchPoints' in navigator)));
+    const isAndroidNoTouch = isAndroidPlatform && (navigator.maxTouchPoints === 0 || (!('ontouchstart' in window) && !('msMaxTouchPoints' in navigator)));
     const isTv = hasNativeTv || isAndroidNoTouch || ua.includes('tv') || ua.includes('box') || ua.includes('smart') || ua.includes('large') || ua.includes('amlogic') || ua.includes('rockchip') || ua.includes('allwinner');
-    const isDesktop = !('ontouchstart' in window) && window.innerWidth >= 1024 && !ua.includes('android');
 
-    // فحص مواصفات الجهاز الضعيفة (معالجات 4 أنوية أو أقل ورام 2 جيجا أو أقل أو شاشات تيفي بوكس)
+    // إذا كان يعمل على برنامج الكمبيوتر (Windows / Electron / Desktop Browser):
+    if (isElectronPlatform || (!isAndroidPlatform && !('ontouchstart' in window) && window.innerWidth >= 1024)) {
+        mode = 'desktop';
+        localStorage.setItem('mizo_device_mode', 'desktop');
+    } else if (isAndroidPlatform) {
+        // في الأندرويد: مسموح بنمطين فقط (شاشة ورسيفر أو هاتف وتابلت) ولا وجود لنمط الكمبيوتر نهائياً
+        if (mode === 'desktop' || !mode) {
+            mode = isTv ? 'tv' : 'touch';
+        }
+    } else {
+        if (!mode) mode = isTv ? 'tv' : 'touch';
+    }
+
+    // فحص مواصفات الجهاز الضعيفة
     try {
         const lowCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
         const lowRam = navigator.deviceMemory && navigator.deviceMemory <= 2;
@@ -212,17 +212,6 @@ function initDeviceMode() {
         }
     } catch (e) { }
 
-    // Auto-detect or upgrade if default/legacy detection was wrong
-    if (!mode || (!localStorage.getItem('mizo_device_mode_manual') && mode === 'touch' && (isTv || isDesktop))) {
-        if (isTv) {
-            mode = 'tv';
-        } else if (isDesktop) {
-            mode = 'desktop';
-        } else {
-            mode = 'touch';
-        }
-        localStorage.setItem('mizo_device_mode', mode);
-    }
     applyDeviceMode(mode, false);
 }
 
@@ -230,11 +219,13 @@ function applyDeviceMode(mode, showToast = false) {
     document.body.classList.remove('tv-device-mode', 'desktop-device-mode', 'touch-device-mode');
     document.body.classList.add(mode + '-device-mode');
     if (mode === 'tv') {
-        document.body.classList.add('low-spec-mode');
+        document.body.classList.add('low-spec-mode', 'tv-mode');
+    } else {
+        document.body.classList.remove('tv-mode');
     }
 
     const iconMap = { tv: 'fa-tv', touch: 'fa-mobile-alt', desktop: 'fa-desktop' };
-    const nameMap = { tv: 'تلفزيون ورسيفر', touch: 'هاتف ولمس', desktop: 'كمبيوتر وماوس' };
+    const nameMap = { tv: 'شاشة أندرويد ورسيفر', touch: 'هاتف وتابلت (لمس)', desktop: 'كمبيوتر ولابتوب' };
 
     const navIcon = document.getElementById('navDeviceModeIcon');
     if (navIcon) navIcon.className = 'fas ' + (iconMap[mode] || 'fa-tv');
@@ -273,6 +264,23 @@ function selectDeviceMode(mode) {
 }
 
 function openDeviceModeModal() {
+    const isElectronPlatform = document.body.classList.contains('platform-electron') || (window.AlMeZ0App && window.AlMeZ0App.isElectron) || (navigator.userAgent || '').toLowerCase().includes('electron');
+    const isAndroidPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || (navigator.userAgent || '').toLowerCase().includes('android');
+
+    const cardTouch = document.getElementById('deviceCardTouch');
+    const cardTv = document.getElementById('deviceCardTv');
+    const cardDesktop = document.getElementById('deviceCardDesktop');
+
+    if (isElectronPlatform || (!isAndroidPlatform && window.innerWidth >= 1024 && !('ontouchstart' in window))) {
+        if (cardTouch) cardTouch.style.display = 'none';
+        if (cardTv) cardTv.style.display = 'none';
+        if (cardDesktop) cardDesktop.style.display = '';
+    } else if (isAndroidPlatform) {
+        if (cardDesktop) cardDesktop.style.display = 'none';
+        if (cardTouch) cardTouch.style.display = '';
+        if (cardTv) cardTv.style.display = '';
+    }
+
     const modal = document.getElementById('deviceModeModal');
     if (modal) {
         modal.classList.remove('hidden');
@@ -283,6 +291,7 @@ function openDeviceModeModal() {
         });
     }
 }
+
 
 function closeDeviceModeModal() {
     const modal = document.getElementById('deviceModeModal');
@@ -1450,6 +1459,24 @@ function playStream(id, type, extension, name, icon) {
     let currentTryIndex = 0;
     let fallbackTimer = null;
 
+    function showLiveChannelLoading(channelName) {
+        const overlay = document.getElementById('liveChannelLoadingOverlay');
+        if (overlay) {
+            const titleEl = document.getElementById('liveLoadingChannelTitle');
+            if (titleEl && channelName) {
+                titleEl.innerText = `جاري تشغيل ${channelName}...`;
+            }
+            overlay.classList.remove('hidden');
+        }
+    }
+
+    function hideLiveChannelLoading() {
+        const overlay = document.getElementById('liveChannelLoadingOverlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
+    }
+
     // دالة تهيئة المشغل المختار
     function initSelectedPlayer(streamUrl) {
         // تنظيف المشغل القديم قبل إنشاء الجديد
@@ -1466,9 +1493,13 @@ function playStream(id, type, extension, name, icon) {
             window.hlsInstance = null;
         }
 
-        const parent = isFullscreenModal ? document.getElementById('fullscreenVideoContainer') : document.getElementById('livePlayerWrapper');
+        if (type === 'live') {
+            showLiveChannelLoading(name);
+        }
+
+        const parent = isFullscreenModal ? document.getElementById('fullscreenVideoContainer') : (document.getElementById('liveVideoContainer') || document.getElementById('livePlayerWrapper'));
         if (parent) {
-            parent.innerHTML = `<video id="${containerSelector}" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>`;
+            parent.innerHTML = `<video id="${containerSelector}" class="video-js vjs-default-skin" controls preload="auto" playsinline webkit-playsinline style="width:100%;height:100%;"></video>`;
         }
 
         patchVideoJsTech();
@@ -1524,6 +1555,18 @@ function playStream(id, type, extension, name, icon) {
                     }
                 }
             });
+
+            if (type === 'live') {
+                window.vjsPlayer.on('playing', hideLiveChannelLoading);
+                window.vjsPlayer.on('canplay', hideLiveChannelLoading);
+                window.vjsPlayer.on('timeupdate', () => {
+                    if (window.vjsPlayer && window.vjsPlayer.currentTime() > 0) {
+                        hideLiveChannelLoading();
+                    }
+                });
+                window.vjsPlayer.on('waiting', () => showLiveChannelLoading(name));
+            }
+
 
             if (isHlsStream && typeof Hls !== 'undefined' && Hls.isSupported()) {
                 const playerEl = window.vjsPlayer.el();
@@ -3305,6 +3348,9 @@ function closeLivePlayer(clearSaved = true) {
     const wrapper = document.getElementById('liveVideoContainer') || document.getElementById('livePlayerWrapper');
     if (wrapper) wrapper.innerHTML = '<div class="empty-state">اختر قناة لبدء المشاهدة</div>';
 
+    const loadingOverlay = document.getElementById('liveChannelLoadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.add('hidden');
+
     document.querySelectorAll('#liveChannels .list-item').forEach(i => i.classList.remove('active'));
 }
 
@@ -4502,6 +4548,9 @@ function initLivePlayerGestures() {
 // =========================================================
 // ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE
 // =========================================================
+// =========================================================
+// ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE
+// =========================================================
 function initTvNavigationEngine() {
     let currentFocusedEl = null;
 
@@ -4518,19 +4567,31 @@ function initTvNavigationEngine() {
         '.btn-select-mode',
         '.nav-btn-device-mode',
         '.action-btn-native-player',
+        '.action-btn-fullscreen',
+        '.action-btn-fav',
+        '.live-fullscreen-btn-overlay',
+        '.btn-close-video',
+        '.btn-close-trailer',
         '.action-btn',
         '.btn-primary',
         '.btn-close-playlists',
         '.btn-close-device-mode',
         '.btn-close-live-player',
         '.btn-server-option',
+        '.vjs-control-bar .vjs-button',
+        '.vjs-play-control',
+        '.vjs-volume-panel .vjs-mute-control',
+        '.custom-vjs-aspect-btn',
+        '.custom-vjs-fs-btn',
+        '.custom-vjs-btn',
         'button:not([disabled])',
         'input:not([disabled]):not([type="hidden"])',
         'a[href]'
     ].join(',');
 
     function getVisibleFocusables() {
-        const activeModal = document.querySelector('#playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), .custom-logout-modal, .swal2-container');
+        // فحص النوافذ المنبثقة النشطة لحصر التركيز داخلها ومنع تسرب الأسهم لخلفية الشاشة
+        const activeModal = document.querySelector('#fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), .custom-logout-modal, .swal2-container');
         const container = activeModal || document.body;
 
         const all = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR));
@@ -4558,6 +4619,16 @@ function initTvNavigationEngine() {
         currentFocusedEl = el;
         el.classList.add('tv-focused');
         document.body.classList.add('tv-mode');
+
+        // إبقاء شريط التحكم بمشغل الفيديو ظاهراً أثناء تنقل الريموت فوق أزراره
+        if (el.closest('.video-js') || el.closest('#livePlayerWrapper')) {
+            const vjs = el.closest('.video-js');
+            if (vjs) {
+                vjs.classList.add('vjs-user-active');
+                vjs.classList.remove('vjs-user-inactive');
+            }
+        }
+
         try {
             el.focus({ preventScroll: true });
         } catch (e) {}
@@ -4642,7 +4713,6 @@ function initTvNavigationEngine() {
     }
 
     window.addEventListener('keydown', (e) => {
-        // فحص هل المستخدم يكتب داخل حقل إدخال (بحث، نص، أرقام) لمنع تداخل أزرار المسح والأسهم
         const activeTag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toUpperCase() : '';
         const targetTag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
         const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag) ||
@@ -4650,11 +4720,23 @@ function initTvNavigationEngine() {
                         (document.activeElement && document.activeElement.isContentEditable) ||
                         (e.target && e.target.isContentEditable);
 
-        // إذا كان يكتب داخل حقل إدخال، نسمح بمسح الكلمات والتحكم بمؤشر الكتابة بدون أي تداخل
+        // تحكم ذكي أثناء الكتابة في حقول البحث لمنع فقدان التركيز
         if (isInput) {
             if (e.key === 'Backspace' || e.keyCode === 8 || e.key === 'Delete' || e.keyCode === 46 ||
                 e.key === 'ArrowLeft' || e.keyCode === 37 || e.key === 'ArrowRight' || e.keyCode === 39) {
-                return; // السماح للمتصفح بالمسح الطبيعي والتنقل داخل النص
+                return; // السماح بالكتابة والمسح الطبيعي
+            }
+            if (e.key === 'ArrowDown' || e.keyCode === 40 || e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                    document.activeElement.blur();
+                }
+                // الانتقال المباشر لأول بطاقة في النتائج (أفلام، مسلسلات، قنوات)
+                const firstResult = document.querySelector('#vodGrid .vod-card:not(.hidden), #liveChannels .list-item:not(.hidden), .channel-item:not(.hidden)');
+                if (firstResult) {
+                    setFocus(firstResult);
+                    return;
+                }
             }
             if (e.key === 'Escape' || e.keyCode === 27) {
                 if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -4692,6 +4774,83 @@ function initTvNavigationEngine() {
             return;
         }
 
+        // تنقل ذكي في شبكة بطاقات الأفلام والمسلسلات بنظام 5 أعمدة
+        if (currentFocusedEl && currentFocusedEl.classList.contains('vod-card')) {
+            const allVodCards = Array.from(document.querySelectorAll('#vodGrid .vod-card'));
+            const cardIndex = allVodCards.indexOf(currentFocusedEl);
+            if (cardIndex !== -1) {
+                if (e.key === 'ArrowDown' || e.keyCode === 40) {
+                    if (cardIndex + 5 < allVodCards.length) {
+                        e.preventDefault();
+                        setFocus(allVodCards[cardIndex + 5]);
+                        return;
+                    }
+                } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
+                    if (cardIndex - 5 >= 0) {
+                        e.preventDefault();
+                        setFocus(allVodCards[cardIndex - 5]);
+                        return;
+                    } else {
+                        // العودة لحقل البحث عند الوصول لأول صف
+                        const searchInput = document.querySelector('#searchVod, #vodItemsSearchWrap input');
+                        if (searchInput) {
+                            e.preventDefault();
+                            setFocus(searchInput);
+                            return;
+                        }
+                    }
+                } else if (e.key === 'ArrowRight' || e.keyCode === 39) {
+                    // في الواجهة العربية: اليمين يتنقل للبطاقة السابقة أو يعود لقائمة التصنيفات
+                    if (cardIndex % 5 === 0) {
+                        const activeCat = document.querySelector('#vodCategories .cat-item.active, #vodCategories .cat-item');
+                        if (activeCat) {
+                            e.preventDefault();
+                            setFocus(activeCat);
+                            return;
+                        }
+                    } else if (cardIndex - 1 >= 0) {
+                        e.preventDefault();
+                        setFocus(allVodCards[cardIndex - 1]);
+                        return;
+                    }
+                } else if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+                    if (cardIndex + 1 < allVodCards.length && (cardIndex % 5 !== 4)) {
+                        e.preventDefault();
+                        setFocus(allVodCards[cardIndex + 1]);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // تنقل ذكي بين أعمدة البث المباشر (التصنيفات <-> القنوات <-> المشغل)
+        if (currentFocusedEl && currentFocusedEl.classList.contains('cat-item')) {
+            if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+                const firstChannel = document.querySelector('#liveChannels .list-item.active, #liveChannels .list-item');
+                if (firstChannel) {
+                    e.preventDefault();
+                    setFocus(firstChannel);
+                    return;
+                }
+            }
+        } else if (currentFocusedEl && currentFocusedEl.classList.contains('list-item') && currentFocusedEl.closest('#liveChannels')) {
+            if (e.key === 'ArrowRight' || e.keyCode === 39) {
+                const activeCat = document.querySelector('#liveCategories .cat-item.active, #liveCategories .cat-item');
+                if (activeCat) {
+                    e.preventDefault();
+                    setFocus(activeCat);
+                    return;
+                }
+            } else if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+                const playerBtn = document.querySelector('#btnLiveFullscreen, #livePlayerWrapper .action-btn-fullscreen, #livePlayerWrapper .vjs-play-control');
+                if (playerBtn) {
+                    e.preventDefault();
+                    setFocus(playerBtn);
+                    return;
+                }
+            }
+        }
+
         if (e.key === 'ArrowUp' || e.keyCode === 38) {
             const next = findNextElement('up');
             if (next) {
@@ -4724,6 +4883,12 @@ function initTvNavigationEngine() {
                 if (currentStreamInfo) showTvLiveOsd(currentStreamInfo.name, currentStreamInfo.icon);
             }
         } else if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 27 || (!isInput && (e.key === 'Backspace' || e.keyCode === 8))) {
+            const fullModal = document.getElementById('fullscreenVideoModal');
+            if (fullModal && !fullModal.classList.contains('hidden')) {
+                e.preventDefault();
+                if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
+                return;
+            }
             const devModal = document.getElementById('deviceModeModal');
             if (devModal && !devModal.classList.contains('hidden')) {
                 e.preventDefault();
@@ -4734,6 +4899,12 @@ function initTvNavigationEngine() {
             if (modal && !modal.classList.contains('hidden')) {
                 e.preventDefault();
                 closePlaylistsModal();
+                return;
+            }
+            const trailerModal = document.getElementById('trailerModal');
+            if (trailerModal && !trailerModal.classList.contains('hidden')) {
+                e.preventDefault();
+                if (typeof closeTrailerModal === 'function') closeTrailerModal();
                 return;
             }
             const activeScreen = (typeof currentScreenId !== 'undefined') ? currentScreenId : sessionStorage.getItem('sp_current_screen');
@@ -4752,6 +4923,7 @@ function initTvNavigationEngine() {
 
     window.addEventListener('touchstart', clearTvFocus, { passive: true });
     window.addEventListener('mousedown', clearTvFocus, { passive: true });
+
 
     // F11 Fullscreen Toggle Shortcut for PC / Windows
     window.addEventListener('keydown', (e) => {
