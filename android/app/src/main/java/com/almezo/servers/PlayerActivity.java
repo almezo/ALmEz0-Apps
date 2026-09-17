@@ -79,7 +79,7 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView tvAspectText;
     private View btnSpeed;
     private TextView tvSpeedText;
-    private int currentAspectIndex = 0; // 0: Fit (16:9), 1: Fill, 2: Zoom
+    private int currentAspectIndex = 0; // 0: Fit, 1: 16:9, 2: 4:3, 3: Fill, 4: Zoom
     private float[] playbackSpeeds = {1.0f, 1.25f, 1.5f, 2.0f, 0.5f, 0.75f};
     private int currentSpeedIndex = 0;
 
@@ -355,7 +355,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
             if (playerView != null) {
                 playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
-                currentAspectIndex = 1;
+                currentAspectIndex = 3;
                 if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
             }
         } else {
@@ -431,17 +431,40 @@ public class PlayerActivity extends AppCompatActivity {
         if (btnAspect != null && playerView != null) {
             btnAspect.setOnClickListener(v -> {
                 try {
-                    currentAspectIndex = (currentAspectIndex + 1) % 3;
-                    if (currentAspectIndex == 0) {
-                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-                        if (tvAspectText != null) tvAspectText.setText("Aspect Ratio");
-                    } else if (currentAspectIndex == 1) {
-                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
-                        if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
-                    } else {
-                        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
-                        if (tvAspectText != null) tvAspectText.setText("Zoom (تكبير)");
+                    currentAspectIndex = (currentAspectIndex + 1) % 5;
+                    AspectRatioFrameLayout contentFrame = playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame);
+                    String toastMsg = "";
+                    switch (currentAspectIndex) {
+                        case 0: // 0: تناسب أصلي (Fit)
+                            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                            if (contentFrame != null) contentFrame.setAspectRatio(0);
+                            toastMsg = "الأبعاد: أصلي (تناسب)";
+                            if (tvAspectText != null) tvAspectText.setText("Fit (أصلي)");
+                            break;
+                        case 1: // 1: 16:9
+                            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                            if (contentFrame != null) contentFrame.setAspectRatio(16.0f / 9.0f);
+                            toastMsg = "الأبعاد: 16:9 (عريضة)";
+                            if (tvAspectText != null) tvAspectText.setText("16:9");
+                            break;
+                        case 2: // 2: 4:3
+                            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                            if (contentFrame != null) contentFrame.setAspectRatio(4.0f / 3.0f);
+                            toastMsg = "الأبعاد: 4:3 (تلفزيون)";
+                            if (tvAspectText != null) tvAspectText.setText("4:3");
+                            break;
+                        case 3: // 3: تمديد كامل (Fill)
+                            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                            toastMsg = "الأبعاد: تمديد كامل (Fill)";
+                            if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
+                            break;
+                        case 4: // 4: تكبير وقص (Zoom)
+                            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                            toastMsg = "الأبعاد: تكبير وقص (Zoom)";
+                            if (tvAspectText != null) tvAspectText.setText("Zoom (تكبير)");
+                            break;
                     }
+                    Toast.makeText(this, toastMsg, Toast.LENGTH_SHORT).show();
                 } catch (Throwable t) {
                     Log.w(TAG, "aspect change error", t);
                 }
@@ -1164,12 +1187,14 @@ public class PlayerActivity extends AppCompatActivity {
                         if (pbBuffering != null) pbBuffering.setVisibility(View.GONE);
                         Log.e(TAG, "ExoPlayer error: " + error.getMessage(), error);
 
-                        // Automatic fallback for IPTV live streams: if .m3u8 fails, retry with .ts
+                        // Automatic fallback for IPTV live streams: if .m3u8 fails, retry with .ts and vice-versa
                         if (isLiveStream && videoUrl != null && !isRetried) {
                             isRetried = true;
                             String fallbackUrl = null;
                             if (videoUrl.contains(".m3u8")) {
                                 fallbackUrl = videoUrl.replace(".m3u8", ".ts");
+                            } else if (videoUrl.contains(".ts")) {
+                                fallbackUrl = videoUrl.replace(".ts", ".m3u8");
                             }
                             if (fallbackUrl != null && !fallbackUrl.equals(videoUrl)) {
                                 videoUrl = fallbackUrl;

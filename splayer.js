@@ -1501,9 +1501,9 @@ function playStream(id, type, extension, name, icon) {
                 controls: true,
                 autoplay: true,
                 preload: 'auto',
-                playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
                 controlBar: {
                     pictureInPictureToggle: false,
+                    playbackRateMenuButton: false,
                     skipButtons: (type === 'live') ? false : {
                         forward: 10,
                         backward: 10
@@ -1851,9 +1851,13 @@ function playStream(id, type, extension, name, icon) {
                 if (controlBar) {
                     const fsControl = controlBar.querySelector('.vjs-fullscreen-control');
 
+                    // 0. فاصل مرن يدفع عناصر اليمين إلى أقصى اليمين دائماً (حتى في البث المباشر)
+                    const spacer = document.createElement('div');
+                    spacer.className = 'vjs-custom-spacer';
+
                     // 1. زر الترجمة والإعدادات
                     const settingsBtn = document.createElement('div');
-                    settingsBtn.className = 'custom-vjs-btn vjs-control';
+                    settingsBtn.className = 'custom-vjs-btn vjs-control custom-vjs-settings-btn';
                     settingsBtn.innerHTML = '<i class="fas fa-closed-captioning"></i>';
                     settingsBtn.title = "الترجمة والصوتيات";
                     settingsBtn.onclick = () => {
@@ -1866,24 +1870,77 @@ function playStream(id, type, extension, name, icon) {
                         }
                     };
 
-                    // 2. زر تغيير الأبعاد (Aspect Ratio)
+                    // 2. زر تغيير الأبعاد (Aspect Ratio) - 5 أوضاع احترافية
                     const aspectBtn = document.createElement('div');
-                    aspectBtn.className = 'custom-vjs-btn vjs-control';
+                    aspectBtn.className = 'custom-vjs-btn vjs-control custom-vjs-aspect-btn';
                     aspectBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
                     aspectBtn.title = "تغيير الأبعاد";
 
-                    const aspectStates = ['default', '16:9', '4:3', 'fill'];
-                    let currentAspect = 0;
-                    aspectBtn.onclick = () => {
-                        currentAspect = (currentAspect + 1) % aspectStates.length;
-                        const state = aspectStates[currentAspect];
+                    const aspectStates = [
+                        { id: 'fit', label: 'تناسب أصلي (Fit)' },
+                        { id: '16:9', label: '16:9 (عريضة)' },
+                        { id: '4:3', label: '4:3 (تلفزيون)' },
+                        { id: 'fill', label: 'ملء الشاشة (تمديد)' },
+                        { id: 'zoom', label: 'تكبير وقص (Zoom)' }
+                    ];
+                    let currentAspectIdx = 0;
+
+                    const applyAspectRatio = (stateId) => {
                         const videoTag = playerEl.querySelector('video');
-                        if (videoTag) {
-                            if (state === 'default') { videoTag.style.objectFit = 'contain'; }
-                            else if (state === 'fill') { videoTag.style.objectFit = 'cover'; }
-                            else { videoTag.style.objectFit = 'fill'; }
+                        if (!videoTag) return;
+                        ['aspect-fit', 'aspect-16-9', 'aspect-4-3', 'aspect-fill', 'aspect-zoom'].forEach(cls => {
+                            playerEl.classList.remove(cls);
+                            videoTag.classList.remove(cls);
+                        });
+                        videoTag.style.maxWidth = '';
+                        videoTag.style.maxHeight = '';
+                        videoTag.style.aspectRatio = '';
+                        videoTag.style.margin = '';
+
+                        if (stateId === 'fit') {
+                            playerEl.classList.add('aspect-fit');
+                            videoTag.classList.add('aspect-fit');
+                            videoTag.style.setProperty('object-fit', 'contain', 'important');
+                            videoTag.style.setProperty('width', '100%', 'important');
+                            videoTag.style.setProperty('height', '100%', 'important');
+                        } else if (stateId === '16:9') {
+                            playerEl.classList.add('aspect-16-9');
+                            videoTag.classList.add('aspect-16-9');
+                            videoTag.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                            videoTag.style.setProperty('object-fit', 'fill', 'important');
+                            videoTag.style.setProperty('max-width', '100%', 'important');
+                            videoTag.style.setProperty('max-height', '100%', 'important');
+                            videoTag.style.setProperty('margin', 'auto', 'important');
+                        } else if (stateId === '4:3') {
+                            playerEl.classList.add('aspect-4-3');
+                            videoTag.classList.add('aspect-4-3');
+                            videoTag.style.setProperty('aspect-ratio', '4 / 3', 'important');
+                            videoTag.style.setProperty('object-fit', 'fill', 'important');
+                            videoTag.style.setProperty('max-width', '100%', 'important');
+                            videoTag.style.setProperty('max-height', '100%', 'important');
+                            videoTag.style.setProperty('width', 'auto', 'important');
+                            videoTag.style.setProperty('height', '100%', 'important');
+                            videoTag.style.setProperty('margin', 'auto', 'important');
+                        } else if (stateId === 'fill') {
+                            playerEl.classList.add('aspect-fill');
+                            videoTag.classList.add('aspect-fill');
+                            videoTag.style.setProperty('object-fit', 'fill', 'important');
+                            videoTag.style.setProperty('width', '100%', 'important');
+                            videoTag.style.setProperty('height', '100%', 'important');
+                        } else if (stateId === 'zoom') {
+                            playerEl.classList.add('aspect-zoom');
+                            videoTag.classList.add('aspect-zoom');
+                            videoTag.style.setProperty('object-fit', 'cover', 'important');
+                            videoTag.style.setProperty('width', '100%', 'important');
+                            videoTag.style.setProperty('height', '100%', 'important');
                         }
-                        if (typeof showToast === 'function') showToast(`الأبعاد: ${state.toUpperCase()}`, 'info');
+                    };
+
+                    aspectBtn.onclick = () => {
+                        currentAspectIdx = (currentAspectIdx + 1) % aspectStates.length;
+                        const current = aspectStates[currentAspectIdx];
+                        applyAspectRatio(current.id);
+                        if (typeof showToast === 'function') showToast(`الأبعاد: ${current.label}`, 'info');
                     };
 
                     // 3. زر ملء الشاشة المخصص (Fullscreen Button أقصى اليمين)
@@ -1927,10 +1984,12 @@ function playStream(id, type, extension, name, icon) {
                     document.addEventListener('webkitfullscreenchange', updateFsBtnState);
 
                     if (fsControl) {
+                        controlBar.insertBefore(spacer, fsControl);
                         controlBar.insertBefore(settingsBtn, fsControl);
                         controlBar.insertBefore(aspectBtn, fsControl);
                         controlBar.insertBefore(customFsBtn, fsControl);
                     } else {
+                        controlBar.appendChild(spacer);
                         controlBar.appendChild(settingsBtn);
                         controlBar.appendChild(aspectBtn);
                         controlBar.appendChild(customFsBtn);

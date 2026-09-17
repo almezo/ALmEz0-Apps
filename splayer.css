@@ -3202,55 +3202,97 @@ input.search-input[placeholder*="المسلسلات"] {
 }
 
 /* ==========================================
-   تكبير الشريط السفلي لمشغل Video.js وتنسيق زر الأبعاد
+   تكبير الشريط السفلي لمشغل Video.js وترتيب الأزرار بدقة
    ========================================== */
 .video-js .vjs-control-bar {
-    height: 65px !important;
-    /* تكبير ارتفاع الشريط بالكامل */
-    background-color: rgba(0, 0, 0, 0.8) !important;
+    height: 95px !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.95), transparent) !important;
     display: flex !important;
+    flex-direction: row !important;
     align-items: center !important;
+    justify-content: flex-start !important;
+    direction: ltr !important;
+    padding: 0 16px !important;
 }
 
-.video-js .vjs-button>.vjs-icon-placeholder:before {
-    font-size: 2.4em !important;
-    /* تكبير أيقونات الأزرار (تشغيل، إيقاف، تكبير) */
-    line-height: 65px !important;
+/* إزالة زر السرعة تماماً كما طلب المستخدم */
+.video-js .vjs-playback-rate {
+    display: none !important;
+}
+
+/* أزرار أقصى اليسار (التشغيل/الإيقاف ورفع وخفض الصوت) */
+.video-js .vjs-play-control {
+    order: 1 !important;
+    margin-right: 8px !important;
+}
+
+.video-js .vjs-volume-panel {
+    order: 2 !important;
+    margin-right: 12px !important;
+}
+
+/* شريط التقدم والوقت في المنتصف */
+.video-js .vjs-progress-control {
+    order: 10 !important;
+    flex: 1 1 auto !important;
+    margin: 0 15px !important;
+}
+
+.video-js .vjs-live-control {
+    order: 11 !important;
+    margin: 0 10px !important;
 }
 
 .video-js .vjs-time-control {
-    font-size: 2.2em !important;
-    /* تكبير خط وقت الفيديو */
-    line-height: 95px !important;
-    font-weight: bold;
+    order: 12 !important;
 }
 
-/* تكبير شريط التقدم (Progress Bar) */
-.video-js .vjs-progress-control .vjs-progress-holder {
-    height: 8px !important;
-    /* زيادة سمك خط التقدم */
+/* فاصل مرن يدفع أزرار اليمين لأقصى اليمين دائماً (خصوصاً في البث المباشر) */
+.vjs-custom-spacer {
+    flex: 1 1 auto !important;
+    order: 15 !important;
+    min-width: 20px !important;
+    pointer-events: none !important;
 }
 
-.video-js .vjs-play-progress:before {
-    font-size: 1.6em !important;
-    /* تكبير الدائرة التي تسحب بها الفيديو */
-    top: -0.4em !important;
+/* أزرار أقصى اليمين: الترجمة، ثم الأبعاد، ثم ملء الشاشة في أقصى اليمين */
+.custom-vjs-settings-btn,
+.video-js .vjs-subs-caps-button {
+    order: 20 !important;
+    margin-left: 8px !important;
 }
 
-/* تنسيق الزر الجديد (تغيير الأبعاد) */
+.custom-vjs-aspect-btn,
 .vjs-aspect-ratio-btn {
+    order: 25 !important;
+    margin-left: 8px !important;
     cursor: pointer !important;
-    width: 50px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
+.custom-vjs-aspect-btn i,
 .vjs-aspect-ratio-btn i {
-    line-height: 65px !important;
     color: #fff;
+    font-size: 2.2em;
+    line-height: 95px !important;
     transition: color 0.3s ease;
 }
 
+.custom-vjs-aspect-btn:hover i,
 .vjs-aspect-ratio-btn:hover i {
     color: var(--accent-red);
+}
+
+.custom-vjs-fs-btn,
+.video-js .vjs-fullscreen-control {
+    order: 30 !important;
+    margin-left: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
 }
 
 /* =========================================================
@@ -5758,7 +5800,7 @@ body.low-spec-mode .playlists-modal {
 #livePlayerWrapper.live-fullscreen-mode video,
 .video-js video,
 #liveVideoContainer video {
-    object-fit: contain !important;
+    object-fit: contain;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
     -webkit-backface-visibility: hidden;
@@ -5770,8 +5812,50 @@ body.low-spec-mode .playlists-modal {
 body.tv-device-mode #livePlayerWrapper video,
 body.tv-device-mode #livePlayerWrapper.live-fullscreen-mode video,
 body.tv-device-mode .video-js video {
-    object-fit: contain !important;
+    object-fit: contain;
     background: #000000 !important;
+}
+
+/* فئات الأبعاد الدقيقة لمشغل الميزو (Web / Electron) */
+.video-js.aspect-fit video,
+video.aspect-fit {
+    object-fit: contain !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.video-js.aspect-fill video,
+video.aspect-fill {
+    object-fit: fill !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.video-js.aspect-zoom video,
+video.aspect-zoom {
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.video-js.aspect-16-9 video,
+video.aspect-16-9 {
+    aspect-ratio: 16 / 9 !important;
+    object-fit: fill !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    margin: auto !important;
+}
+
+.video-js.aspect-4-3 video,
+video.aspect-4-3 {
+    aspect-ratio: 4 / 3 !important;
+    object-fit: fill !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: auto !important;
+    height: 100% !important;
+    margin: auto !important;
 }
 
 .live-fullscreen-btn-overlay {

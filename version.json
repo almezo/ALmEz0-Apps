@@ -1,9 +1,9 @@
 {
-  "version": "1.0.49",
-  "versionCode": 50,
-  "releaseDate": "2026-09-17",
-  "title": "تحسين التوافق مع متصفحات Safari و iOS v1.0.49 🍎✨",
-  "notes": "إضافة بادئة -webkit-backdrop-filter لضمان التوافق التام لمظهر قائمة المحادثات مع متصفحات Safari و iOS.",
+  "version": "1.0.50",
+  "versionCode": 51,
+  "releaseDate": "2026-09-18",
+  "title": "تحديث شريط التحكم بالأبعاد ومساعد الميزو الذكي v1.0.50 🎬🚀",
+  "notes": "إعادة ترتيب أزرار مشغل الفيديو (أزرار التشغيل والصوت أقصى اليسار، والأبعاد وملء الشاشة أقصى اليمين، وإزالة زر السرعة)، وإصلاح زر الأبعاد بـ 5 أوضاع دقيقة، وتطوير ذكاء مساعد الميزو الرياضي والسينمائي ومنع الهلوسة.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

@@ -352,9 +352,10 @@
     const STOP_WORDS = new Set([
         'في', 'من', 'عن', 'على', 'الي', 'إلى', 'مع', 'هذا', 'هذه', 'تم', 'ما', 'شن', 'شنو', 'شنهو', 'ايش', 'شو', 'ماهي',
         'اليوم', 'الليلة', 'اليلة', 'الان', 'الآن', 'امس', 'أمس', 'غدا', 'بكرة', 'هل', 'اريد', 'أريد', 'بدي', 'ابي', 'ابغى',
-        'عايز', 'افضل', 'أفضل', 'احسن', 'أحسن', 'اقترح', 'متوفر', 'سيرفر', 'مشاهدة', 'تشغيل', 'مهمة', 'مهمه', 'كبيرة',
+        'عايز', 'افضل', 'أفضل', 'احسن', 'أحسن', 'اقترح', 'متوفر', 'متوفرة', 'سيرفر', 'السيرفر', 'مشاهدة', 'تشغيل', 'مهمة', 'مهمه', 'كبيرة',
         'جديد', 'جديدة', 'قديم', 'حلو', 'جميل', 'فيلم', 'افلام', 'أفلام', 'مسلسل', 'مسلسلات', 'حلقة', 'حلقات',
-        'قناة', 'قنوات', 'بث', 'مباشر', 'مباراة', 'مباريات', 'سهرة', 'سهره'
+        'قناة', 'قنوات', 'بث', 'مباشر', 'مباراة', 'مباريات', 'سهرة', 'سهره', 'عندك', 'موجود', 'موجودة', 'لي', 'وريني',
+        'the', 'a', 'an', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'movie', 'series', 'show'
     ]);
 
     function normalizeArabic(text) {
@@ -433,7 +434,7 @@
     async function searchActiveClientServer(query) {
         const normQuery = normalizeArabic(query);
         const allWords = normQuery.split(' ').filter(w => w.length > 1);
-        const meaningfulWords = allWords.filter(w => !STOP_WORDS.has(w));
+        const meaningfulWords = allWords.filter(w => !STOP_WORDS.has(w) && w.length >= 2);
         const isSports = isSportsQuery(query);
 
         const results = {
@@ -444,16 +445,27 @@
         };
 
         try {
-            // 1. إذا كان السؤال عن رياضة أو مباريات: نمنع البحث في الأفلام والمسلسلات نهائياً
+            // 1. إذا كان السؤال عن رياضة أو مباريات: نركز كلياً على القنوات الرياضية دون فحص الأفلام
             if (isSports) {
                 if (window.getAllStreamsForType) {
                     const live = await window.getAllStreamsForType('live', 'get_live_streams').catch(() => []);
                     if (Array.isArray(live)) {
                         const sportsKeywords = ['bein', 'ssc', 'ad sport', 'alkass', 'on time', 'sport', 'رياضية', 'كورة', 'starz'];
-                        const matched = live.filter(c => {
-                            const cName = normalizeArabic(c.name || '');
-                            return sportsKeywords.some(sk => cName.includes(sk));
-                        });
+                        let matched = [];
+                        // إذا سأل العميل عن قناة معينة برقمها أو اسمها
+                        const channelWords = meaningfulWords.filter(w => sportsKeywords.some(sk => sk.includes(w) || w.includes(sk)) || /\d+/.test(w));
+                        if (channelWords.length > 0) {
+                            matched = live.filter(c => {
+                                const cName = normalizeArabic(c.name || '');
+                                return channelWords.every(cw => cName.includes(cw));
+                            });
+                        }
+                        if (matched.length === 0) {
+                            matched = live.filter(c => {
+                                const cName = normalizeArabic(c.name || '');
+                                return sportsKeywords.some(sk => cName.includes(sk));
+                            });
+                        }
                         results.channels = groupAndFormatChannels(matched).slice(0, 4);
                     }
                 }
@@ -461,7 +473,7 @@
             }
 
             // 2. فحص التصنيف وكلمات البحث في الأفلام والمسلسلات
-            const searchWords = meaningfulWords.length > 0 ? meaningfulWords : allWords;
+            const searchWords = meaningfulWords.length > 0 ? meaningfulWords : allWords.filter(w => w.length >= 2);
             const detectedGenres = detectGenres(normQuery);
             const isNightMovie = normQuery.includes('سهرة') || normQuery.includes('سهره') || normQuery.includes('الليلة') || normQuery.includes('افضل') || normQuery.includes('أفضل');
 
@@ -506,7 +518,7 @@
                         }
                     }
 
-                    // ب. إذا كان البحث عن اسم فيلم محدد
+                    // ب. إذا كان البحث عن اسم عمل/فيلم محدد (مطابقة محكمة لمنع الهلوسة)
                     if (results.movies.length === 0 && searchWords.length > 0) {
                         const titleMatches = movies.filter(m => {
                             const mName = normalizeArabic(m.name || '');
@@ -514,13 +526,15 @@
                         });
                         if (titleMatches.length > 0) {
                             results.movies = titleMatches.slice(0, 4);
-                        } else {
-                            const partialMatches = movies.filter(m => {
+                        } else if (searchWords.length >= 2) {
+                            // إذا كان العنوان مركباً، نشترط تطابق 70% على الأقل لتفادي التطابق العشوائي
+                            const strongMatches = movies.filter(m => {
                                 const mName = normalizeArabic(m.name || '');
-                                return searchWords.some(w => mName.includes(w));
+                                const count = searchWords.filter(w => mName.includes(w)).length;
+                                return (count / searchWords.length) >= 0.7;
                             });
-                            if (partialMatches.length > 0) {
-                                results.movies = partialMatches.slice(0, 4);
+                            if (strongMatches.length > 0) {
+                                results.movies = strongMatches.slice(0, 4);
                             }
                         }
                     }
@@ -545,9 +559,20 @@
                     if (searchWords.length > 0) {
                         const seriesMatches = series.filter(s => {
                             const sName = normalizeArabic(s.name || '');
-                            return searchWords.some(w => sName.includes(w));
+                            return searchWords.every(w => sName.includes(w));
                         });
-                        results.series = seriesMatches.slice(0, 4);
+                        if (seriesMatches.length > 0) {
+                            results.series = seriesMatches.slice(0, 4);
+                        } else if (searchWords.length >= 2) {
+                            const strongMatches = series.filter(s => {
+                                const sName = normalizeArabic(s.name || '');
+                                const count = searchWords.filter(w => sName.includes(w)).length;
+                                return (count / searchWords.length) >= 0.7;
+                            });
+                            if (strongMatches.length > 0) {
+                                results.series = strongMatches.slice(0, 4);
+                            }
+                        }
                     }
                 }
             }
@@ -609,7 +634,7 @@
             if (serverContext.channels && serverContext.channels.length > 0) {
                 contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
             }
-            contextText += `[توجيه حاسم]: العميل يسأل عن مباريات كرة قدم أو رياضة. استخدم بحث جوجل المباشر (Google Search) لمعرفة المباريات الحقيقية المقامة اليوم وتوقيتها الدقيق بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3) والقنوات الناقلة الرسمية. يمنع منعاً باتاً ذكر أي أفلام أو مسلسلات إذا كان السؤال رياضياً!\n`;
+            contextText += `[توجيه حاسم لمباريات اليوم والرياضة]: العميل يسأل عن مباريات كرة قدم أو بطولة أو فريق. استخدم بحث جوجل المباشر (Google Search) للوصول إلى تفاصيل المباراة الحقيقية اليوم: الموعد الدقيق بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3)، البطولة، والمعلق، و**الأهم القناة الناقلة المحددة لهذه المباراة خصيصاً** (مثل beIN Sports 1 أو beIN Sports 2 أو SSC 1). اذكر القناة الناقلة المخصصة بدقة واختصار، وممنوع منعاً باتاً ذكر أي أفلام أو مسلسلات!\n`;
         } else {
             contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
             if (serverContext.movies && serverContext.movies.length > 0) {
@@ -621,8 +646,8 @@
             } else if (serverContext.channels && serverContext.channels.length > 0) {
                 contextText += `- قنوات بث مباشر متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
             } else {
-                contextText += `- لم يتم العثور على عمل مطابق بالاسم المطلوب داخل السيرفر حالياً.\n`;
-                contextText += `[توجيه صارم]: أبلغ العميل بلباقة أن هذا العمل المحدد غير متوفر حالياً في السيرفر، وقدم له اقتراحاً عاماً مشوقاً مع توجيهه لأقسام السيرفر دون إعطاء انطباع كاذب بوجوده.\n`;
+                contextText += `- هذا العمل المحدد غير متوفر حالياً داخل سيرفر العميل.\n`;
+                contextText += `[توجيه صارم لمنع الهلوسة]: العميل سأل عن عمل محدد غير موجود في السيرفر. استخدم معلوماتك أو بحث الويب (Google Search) لتقديم نبذة حقيقية وموجزة جداً وصحيحة عنه (سنة الإنتاج، القصة المختصرة)، وأبلغه بصراحة ولباقة أنه غير متوفر حالياً في السيرفر. يمنع تماماً ترشيح أي أفلام أخرى عشوائية أو الادعاء بأنه موجود!\n`;
             }
         }
 
@@ -702,7 +727,7 @@
             if (serverContext.channels && serverContext.channels.length > 0) {
                 contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
             }
-            contextText += `[توجيه حاسم ومطلوب]: إذا كان صوت العميل عن مباريات كرة قدم أو رياضة، اذكر مباريات اليوم وتوقيتها بدقة بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3) والقنوات الناقلة. يمنع منعاً باتاً ذكر أي أفلام أو مسلسلات إذا كان السؤال رياضياً!\n`;
+            contextText += `[توجيه حاسم لمباريات اليوم والرياضة]: إذا كان صوت العميل عن مباريات كرة قدم أو رياضة، اذكر تفاصيل المباراة المقامة اليوم بدقة: التوقيت (ليبيا/مصر GMT+2 ومكة GMT+3) والقناة الناقلة المحددة لهذه المباراة خصيصاً. يمنع منعاً باتاً ذكر أي أفلام أو مسلسلات!\n`;
         } else {
             contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
             if (serverContext.movies && serverContext.movies.length > 0) {
@@ -713,6 +738,9 @@
             }
             if (serverContext.channels && serverContext.channels.length > 0) {
                 contextText += `- قنوات بث مباشر: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+            }
+            if (!serverContext.movies.length && !serverContext.series.length && !serverContext.channels.length) {
+                contextText += `- هذا العمل غير متوفر حالياً داخل سيرفر العميل. استخدم بحث الويب لإعطائه نبذة حقيقية مختصرة ووضّح له بلباقة عدم توفره بالسيرفر.\n`;
             }
         }
 
@@ -868,8 +896,8 @@
                     <button class="ai-chip-btn" onclick="window.AlMeZ0AI.sendQuickPrompt('ما هي أحدث المسلسلات المتوفرة في السيرفر؟')">
                         📺 أحدث المسلسلات
                     </button>
-                    <button class="ai-chip-btn" onclick="window.AlMeZ0AI.sendQuickPrompt('شغلي قناة beIN Sports 1')">
-                        📺 beIN Sports 1
+                    <button class="ai-chip-btn" onclick="window.AlMeZ0AI.sendQuickPrompt('ما هي القنوات الرياضية المتوفرة في السيرفر؟')">
+                        🏆 القنوات الرياضية
                     </button>
                 </div>
 
