@@ -308,7 +308,7 @@ function playAdjacentLiveChannel(direction) {
     }
     const target = currentItemsArray[nextIndex];
     if (target) {
-        playStream('live', target.stream_id, target.name, target.stream_icon);
+        playStream(target.stream_id, 'live', 'm3u8', target.name, target.stream_icon);
         showTvLiveOsd(target.name, target.stream_icon);
     }
 }
@@ -332,7 +332,7 @@ function handleTvNumericKey(digit) {
             target = currentItemsArray[targetNum - 1];
         }
         if (target) {
-            playStream('live', target.stream_id, target.name, target.stream_icon);
+            playStream(target.stream_id, 'live', 'm3u8', target.name, target.stream_icon);
             showTvLiveOsd(target.name, target.stream_icon);
         }
     }, 1200);
@@ -1265,6 +1265,16 @@ async function handleLogin() {
 }
 
 function playStream(id, type, extension, name, icon) {
+    // توحيد المعاملات عند الاستدعاء بأي ترتيب (Normalization)
+    if (id === 'live' || id === 'vod' || id === 'series') {
+        const tempType = id;
+        id = type;
+        type = tempType;
+        name = extension;
+        icon = name;
+        extension = (type === 'live' ? 'm3u8' : 'mp4');
+    }
+
     currentStreamInfo = { id, type, extension, name, icon, mediaDetails: window.currentMediaDetails || null };
     if (type === 'live') {
         sessionStorage.setItem('sp_last_live_stream', JSON.stringify({ id, type, extension, name, icon }));
@@ -1275,7 +1285,7 @@ function playStream(id, type, extension, name, icon) {
 
     const user = encodeURIComponent(state.username);
     const pass = encodeURIComponent(state.password);
-    const ext = extension ? extension.toLowerCase() : 'mp4';
+    const ext = extension ? extension.toLowerCase() : (type === 'live' ? 'm3u8' : 'mp4');
 
     // خريطة السيرفرات لربط كود السيرفر بالهوست المخصص له
     const serverHostsMap = {
@@ -1296,7 +1306,8 @@ function playStream(id, type, extension, name, icon) {
     // بناء الرابط الأساسي لاستخدامه في المشغل أو المشغل الخارجي الاختياري
     let baseStreamUrl = '';
     if (type === 'live') {
-        baseStreamUrl = `${hostUrl}/live/${user}/${pass}/${id}.m3u8`;
+        const liveExt = (extension && extension.toLowerCase() === 'ts') ? 'ts' : 'm3u8';
+        baseStreamUrl = `${hostUrl}/live/${user}/${pass}/${id}.${liveExt}`;
     } else if (type === 'vod') {
         baseStreamUrl = `${hostUrl}/movie/${user}/${pass}/${id}.${ext}`;
     } else if (type === 'series') {
@@ -1304,16 +1315,19 @@ function playStream(id, type, extension, name, icon) {
     }
 
     // ================================================================
-    // في تطبيق أندرويد: تشغيل الأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
+    // في تطبيق أندرويد فقط: تشغيل البث المباشر والأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
     // ================================================================
-    if ((window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) && (type === 'vod' || type === 'series')) {
-        if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
-            const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon);
-            if (handled) return;
-        }
-        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
-            window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '');
-            return;
+    if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
+        if (type === 'vod' || type === 'series' || type === 'live') {
+            const isLive = (type === 'live');
+            if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
+                const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon, isLive);
+                if (handled) return;
+            }
+            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
+                window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '', isLive);
+                return;
+            }
         }
     }
 

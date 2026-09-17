@@ -105,6 +105,7 @@ public class PlayerActivity extends AppCompatActivity {
     private float currentVolumePercent = 0.5f;
     private boolean isScreenLocked = false;
     private boolean isUserSeeking = false;
+    private boolean isRetried = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private GestureDetector gestureDetector;
@@ -997,7 +998,14 @@ public class PlayerActivity extends AppCompatActivity {
                 playerView.setPlayer(player);
             }
 
-            MediaItem mediaItem = MediaItem.fromUri(Uri.parse(videoUrl));
+            Uri uri = Uri.parse(videoUrl);
+            MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(uri);
+            if (isLiveStream || videoUrl.contains(".m3u8") || videoUrl.contains("/live/")) {
+                if (!videoUrl.contains(".ts") && !videoUrl.contains(".mp4") && !videoUrl.contains(".mkv")) {
+                    mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8);
+                }
+            }
+            MediaItem mediaItem = mediaItemBuilder.build();
             player.setMediaItem(mediaItem);
             player.prepare();
             player.setPlayWhenReady(true);
@@ -1048,6 +1056,27 @@ public class PlayerActivity extends AppCompatActivity {
                     try {
                         if (pbBuffering != null) pbBuffering.setVisibility(View.GONE);
                         Log.e(TAG, "ExoPlayer error: " + error.getMessage(), error);
+
+                        // Automatic fallback for IPTV live streams: if .m3u8 fails, retry with .ts
+                        if (isLiveStream && videoUrl != null && !isRetried) {
+                            isRetried = true;
+                            String fallbackUrl = null;
+                            if (videoUrl.contains(".m3u8")) {
+                                fallbackUrl = videoUrl.replace(".m3u8", ".ts");
+                            }
+                            if (fallbackUrl != null && !fallbackUrl.equals(videoUrl)) {
+                                videoUrl = fallbackUrl;
+                                Log.i(TAG, "Retrying live stream with fallback: " + videoUrl);
+                                MediaItem fallbackItem = new MediaItem.Builder()
+                                        .setUri(Uri.parse(videoUrl))
+                                        .build();
+                                player.setMediaItem(fallbackItem);
+                                player.prepare();
+                                player.setPlayWhenReady(true);
+                                return;
+                            }
+                        }
+
                         Toast.makeText(PlayerActivity.this, "تعذر استكمال البث من السيرفر", Toast.LENGTH_SHORT).show();
                     } catch (Throwable t) {
                         Log.w(TAG, "onPlayerError error", t);
