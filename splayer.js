@@ -364,6 +364,16 @@ function playCurrentLiveNative() {
     const streamUrl = `${host}/live/${user}/${pass}/${currentStreamInfo.id}.${ext}`;
     const isTv = document.body.classList.contains('tv-device-mode') ||
                  (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
+
+    // إيقاف تشغيل الفيديو في متصفح الويب الداخلي مؤقتاً لتوفير موارد الرام والمعالج أثناء تشغيل مشغل ExoPlayer الأصيل
+    if (window.vjsPlayer) {
+        try { window.vjsPlayer.pause(); } catch (e) { }
+    }
+    const videoTag = document.querySelector('#livePlayerWrapper video');
+    if (videoTag) {
+        try { videoTag.pause(); } catch (e) { }
+    }
+
     if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
         window.AndroidNativeBridge.playNativeVideo(streamUrl, currentStreamInfo.name, currentStreamInfo.icon || '', true, isTv);
     } else if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
@@ -3038,6 +3048,13 @@ function exitNativeFullscreen() {
 function toggleLivePlayerFullscreen() {
     const liveWrap = document.getElementById('livePlayerWrapper');
     if (!liveWrap) return;
+
+    // في نظام أندرويد: الانتقال فوراً إلى مشغل ExoPlayer الأصيل الموحد بكامل كفاءته العتادية وواجهته
+    const isAndroid = !!(window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid));
+    if (isAndroid && currentStreamInfo && currentStreamInfo.type === 'live') {
+        playCurrentLiveNative();
+        return;
+    }
 
     const isFs = liveWrap.classList.contains('live-fullscreen-mode') || !!(document.fullscreenElement || document.webkitFullscreenElement);
     const icon1 = document.getElementById('liveFullscreenIcon');

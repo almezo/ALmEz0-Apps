@@ -1,9 +1,9 @@
 {
-  "version": "1.0.42",
-  "versionCode": 43,
+  "version": "1.0.43",
+  "versionCode": 44,
   "releaseDate": "2026-09-17",
-  "title": "إصلاح معايير بادئات CSS وضمان التوافقية v1.0.42 ⚡🎨",
-  "notes": "ترتيب بادئات vendor prefixes في splayer.css وفق المعايير القياسية لـ WebKit.",
+  "title": "إصلاح أداء الكمبيوتر ودمج مفتاح الذكاء الجديد وتوحيد مشغل البث المباشر v1.0.43 ⚡🎬",
+  "notes": "استعادة خفة وسرعة برنامج الكمبيوتر، دمج مفتاح Gemini الجديد بدون أزرار، وتوحيد مشغل ExoPlayer الأصيل للبث المباشر بملء الشاشة مع إبقاء المعاينة المدمجة.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

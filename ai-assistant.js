@@ -272,7 +272,7 @@
     }
 
     function getApiKey() {
-        return (localStorage.getItem('almezo_gemini_key') || (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.apiKey) || "").trim();
+        return ((window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.apiKey) || localStorage.getItem('almezo_gemini_key') || "").trim();
     }
 
     function promptApiKey() {
@@ -495,9 +495,6 @@
                         </div>
                     </div>
                     <div class="ai-header-actions">
-                        <button class="ai-btn-icon" id="aiBtnKey" title="تغيير مفتاح Google Gemini API Key" onclick="window.AlMeZ0AI.promptApiKey()">
-                            <i class="fas fa-key"></i>
-                        </button>
                         <button class="ai-btn-icon ${isAiMuted ? 'muted' : ''}" id="aiBtnMute" title="${isAiMuted ? 'تشغيل الصوت' : 'كتم الصوت'}" onclick="window.AlMeZ0AI.toggleMute()">
                             <i class="fas ${isAiMuted ? 'fa-volume-mute' : 'fa-volume-up'}"></i>
                         </button>
