@@ -441,7 +441,11 @@ function initForceLandscapeButton() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+let isPlayerSessionInitialized = false;
+function initPlayerSession() {
+    if (isPlayerSessionInitialized) return;
+    isPlayerSessionInitialized = true;
+
     initForceLandscapeButton();
     if (typeof initScrollTopListener === 'function') {
         initScrollTopListener();
@@ -541,7 +545,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loginBtn = document.getElementById('btnLogin');
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
-});
+}
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initPlayerSession();
+} else {
+    document.addEventListener('DOMContentLoaded', initPlayerSession);
+}
+window.addEventListener('load', initPlayerSession);
 
 let currentScreenId = null;
 let isInitialRoute = true;
@@ -2442,14 +2453,18 @@ function renderProfileFields(user) {
     }
 
     // Created At (تاريخ بدء الاشتراك)
-    const rawCreated = user.created_at ?? user.created ?? user.creation_date ?? user.start_date;
+    const rawCreated = (user.created_at !== undefined && user.created_at !== null) ? user.created_at :
+                       (user.created !== undefined && user.created !== null) ? user.created :
+                       (user.creation_date !== undefined && user.creation_date !== null) ? user.creation_date : user.start_date;
     const createdEl = document.getElementById('profileCreatedAt');
     if (createdEl && rawCreated !== undefined) {
         createdEl.innerText = formatSubscriptionDate(rawCreated);
     }
 
     // Expire Date (تاريخ انتهاء الاشتراك)
-    const rawExp = user.exp_date ?? user.expiration_date ?? user.expiry_date ?? user.expire_date;
+    const rawExp = (user.exp_date !== undefined && user.exp_date !== null) ? user.exp_date :
+                   (user.expiration_date !== undefined && user.expiration_date !== null) ? user.expiration_date :
+                   (user.expiry_date !== undefined && user.expiry_date !== null) ? user.expiry_date : user.expire_date;
     const expEl = document.getElementById('profileExpAt');
     if (expEl && rawExp !== undefined) {
         expEl.innerText = formatSubscriptionDate(rawExp);
@@ -2804,10 +2819,15 @@ async function loadCategories(action, type) {
 
             const el = document.createElement('div');
             el.className = 'list-item';
-            const apiCount = cat.count ?? cat.stream_count ?? cat.series_count ?? cat.channel_count ?? cat.num ?? cat.total ?? cat.total_items;
+            let apiCount = undefined;
+            const countKeys = ['count', 'stream_count', 'series_count', 'channel_count', 'num', 'total', 'total_items'];
+            for (let ci = 0; ci < countKeys.length; ci++) {
+                const val = cat[countKeys[ci]];
+                if (val !== undefined && val !== null) { apiCount = val; break; }
+            }
             const displayCount = (apiCount !== undefined && apiCount !== null && apiCount !== '')
                 ? apiCount
-                : (cachedCounts[cat.category_id] ?? '');
+                : ((cachedCounts[cat.category_id] !== undefined && cachedCounts[cat.category_id] !== null) ? cachedCounts[cat.category_id] : '');
 
             if (apiCount !== undefined && apiCount !== null && apiCount !== '') {
                 cachedCounts[cat.category_id] = apiCount;

@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <script>
         // كشف فوري لمنصات التطبيقات (Capacitor / Electron / Standalone / Local file)
-        const isNativeEarly = !!(window.electronAPI?.isElectron || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) || window.navigator.standalone || window.location.protocol === 'file:');
+        const isNativeEarly = !!((window.electronAPI && window.electronAPI.isElectron) || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) || window.navigator.standalone || window.location.protocol === 'file:');
         if (isNativeEarly) {
             document.documentElement.classList.add('platform-native');
         }

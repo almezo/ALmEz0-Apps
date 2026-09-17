@@ -3174,6 +3174,9 @@ span.cat-count:empty {
 }
 
 body.platform-electron .rotate-prompt,
+body.tv-device-mode .rotate-prompt,
+body.tv-mode .rotate-prompt,
+body.desktop-device-mode .rotate-prompt,
 body.platform-native:not(.platform-android):not(.platform-ios) .rotate-prompt {
     display: none !important;
 }

@@ -121,8 +121,8 @@
     <!-- UNIFORM SCALABLE CANVAS CONTAINER (1200x750 Base) -->
     <div id="app-scaler" class="app-scaler">
 
-        <!-- AUTH SCREEN 1: SERVER CODE -->
-        <div class="app-screen-container auth-container hidden" id="auth1-screen" dir="rtl">
+        <!-- AUTH SCREEN 1: SERVER CODE (الافتراضي الظاهر فوراً لمنع الشاشة السوداء في أجهزة TV Box) -->
+        <div class="app-screen-container auth-container" id="auth1-screen" dir="rtl">
             <div class="auth-card auto-style-1" dir="rtl">
                 <a href="index.html" onclick="if (window.AlMeZ0App) { if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false); if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait(); }" title="الرجوع للرئيسية" class="btn-home-return auto-style-2">
                     <i class="fas fa-home"></i>
@@ -767,8 +767,12 @@
                                 document.getElementById('profileActiveConn').innerText = Math.max(1, Number(activeVal) || 1);
                             }
 
-                            const rawCreated = user.created_at ?? user.created ?? user.creation_date ?? user.start_date;
-                            const rawExp = user.exp_date ?? user.expiration_date ?? user.expiry_date ?? user.expire_date;
+                            const rawCreated = (user.created_at !== undefined && user.created_at !== null) ? user.created_at :
+                                               (user.created !== undefined && user.created !== null) ? user.created :
+                                               (user.creation_date !== undefined && user.creation_date !== null) ? user.creation_date : user.start_date;
+                            const rawExp = (user.exp_date !== undefined && user.exp_date !== null) ? user.exp_date :
+                                           (user.expiration_date !== undefined && user.expiration_date !== null) ? user.expiration_date :
+                                           (user.expiry_date !== undefined && user.expiry_date !== null) ? user.expiry_date : user.expire_date;
 
                             function fmtDate(raw) {
                                 if (raw === undefined || raw === null || raw === '' || raw === '0' || raw === 0) return 'غير متوفر';
@@ -952,9 +956,11 @@
                         e.target.blur(); // ينزل الكيبورد في الموبايل
 
                         if (e.target.id === 'serverCode') {
-                            document.getElementById('btnConnectServer')?.click();
+                            var btnConnect = document.getElementById('btnConnectServer');
+                            if (btnConnect) btnConnect.click();
                         } else if (e.target.id === 'username' || e.target.id === 'password') {
-                            document.getElementById('btnLogin')?.click();
+                            var btnLogin = document.getElementById('btnLogin');
+                            if (btnLogin) btnLogin.click();
                         }
                     }
                 });
