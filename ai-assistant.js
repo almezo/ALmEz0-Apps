@@ -126,6 +126,18 @@
             mediaRecorder.stop();
             return;
         }
+
+        // فحص وطلب صلاحية الميكروفون في تطبيق الأندرويد فقط عند الضغط
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.hasRecordAudioPermission === 'function') {
+            if (!window.AndroidNativeBridge.hasRecordAudioPermission()) {
+                if (typeof window.AndroidNativeBridge.requestRecordAudioPermission === 'function') {
+                    window.AndroidNativeBridge.requestRecordAudioPermission();
+                    showAiStatus('يرجى السماح بصلاحية الميكروفون للتحدث 🎙️');
+                    return;
+                }
+            }
+        }
+
         if (speechRecognition) {
             if (isListening) {
                 speechRecognition.stop();
@@ -178,8 +190,16 @@
     }
 
     // =========================================================================
-    // 2. محرك البحث المحلي الديناميكي في سيرفر العميل النشط فقط
+    // 2. محرك البحث المحلي الذكي في سيرفر العميل النشط
     // =========================================================================
+    const STOP_WORDS = new Set([
+        'في', 'من', 'عن', 'على', 'الي', 'إلى', 'مع', 'هذا', 'هذه', 'تم', 'ما', 'شن', 'شنو', 'شنهو', 'ايش', 'شو', 'ماهي',
+        'اليوم', 'الليلة', 'اليلة', 'الان', 'الآن', 'امس', 'أمس', 'غدا', 'بكرة', 'هل', 'اريد', 'أريد', 'بدي', 'ابي', 'ابغى',
+        'عايز', 'افضل', 'أفضل', 'احسن', 'أحسن', 'اقترح', 'متوفر', 'سيرفر', 'مشاهدة', 'تشغيل', 'مهمة', 'مهمه', 'كبيرة',
+        'جديد', 'جديدة', 'قديم', 'حلو', 'جميل', 'فيلم', 'افلام', 'أفلام', 'مسلسل', 'مسلسلات', 'حلقة', 'حلقات',
+        'قناة', 'قنوات', 'بث', 'مباشر', 'مباراة', 'مباريات', 'سهرة', 'سهره'
+    ]);
+
     function normalizeArabic(text) {
         if (!text || typeof text !== 'string') return '';
         return text.trim().toLowerCase()
@@ -191,77 +211,116 @@
             .replace(/\s+/g, ' ');
     }
 
+    function isSportsQuery(text) {
+        const sportsKeywords = [
+            'مباراة', 'مباريات', 'ماتش', 'دوري', 'كأس', 'كاس', 'ابطال', 'دوري ابطال', 'ريال', 'برشلونة', 'ليفربول',
+            'الاهلي', 'الزمالك', 'الهلال', 'النصر', 'الاتحاد', 'السيتي', 'يونايتد', 'ارسنال', 'تشيلسي', 'بايرن',
+            'باريس', 'يوفنتوس', 'ميلان', 'انتر', 'روما', 'كرة', 'كورة', 'رياضة', 'رياضيه', 'تنس', 'سلة', 'bein', 'ssc'
+        ];
+        const n = normalizeArabic(text);
+        return sportsKeywords.some(kw => n.includes(kw));
+    }
+
+    function groupAndFormatChannels(channelsList) {
+        const grouped = {};
+        channelsList.forEach(ch => {
+            const rawName = ch.name || '';
+            let baseName = rawName.replace(/(4K|UHD|FHD|1080p|HD|720p|SD|Low|HEVC|H265)/gi, '').trim();
+            if (!grouped[baseName]) {
+                grouped[baseName] = {
+                    baseName: baseName || rawName,
+                    icon: ch.stream_icon || 'photo/logo.ico',
+                    qualities: []
+                };
+            }
+
+            let qLabel = 'HD';
+            const u = rawName.toUpperCase();
+            if (u.includes('4K') || u.includes('UHD')) qLabel = '4K';
+            else if (u.includes('FHD') || u.includes('1080')) qLabel = 'FHD';
+            else if (u.includes('SD')) qLabel = 'SD';
+            else if (u.includes('LOW')) qLabel = 'Low';
+
+            grouped[baseName].qualities.push({
+                id: ch.stream_id,
+                name: rawName,
+                quality: qLabel
+            });
+        });
+        return Object.values(grouped);
+    }
+
     async function searchActiveClientServer(query) {
         const normQuery = normalizeArabic(query);
-        const words = normQuery.split(' ').filter(w => w.length > 1);
+        const allWords = normQuery.split(' ').filter(w => w.length > 1);
+        const meaningfulWords = allWords.filter(w => !STOP_WORDS.has(w));
+        const isSports = isSportsQuery(query);
 
         const results = {
+            isSports,
             movies: [],
             series: [],
             channels: []
         };
 
         try {
-            // 1. فحص الأفلام
+            // 1. إذا كان السؤال عن رياضة أو مباريات: نمنع البحث في الأفلام والمسلسلات نهائياً
+            if (isSports) {
+                if (window.getAllStreamsForType) {
+                    const live = await window.getAllStreamsForType('live', 'get_live_streams').catch(() => []);
+                    if (Array.isArray(live)) {
+                        const sportsKeywords = ['bein', 'ssc', 'ad sport', 'alkass', 'on time', 'sport', 'رياضية', 'كورة', 'starz'];
+                        const matched = live.filter(c => {
+                            const cName = normalizeArabic(c.name || '');
+                            return sportsKeywords.some(sk => cName.includes(sk));
+                        });
+                        results.channels = groupAndFormatChannels(matched).slice(0, 4);
+                    }
+                }
+                return results;
+            }
+
+            // 2. للأفلام والمسلسلات: نعتمد فقط على الكلمات الفعلية بعد استبعاد الكلمات الشائعة
+            const searchWords = meaningfulWords.length > 0 ? meaningfulWords : allWords;
+
             if (window.getAllStreamsForType) {
                 const movies = await window.getAllStreamsForType('vod', 'get_vod_streams').catch(() => []);
-                if (Array.isArray(movies)) {
-                    results.movies = movies.filter(m => {
-                        const mName = normalizeArabic(m.name || '');
-                        return words.some(w => mName.includes(w));
-                    }).slice(0, 4);
+                if (Array.isArray(movies) && movies.length > 0) {
+                    if (searchWords.length > 0) {
+                        results.movies = movies.filter(m => {
+                            const mName = normalizeArabic(m.name || '');
+                            return searchWords.some(w => mName.includes(w));
+                        }).slice(0, 4);
+                    }
+                    // إذا كان السؤال عن تصنيف مثل أكشن أو فيلم سهرة ولم نجد تطابقاً حرفياً، نجلب أفلاماً ممتازة
+                    if (results.movies.length === 0 && (normQuery.includes('اكشن') || normQuery.includes('سهرة') || normQuery.includes('افضل'))) {
+                        results.movies = movies.slice(0, 4);
+                    }
                 }
             }
 
-            // 2. فحص المسلسلات
-            if (window.getAllStreamsForType) {
+            // 3. فحص المسلسلات إذا لم تكن هناك أفلام مطابقة
+            if (window.getAllStreamsForType && results.movies.length === 0) {
                 const series = await window.getAllStreamsForType('series', 'get_series').catch(() => []);
-                if (Array.isArray(series)) {
-                    results.series = series.filter(s => {
-                        const sName = normalizeArabic(s.name || '');
-                        return words.some(w => sName.includes(w));
-                    }).slice(0, 4);
+                if (Array.isArray(series) && series.length > 0) {
+                    if (searchWords.length > 0) {
+                        results.series = series.filter(s => {
+                            const sName = normalizeArabic(s.name || '');
+                            return searchWords.some(w => sName.includes(w));
+                        }).slice(0, 4);
+                    }
                 }
             }
 
-            // 3. فحص قنوات البث المباشر
-            if (window.getAllStreamsForType) {
+            // 4. فحص قنوات البث المباشر العامة إذا طُلبت صراحة
+            if (window.getAllStreamsForType && (normQuery.includes('قناة') || normQuery.includes('شغل'))) {
                 const live = await window.getAllStreamsForType('live', 'get_live_streams').catch(() => []);
                 if (Array.isArray(live)) {
-                    // البحث عن القنوات ومطابقة الأسماء مع تجميع الجودات
                     const matched = live.filter(c => {
                         const cName = normalizeArabic(c.name || '');
-                        return words.some(w => cName.includes(w));
+                        return searchWords.some(w => cName.includes(w));
                     });
-
-                    // تجميع القنوات حسب الاسم الأساسي والجودات
-                    const grouped = {};
-                    matched.forEach(ch => {
-                        const rawName = ch.name || '';
-                        let baseName = rawName.replace(/(4K|UHD|FHD|1080p|HD|720p|SD|Low|HEVC|H265)/gi, '').trim();
-                        if (!grouped[baseName]) {
-                            grouped[baseName] = {
-                                baseName: baseName || rawName,
-                                icon: ch.stream_icon || 'photo/logo.ico',
-                                qualities: []
-                            };
-                        }
-
-                        let qLabel = 'HD';
-                        const u = rawName.toUpperCase();
-                        if (u.includes('4K') || u.includes('UHD')) qLabel = '4K';
-                        else if (u.includes('FHD') || u.includes('1080')) qLabel = 'FHD';
-                        else if (u.includes('SD')) qLabel = 'SD';
-                        else if (u.includes('LOW')) qLabel = 'Low';
-
-                        grouped[baseName].qualities.push({
-                            id: ch.stream_id,
-                            name: rawName,
-                            quality: qLabel
-                        });
-                    });
-
-                    results.channels = Object.values(grouped).slice(0, 3);
+                    results.channels = groupAndFormatChannels(matched).slice(0, 3);
                 }
             }
         } catch (e) {
@@ -303,18 +362,25 @@
             throw new Error('يرجى الضغط على أيقونة المفتاح 🔑 في الأعلى وإدخال مفتاح Gemini API المجاني الخاص بك.');
         }
 
-        // صياغة السياق المستخرج من سيرفر العميل الحالي
-        let contextText = `[سياق محتويات سيرفر العميل الحالي]:\n`;
-        if (serverContext.movies && serverContext.movies.length > 0) {
-            contextText += `- أفلام متوفرة في سيرفر العميل مطابقة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
+        // صياغة السياق المستخرج من سيرفر العميل الحالي بدقة تامة
+        let contextText = '';
+        if (serverContext.isSports) {
+            contextText += `[سياق رياضي ومباريات اليوم]:\n`;
+            if (serverContext.channels && serverContext.channels.length > 0) {
+                contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
+            }
+            contextText += `[توجيه حاسم ومطلوب]: العميل يسأل عن مباريات كرة قدم أو رياضة. استخدم Google Search لمعرفة مباريات اليوم وتوقيتها بدقة بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3) والقنوات الناقلة الرسمية. يمنع منعاً باتاً التحدث عن أي أفلام أو مسلسلات!\n`;
         } else {
-            contextText += `- لم نجد أفلاماً مطابقة مباشرة في السيرفر.\n`;
-        }
-        if (serverContext.series && serverContext.series.length > 0) {
-            contextText += `- مسلسلات متوفرة في سيرفر العميل مطابقة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
-        }
-        if (serverContext.channels && serverContext.channels.length > 0) {
-            contextText += `- قنوات بث مباشر متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+            contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
+            if (serverContext.movies && serverContext.movies.length > 0) {
+                contextText += `- أفلام متوفرة في سيرفر العميل مطابقة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
+            }
+            if (serverContext.series && serverContext.series.length > 0) {
+                contextText += `- مسلسلات متوفرة في سيرفر العميل مطابقة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
+            }
+            if (serverContext.channels && serverContext.channels.length > 0) {
+                contextText += `- قنوات بث مباشر متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+            }
         }
 
         const promptWithContext = `${contextText}\nسؤال العميل: ${userMessage}`;
@@ -387,15 +453,24 @@
             throw new Error('يرجى الضغط على زر المفتاح 🔑 أعلى النافذة وإدخال مفتاح Gemini API مجاني خاص بك.');
         }
 
-        let contextText = `[سياق محتويات سيرفر العميل الحالي]:\n`;
-        if (serverContext.movies && serverContext.movies.length > 0) {
-            contextText += `- أفلام متوفرة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
-        }
-        if (serverContext.series && serverContext.series.length > 0) {
-            contextText += `- مسلسلات متوفرة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
-        }
-        if (serverContext.channels && serverContext.channels.length > 0) {
-            contextText += `- قنوات بث مباشر: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+        let contextText = '';
+        if (serverContext.isSports) {
+            contextText += `[سياق رياضي ومباريات اليوم]:\n`;
+            if (serverContext.channels && serverContext.channels.length > 0) {
+                contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
+            }
+            contextText += `[توجيه حاسم ومطلوب]: إذا كان صوت العميل عن مباريات كرة قدم أو رياضة، اذكر مباريات اليوم وتوقيتها بدقة بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3) والقنوات الناقلة. يمنع منعاً باتاً ذكر أي أفلام أو مسلسلات إذا كان السؤال رياضياً!\n`;
+        } else {
+            contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
+            if (serverContext.movies && serverContext.movies.length > 0) {
+                contextText += `- أفلام متوفرة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
+            }
+            if (serverContext.series && serverContext.series.length > 0) {
+                contextText += `- مسلسلات متوفرة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
+            }
+            if (serverContext.channels && serverContext.channels.length > 0) {
+                contextText += `- قنوات بث مباشر: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
+            }
         }
 
         const audioPrompt = `استمع إلى هذا التسجيل الصوتي للعميل، وافهم سؤاله (سواء باللهجة الليبية أو العربية الفصحى أو أي لهجة عربية) وأجب عليه بدقة وود وفق إرشادات النظام، مع الاستفادة من سياق السيرفر إذا كان سؤاله يتعلق بفيلم أو مسلسل أو مباراة أو قناة:\n${contextText}`;
@@ -783,6 +858,12 @@
             // إزالة مؤشر التحليل
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
+
+            // إذا كان الرد عن الرياضة والمباريات، لا نعرض كروت أفلام
+            if (isSportsQuery(aiReply)) {
+                serverContext.movies = [];
+                serverContext.series = [];
+            }
 
             // تجهيز كروت التشغيل وعرض الرد
             const actionCardsHtml = buildInteractiveCardsHtml(serverContext);

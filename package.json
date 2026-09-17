@@ -1,6 +1,6 @@
 {
     "name": "almezo-servers",
-    "version": "1.0.44",
+    "version": "1.0.45",
     "description": "سيرفرات الميزو - AlMeZ0 Servers Multi-Platform App",
     "main": "electron/main.js",
     "scripts": {
@@ -37,6 +37,8 @@
             "electron/**/*",
             "screen-adapter.js",
             "app-bridge.js",
+            "ai-config.js",
+            "ai-assistant.js",
             "index.html",
             "admin-dashboard.html",
             "admin-dashboard.js",

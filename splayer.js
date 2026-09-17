@@ -1337,8 +1337,8 @@ function playStream(id, type, extension, name, icon) {
     // في تطبيق أندرويد فقط: تشغيل البث المباشر والأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
     // ================================================================
     if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
-        if (type === 'vod' || type === 'series') {
-            const isLive = false;
+        if (type === 'vod' || type === 'series' || type === 'live') {
+            const isLive = (type === 'live');
             const isTv = document.body.classList.contains('tv-device-mode') ||
                          (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
             if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {

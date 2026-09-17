@@ -122,6 +122,25 @@
             return false;
         },
 
+        hasRecordAudioPermission: function () {
+            try {
+                if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.hasRecordAudioPermission === 'function') {
+                    return window.AndroidNativeBridge.hasRecordAudioPermission();
+                }
+            } catch (e) { }
+            return true;
+        },
+
+        requestRecordAudioPermission: function () {
+            try {
+                if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.requestRecordAudioPermission === 'function') {
+                    window.AndroidNativeBridge.requestRecordAudioPermission();
+                    return true;
+                }
+            } catch (e) { }
+            return false;
+        },
+
         // Helper to launch hardware-accelerated internal native video player (ExoPlayer)
         playNativeVideo: function (videoUrl, title, posterUrl, isLive, isTv) {
             try {
@@ -406,7 +425,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.44';
+    const CURRENT_APP_VERSION = '1.0.45';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

@@ -61,14 +61,6 @@ public class MainActivity extends BridgeActivity {
                 enableImmersiveFullscreen();
             }
         } catch (Throwable ignored) { }
-
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 101);
-                }
-            }
-        } catch (Throwable ignored) { }
     }
 
     public void enableImmersiveFullscreen() {
@@ -160,6 +152,23 @@ public class MainActivity extends BridgeActivity {
     }
 
     class NativePlayerBridge {
+        @JavascriptInterface
+        public boolean hasRecordAudioPermission() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                return checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            }
+            return true;
+        }
+
+        @JavascriptInterface
+        public void requestRecordAudioPermission() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                runOnUiThread(() -> {
+                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 101);
+                });
+            }
+        }
+
         @JavascriptInterface
         public void setImmersiveFullscreen(boolean enabled) {
             if (enabled) {

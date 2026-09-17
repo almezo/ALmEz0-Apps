@@ -54,6 +54,18 @@ if (!gotTheLock) {
             }
         });
 
+        // Allow microphone permissions for AI voice assistant
+        mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+            if (permission === 'media') {
+                return callback(true);
+            }
+            callback(false);
+        });
+        mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+            if (permission === 'media') return true;
+            return false;
+        });
+
         // Hide default top menu for clean native look
         Menu.setApplicationMenu(null);
 
