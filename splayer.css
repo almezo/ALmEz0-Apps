@@ -5754,10 +5754,24 @@ body.low-spec-mode .playlists-modal {
     object-fit: contain;
 }
 
+#livePlayerWrapper video,
+#livePlayerWrapper.live-fullscreen-mode video,
+.video-js video,
+#liveVideoContainer video {
+    object-fit: contain !important;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: auto;
+}
+
 body.tv-device-mode #livePlayerWrapper video,
 body.tv-device-mode #livePlayerWrapper.live-fullscreen-mode video,
 body.tv-device-mode .video-js video {
-    object-fit: fill !important;
+    object-fit: contain !important;
+    background: #000000 !important;
 }
 
 .live-fullscreen-btn-overlay {

@@ -362,8 +362,12 @@ function playCurrentLiveNative() {
     const pass = encodeURIComponent(state.password);
     const ext = currentStreamInfo.extension || 'm3u8';
     const streamUrl = `${host}/live/${user}/${pass}/${currentStreamInfo.id}.${ext}`;
+    const isTv = document.body.classList.contains('tv-device-mode') ||
+                 (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
     if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
-        window.AndroidNativeBridge.playNativeVideo(streamUrl, currentStreamInfo.name, currentStreamInfo.icon || '', true);
+        window.AndroidNativeBridge.playNativeVideo(streamUrl, currentStreamInfo.name, currentStreamInfo.icon || '', true, isTv);
+    } else if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
+        window.AlMeZ0App.playNativeVideo(streamUrl, currentStreamInfo.name, currentStreamInfo.icon || '', true, isTv);
     }
 }
 
@@ -1514,15 +1518,22 @@ function playStream(id, type, extension, name, icon) {
                 const isLowEnd = document.body.classList.contains('tv-device-mode') || document.body.classList.contains('low-spec-mode');
                 window.hlsInstance = new Hls({
                     enableWorker: true,
-                    lowLatencyMode: type === 'live',
-                    backBufferLength: type === 'live' ? 10 : (isLowEnd ? 20 : 60),
-                    maxBufferLength: type === 'live' ? 6 : (isLowEnd ? 12 : 30),
-                    maxMaxBufferLength: type === 'live' ? 12 : (isLowEnd ? 24 : 60),
-                    maxBufferSize: isLowEnd ? (15 * 1000 * 1000) : (40 * 1000 * 1000),
-                    liveSyncDurationCount: 2,
-                    liveMaxLatencyDurationCount: 4,
+                    lowLatencyMode: false, // تعطيل نمط lowLatency لمنع تسريع/تبطيء الفيديو والتشويش البصري على سيرفرات IPTV
+                    backBufferLength: 15,
+                    maxBufferLength: isLowEnd ? 20 : 30, // تخزين مسبق مستقر (20-30 ثانية) لمنع أي تقطيع لحظي
+                    maxMaxBufferLength: isLowEnd ? 40 : 60,
+                    maxBufferSize: isLowEnd ? (25 * 1000 * 1000) : (60 * 1000 * 1000),
+                    liveSyncDurationCount: isLowEnd ? 4 : 3, // التزامن مع 3 إلى 4 قطع بث لتفادي فجوات البث والتقطيع
+                    liveMaxLatencyDurationCount: isLowEnd ? 8 : 6,
                     startFragPrefetch: true,
-                    maxLoadingDelay: 2
+                    maxLoadingDelay: 4,
+                    highBufferWatchdogPeriod: 2,
+                    nudgeOffset: 0.1,
+                    nudgeMaxRetry: 5,
+                    maxBufferHole: 0.5,
+                    fragLoadingTimeOut: 20000,
+                    manifestLoadingTimeOut: 15000,
+                    levelLoadingTimeOut: 15000
                 });
 
                 window.hlsInstance.loadSource(playUrl);
@@ -1532,12 +1543,18 @@ function playStream(id, type, extension, name, icon) {
 
                 let hlsNetworkRetries = 0;
                 window.hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+                        console.warn("[HLS] Buffer Stalled, nudging video smoothly...");
+                        if (videoTag && !videoTag.paused) {
+                            try { videoTag.currentTime += 0.1; } catch (e) { }
+                        }
+                    }
                     if (data.fatal) {
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
                                 hlsNetworkRetries++;
-                                if (hlsNetworkRetries <= 2) {
-                                    console.warn(`HLS Network Error, retrying (${hlsNetworkRetries}/2)...`);
+                                if (hlsNetworkRetries <= 3) {
+                                    console.warn(`HLS Network Error, retrying (${hlsNetworkRetries}/3)...`);
                                     window.hlsInstance.startLoad();
                                 } else {
                                     console.warn("HLS Network Error retry limit reached, triggering fallback.");

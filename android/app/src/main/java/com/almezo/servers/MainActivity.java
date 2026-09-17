@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import androidx.core.app.NotificationCompat;
 import com.getcapacitor.BridgeActivity;
@@ -20,6 +21,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        optimizeDisplayRefreshRate();
 
         // Inject Native Bridge to enable immersive fullscreen and ExoPlayer playback
         if (bridge != null && bridge.getWebView() != null) {
@@ -112,11 +114,40 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        optimizeDisplayRefreshRate();
         if (bridge != null && bridge.getWebView() != null) {
             bridge.getWebView().addJavascriptInterface(new NativePlayerBridge(), "AndroidNativeBridge");
         }
         if (isImmersive) {
             enableImmersiveFullscreen();
+        }
+    }
+
+    private void optimizeDisplayRefreshRate() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.view.Display display = getDisplay();
+                if (display != null) {
+                    android.view.Display.Mode[] modes = display.getSupportedModes();
+                    android.view.Display.Mode maxMode = null;
+                    for (android.view.Display.Mode mode : modes) {
+                        if (maxMode == null || mode.getRefreshRate() > maxMode.getRefreshRate()) {
+                            maxMode = mode;
+                        }
+                    }
+                    if (maxMode != null && maxMode.getRefreshRate() >= 60.0f) {
+                        WindowManager.LayoutParams params = getWindow().getAttributes();
+                        params.preferredDisplayModeId = maxMode.getModeId();
+                        getWindow().setAttributes(params);
+                    }
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                WindowManager.LayoutParams params = getWindow().getAttributes();
+                params.preferredRefreshRate = 120.0f;
+                getWindow().setAttributes(params);
+            }
+        } catch (Throwable t) {
+            android.util.Log.w("MainActivity", "optimizeDisplayRefreshRate error", t);
         }
     }
 

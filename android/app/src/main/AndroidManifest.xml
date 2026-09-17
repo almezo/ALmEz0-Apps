@@ -16,6 +16,7 @@
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:hardwareAccelerated="true"
             android:launchMode="singleTask"
             android:exported="true">
 
@@ -30,6 +31,7 @@
             android:name=".PlayerActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:exported="false"
+            android:hardwareAccelerated="true"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/AppTheme.Player"
             android:launchMode="singleTop" />
