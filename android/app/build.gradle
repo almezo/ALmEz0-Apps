@@ -1,5 +1,18 @@
 apply plugin: 'com.android.application'
 
+// تحميل بيانات توقيع الإصدار من ملف محلي غير متتبَّع في git (android/app/keystore.properties)،
+// أو من متغيرات بيئة CI كبديل (ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD)
+// بدلاً من كتابة كلمة السر نصياً داخل هذا الملف المتتبَّع في المستودع.
+def keystorePropertiesFile = file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def resolvedStoreFile = keystoreProperties['storeFile'] ?: 'almezo-release.keystore'
+def resolvedStorePassword = keystoreProperties['storePassword'] ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
+def resolvedKeyAlias = keystoreProperties['keyAlias'] ?: (System.getenv('ANDROID_KEY_ALIAS') ?: 'almezo')
+def resolvedKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('ANDROID_KEY_PASSWORD')
+
 android {
     namespace = "com.almezo.servers"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -18,10 +31,10 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file('almezo-release.keystore')
-            storePassword 'almezo2026'
-            keyAlias 'almezo'
-            keyPassword 'almezo2026'
+            storeFile file(resolvedStoreFile)
+            storePassword resolvedStorePassword
+            keyAlias resolvedKeyAlias
+            keyPassword resolvedKeyPassword
         }
     }
     buildTypes {
