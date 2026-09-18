@@ -666,6 +666,42 @@ body.touch-device-mode #app-scaler {
     white-space: nowrap;
 }
 
+/* =========================================================
+   تكبير بطاقات الشاشة الرئيسية في وضع النقال (touch)
+   ---------------------------------------------------------
+   سبب المشكلة: الواجهة في وضع النقال تُرسم داخل "كانفاس" ثابت ارتفاعه 750px ثم يُصغَّر
+   ليناسب الشاشة (app-scaler). لكن قياس ارتفاع البطاقة كان يعتمد على 52vh، ووحدة vh تُحسب
+   من ارتفاع شاشة الجهاز الحقيقية (مثلاً 390px على هاتف) وليس من ارتفاع الكانفاس، فينتج
+   ارتفاع صغير (340px من أصل 750px = 45% فقط) بينما على الكمبيوتر ينتج 53% فتبدو أكبر وأجمل.
+   الحل: قياسات ثابتة بالبكسل داخل الكانفاس لتتطابق نسب النقال مع برنامج الكمبيوتر تماماً.
+   ========================================================= */
+body.touch-device-mode .dash-cards-wrapper {
+    grid-template-columns: repeat(3, minmax(280px, 470px)) !important;
+    max-width: 1480px !important;
+    gap: 28px !important;
+    padding: 22px 30px !important;
+}
+
+body.touch-device-mode .dash-card {
+    height: 430px !important;
+    max-height: 430px !important;
+    padding: 26px 32px !important;
+}
+
+body.touch-device-mode .dash-card i {
+    font-size: 62px !important;
+    top: 34px !important;
+    left: 34px !important;
+}
+
+body.touch-device-mode .dash-card h2 {
+    font-size: 37px !important;
+}
+
+body.touch-device-mode .dash-card p {
+    font-size: 17px !important;
+}
+
 /* 1. كرت البث المباشر (أحمر ياقوتي سينمائي متوهج - Crimson Live Ruby) */
 .card-live {
     background: linear-gradient(155deg, rgba(195, 20, 42, 0.88) 0%, rgba(120, 10, 24, 0.94) 50%, rgba(45, 3, 10, 0.98) 100%) !important;
@@ -5739,7 +5775,9 @@ body.tv-device-mode .dash-card {
     padding: clamp(16px, 3.5vw, 38px) clamp(14px, 3vw, 34px) !important;
     border: 2.5px solid rgba(255, 255, 255, 0.12) !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8) !important;
-    background: #0e1422 !important;
+    /* ملاحظة: أُزيلت خلفية موحدة داكنة (#0e1422) كانت تطمس التدرجات اللونية المميزة
+       للبطاقات (أحمر للبث، رمادي للأفلام، أخضر للمسلسلات) في وضع الشاشة/الريسيفر،
+       فتختلف الهوية اللونية عن وضع النقال. الآن يرث كل كرت لونه الأصلي نفسه تماماً. */
     display: flex !important;
     flex-direction: column !important;
     justify-content: flex-end !important;
@@ -5799,6 +5837,14 @@ body.platform-electron #deviceCardTouch,
 body.platform-electron #deviceCardTv,
 body.desktop-device-mode #deviceCardTouch,
 body.desktop-device-mode #deviceCardTv {
+    display: none !important;
+}
+
+/* برنامج الكمبيوتر يعمل على الكمبيوتر فقط، فلا معنى لوجود زر أو نافذة "اختيار نمط الجهاز"
+   بداخله (النمط دائماً كمبيوتر) — نخفي الزرين والنافذة بالكامل */
+body.platform-electron #navDeviceModeBtn,
+body.platform-electron #btnDeviceModeAuth,
+body.platform-electron #deviceModeModal {
     display: none !important;
 }
 
@@ -6790,6 +6836,67 @@ body.in-fullscreen-player .ai-floating-trigger,
     40% { transform: scale(1.0); opacity: 1; }
 }
 
+/* =========================================================
+   إصلاح: مؤشر "جاري الكتابة" لمساعد الميزو لم يكن يظهر إطلاقاً
+   ---------------------------------------------------------
+   السبب: الكود في ai-assistant.js ينشئ العنصر بالاسم ai-typing-dots بينما التنسيق
+   الوحيد الموجود كان باسم ai-loading-dots (اسمان مختلفان)، فكانت النقاط الثلاث تُنشأ
+   كعناصر فارغة بلا حجم ولا لون = غير مرئية تماماً، فيبدو المساعد وكأنه لا يستجيب.
+   ========================================================= */
+.ai-typing-dots {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 10px 6px;
+}
+
+.ai-typing-dots span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: aiBouncing 1.4s infinite ease-in-out both;
+}
+
+.ai-typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.ai-typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.ai-typing-msg .ai-msg-content {
+    display: flex;
+    align-items: center;
+}
+
+/* حاوية كروت التشغيل السريع أسفل رد المساعد (كان اسمها في الكود ai-msg-actions
+   بينما التنسيق الموجود باسم ai-cards-grid) */
+.ai-msg-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+/* صف اختيار جودة القناة داخل رد المساعد */
+.ai-qualities-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px 10px;
+}
+
+.ai-q-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-left: 4px;
+}
+
+.ai-q-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 /* بطاقات الأفلام والمسلسلات التفاعلية */
 .ai-cards-grid {
     display: flex;
@@ -7610,6 +7717,37 @@ body.in-live-fullscreen #livePlayerWrapper {
     margin: 0 !important;
     border-radius: 0 !important;
     background: #000000 !important;
+}
+
+/* إصلاح ملء الشاشة في البث المباشر (كان الشريط العلوي يبقى ظاهراً فوق الفيديو
+   والفيديو لا يملأ الشاشة فعلياً على الكمبيوتر) */
+body.in-live-fullscreen .navbar,
+body.in-live-fullscreen #dashboard-nav,
+body.in-live-fullscreen .footer,
+body.in-live-fullscreen .app-footer,
+body.in-live-fullscreen .ai-floating-trigger {
+    display: none !important;
+}
+
+body.in-live-fullscreen .col-sidebar,
+body.in-live-fullscreen .col-list {
+    display: none !important;
+}
+
+body.in-live-fullscreen #livePlayerWrapper .video-js,
+body.in-live-fullscreen #livePlayerWrapper #liveVideoContainer,
+body.in-live-fullscreen #livePlayerWrapper video {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    object-fit: contain !important;
+}
+
+/* إبقاء شريط التحكم ظاهراً وقابلاً للاستخدام فوق الفيديو في وضع ملء الشاشة */
+body.in-live-fullscreen #livePlayerWrapper .vjs-control-bar {
+    z-index: 1000000 !important;
+    display: flex !important;
 }
 
 /* =========================================================

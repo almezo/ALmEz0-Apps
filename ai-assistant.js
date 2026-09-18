@@ -605,6 +605,29 @@
         return functions.httpsCallable('generateAiReply');
     }
 
+    // مهلة زمنية واضحة بدل انتظار مفتوح بلا نهاية إن تأخر السيرفر أو انقطع الاتصال،
+    // فكان المستخدم يرى المؤشر يدور طويلاً دون أي رسالة مفهومة
+    const AI_REQUEST_TIMEOUT_MS = 35000;
+
+    async function callAiWithTimeout(payload) {
+        const aiCallable = getAiCallable();
+        let timeoutId = null;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error('انتهت المهلة أثناء انتظار رد المساعد. تحقق من اتصال الإنترنت وحاول مجدداً.'));
+            }, AI_REQUEST_TIMEOUT_MS);
+        });
+
+        try {
+            const result = await Promise.race([aiCallable(payload), timeoutPromise]);
+            const replyText = (result && result.data && result.data.text) || '';
+            if (!replyText) throw new Error('لم يتم استلام رد من النموذج');
+            return replyText;
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
+    }
+
     // =========================================================================
     // 3. استدعاء Google Gemini 2.5 / 1.5 Flash عبر Cloud Function آمنة
     // =========================================================================
@@ -666,11 +689,7 @@
         }
 
         try {
-            const aiCallable = getAiCallable();
-            const result = await aiCallable(payload);
-            const replyText = (result.data && result.data.text) || '';
-            if (!replyText) throw new Error('لم يتم استلام رد من النموذج');
-            return replyText;
+            return await callAiWithTimeout(payload);
         } catch (err) {
             const msg = (err && err.message) || 'فشل الاتصال بنموذج الذكاء الاصطناعي';
             throw new Error(msg);
@@ -741,11 +760,7 @@
         }
 
         try {
-            const aiCallable = getAiCallable();
-            const result = await aiCallable(payload);
-            const replyText = (result.data && result.data.text) || '';
-            if (!replyText) throw new Error('لم يتم استلام رد من النموذج');
-            return replyText;
+            return await callAiWithTimeout(payload);
         } catch (err) {
             const msg = (err && err.message) || 'فشل معالجة المقطع الصوتي';
             throw new Error(msg);
@@ -1073,15 +1088,23 @@
         }
 
         try {
-            // سياق السيرفر
-            const serverContext = await searchActiveClientServer('');
+            // إصلاح: كان يُجرى بحث في السيرفر بنص فارغ ('') قبل معرفة محتوى الرسالة الصوتية أصلاً،
+            // فينتج سياق فارغ بلا معنى يُرسل للنموذج (سبب رئيسي لردود غير منطقية على الصوت).
+            // الآن: نرسل الصوت أولاً بسياق فارغ صراحةً، ثم نبني كروت التشغيل من نص الرد نفسه.
+            const emptyContext = { isSports: false, movies: [], series: [], channels: [] };
 
             // إرسال الصوت للنموذج
-            const aiReply = await requestGeminiAiAudio(base64Data, mimeType, serverContext);
+            const aiReply = await requestGeminiAiAudio(base64Data, mimeType, emptyContext);
 
             // إزالة مؤشر التحليل
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
+
+            // البحث في سيرفر العميل بناءً على ما فهمه المساعد فعلياً من الصوت
+            let serverContext = emptyContext;
+            try {
+                serverContext = await searchActiveClientServer(aiReply);
+            } catch (e) { }
 
             // إذا كان الرد عن الرياضة والمباريات، لا نعرض كروت أفلام
             if (isSportsQuery(aiReply)) {

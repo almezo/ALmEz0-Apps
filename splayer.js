@@ -76,8 +76,18 @@ function applyAutoScaling() {
     const isDesktopMode = document.body.classList.contains('desktop-device-mode');
     const isElectronPlatform = document.body.classList.contains('platform-electron') || (window.electronAPI && window.electronAPI.isElectron);
 
+    // ارتفاع كانفاس التصميم الأساسي الذي كُتبت عليه كل قياسات الواجهة
+    const BASE_CANVAS_HEIGHT = 750;
+
+    // إصلاح جوهري: وضع الشاشة/الريسيفر (وكذلك نمط الكمبيوتر) كان يعرض الواجهة بمقاس 1:1 دائماً
+    // بافتراض أن الشاشة كبيرة فعلاً. عند تفعيل وضع الشاشة يدوياً من هاتف حقيقي (ارتفاع ~390px)
+    // كانت كل العناصر المصممة على كانفاس ارتفاعه 750px تظهر بضعف حجمها تقريباً وتتراكب.
+    // الآن: العرض 1:1 يبقى فقط عندما تكون الشاشة كبيرة فعلاً بما يكفي؛ وإن كانت أصغر من الكانفاس
+    // الأساسي يتم تصغيرها تلقائياً بنفس منطق وضع النقال، فتتطابق النسب في كل الأوضاع والأجهزة.
+    const isNativeSizeCapable = windowHeight >= BASE_CANVAS_HEIGHT;
+
     // On TV Mode (Android TV / TV Boxes / Receivers) and PC (Desktop / Electron Platform): Full-Screen 100% Edge-to-Edge 1:1 display
-    if (isTvMode || isDesktopMode || isElectronPlatform || (!document.body.classList.contains('touch-device-mode') && windowWidth >= 1024)) {
+    if (isNativeSizeCapable && (isTvMode || isDesktopMode || isElectronPlatform || (!document.body.classList.contains('touch-device-mode') && windowWidth >= 1024))) {
         scaler.style.transform = 'none';
         scaler.style.transformOrigin = 'initial';
         scaler.style.top = '0';
@@ -122,7 +132,7 @@ function applyAutoScaling() {
         stableLandscapeHeight = 0;
     }
 
-    const baseHeight = 750;
+    const baseHeight = BASE_CANVAS_HEIGHT;
     // حساب النسبة العرضية الفعلية للشاشة لتفادي أي حواف سوداء تماماً على الشاشات العريضة والأجهزة اللوحية
     const rawAspect = (effectiveH > 0) ? (effectiveW / effectiveH) : (1650 / 750);
     const clampedAspect = Math.max(1.33, Math.min(2.45, rawAspect));
@@ -2869,6 +2879,20 @@ async function manualRefreshCategory(type, event) {
         delete fetchCache[key];
     }
 
+    // إصلاح مهم: زر التحديث كان يمسح كاش الأقسام فقط ولا يمسح كاش قوائم القنوات/الأفلام/المسلسلات،
+    // فكانت الإضافات الجديدة على السيرفر لا تظهر للمستخدم حتى بعد الضغط على "تحديث".
+    try {
+        const streamsAction = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
+        const streamsKey = `${state.username || ''}_${streamsAction}`;
+        delete globalStreamsCache[streamsKey];
+        delete globalStreamsInFlight[streamsKey];
+        const db = await openPersistCacheDb();
+        if (db) {
+            const tx = db.transaction(PERSIST_CACHE_STORE, 'readwrite');
+            tx.objectStore(PERSIST_CACHE_STORE).delete(streamsKey);
+        }
+    } catch (e) { }
+
     let action = 'get_live_categories';
     let typeName = 'البث المباشر';
     if (type === 'vod') { action = 'get_vod_categories'; typeName = 'الأفلام'; }
@@ -2906,6 +2930,8 @@ function forceRefreshData() {
     for (const key in globalStreamsInFlight) {
         delete globalStreamsInFlight[key];
     }
+    // مسح الكاش الدائم أيضاً حتى يكون "تحديث كامل" فعلياً من السيرفر
+    clearPersistCache();
     showToast('جاري التحديث...', 'info');
     if (currentScreenId === 'vod-screen') {
         loadCategories(state.activeTab === 'movies' ? 'get_vod_categories' : 'get_series_categories', state.activeTab);
@@ -3112,11 +3138,85 @@ async function loadCategories(action, type) {
 const globalStreamsCache = {};
 const globalStreamsInFlight = {};
 
+// ==========================================
+// كاش دائم على القرص (IndexedDB) لقوائم القنوات والأفلام والمسلسلات
+// ------------------------------------------
+// المشكلة السابقة: الكاش كان في الذاكرة فقط ولمدة 10 دقائق، أي أن كل فتح جديد للتطبيق
+// (وكل 10 دقائق أثناء الاستخدام) كان يعيد تحميل كامل قوائم السيرفر من جديد
+// (عشرات آلاف العناصر = استهلاك بيانات كبير جداً وبطء واضح في الفتح).
+// الحل: تخزين القوائم على القرص داخل التطبيق لتبقى بعد إغلاقه، مع تحديثها دورياً
+// أو فور ضغط المستخدم على زر تحديث الباقة.
+// ==========================================
+const PERSIST_CACHE_DB = 'almezo_streams_cache';
+const PERSIST_CACHE_STORE = 'catalogs';
+const PERSIST_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 ساعة
+const MEMORY_CACHE_TTL_MS = 10 * 60 * 1000;       // 10 دقائق (الذاكرة السريعة)
+
+function openPersistCacheDb() {
+    return new Promise((resolve) => {
+        try {
+            if (!window.indexedDB) return resolve(null);
+            const req = indexedDB.open(PERSIST_CACHE_DB, 1);
+            req.onupgradeneeded = () => {
+                try {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(PERSIST_CACHE_STORE)) {
+                        db.createObjectStore(PERSIST_CACHE_STORE);
+                    }
+                } catch (e) { }
+            };
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+        } catch (e) {
+            resolve(null);
+        }
+    });
+}
+
+async function readPersistCache(key) {
+    try {
+        const db = await openPersistCacheDb();
+        if (!db) return null;
+        return await new Promise((resolve) => {
+            try {
+                const tx = db.transaction(PERSIST_CACHE_STORE, 'readonly');
+                const req = tx.objectStore(PERSIST_CACHE_STORE).get(key);
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => resolve(null);
+            } catch (e) {
+                resolve(null);
+            }
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+async function writePersistCache(key, data) {
+    try {
+        const db = await openPersistCacheDb();
+        if (!db) return;
+        const tx = db.transaction(PERSIST_CACHE_STORE, 'readwrite');
+        tx.objectStore(PERSIST_CACHE_STORE).put({ data: data, time: Date.now() }, key);
+    } catch (e) { }
+}
+
+async function clearPersistCache() {
+    try {
+        const db = await openPersistCacheDb();
+        if (!db) return;
+        const tx = db.transaction(PERSIST_CACHE_STORE, 'readwrite');
+        tx.objectStore(PERSIST_CACHE_STORE).clear();
+    } catch (e) { }
+}
+window.clearPersistCache = clearPersistCache;
+
 async function getAllStreamsForType(type, action) {
     const cacheKey = `${state.username || ''}_${action}`;
 
+    // 1) الذاكرة السريعة (نفس الجلسة)
     if (globalStreamsCache[cacheKey] && Array.isArray(globalStreamsCache[cacheKey].data)) {
-        if (Date.now() - globalStreamsCache[cacheKey].time < 10 * 60 * 1000) {
+        if (Date.now() - globalStreamsCache[cacheKey].time < MEMORY_CACHE_TTL_MS) {
             return globalStreamsCache[cacheKey].data;
         }
     }
@@ -3125,6 +3225,17 @@ async function getAllStreamsForType(type, action) {
         return await globalStreamsInFlight[cacheKey];
     }
 
+    // 2) الكاش الدائم على القرص (يبقى بعد إغلاق التطبيق = بلا استهلاك بيانات جديد)
+    try {
+        const persisted = await readPersistCache(cacheKey);
+        if (persisted && Array.isArray(persisted.data) && persisted.data.length > 0 &&
+            (Date.now() - persisted.time) < PERSIST_CACHE_TTL_MS) {
+            globalStreamsCache[cacheKey] = { data: persisted.data, time: Date.now() };
+            return persisted.data;
+        }
+    } catch (e) { }
+
+    // 3) التحميل من السيرفر (أول مرة أو بعد انتهاء صلاحية الكاش أو بعد تحديث يدوي)
     const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
     const user = encodeURIComponent(state.username);
     const pass = encodeURIComponent(state.password);
@@ -3133,6 +3244,9 @@ async function getAllStreamsForType(type, action) {
     globalStreamsInFlight[cacheKey] = proxyFetch(url).then(data => {
         const list = Array.isArray(data) ? data : [];
         globalStreamsCache[cacheKey] = { data: list, time: Date.now() };
+        if (list.length > 0) {
+            writePersistCache(cacheKey, list);
+        }
         delete globalStreamsInFlight[cacheKey];
         return list;
     }).catch(err => {
@@ -5023,6 +5137,7 @@ function initTvNavigationEngine() {
         '.nav-action-btn',
         '.cat-item',
         '.list-item',
+        '.live-channel-card',
         '.vod-card',
         '.episode-card',
         '.server-card',
@@ -5047,8 +5162,22 @@ function initTvNavigationEngine() {
         '.custom-vjs-aspect-btn',
         '.custom-vjs-fs-btn',
         '.custom-vjs-btn',
+        // عناصر كانت خارج تغطية الريموت تماماً: أزرار البحث والخيارات في ترويسة القوائم،
+        // وعناصر القائمة المنسدلة (الترتيب/إخفاء الأسماء)، وزر مسح البحث، وأزرار مساعد الميزو
+        '.header-icon-btn',
+        '.dropdown-item',
+        '.prominent-search-clear',
+        '.ai-chip-btn',
+        '.ai-btn-icon',
+        '.ai-btn-send',
+        '.ai-btn-mic',
+        '.ai-btn-close',
+        '.ai-card-btn-play',
+        '.ai-btn-quality',
+        '.ai-history-item',
         'button:not([disabled])',
         'input:not([disabled]):not([type="hidden"])',
+        '[tabindex="0"]',
         'a[href]'
     ].join(',');
 

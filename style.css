@@ -4821,12 +4821,8 @@ body.platform-electron #pwa-install-container,
     display: none !important;
 }
 
-/* برنامج الكمبيوتر (Electron) مخصص للتشغيل على الكمبيوتر فقط، فلا فائدة من بطاقة
-   "الأجهزة الإلكترونية" (صناديق تلفاز/رسيفرات/سمارت) بداخله */
-body.platform-electron .main-category-card.devices,
-.platform-electron .main-category-card.devices {
-    display: none !important;
-}
+/* ملاحظة: بطاقة "الأجهزة الإلكترونية" تظهر في كل المنصات بما فيها برنامج الكمبيوتر
+   (أُعيدت بناءً على طلب صريح بعد تجربتها مخفية) */
 
 .pwa-install-box-wrapper {
     background: rgba(26, 30, 35, 0.35);
@@ -7621,13 +7617,48 @@ body.platform-electron {
     transform: translateZ(0);
 }
 
-/* تخطي شاشة البداية الثقيلة فوراً في تطبيقات الأجهزة المثبتة والشاشات لفتح فوري بدون أي تأخير */
-.platform-native .app-launch-splash,
+/* الافتتاحية تظهر الآن في تطبيقي أندرويد والكمبيوتر أيضاً (كانت مخفية فيهما بالكامل عبر
+   .platform-native) لتوحيد هوية الميزو بين الموقع والتطبيقات.
+   على الأجهزة الضعيفة والشاشات لا نُلغيها بل نُخفّف تكلفتها فقط (انظر النسخة المخففة أدناه). */
+
+/* نسخة مخففة من الافتتاحية للأجهزة الضعيفة وصناديق التلفاز:
+   نفس الشعار ونفس ظهور الاسم والتلاشي، لكن بدون الطبقات الثقيلة على كرت الشاشة
+   (توهج ضبابي كبير، حلقات رادار متحركة، شعاع لمعان، وميض عدسة) التي تسبب التقطيع */
+[data-is-tv="true"] .splash-ambient-glow,
+body.tv-device-mode .splash-ambient-glow,
+body.tv-mode .splash-ambient-glow,
+body.low-spec-mode .splash-ambient-glow,
+[data-is-tv="true"] .splash-lens-flare,
+body.tv-device-mode .splash-lens-flare,
+body.tv-mode .splash-lens-flare,
+body.low-spec-mode .splash-lens-flare,
+[data-is-tv="true"] .splash-sonar-ring,
+body.tv-device-mode .splash-sonar-ring,
+body.tv-mode .splash-sonar-ring,
+body.low-spec-mode .splash-sonar-ring,
+[data-is-tv="true"] .splash-shimmer-ray,
+body.tv-device-mode .splash-shimmer-ray,
+body.tv-mode .splash-shimmer-ray,
+body.low-spec-mode .splash-shimmer-ray {
+    display: none !important;
+}
+
 [data-is-tv="true"] .app-launch-splash,
 body.tv-device-mode .app-launch-splash,
 body.tv-mode .app-launch-splash,
 body.low-spec-mode .app-launch-splash {
-    display: none !important;
+    background: radial-gradient(circle at 50% 45%, #0d1527 0%, #060911 60%, #020306 100%) !important;
+    perspective: none !important;
+}
+
+[data-is-tv="true"] .app-launch-splash *,
+body.tv-device-mode .app-launch-splash *,
+body.tv-mode .app-launch-splash *,
+body.low-spec-mode .app-launch-splash * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+    box-shadow: none !important;
 }
 
 .app-launch-splash.splash-dismiss {
