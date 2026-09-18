@@ -113,7 +113,6 @@ body {
 
 /* FULL-SCREEN RESPONSIVE CANVAS FOR ALL DEVICES (Edge-to-Edge 100% Proportional Engine) */
 body.desktop-device-mode #app-scaler,
-body.tv-device-mode #app-scaler,
 body.platform-electron #app-scaler {
     position: fixed !important;
     top: 0 !important;
@@ -5577,10 +5576,10 @@ body.platform-android .device-mode-grid {
 
 body.desktop-device-mode .col-sidebar,
 body.tv-device-mode .col-sidebar {
-    width: 380px !important;
-    min-width: 380px !important;
-    max-width: 380px !important;
-    flex: 0 0 380px !important;
+    width: 320px !important;
+    min-width: 320px !important;
+    max-width: 320px !important;
+    flex: 0 0 320px !important;
 }
 
 body.desktop-device-mode .col-list,
@@ -7048,10 +7047,11 @@ body.platform-android #live-screen #liveSearchWrap .search-input:focus {
 }
 
 /* شبكة القنوات الخماسية (5 Columns Grid) مثل صورة تطبيق إكس */
-body.platform-android #liveChannels {
+body.platform-android #liveChannels,
+#liveChannels.channels-grid-mode {
     display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 12px 14px !important;
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)) !important;
+    gap: 14px 16px !important;
     padding: 18px 20px !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -7062,40 +7062,44 @@ body.platform-android #liveChannels {
     scroll-behavior: smooth !important;
 }
 
-body.platform-android #liveChannels::-webkit-scrollbar {
+body.platform-android #liveChannels::-webkit-scrollbar,
+#liveChannels.channels-grid-mode::-webkit-scrollbar {
     width: 7px !important;
     display: block !important;
 }
 
-body.platform-android #liveChannels::-webkit-scrollbar-track {
+body.platform-android #liveChannels::-webkit-scrollbar-track,
+#liveChannels.channels-grid-mode::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.2) !important;
 }
 
-body.platform-android #liveChannels::-webkit-scrollbar-thumb {
+body.platform-android #liveChannels::-webkit-scrollbar-thumb,
+#liveChannels.channels-grid-mode::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.22) !important;
     border-radius: 6px !important;
 }
 
-body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover {
+body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover,
+#liveChannels.channels-grid-mode::-webkit-scrollbar-thumb:hover {
     background: var(--accent-gold, #f59e0b) !important;
 }
 
-/* تصميم بطاقة القناة المطابق لصورة تطبيق إكس */
+/* بطاقة القناة الكبيرة والفاخرة - مطابقة لحجم وشكل بطاقات الأفلام والمسلسلات */
 .live-channel-card {
-    background: rgba(18, 22, 32, 0.92) !important;
-    border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
-    border-radius: 10px !important;
+    background: rgba(18, 22, 32, 0.94) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.09) !important;
+    border-radius: 14px !important;
     overflow: hidden !important;
     cursor: pointer !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: space-between !important;
-    aspect-ratio: 1.18 / 1 !important;
-    min-height: 105px !important;
+    aspect-ratio: 1 / 1.15 !important;
+    min-height: 145px !important;
     position: relative !important;
     transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease !important;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
     outline: none !important;
@@ -7104,17 +7108,17 @@ body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover {
 .live-channel-card:hover,
 .live-channel-card:focus,
 .live-channel-card.tv-focused {
-    -webkit-transform: scale(1.06) translateY(-2px) !important;
-    transform: scale(1.06) translateY(-2px) !important;
-    border-color: #e50914 !important;
-    box-shadow: 0 10px 25px rgba(229, 9, 20, 0.5), 0 0 10px rgba(255, 255, 255, 0.3) !important;
+    -webkit-transform: scale(1.06) translateY(-3px) !important;
+    transform: scale(1.06) translateY(-3px) !important;
+    border-color: #22c55e !important;
+    box-shadow: 0 12px 30px rgba(34, 197, 94, 0.4), 0 0 12px rgba(255, 255, 255, 0.3) !important;
     z-index: 10 !important;
-    background: rgba(26, 32, 46, 0.98) !important;
+    background: rgba(26, 34, 48, 0.98) !important;
 }
 
 .live-channel-card.active {
-    border-color: #e50914 !important;
-    box-shadow: 0 0 16px rgba(229, 9, 20, 0.7) !important;
+    border-color: #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.6) !important;
 }
 
 .live-channel-card .live-card-thumb {
@@ -7123,16 +7127,16 @@ body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover {
     align-items: center !important;
     justify-content: center !important;
     width: 100% !important;
-    padding: 10px 12px 6px 12px !important;
+    padding: 14px 14px 8px 14px !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
 }
 
 .live-channel-card .channel-icon {
-    max-width: 80% !important;
-    max-height: 56px !important;
+    max-width: 85% !important;
+    max-height: 72px !important;
     object-fit: contain !important;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)) !important;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7)) !important;
     transition: transform 0.2s ease !important;
 }
 
@@ -7145,20 +7149,152 @@ body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover {
 
 .live-channel-card .live-card-title-bar {
     width: 100% !important;
-    background: rgba(6, 8, 12, 0.88) !important;
-    padding: 6px 8px !important;
+    background: rgba(8, 11, 16, 0.92) !important;
+    padding: 8px 10px !important;
     box-sizing: border-box !important;
     text-align: center !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .live-channel-card .live-card-title {
     display: block !important;
-    font-size: 13px !important;
+    font-size: 13.5px !important;
     font-weight: 700 !important;
     color: #ffffff !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     letter-spacing: 0.3px !important;
+}
+
+/* =========================================================
+   PROMINENT SEARCH BOX & TV REMOTE ACCESSIBILITY ENGINE
+   ========================================================= */
+.header-icon-btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    color: #e2e8f0 !important;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    transition: all 0.2s ease !important;
+    outline: none !important;
+    margin-inline-start: 6px !important;
+}
+
+.header-icon-btn:hover,
+.header-icon-btn:focus,
+.header-icon-btn.tv-focused {
+    background: rgba(34, 197, 94, 0.2) !important;
+    border-color: #22c55e !important;
+    color: #ffffff !important;
+    outline: 3px solid #22c55e !important;
+    outline-offset: 2px !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.6) !important;
+}
+
+.prominent-search-wrap {
+    padding: 10px 14px !important;
+    background: rgba(10, 14, 22, 0.95) !important;
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.1) !important;
+    animation: searchFadeSlide 0.22s ease-out !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+@keyframes searchFadeSlide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.prominent-search-box {
+    display: flex !important;
+    align-items: center !important;
+    background: rgba(20, 26, 38, 0.96) !important;
+    border: 2px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 12px !important;
+    padding: 4px 12px !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
+    transition: all 0.2s ease !important;
+}
+
+.prominent-search-box:focus-within {
+    border-color: #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.5) !important;
+}
+
+.prominent-search-icon {
+    color: #94a3b8 !important;
+    font-size: 16px !important;
+    margin-inline-end: 10px !important;
+}
+
+.prominent-search-input {
+    flex: 1 1 auto !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color: #ffffff !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    padding: 8px 4px !important;
+    font-family: inherit !important;
+}
+
+.prominent-search-input::placeholder {
+    color: #64748b !important;
+    font-size: 14px !important;
+}
+
+.prominent-search-clear {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: none !important;
+    color: #cbd5e1 !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    transition: background 0.2s ease !important;
+}
+
+.prominent-search-clear:hover,
+.prominent-search-clear:focus {
+    background: #e53935 !important;
+    color: #ffffff !important;
+    outline: none !important;
+}
+
+/* =========================================================
+   PC ELECTRON TRUE FULLSCREEN BREAKOUT FOR LIVE PLAYER
+   ========================================================= */
+body.in-live-fullscreen .col-player,
+body.in-live-fullscreen #app-scaler,
+body.in-live-fullscreen .player-wrapper {
+    contain: none !important;
+    transform: none !important;
+    will-change: auto !important;
+}
+
+body.in-live-fullscreen #livePlayerWrapper {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    z-index: 999999 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: #000000 !important;
 }

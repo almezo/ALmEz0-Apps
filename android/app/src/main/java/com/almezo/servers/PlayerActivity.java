@@ -351,6 +351,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         // Pre-fill initial slider levels so they are immediately accurate on launch
         if (isTvDevice) {
+            if (btnLock != null) btnLock.setVisibility(View.GONE);
             if (layoutBrightnessSlider != null) layoutBrightnessSlider.setVisibility(View.GONE);
             if (layoutVolumeSlider != null) layoutVolumeSlider.setVisibility(View.GONE);
             if (playerView != null) {
@@ -1233,6 +1234,7 @@ public class PlayerActivity extends AppCompatActivity {
                 controlsOverlay.setVisibility(View.VISIBLE);
             }
             if (!isTvDevice) {
+                if (btnLock != null) btnLock.setVisibility(View.VISIBLE);
                 if (layoutBrightnessSlider != null) {
                     layoutBrightnessSlider.setVisibility(View.VISIBLE);
                 }
@@ -1240,6 +1242,7 @@ public class PlayerActivity extends AppCompatActivity {
                     layoutVolumeSlider.setVisibility(View.VISIBLE);
                 }
             } else {
+                if (btnLock != null) btnLock.setVisibility(View.GONE);
                 if (layoutBrightnessSlider != null) {
                     layoutBrightnessSlider.setVisibility(View.GONE);
                 }
@@ -1247,6 +1250,24 @@ public class PlayerActivity extends AppCompatActivity {
                     layoutVolumeSlider.setVisibility(View.GONE);
                 }
             }
+
+            if (isLiveStream) {
+                if (layoutSeekbarRow != null) layoutSeekbarRow.setVisibility(View.GONE);
+                if (seekBar != null) seekBar.setVisibility(View.GONE);
+                if (tvDuration != null) tvDuration.setVisibility(View.GONE);
+                if (tvPosition != null) tvPosition.setVisibility(View.GONE);
+                if (btnRewind10 != null) btnRewind10.setVisibility(View.GONE);
+                if (btnForward10 != null) btnForward10.setVisibility(View.GONE);
+                if (badgeLiveIndicator != null) badgeLiveIndicator.setVisibility(View.VISIBLE);
+            } else {
+                if (layoutSeekbarRow != null) layoutSeekbarRow.setVisibility(View.VISIBLE);
+                if (seekBar != null) seekBar.setVisibility(View.VISIBLE);
+                if (tvDuration != null) tvDuration.setVisibility(View.VISIBLE);
+                if (tvPosition != null) tvPosition.setVisibility(View.VISIBLE);
+                if (btnRewind10 != null) btnRewind10.setVisibility(View.VISIBLE);
+                if (btnForward10 != null) btnForward10.setVisibility(View.VISIBLE);
+            }
+
             resetControlsHideTimer();
             if (isTvDevice && btnPlayPause != null) {
                 btnPlayPause.requestFocus();

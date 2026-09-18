@@ -76,8 +76,8 @@ function applyAutoScaling() {
     const isDesktopMode = document.body.classList.contains('desktop-device-mode');
     const isElectronPlatform = document.body.classList.contains('platform-electron') || (window.electronAPI && window.electronAPI.isElectron);
 
-    // On PC & Android TV / Receiver: Full-Screen 100% Edge-to-Edge with standard 1:1 crisp display (NO artificial scaling)
-    if (isTvMode || isDesktopMode || isElectronPlatform || (!document.body.classList.contains('touch-device-mode') && windowWidth >= 1024)) {
+    // On PC (Desktop / Electron Platform with screen >= 1024): Full-Screen 100% Edge-to-Edge 1:1 display
+    if (isDesktopMode || isElectronPlatform || (!isTvMode && !document.body.classList.contains('touch-device-mode') && windowWidth >= 1024)) {
         scaler.style.transform = 'none';
         scaler.style.transformOrigin = 'initial';
         scaler.style.top = '0';
@@ -206,11 +206,11 @@ function initDeviceMode() {
     const isAndroidNoTouch = isAndroidPlatform && (navigator.maxTouchPoints === 0 || (!('ontouchstart' in window) && !('msMaxTouchPoints' in navigator)));
     const isTv = hasNativeTv || isAndroidNoTouch || ua.includes('tv') || ua.includes('box') || ua.includes('smart') || ua.includes('large') || ua.includes('amlogic') || ua.includes('rockchip') || ua.includes('allwinner');
 
-    // إذا كان يعمل على برنامج الكمبيوتر (Windows / Electron / Desktop Browser):
     if (isElectronPlatform || (!isAndroidPlatform && !('ontouchstart' in window) && window.innerWidth >= 1024)) {
         mode = 'desktop';
         localStorage.setItem('mizo_device_mode', 'desktop');
     } else if (isAndroidPlatform) {
+        document.body.classList.add('platform-android');
         // في الأندرويد: مسموح بنمطين فقط (شاشة ورسيفر أو هاتف وتابلت) ولا وجود لنمط الكمبيوتر نهائياً
         if (mode === 'desktop' || !mode) {
             mode = isTv ? 'tv' : 'touch';
@@ -910,7 +910,11 @@ function deleteAccount(accId) {
             localStorage.removeItem('sp_server_code');
             localStorage.removeItem('sp_server_info');
             localStorage.removeItem('sp_active_acc_id');
-            sessionStorage.clear();
+            Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('sp_') || key.startsWith('iptv_')) {
+                    sessionStorage.removeItem(key);
+                }
+            });
             closePlaylistsModal();
             showScreen('auth1-screen');
             showAppAlert('تم حذف جميع الحسابات المحفوظة', 'info');
@@ -934,7 +938,6 @@ function activateAccount(accId) {
     localStorage.setItem('sp_active_acc_id', target.id);
     localStorage.setItem('sp_last_used_acc_id', target.id);
     localStorage.setItem('sp_user', JSON.stringify(target.userInfo || { username: target.username }));
-    localStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo || { username: target.username }));
     localStorage.setItem('sp_host', target.host);
     localStorage.setItem('sp_pass', target.password);
     const code = target.serverCode || '001';
@@ -942,7 +945,6 @@ function activateAccount(accId) {
     localStorage.setItem('sp_server_info', JSON.stringify({ name: target.serverName, logo: target.serverLogo }));
 
     sessionStorage.setItem('sp_user', JSON.stringify(target.userInfo || { username: target.username }));
-    sessionStorage.setItem('almezo_cached_user', JSON.stringify(target.userInfo || { username: target.username }));
     sessionStorage.setItem('sp_host', target.host);
     sessionStorage.setItem('sp_pass', target.password);
     sessionStorage.setItem('sp_server_code', code);
@@ -1344,14 +1346,12 @@ async function handleLogin() {
 
             // حفظ الجلسة محلياً ودائماً لضمان عدم طلب تسجيل الدخول مجدداً إلا عند الخروج يدوياً
             localStorage.setItem('sp_user', JSON.stringify(data.user_info));
-            localStorage.setItem('almezo_cached_user', JSON.stringify(data.user_info));
             localStorage.setItem('sp_host', host);
             localStorage.setItem('sp_pass', pass);
             localStorage.setItem('sp_server_code', currentCode);
             localStorage.setItem('sp_server_info', JSON.stringify(sInfo));
 
             sessionStorage.setItem('sp_user', JSON.stringify(data.user_info));
-            sessionStorage.setItem('almezo_cached_user', JSON.stringify(data.user_info));
             sessionStorage.setItem('sp_host', host);
             sessionStorage.setItem('sp_pass', pass);
             sessionStorage.setItem('sp_server_code', currentCode);
@@ -1451,22 +1451,20 @@ function playStream(id, type, extension, name, icon) {
     }
 
     // ================================================================
-    // في تطبيق أندرويد فقط: تشغيل الأفلام والمسلسلات في المشغل المدمج الداخلي بوضعية ملء الشاشة الفورية (ExoPlayer)
-    // أما البث المباشر فيبدأ في الوضع العادي المدمج بجانب القنوات، مع توفير زر ملء الشاشة إذا رغب العميل
+    // في تطبيق أندرويد فقط: تشغيل البث المباشر والأفلام والمسلسلات في المشغل المدمج الداخلي (ExoPlayer)
+    // بملء الشاشة الفوري مع عتاد الأندرويد لتقديم أعلى جودة وسلاسة 60fps
     // ================================================================
     if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
-        if (type === 'vod' || type === 'series') {
-            const isLive = false;
-            const isTv = document.body.classList.contains('tv-device-mode') ||
-                         (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
-            if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
-                const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon, isLive, isTv);
-                if (handled) return;
-            }
-            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
-                window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '', isLive, isTv);
-                return;
-            }
+        const isLive = (type === 'live');
+        const isTv = document.body.classList.contains('tv-device-mode') ||
+                     (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
+        if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
+            const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon, isLive, isTv);
+            if (handled) return;
+        }
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.playNativeVideo === 'function') {
+            window.AndroidNativeBridge.playNativeVideo(baseStreamUrl, name || 'ALmEz0 Video', icon || '', isLive, isTv);
+            return;
         }
     }
 
@@ -2300,7 +2298,23 @@ function logout() {
         if (typeof closeLivePlayer === 'function') closeLivePlayer();
         if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
 
-        // 2. مسح بيانات سيرفر المشغل النشط
+        // 2. حذف السيرفر الحالي من سجل الحسابات المحفوظة (sp_accounts) حتى لا يبقى محفوظاً بعد تسجيل الخروج
+        try {
+            const activeAccId = localStorage.getItem('sp_active_acc_id');
+            const currentUser = state.username || localStorage.getItem('sp_user');
+            const currentCode = state.serverCode || localStorage.getItem('sp_server_code');
+            const accounts = getSavedAccounts();
+            const filteredAccounts = accounts.filter(a => {
+                if (activeAccId && a.id === activeAccId) return false;
+                if (currentUser && a.username && a.username.toLowerCase() === currentUser.toLowerCase() && (!currentCode || a.serverCode === currentCode)) return false;
+                return true;
+            });
+            localStorage.setItem('sp_accounts', JSON.stringify(filteredAccounts));
+        } catch (err) {
+            console.error('Error removing account on logout:', err);
+        }
+
+        // مسح بيانات سيرفر المشغل النشط
         localStorage.removeItem('sp_user');
         localStorage.removeItem('sp_host');
         localStorage.removeItem('sp_pass');
@@ -2308,7 +2322,13 @@ function logout() {
         localStorage.removeItem('sp_server_info');
         localStorage.removeItem('sp_active_acc_id');
         localStorage.setItem('sp_logged_out', 'true');
-        sessionStorage.clear();
+
+        // مسح بيانات الجلسة المؤقتة الخاصة بالمشغل فقط دون المساس ببيانات تسجيل دخول الموقع الأساسي
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('sp_') || key.startsWith('iptv_')) {
+                sessionStorage.removeItem(key);
+            }
+        });
 
         // 3. تصفير بيانات الحالة في الذاكرة
         state.userInfo = null;
@@ -3325,6 +3345,12 @@ function toggleLivePlayerFullscreen() {
             }
         } catch (e) { }
 
+        if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
+            window.electronAPI.setFullScreen(true);
+        } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setFullScreen === 'function') {
+            window.AlMeZ0App.setFullScreen(true);
+        }
+
         if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
             window.AndroidNativeBridge.setImmersiveFullscreen(true);
         }
@@ -3340,6 +3366,12 @@ function toggleLivePlayerFullscreen() {
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         } catch (e) { }
+
+        if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
+            window.electronAPI.setFullScreen(false);
+        } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setFullScreen === 'function') {
+            window.AlMeZ0App.setFullScreen(false);
+        }
 
         if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
             window.AndroidNativeBridge.setImmersiveFullscreen(false);
@@ -3357,6 +3389,11 @@ document.addEventListener('fullscreenchange', () => {
         const icon2 = document.getElementById('liveOverlayFsIcon');
         if (icon1) icon1.className = 'fas fa-expand';
         if (icon2) icon2.className = 'fas fa-expand';
+        if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
+            window.electronAPI.setFullScreen(false);
+        } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setFullScreen === 'function') {
+            window.AlMeZ0App.setFullScreen(false);
+        }
         if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
             window.AndroidNativeBridge.setImmersiveFullscreen(false);
         }
@@ -4330,6 +4367,15 @@ function renderItems(items, type) {
     const gridContainer = type === 'live' ? document.getElementById('liveChannels') : document.getElementById('vodGrid');
     if (!gridContainer) return;
 
+    if (type === 'live') {
+        const isGridMode = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || !!window.AndroidNativeBridge || document.body.classList.contains('tv-device-mode');
+        if (isGridMode) {
+            gridContainer.classList.add('channels-grid-mode');
+        } else {
+            gridContainer.classList.remove('channels-grid-mode');
+        }
+    }
+
     const scrollTarget = getScrollTarget(type);
     if (scrollTarget) {
         scrollTarget.scrollTop = 0;
@@ -4379,7 +4425,7 @@ function appendNextItemChunk(customSize) {
     const fragment = document.createDocumentFragment();
 
     if (activeRenderType === 'live') {
-        const isAndroidAppPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || !!window.AndroidNativeBridge;
+        const isAndroidAppPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || !!window.AndroidNativeBridge || document.body.classList.contains('tv-device-mode');
         const savedLive = sessionStorage.getItem('sp_last_live_stream');
         let savedLiveObj = null;
         if (savedLive) {
@@ -4544,45 +4590,91 @@ function recordContinueWatching(id, type) {
 }
 
 // ==========================================
-// SEARCH LOGIC
+// SEARCH LOGIC & CONTROLS (CONTENT ONLY - ALL CATALOG)
 // ==========================================
+function toggleLiveSearch() {
+    const wrap = document.getElementById('liveItemsSearchWrap');
+    if (!wrap) return;
+    const isHidden = wrap.classList.toggle('hidden');
+    if (!isHidden) {
+        const inp = document.getElementById('searchLiveItems');
+        if (inp) {
+            inp.focus();
+            inp.select();
+        }
+    } else {
+        clearLiveSearch();
+    }
+}
+
+function clearLiveSearch() {
+    const wrap = document.getElementById('liveItemsSearchWrap');
+    if (wrap) wrap.classList.add('hidden');
+    const inp = document.getElementById('searchLiveItems');
+    if (inp) inp.value = '';
+    const titleEl = document.getElementById('liveItemsCategoryTitle');
+    if (titleEl && state.activeCategory) {
+        titleEl.innerText = state.activeCategory.name || 'القنوات';
+    }
+    renderItems(currentItemsArray, 'live');
+}
+
+function toggleVodSearch() {
+    const wrap = document.getElementById('vodSearchWrap');
+    if (!wrap) return;
+    const isHidden = wrap.classList.toggle('hidden');
+    if (!isHidden) {
+        const inp = document.getElementById('searchVodItems');
+        if (inp) {
+            inp.focus();
+            inp.select();
+        }
+    } else {
+        clearVodSearch();
+    }
+}
+
+function clearVodSearch() {
+    const wrap = document.getElementById('vodSearchWrap');
+    if (wrap) wrap.classList.add('hidden');
+    const inp = document.getElementById('searchVodItems');
+    if (inp) inp.value = '';
+    const ctx = currentSortContext || (state.activeTab === 'movies' ? 'vod' : 'series');
+    renderItems(currentItemsArray, ctx);
+}
+
+window.toggleLiveSearch = toggleLiveSearch;
+window.clearLiveSearch = clearLiveSearch;
+window.toggleVodSearch = toggleVodSearch;
+window.clearVodSearch = clearVodSearch;
+
 document.addEventListener('DOMContentLoaded', () => {
-    const searchLiveCats = document.getElementById('searchLiveCategories');
-    if (searchLiveCats) {
-        searchLiveCats.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            document.querySelectorAll('#liveCategories .list-item').forEach(el => {
-                const text = el.innerText.toLowerCase();
-                el.style.display = text.includes(term) ? '' : 'none';
-            });
-        });
-    }
-
-    const searchVodCats = document.getElementById('searchVodCategories');
-    if (searchVodCats) {
-        searchVodCats.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            document.querySelectorAll('#vodCategories .list-item').forEach(el => {
-                const text = el.innerText.toLowerCase();
-                el.style.display = text.includes(term) ? '' : 'none';
-            });
-        });
-    }
-
     const searchLiveItems = document.getElementById('searchLiveItems');
     if (searchLiveItems) {
         let liveSearchTimer = null;
         searchLiveItems.addEventListener('input', (e) => {
             clearTimeout(liveSearchTimer);
-            liveSearchTimer = setTimeout(() => {
-                const term = e.target.value.trim().toLowerCase();
+            const term = e.target.value.trim().toLowerCase();
+            liveSearchTimer = setTimeout(async () => {
                 if (!term) {
                     renderItems(currentItemsArray, 'live');
+                    const titleEl = document.getElementById('liveItemsCategoryTitle');
+                    if (titleEl && state.activeCategory) {
+                        titleEl.innerText = state.activeCategory.name || 'القنوات';
+                    }
                 } else {
-                    const filtered = currentItemsArray.filter(i => (i.name || '').toLowerCase().includes(term));
-                    renderItems(filtered, 'live');
+                    const titleEl = document.getElementById('liveItemsCategoryTitle');
+                    if (titleEl) titleEl.innerText = `نتائج البحث: "${term}"`;
+                    try {
+                        const allLive = await getAllStreamsForType('live', 'get_live_streams');
+                        const filtered = (Array.isArray(allLive) ? allLive : []).filter(i => (i.name || '').toLowerCase().includes(term));
+                        renderItems(filtered, 'live');
+                    } catch (err) {
+                        const filtered = currentItemsArray.filter(i => (i.name || '').toLowerCase().includes(term));
+                        renderItems(filtered, 'live');
+                    }
                 }
-            }, 140);
+            }, 180);
         });
     }
 
@@ -4591,16 +4683,23 @@ document.addEventListener('DOMContentLoaded', () => {
         let vodSearchTimer = null;
         searchVodItems.addEventListener('input', (e) => {
             clearTimeout(vodSearchTimer);
-            vodSearchTimer = setTimeout(() => {
-                const term = e.target.value.trim().toLowerCase();
-                const ctx = currentSortContext || (state.activeTab === 'movies' ? 'vod' : 'series');
+            const term = e.target.value.trim().toLowerCase();
+            const ctx = currentSortContext || (state.activeTab === 'movies' ? 'vod' : 'series');
+            const action = ctx === 'vod' ? 'get_vod_streams' : 'get_series';
+            vodSearchTimer = setTimeout(async () => {
                 if (!term) {
                     renderItems(currentItemsArray, ctx);
                 } else {
-                    const filtered = currentItemsArray.filter(i => (i.name || '').toLowerCase().includes(term));
-                    renderItems(filtered, ctx);
+                    try {
+                        const allItems = await getAllStreamsForType(ctx, action);
+                        const filtered = (Array.isArray(allItems) ? allItems : []).filter(i => (i.name || '').toLowerCase().includes(term));
+                        renderItems(filtered, ctx);
+                    } catch (err) {
+                        const filtered = currentItemsArray.filter(i => (i.name || '').toLowerCase().includes(term));
+                        renderItems(filtered, ctx);
+                    }
                 }
-            }, 140);
+            }, 180);
         });
     }
 });

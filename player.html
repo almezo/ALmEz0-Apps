@@ -402,14 +402,6 @@
             <div class="col-sidebar">
                 <div class="col-header auto-style-16">
                     <h3 id="liveCategoryTitle" class="auto-style-17">الأقسام</h3>
-                    <div class="header-actions auto-style-18">
-                        <i class="fas fa-search header-icon" title="بحث"
-                            onclick="document.getElementById('liveSearchWrap').classList.toggle('hidden')"></i>
-                    </div>
-                </div>
-                <div id="liveSearchWrap" class="hidden auto-style-19">
-                    <input class="search-input auto-style-20" id="searchLiveCategories"
-                        placeholder="البحث في الأقسام..." type="text" />
                 </div>
                 <div class="list-container" id="liveCategories">
                     <!-- Loaded dynamically -->
@@ -421,10 +413,12 @@
                     <i class="fas fa-arrow-right back-icon" onclick="goBack()" title="الرجوع"></i>
                     <h3 class="auto-style-22" id="liveItemsCategoryTitle">القنوات</h3>
                     <div class="header-actions auto-style-23">
-                        <i class="fas fa-search header-icon" title="بحث"
-                            onclick="document.getElementById('liveItemsSearchWrap').classList.toggle('hidden')"></i>
-                        <i class="fas fa-ellipsis-v header-icon"
-                            onclick="document.getElementById('liveMenu').classList.toggle('hidden')"></i>
+                        <button type="button" class="header-icon-btn btn-search-trigger" id="btnLiveSearchTrigger" title="البحث في القنوات" tabindex="0" onclick="toggleLiveSearch()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button type="button" class="header-icon-btn" id="btnLiveMenuTrigger" title="خيارات" tabindex="0" onclick="document.getElementById('liveMenu').classList.toggle('hidden')">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
                         <div id="liveMenu" class="header-dropdown hidden">
                             <div class="dropdown-item"
                                 onclick="openSortModal('live'); document.getElementById('liveMenu').classList.add('hidden')">
@@ -433,9 +427,12 @@
                         </div>
                     </div>
                 </div>
-                <div id="liveItemsSearchWrap" class="hidden auto-style-24">
-                    <input class="search-input auto-style-25" id="searchLiveItems" placeholder="البحث في القنوات..."
-                        type="text" />
+                <div id="liveItemsSearchWrap" class="hidden prominent-search-wrap">
+                    <div class="prominent-search-box">
+                        <i class="fas fa-search prominent-search-icon"></i>
+                        <input class="search-input prominent-search-input" id="searchLiveItems" placeholder="ابحث في جميع القنوات (الكل)..." type="text" autocomplete="off" />
+                        <button type="button" class="prominent-search-clear" onclick="clearLiveSearch()" title="إغلاق ومسح البحث"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
                 <div class="list-container" id="liveChannels">
                     <!-- Loaded dynamically -->
@@ -531,10 +528,12 @@
                 <div class="col-header auto-style-26">
                     <h3 id="vodSidebarTitle" class="auto-style-27">الأقسام</h3>
                     <div class="header-actions auto-style-28">
-                        <i class="fas fa-search header-icon" title="بحث"
-                            onclick="document.getElementById('vodSearchWrap').classList.toggle('hidden')"></i>
-                        <i class="fas fa-ellipsis-v header-icon"
-                            onclick="document.getElementById('vodMenu').classList.toggle('hidden')"></i>
+                        <button type="button" class="header-icon-btn btn-search-trigger" id="btnVodSearchTrigger" title="بحث في الأفلام والمسلسلات" tabindex="0" onclick="toggleVodSearch()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button type="button" class="header-icon-btn" id="btnVodMenuTrigger" title="خيارات" tabindex="0" onclick="document.getElementById('vodMenu').classList.toggle('hidden')">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
                         <div id="vodMenu" class="header-dropdown hidden">
                             <div class="dropdown-item"
                                 onclick="toggleHideNames(); document.getElementById('vodMenu').classList.add('hidden')">
@@ -547,11 +546,13 @@
                         </div>
                     </div>
                 </div>
-                <div id="vodSearchWrap" class="hidden auto-style-29">
-                    <input class="search-input auto-style-30" id="searchVodItems"
-                        placeholder="البحث في الأفلام/المسلسلات..." type="text" />
-                    <input class="search-input auto-style-31" id="searchVodCategories" placeholder="البحث في الأقسام..."
-                        type="text" />
+                <div id="vodSearchWrap" class="hidden prominent-search-wrap">
+                    <div class="prominent-search-box">
+                        <i class="fas fa-search prominent-search-icon"></i>
+                        <input class="search-input prominent-search-input" id="searchVodItems"
+                            placeholder="ابحث في جميع الأفلام والمسلسلات (الكل)..." type="text" autocomplete="off" />
+                        <button type="button" class="prominent-search-clear" onclick="clearVodSearch()" title="إغلاق ومسح البحث"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
                 <div class="list-container" id="vodCategories">
                     <!-- الأقسام loaded dynamically -->
