@@ -4676,8 +4676,18 @@ function initTvNavigationEngine() {
 
     function getVisibleFocusables() {
         // فحص النوافذ المنبثقة النشطة لحصر التركيز داخلها ومنع تسرب الأسهم لخلفية الشاشة
-        const activeModal = document.querySelector('#fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), .custom-logout-modal, .swal2-container');
-        const container = activeModal || document.body;
+        const activeModal = document.querySelector('#fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
+        let container = activeModal;
+        if (!container) {
+            // إذا كانت شاشة إدخال كود السيرفر أو تسجيل الدخول هي النشطة، نحصر التركيز بداخلها لمنع القفز للشاشات المخفية
+            if (currentScreenId === 'auth1-screen') {
+                container = document.getElementById('auth1-screen');
+            } else if (currentScreenId === 'auth2-screen') {
+                container = document.getElementById('auth2-screen');
+            } else {
+                container = document.body;
+            }
+        }
 
         const all = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR));
         return all.filter(el => {
@@ -4811,7 +4821,8 @@ function initTvNavigationEngine() {
                 e.key === 'ArrowLeft' || e.keyCode === 37 || e.key === 'ArrowRight' || e.keyCode === 39) {
                 return; // السماح بالكتابة والمسح الطبيعي
             }
-            if (e.key === 'ArrowDown' || e.keyCode === 40 || e.key === 'Enter' || e.keyCode === 13) {
+            const isSearchInput = (e.target.id === 'searchVod' || e.target.id === 'searchLive' || e.target.id === 'searchSeries' || (e.target.closest && e.target.closest('#vodItemsSearchWrap, .search-box')));
+            if (isSearchInput && (e.key === 'ArrowDown' || e.keyCode === 40 || e.key === 'Enter' || e.keyCode === 13)) {
                 e.preventDefault();
                 if (document.activeElement && typeof document.activeElement.blur === 'function') {
                     document.activeElement.blur();
@@ -4823,7 +4834,9 @@ function initTvNavigationEngine() {
                     return;
                 }
             }
-            if (e.key === 'Escape' || e.keyCode === 27) {
+            if (!isSearchInput && (e.key === 'ArrowDown' || e.keyCode === 40 || e.key === 'ArrowUp' || e.keyCode === 38)) {
+                // إذا كان حقلاً عادياً (كود السيرفر أو داخل نافذة منبثقة): نسمح للأسهم بالانتقال للحقل أو الزر التالي بسلاسة
+            } else if (e.key === 'Escape' || e.keyCode === 27) {
                 if (document.activeElement && typeof document.activeElement.blur === 'function') {
                     document.activeElement.blur();
                 }

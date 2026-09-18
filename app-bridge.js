@@ -283,149 +283,513 @@
             }
         }, true);
 
-        // Capacitor Android Hardware Back Button Handling
-        if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-            let lastBackPress = 0;
+        // =========================================================================
+        // محرك التحكم بالريموت وحصر التركيز داخل النوافذ (TV Remote & Focus Trap Engine)
+        // =========================================================================
+        function getOpenModal() {
+            var modalSelectors = [
+                '#loginModal',
+                '#purchaseModal',
+                '#playlistsModal',
+                '#deviceModeModal',
+                '#sortModal',
+                '#trailerModal',
+                '#fullscreenVideoModal',
+                '.modal.active',
+                '.modal.show',
+                '.custom-logout-modal',
+                '.swal2-container',
+                '#player-exclusive-overlay.active',
+                '.pwa-fallback-overlay.active',
+                '.modal',
+                '[id*="modal"]',
+                '[id*="Modal"]'
+            ];
 
-            window.Capacitor.Plugins.App.addListener('backButton', function () {
-                // 0. منع الرجوع أو الخروج تماماً أثناء عرض صندوق التحديث الإلزامي المقفل
-                if (document.getElementById('almezo-inapp-update-overlay')) {
-                    return;
-                }
-
-                // 1. إغلاق أي نافذة تنبيه SweetAlert2 مفتوحة
-                if (typeof Swal !== 'undefined' && typeof Swal.isVisible === 'function' && Swal.isVisible()) {
-                    Swal.close();
-                    return;
-                }
-
-                // 2. إذا كان مشغل الفيديو مفتوحاً بملء الشاشة، يتم إغلاق المشغل والرجوع للشاشة التي كان فيها
-                const videoModal = document.getElementById('fullscreenVideoModal');
-                if (videoModal && !videoModal.classList.contains('hidden')) {
-                    if (typeof closeFullscreenPlayer === 'function') {
-                        closeFullscreenPlayer();
-                        return;
-                    }
-                }
-
-                // 3. إذا كانت هناك نافذة فرعية مفتوحة (نافذة الدخول، ترتيب، خروج، إلخ) يتم إغلاقها
-                const openModal = document.querySelector('.modal.active, .modal.show, [id*="modal"][style*="block"], [id*="modal"][style*="flex"], [id*="Modal"][style*="block"], [id*="Modal"][style*="flex"], .sort-modal:not(.hidden)');
-                if (openModal) {
-                    if (openModal.id === 'loginModal' && typeof closeLoginModal === 'function') {
-                        closeLoginModal();
-                        return;
-                    }
-                    if (openModal.id === 'sortModal') {
-                        openModal.classList.add('hidden');
-                        return;
-                    }
-                    const closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"], .btn-sort-close');
-                    if (closeBtn) {
-                        closeBtn.click();
-                        return;
-                    }
-                    openModal.style.display = 'none';
-                    return;
-                }
-
-                // 4. داخل مشغل ميزو (player.html): الرجوع خطوة بخطوة (تفاصيل -> القائمة -> الداشبورد -> الموقع)
-                const currentPath = window.location.pathname.toLowerCase();
-                if (currentPath.includes('player.html')) {
-                    const activeScreen = (typeof currentScreenId !== 'undefined') ? currentScreenId : sessionStorage.getItem('sp_current_screen');
-
-                    // أ) إذا كان في تفاصيل فيلم أو مسلسل، يرجع لقائمة الأفلام/المسلسلات
-                    if (activeScreen === 'movie-details-screen' || activeScreen === 'series-details-screen') {
-                        if (typeof goBack === 'function') {
-                            goBack();
-                            return;
-                        } else if (typeof showScreen === 'function') {
-                            showScreen('vod-screen');
-                            return;
+            for (var i = 0; i < modalSelectors.length; i++) {
+                var list = Array.from(document.querySelectorAll(modalSelectors[i]));
+                for (var j = 0; j < list.length; j++) {
+                    var el = list[j];
+                    if (el.classList.contains('hidden')) continue;
+                    if (el.id === 'app-scaler' || el.id === 'livePlayerWrapper') continue;
+                    var style = window.getComputedStyle(el);
+                    if (style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
+                        var isOverlay = (style.position === 'fixed' || style.position === 'absolute') || el.classList.contains('modal') || (el.id && el.id.toLowerCase().includes('modal'));
+                        if (isOverlay) {
+                            return el;
                         }
                     }
-
-                    // ب) إذا كان في أقسام الأفلام أو المسلسلات أو البث المباشر أو الملف الشخصي، يرجع للوحة التحكم الرئيسية للمشغل
-                    if (activeScreen === 'vod-screen' || activeScreen === 'live-screen' || activeScreen === 'profile-screen') {
-                        if (typeof showScreen === 'function') {
-                            showScreen('dashboard-screen');
-                            return;
-                        }
-                    }
-
-                    // ج) إذا كان في شاشة إدخال كلمة المرور (auth2-screen)، يرجع لشاشة كتابة كود السيرفر (auth1-screen)
-                    if (activeScreen === 'auth2-screen') {
-                        if (typeof backToAuth1 === 'function') {
-                            backToAuth1();
-                            return;
-                        } else if (typeof showScreen === 'function') {
-                            showScreen('auth1-screen');
-                            return;
-                        }
-                    }
-
-                    // د) إذا كان في شاشة الداشبورد أو شاشة كود السيرفر، يرجع للموقع الرئيسي مع إعادة تدوير الشاشة لوضعها الطبيعي
-                    if (activeScreen === 'dashboard-screen' || activeScreen === 'auth1-screen' || !activeScreen) {
-                        if (window.AlMeZ0App) {
-                            if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
-                            if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
-                        }
-                        window.location.href = 'index.html';
-                        return;
-                    }
-
-                    // خيار احتياطي لتاريخ المتصفح
-                    if (window.history.length > 1) {
-                        window.history.back();
-                    } else {
-                        if (window.AlMeZ0App) {
-                            if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
-                            if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
-                        }
-                        window.location.href = 'index.html';
-                    }
-                    return;
                 }
+            }
+            return null;
+        }
 
-                // 5. في صفحات الموقع الأخرى (مثل iptv.html, server-details.html, vip.html)
-                const isHome = currentPath.endsWith('index.html') || currentPath === '/' || currentPath.endsWith('/');
+        var lockedBackgroundElements = [];
+        var isModalFocusTrapped = false;
+        var lastActiveTriggerElement = null;
 
-                if (!isHome) {
-                    // الرجوع للصفحة السابقة التي كان فيها المستخدم
-                    if (window.history.length > 1) {
-                        window.history.back();
-                    } else {
-                        window.location.href = 'index.html';
+        function lockBackgroundForModal(modalEl) {
+            if (isModalFocusTrapped) return;
+            isModalFocusTrapped = true;
+            lastActiveTriggerElement = document.activeElement;
+
+            lockedBackgroundElements = [];
+            var allFocusables = Array.from(document.querySelectorAll('a, button, input, select, textarea, [tabindex]'));
+            for (var i = 0; i < allFocusables.length; i++) {
+                var el = allFocusables[i];
+                if (modalEl.contains(el)) continue;
+
+                var orig = el.getAttribute('tabindex');
+                el.setAttribute('data-tv-orig-tabindex', orig !== null ? orig : '');
+                el.setAttribute('tabindex', '-1');
+                el.setAttribute('aria-hidden', 'true');
+                lockedBackgroundElements.push(el);
+            }
+
+            setTimeout(function () {
+                var modalFocusables = getModalFocusables(modalEl);
+                if (modalFocusables.length > 0) {
+                    var firstInput = modalFocusables.find(function (e) {
+                        return e.tagName === 'INPUT' && e.type !== 'hidden';
+                    }) || modalFocusables[0];
+                    if (firstInput && typeof firstInput.focus === 'function') {
+                        firstInput.focus();
+                        firstInput.classList.add('tv-focused');
                     }
-                    return;
                 }
+            }, 60);
+        }
 
-                // 6. في الصفحة الرئيسية للموقع (index.html): الخروج بضغطة مزدوجة لمنع الإغلاق بالخطأ
-                const now = Date.now();
-                if (now - lastBackPress < 2000) {
-                    window.Capacitor.Plugins.App.exitApp();
+        function unlockBackgroundFromModal() {
+            if (!isModalFocusTrapped) return;
+            isModalFocusTrapped = false;
+
+            for (var i = 0; i < lockedBackgroundElements.length; i++) {
+                var el = lockedBackgroundElements[i];
+                var orig = el.getAttribute('data-tv-orig-tabindex');
+                if (orig !== null && orig !== '') {
+                    el.setAttribute('tabindex', orig);
                 } else {
-                    lastBackPress = now;
-                    if (typeof showToast === 'function') {
-                        showToast('اضغط مرة أخرى للخروج من التطبيق', 'info');
-                    } else if (typeof Swal !== 'undefined') {
-                        Swal.fire({
-                            toast: true,
-                            position: 'bottom',
-                            title: 'اضغط مرة أخرى للخروج من التطبيق',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                    }
+                    el.removeAttribute('tabindex');
                 }
+                el.removeAttribute('data-tv-orig-tabindex');
+                el.removeAttribute('aria-hidden');
+            }
+            lockedBackgroundElements = [];
+
+            if (lastActiveTriggerElement && typeof lastActiveTriggerElement.focus === 'function') {
+                try {
+                    lastActiveTriggerElement.focus();
+                    lastActiveTriggerElement.classList.add('tv-focused');
+                } catch (e) { }
+            }
+        }
+
+        function getModalFocusables(modalEl) {
+            var selector = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], .close-btn, .btn, .confirm-btn, [tabindex="0"]';
+            var all = Array.from(modalEl.querySelectorAll(selector));
+            return all.filter(function (el) {
+                if (el.closest('.hidden')) return false;
+                var style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                var r = el.getBoundingClientRect();
+                return r.width > 0 && r.height > 0;
             });
         }
+
+        function handleModalDpadNavigation(modalEl, e) {
+            var focusables = getModalFocusables(modalEl);
+            if (!focusables.length) return;
+
+            var currentEl = document.activeElement && modalEl.contains(document.activeElement) ? document.activeElement : null;
+            var nextEl = null;
+
+            var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA');
+            if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (!currentEl) {
+                nextEl = focusables[0];
+            } else {
+                var curIndex = focusables.indexOf(currentEl);
+                var isUp = (e.key === 'ArrowUp' || e.keyCode === 38 || (e.key === 'Tab' && e.shiftKey));
+                var isDown = (e.key === 'ArrowDown' || e.keyCode === 40 || (e.key === 'Tab' && !e.shiftKey));
+                var isLeft = (e.key === 'ArrowLeft' || e.keyCode === 37);
+                var isRight = (e.key === 'ArrowRight' || e.keyCode === 39);
+
+                if (isDown) {
+                    if (curIndex !== -1 && curIndex < focusables.length - 1) {
+                        nextEl = focusables[curIndex + 1];
+                    } else {
+                        nextEl = focusables[0];
+                    }
+                } else if (isUp) {
+                    if (curIndex !== -1 && curIndex > 0) {
+                        nextEl = focusables[curIndex - 1];
+                    } else {
+                        nextEl = focusables[focusables.length - 1];
+                    }
+                } else if (isLeft || isRight) {
+                    nextEl = find2DSpatialNeighbor(currentEl, focusables, isLeft ? 'left' : 'right') ||
+                             (isLeft ? (focusables[curIndex + 1] || focusables[0]) : (focusables[curIndex - 1] || focusables[focusables.length - 1]));
+                }
+            }
+
+            if (nextEl) {
+                if (currentEl) currentEl.classList.remove('tv-focused');
+                nextEl.focus();
+                nextEl.classList.add('tv-focused');
+                try {
+                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch (err) { }
+            }
+        }
+
+        function getSiteFocusables() {
+            var selector = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], .main-category-card, .category-card, .price-card, .btn, [tabindex="0"]';
+            var all = Array.from(document.querySelectorAll(selector));
+            return all.filter(function (el) {
+                if (el.closest('.hidden') || el.closest('[style*="display: none"]')) return false;
+                var style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                var r = el.getBoundingClientRect();
+                return r.width > 0 && r.height > 0 && r.bottom >= 0 && r.top <= (window.innerHeight || document.documentElement.clientHeight);
+            });
+        }
+
+        function find2DSpatialNeighbor(currentEl, candidates, direction) {
+            var curRect = currentEl.getBoundingClientRect();
+            var curCx = curRect.left + curRect.width / 2;
+            var curCy = curRect.top + curRect.height / 2;
+
+            var bestCandidate = null;
+            var bestScore = Infinity;
+
+            for (var i = 0; i < candidates.length; i++) {
+                var cand = candidates[i];
+                if (cand === currentEl) continue;
+                var r = cand.getBoundingClientRect();
+                var candCx = r.left + r.width / 2;
+                var candCy = r.top + r.height / 2;
+
+                var dx = candCx - curCx;
+                var dy = candCy - curCy;
+
+                var valid = false;
+                var primary = 0;
+                var secondary = 0;
+
+                if (direction === 'up' && dy < -4) {
+                    valid = true;
+                    primary = Math.abs(dy);
+                    secondary = Math.abs(dx);
+                } else if (direction === 'down' && dy > 4) {
+                    valid = true;
+                    primary = Math.abs(dy);
+                    secondary = Math.abs(dx);
+                } else if (direction === 'left' && dx < -4) {
+                    valid = true;
+                    primary = Math.abs(dx);
+                    secondary = Math.abs(dy);
+                } else if (direction === 'right' && dx > 4) {
+                    valid = true;
+                    primary = Math.abs(dx);
+                    secondary = Math.abs(dy);
+                }
+
+                if (valid) {
+                    var score = primary + (secondary * 1.5);
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestCandidate = cand;
+                    }
+                }
+            }
+            return bestCandidate;
+        }
+
+        function handleSitePageDpadNavigation(e) {
+            if (window.location.pathname.toLowerCase().includes('player.html')) {
+                return;
+            }
+
+            var navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
+            var navKeyCodes = [37, 38, 39, 40];
+            if (!navKeys.includes(e.key) && !navKeyCodes.includes(e.keyCode)) {
+                return;
+            }
+
+            document.body.classList.add('tv-nav-active');
+            document.documentElement.setAttribute('data-input-mode', 'remote');
+
+            var siteFocusables = getSiteFocusables();
+            if (!siteFocusables.length) return;
+
+            var currentEl = document.activeElement && siteFocusables.includes(document.activeElement) ? document.activeElement : null;
+
+            var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA');
+            if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
+                return;
+            }
+
+            e.preventDefault();
+
+            var nextEl = null;
+            if (!currentEl) {
+                var firstCard = document.querySelector('#homeCategoriesGrid .main-category-card, .category-card, .price-card');
+                nextEl = firstCard || siteFocusables[0];
+            } else {
+                var direction = 'down';
+                if (e.key === 'ArrowUp' || e.keyCode === 38 || (e.key === 'Tab' && e.shiftKey)) direction = 'up';
+                else if (e.key === 'ArrowDown' || e.keyCode === 40 || (e.key === 'Tab' && !e.shiftKey)) direction = 'down';
+                else if (e.key === 'ArrowLeft' || e.keyCode === 37) direction = 'left';
+                else if (e.key === 'ArrowRight' || e.keyCode === 39) direction = 'right';
+
+                nextEl = find2DSpatialNeighbor(currentEl, siteFocusables, direction);
+            }
+
+            if (nextEl) {
+                if (currentEl) currentEl.classList.remove('tv-focused');
+                nextEl.focus();
+                nextEl.classList.add('tv-focused');
+                try {
+                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch (err) { }
+            }
+        }
+
+        // مراقبة فورية لتطبيق حصر التركيز التلقائي عند فتح أو إغلاق أي نافذة
+        if (typeof MutationObserver !== 'undefined') {
+            var lastObservedModal = null;
+            var modalObserver = new MutationObserver(function () {
+                var currentModal = getOpenModal();
+                if (currentModal && currentModal !== lastObservedModal) {
+                    lastObservedModal = currentModal;
+                    lockBackgroundForModal(currentModal);
+                } else if (!currentModal && lastObservedModal) {
+                    lastObservedModal = null;
+                    unlockBackgroundFromModal();
+                }
+            });
+
+            modalObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style', 'class']
+            });
+        }
+
+        // إدارة زر الرجوع الموحد (Universal Back Handler)
+        var lastBackPress = 0;
+        function handleUniversalBackButton(e) {
+            if (document.getElementById('almezo-inapp-update-overlay')) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                return true;
+            }
+
+            if (typeof Swal !== 'undefined' && typeof Swal.isVisible === 'function' && Swal.isVisible()) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                Swal.close();
+                return true;
+            }
+
+            var videoModal = document.getElementById('fullscreenVideoModal');
+            if (videoModal && !videoModal.classList.contains('hidden')) {
+                if (typeof closeFullscreenPlayer === 'function') {
+                    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                    closeFullscreenPlayer();
+                    return true;
+                }
+            }
+
+            var openModal = getOpenModal();
+            if (openModal) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+
+                if (openModal.id === 'loginModal' && typeof closeLoginModal === 'function') {
+                    closeLoginModal();
+                    return true;
+                }
+                if (openModal.id === 'sortModal') {
+                    openModal.classList.add('hidden');
+                    return true;
+                }
+                if (openModal.id === 'playlistsModal' && typeof closePlaylistsModal === 'function') {
+                    closePlaylistsModal();
+                    return true;
+                }
+                if (openModal.id === 'deviceModeModal' && typeof closeDeviceModeModal === 'function') {
+                    closeDeviceModeModal();
+                    return true;
+                }
+                if (openModal.id === 'trailerModal' && typeof closeTrailerModal === 'function') {
+                    closeTrailerModal();
+                    return true;
+                }
+                var closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"], .btn-sort-close, #btnClosePlayerExclusiveModal');
+                if (closeBtn) {
+                    closeBtn.click();
+                    return true;
+                }
+                openModal.style.display = 'none';
+                openModal.classList.remove('active', 'show');
+                return true;
+            }
+
+            var currentPath = window.location.pathname.toLowerCase();
+            if (currentPath.includes('player.html')) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                var activeScreen = (typeof currentScreenId !== 'undefined') ? currentScreenId : sessionStorage.getItem('sp_current_screen');
+
+                if (activeScreen === 'movie-details-screen' || activeScreen === 'series-details-screen' || activeScreen === 'vod-details-screen') {
+                    if (typeof goBack === 'function') {
+                        goBack();
+                        return true;
+                    } else if (typeof showScreen === 'function') {
+                        showScreen('vod-screen');
+                        return true;
+                    }
+                }
+
+                if (activeScreen === 'vod-screen' || activeScreen === 'live-screen' || activeScreen === 'profile-screen' || activeScreen === 'series-screen') {
+                    if (typeof showScreen === 'function') {
+                        showScreen('dashboard-screen');
+                        return true;
+                    }
+                }
+
+                if (activeScreen === 'auth2-screen') {
+                    if (typeof backToAuth1 === 'function') {
+                        backToAuth1();
+                        return true;
+                    } else if (typeof showScreen === 'function') {
+                        showScreen('auth1-screen');
+                        return true;
+                    }
+                }
+
+                if (activeScreen === 'dashboard-screen' || activeScreen === 'auth1-screen' || !activeScreen) {
+                    if (window.AlMeZ0App) {
+                        if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
+                        if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
+                    }
+                    window.location.href = 'index.html';
+                    return true;
+                }
+
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    if (window.AlMeZ0App) {
+                        if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
+                        if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
+                    }
+                    window.location.href = 'index.html';
+                }
+                return true;
+            }
+
+            var isHome = currentPath.endsWith('index.html') || currentPath === '/' || currentPath.endsWith('/') || currentPath === '';
+
+            if (!isHome) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.location.href = 'index.html';
+                }
+                return true;
+            }
+
+            var now = Date.now();
+            if (now - lastBackPress < 2000) {
+                if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                    window.Capacitor.Plugins.App.exitApp();
+                }
+            } else {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                lastBackPress = now;
+                if (typeof showToast === 'function') {
+                    showToast('اضغط مرة أخرى للخروج من التطبيق', 'info');
+                } else if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true,
+                        position: 'bottom',
+                        title: 'اضغط مرة أخرى للخروج من التطبيق',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            }
+            return true;
+        }
+
+        // الاستماع المباشر لزر الريموت في كاباسيتور
+        if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function () {
+                handleUniversalBackButton(null);
+            });
+        }
+
+        // الاستماع المباشر لكافة أزرار الريموت ولوحة المفاتيح في المتصفح والـ WebView
+        window.addEventListener('keydown', function (e) {
+            // 1. زر الرجوع في الريموت
+            if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 27 || e.keyCode === 4) {
+                var handled = handleUniversalBackButton(e);
+                if (handled) return;
+            }
+
+            // 2. تفعيل وضع الريموت
+            var navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
+            var navCodes = [37, 38, 39, 40];
+            var isNavKey = navKeys.includes(e.key) || navCodes.includes(e.keyCode);
+
+            if (isNavKey) {
+                document.body.classList.add('tv-nav-active');
+                document.documentElement.setAttribute('data-input-mode', 'remote');
+            }
+
+            // 3. إذا كان هناك نافذة منبثقة مفتوحة (حصر الحركة بداخلها تماماً)
+            var currentOpenModal = getOpenModal();
+            if (currentOpenModal) {
+                if (isNavKey) {
+                    handleModalDpadNavigation(currentOpenModal, e);
+                    return;
+                }
+            } else {
+                // 4. في صفحات الموقع الرئيسية العادية
+                var isPlayer = window.location.pathname.toLowerCase().includes('player.html');
+                if (!isPlayer && isNavKey) {
+                    handleSitePageDpadNavigation(e);
+                    return;
+                }
+            }
+
+            // 5. زر التأكيد (D-Pad Center / OK / Enter)
+            if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66) {
+                var active = document.activeElement;
+                if (active && active !== document.body) {
+                    var isFormInput = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA';
+                    if (!isFormInput) {
+                        e.preventDefault();
+                        active.click();
+                    }
+                }
+            }
+        }, true);
         syncLocalizedManifest();
     });
 
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.53';
+    const CURRENT_APP_VERSION = '1.0.54';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

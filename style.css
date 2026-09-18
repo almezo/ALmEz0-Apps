@@ -8865,12 +8865,24 @@ header, .main-header, .top-nav {
 
 /* TV Remote & Keyboard D-Pad Navigation Focus Ring */
 [data-input-mode="remote"] :focus,
-[data-is-tv="true"] :focus {
-    outline: 3px solid #38bdf8 !important;
-    outline-offset: 4px !important;
+[data-is-tv="true"] :focus,
+body.tv-nav-active :focus,
+.tv-focused {
+    outline: 3px solid #22c55e !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 8px #ffffff !important;
     transform: scale(1.04) !important;
-    transition: transform 0.15s ease, outline 0.15s ease !important;
-    z-index: 100 !important;
+    transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease !important;
+    z-index: 9999 !important;
+}
+
+/* Modal specific TV focus adjustments */
+.modal .tv-focused,
+.modal-content .tv-focused,
+.auth-view .tv-focused {
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.8) !important;
+    background-color: rgba(34, 197, 94, 0.12) !important;
 }
 
 /* Smooth transitions on orientation and scale adaptation */
