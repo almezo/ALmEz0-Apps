@@ -603,6 +603,7 @@ function showScreen(screenId, isBackNavigation = false) {
     }
 
     currentScreenId = screenId;
+    document.documentElement.classList.remove('has-active-player-session');
     if (screenId !== 'auth1-screen') {
         sessionStorage.setItem('sp_current_screen', screenId);
     }
@@ -2369,6 +2370,7 @@ function logout() {
         localStorage.removeItem('sp_server_info');
         localStorage.removeItem('sp_active_acc_id');
         localStorage.setItem('sp_logged_out', 'true');
+        document.documentElement.classList.remove('has-active-player-session');
 
         // مسح بيانات الجلسة المؤقتة الخاصة بالمشغل فقط دون المساس ببيانات تسجيل دخول الموقع الأساسي
         Object.keys(sessionStorage).forEach(key => {

@@ -7502,3 +7502,20 @@ body.in-live-fullscreen #livePlayerWrapper {
     border-radius: 0 !important;
     background: #000000 !important;
 }
+
+/* =========================================================
+   PREVENT AUTH SCREEN FLASH (FOUC) ON STARTUP
+   منع وميض شاشة كود السيرفر نهائياً عند فتح المشغل مع وجود حساب محفوظ
+   ========================================================= */
+html.has-active-player-session #auth1-screen,
+html.has-active-player-session #auth2-screen {
+    display: none !important;
+}
+
+html.has-active-player-session #dashboard-screen.hidden {
+    display: flex !important;
+}
+
+html.has-active-player-session #dashboard-nav.hidden {
+    display: flex !important;
+}

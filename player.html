@@ -105,6 +105,37 @@
             }
         })();
     </script>
+    <!-- Instant Session Pre-Check: Prevent FOUC / Flashing of Server Code Screen on Startup -->
+    <script>
+        (function checkInitialPlayerSession() {
+            try {
+                var isLoggedOut = localStorage.getItem('sp_logged_out') === 'true';
+                if (isLoggedOut) return;
+
+                var u = localStorage.getItem('sp_user') || sessionStorage.getItem('sp_user');
+                var h = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
+                var p = localStorage.getItem('sp_pass') || sessionStorage.getItem('sp_pass');
+
+                if (!u || !h || !p) {
+                    var activeAccId = localStorage.getItem('sp_active_acc_id');
+                    var rawAccounts = localStorage.getItem('sp_accounts') || localStorage.getItem('sp_saved_accounts') || '[]';
+                    var accounts = JSON.parse(rawAccounts);
+                    if (activeAccId && Array.isArray(accounts)) {
+                        var found = accounts.find(function (a) { return a.id === activeAccId; });
+                        if (found && found.userInfo && found.host && found.password) {
+                            u = JSON.stringify(found.userInfo);
+                            h = found.host;
+                            p = found.password;
+                        }
+                    }
+                }
+
+                if (u && h && p) {
+                    document.documentElement.classList.add('has-active-player-session');
+                }
+            } catch (e) { }
+        })();
+    </script>
 </head>
 
 <body class="screen-is-dashboard">
