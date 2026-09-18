@@ -638,6 +638,14 @@
 
         const promptWithContext = `${contextText}\nسؤال العميل: ${userMessage}`;
 
+        // مكافحة الهلوسة: نمنع أداة بحث جوجل تماماً عندما يكون لدينا قائمة مطابقة مؤكدة من سيرفر
+        // العميل نفسه (أفلام أو مسلسلات فعلية)، حتى لا يمزج النموذج معلومات من الإنترنت مع قائمة
+        // يُفترض أن يلتزم بها حرفياً 100%. نُبقي البحث مفعّلاً فقط للرياضة أو حين لا توجد قائمة
+        // محلية أصلاً (كالسؤال عن عمل غير متوفر أو قنوات عامة)، حيث يكون البحث الخارجي مطلوباً فعلاً.
+        const hasStrictCatalogMatch = !serverContext.isSports &&
+            ((serverContext.movies && serverContext.movies.length > 0) ||
+             (serverContext.series && serverContext.series.length > 0));
+
         const payload = {
             model: configuredModel,
             systemInstruction: {
@@ -647,14 +655,15 @@
                 ...conversationHistory.slice(-6),
                 { role: "user", parts: [{ text: promptWithContext }] }
             ],
-            tools: [
-                { googleSearch: {} } // تمكين بحث جوجل المباشر للمباريات والأفلام
-            ],
             generationConfig: {
                 temperature: 0.6,
                 maxOutputTokens: 650
             }
         };
+
+        if (!hasStrictCatalogMatch) {
+            payload.tools = [{ googleSearch: {} }];
+        }
 
         try {
             const aiCallable = getAiCallable();
@@ -717,14 +726,19 @@
                     ]
                 }
             ],
-            tools: [
-                { googleSearch: {} }
-            ],
             generationConfig: {
                 temperature: 0.6,
                 maxOutputTokens: 650
             }
         };
+
+        // نفس منطق مكافحة الهلوسة في المسار النصي: لا بحث جوجل عند وجود مطابقة مؤكدة من كتالوج السيرفر
+        const hasStrictCatalogMatch = !serverContext.isSports &&
+            ((serverContext.movies && serverContext.movies.length > 0) ||
+             (serverContext.series && serverContext.series.length > 0));
+        if (!hasStrictCatalogMatch) {
+            payload.tools = [{ googleSearch: {} }];
+        }
 
         try {
             const aiCallable = getAiCallable();
