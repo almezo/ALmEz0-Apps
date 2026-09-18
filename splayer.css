@@ -544,13 +544,17 @@ body.touch-device-mode #app-scaler {
    ========================================================= */
 .dash-cards-wrapper {
     flex: 1;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(clamp(250px, 25vw, 480px), 1fr));
-    justify-content: center;
-    align-content: center;
-    gap: clamp(18px, 2.8vw, 45px);
-    padding: clamp(14px, 2vh, 30px) clamp(16px, 3vw, 45px);
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    justify-content: center !important;
+    align-content: center !important;
+    width: 100% !important;
+    max-width: 1380px !important;
+    margin: 0 auto !important;
+    gap: clamp(14px, 2.2vw, 36px) !important;
+    padding: clamp(10px, 1.8vh, 26px) clamp(14px, 2.5vw, 40px) !important;
     perspective: 1000px;
+    box-sizing: border-box !important;
 }
 
 @keyframes cardEntrance {
@@ -566,10 +570,11 @@ body.touch-device-mode #app-scaler {
 }
 
 .dash-card {
-    height: clamp(330px, 56vh, 480px);
+    height: clamp(320px, 55vh, 460px) !important;
+    max-height: 560px !important;
     align-self: center;
     border-radius: var(--screen-card-radius, 28px);
-    padding: clamp(20px, 2.5vw, 35px) clamp(20px, 2.5vw, 35px) 22px clamp(20px, 2.5vw, 35px);
+    padding: clamp(16px, 2.2vw, 32px) clamp(16px, 2.2vw, 32px) 20px clamp(16px, 2.2vw, 32px);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -620,9 +625,9 @@ body.touch-device-mode #app-scaler {
 
 .dash-card i {
     position: absolute;
-    top: 45px;
-    left: 45px;
-    font-size: 65px;
+    top: clamp(25px, 4.5vh, 45px);
+    left: clamp(25px, 3.5vw, 45px);
+    font-size: clamp(42px, 5vw, 65px);
     color: #ffffff !important;
     opacity: 0.95;
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
@@ -630,19 +635,21 @@ body.touch-device-mode #app-scaler {
 }
 
 .dash-card h2 {
-    font-size: 40px;
+    font-size: clamp(24px, 3vw, 40px);
     font-weight: 900;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     z-index: 1;
     color: #ffffff;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
 }
 
 .dash-card p {
-    font-size: 18px;
+    font-size: clamp(13px, 1.3vw, 18px);
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
     z-index: 1;
+    white-space: nowrap;
 }
 
 /* 1. كرت البث المباشر (أحمر ياقوتي سينمائي متوهج - Crimson Live Ruby) */
@@ -6919,4 +6926,224 @@ body.tv-device-mode #liveSliderVolume,
 body.tv-mode #liveSliderBrightness,
 body.tv-mode #liveSliderVolume {
     display: none !important;
+}
+
+/* =========================================================
+   ANDROID LIVE TV: 5-COLUMN CHANNELS GRID & FULLSCREEN ONLY
+   تحويل شاشة البث المباشر في أندرويد لشبكة بطاقات خماسية وتوحيد المشغل بالكامل
+   ========================================================= */
+body.platform-android #live-screen .col-player {
+    display: none !important;
+}
+
+body.platform-android #live-screen .col-list {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    border-left: none !important;
+    background: transparent !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+body.platform-android #live-screen .col-sidebar {
+    width: 360px !important;
+    min-width: 300px !important;
+    max-width: 400px !important;
+    flex: 0 0 360px !important;
+}
+
+/* هيدر القنوات المركزي مع أزرار البحث والترتيب على اليمين */
+body.platform-android #live-screen .col-list .col-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    position: relative !important;
+    padding: 14px 24px !important;
+    min-height: 60px !important;
+    background: rgba(10, 14, 22, 0.85) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-sizing: border-box !important;
+}
+
+body.platform-android #live-screen .col-list .col-header h3#liveItemsCategoryTitle {
+    position: absolute !important;
+    left: 50% !important;
+    -webkit-transform: translateX(-50%) !important;
+    transform: translateX(-50%) !important;
+    margin: 0 !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8) !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+}
+
+body.platform-android #live-screen .col-list .col-header .header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    margin-right: auto !important;
+}
+
+body.platform-android #live-screen .col-list .col-header .header-icon {
+    font-size: 20px !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    cursor: pointer !important;
+    padding: 8px !important;
+    border-radius: 8px !important;
+    transition: color 0.2s ease, transform 0.2s ease, background 0.2s ease !important;
+}
+
+body.platform-android #live-screen .col-list .col-header .header-icon:hover {
+    color: var(--accent-gold, #f59e0b) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    -webkit-transform: scale(1.1) !important;
+    transform: scale(1.1) !important;
+}
+
+/* شريط البحث في الأقسام مدمج بأناقة تحت هيدر السايدبار */
+body.platform-android #live-screen #liveSearchWrap {
+    display: block !important;
+    padding: 10px 14px !important;
+    background: rgba(8, 11, 18, 0.6) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+body.platform-android #live-screen #liveSearchWrap .search-input {
+    width: 100% !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 8px !important;
+    padding: 8px 14px !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    outline: none !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+body.platform-android #live-screen #liveSearchWrap .search-input:focus {
+    border-color: var(--accent-gold, #f59e0b) !important;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3) !important;
+}
+
+/* شبكة القنوات الخماسية (5 Columns Grid) مثل صورة تطبيق إكس */
+body.platform-android #liveChannels {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 12px 14px !important;
+    padding: 18px 20px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    align-content: start !important;
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+    scroll-behavior: smooth !important;
+}
+
+body.platform-android #liveChannels::-webkit-scrollbar {
+    width: 7px !important;
+    display: block !important;
+}
+
+body.platform-android #liveChannels::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2) !important;
+}
+
+body.platform-android #liveChannels::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-radius: 6px !important;
+}
+
+body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-gold, #f59e0b) !important;
+}
+
+/* تصميم بطاقة القناة المطابق لصورة تطبيق إكس */
+.live-channel-card {
+    background: rgba(18, 22, 32, 0.92) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    cursor: pointer !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    aspect-ratio: 1.18 / 1 !important;
+    min-height: 105px !important;
+    position: relative !important;
+    transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    outline: none !important;
+}
+
+.live-channel-card:hover,
+.live-channel-card:focus,
+.live-channel-card.tv-focused {
+    -webkit-transform: scale(1.06) translateY(-2px) !important;
+    transform: scale(1.06) translateY(-2px) !important;
+    border-color: #e50914 !important;
+    box-shadow: 0 10px 25px rgba(229, 9, 20, 0.5), 0 0 10px rgba(255, 255, 255, 0.3) !important;
+    z-index: 10 !important;
+    background: rgba(26, 32, 46, 0.98) !important;
+}
+
+.live-channel-card.active {
+    border-color: #e50914 !important;
+    box-shadow: 0 0 16px rgba(229, 9, 20, 0.7) !important;
+}
+
+.live-channel-card .live-card-thumb {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    padding: 10px 12px 6px 12px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+.live-channel-card .channel-icon {
+    max-width: 80% !important;
+    max-height: 56px !important;
+    object-fit: contain !important;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)) !important;
+    transition: transform 0.2s ease !important;
+}
+
+.live-channel-card:hover .channel-icon,
+.live-channel-card:focus .channel-icon,
+.live-channel-card.tv-focused .channel-icon {
+    -webkit-transform: scale(1.08) !important;
+    transform: scale(1.08) !important;
+}
+
+.live-channel-card .live-card-title-bar {
+    width: 100% !important;
+    background: rgba(6, 8, 12, 0.88) !important;
+    padding: 6px 8px !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.live-channel-card .live-card-title {
+    display: block !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    letter-spacing: 0.3px !important;
 }

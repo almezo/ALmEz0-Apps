@@ -1453,10 +1453,12 @@ function playStream(id, type, extension, name, icon) {
     }
 
     let containerSelector = 'mizoPlayer';
-    const isFullscreenModal = (type === 'vod' || type === 'series');
+    const isAndroidAppPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || !!window.AndroidNativeBridge;
+    const isFullscreenModal = (type === 'vod' || type === 'series') || (type === 'live' && isAndroidAppPlatform);
 
     // إعداد واجهة المشغل
     if (isFullscreenModal) {
+        currentStreamInfo = { type, id, name, icon };
         const modal = document.getElementById('fullscreenVideoModal');
         if (modal) modal.classList.remove('hidden');
 
@@ -1468,6 +1470,10 @@ function playStream(id, type, extension, name, icon) {
         containerSelector = 'mizoVodPlayer';
         if (typeof resetCloseBtnInactivityTimer === 'function') resetCloseBtnInactivityTimer();
         history.pushState({ screenId: typeof currentScreenId !== 'undefined' ? currentScreenId : null, modal: 'fullscreen' }, '', window.location.href);
+
+        if (type === 'live' && typeof showTvLiveOsd === 'function') {
+            showTvLiveOsd(name, icon);
+        }
     } else {
         // Track current live channel info for TV navigation & OSD
         currentStreamInfo = { type: 'live', id, name, icon };
@@ -2829,6 +2835,8 @@ async function loadCategories(action, type) {
             el.classList.add('active');
 
             if (type === 'live') {
+                const titleEl = document.getElementById('liveItemsCategoryTitle');
+                if (titleEl) titleEl.innerText = cat.name || 'القنوات';
                 loadStreams('get_live_streams', cat.id, 'live');
             } else {
                 let stAction = type === 'vod' ? 'get_vod_streams' : 'get_series';
@@ -2873,6 +2881,8 @@ async function loadCategories(action, type) {
                 el.classList.add('active');
 
                 if (type === 'live') {
+                    const titleEl = document.getElementById('liveItemsCategoryTitle');
+                    if (titleEl) titleEl.innerText = cat.category_name || 'القنوات';
                     loadStreams('get_live_streams', cat.category_id, 'live');
                 } else {
                     let stAction = type === 'vod' ? 'get_vod_streams' : 'get_series';
@@ -3098,6 +3108,10 @@ async function loadStreams(action, categoryId, type) {
 
         const activeCat = document.querySelector(`#${type === 'live' ? 'liveCategories' : 'vodCategories'} .list-item.active .cat-name`);
         const catName = activeCat ? activeCat.innerText : '';
+        if (type === 'live' && catName) {
+            const titleEl = document.getElementById('liveItemsCategoryTitle');
+            if (titleEl) titleEl.innerText = catName;
+        }
 
         const effectiveType = (type === 'movies') ? 'vod' : type;
 
@@ -4298,6 +4312,7 @@ function appendNextItemChunk(customSize) {
     const fragment = document.createDocumentFragment();
 
     if (activeRenderType === 'live') {
+        const isAndroidAppPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || !!window.AndroidNativeBridge;
         const savedLive = sessionStorage.getItem('sp_last_live_stream');
         let savedLiveObj = null;
         if (savedLive) {
@@ -4306,27 +4321,43 @@ function appendNextItemChunk(customSize) {
 
         chunk.forEach((item, index) => {
             const el = document.createElement('div');
-            el.className = 'list-item';
             el.dataset.streamId = String(item.stream_id);
+            el.setAttribute('tabindex', '0');
 
             const isCurrentlyPlaying = currentStreamInfo && String(currentStreamInfo.id) === String(item.stream_id);
             const isSavedMatch = !currentStreamInfo && savedLiveObj && String(savedLiveObj.id) === String(item.stream_id);
 
-            if (isCurrentlyPlaying || isSavedMatch) {
-                el.classList.add('active');
-            }
-
             const iconSrc = cleanImageUrl(item.stream_icon);
-            const isPriority = (activeRenderOffset + index) < 14;
+            const isPriority = (activeRenderOffset + index) < 15;
             const loadingAttr = isPriority ? 'eager' : 'lazy';
             const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
 
-            el.innerHTML = `
-                <img src="${iconSrc}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
-                <span>${item.name || ''}</span>
-            `;
+            if (isAndroidAppPlatform) {
+                el.className = 'live-channel-card';
+                if (isCurrentlyPlaying || isSavedMatch) {
+                    el.classList.add('active');
+                }
+                el.innerHTML = `
+                    <div class="live-card-thumb">
+                        <img src="${iconSrc}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                    </div>
+                    <div class="live-card-title-bar">
+                        <span class="live-card-title" title="${item.name || ''}">${item.name || ''}</span>
+                    </div>
+                `;
+            } else {
+                el.className = 'list-item';
+                if (isCurrentlyPlaying || isSavedMatch) {
+                    el.classList.add('active');
+                }
+                el.innerHTML = `
+                    <img src="${iconSrc}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                    <span>${item.name || ''}</span>
+                `;
+            }
+
             el.onclick = () => {
-                document.querySelectorAll('#liveChannels .list-item').forEach(i => i.classList.remove('active'));
+                document.querySelectorAll('#liveChannels .live-channel-card, #liveChannels .list-item').forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
                 playStream(item.stream_id, 'live', 'm3u8', item.name, item.stream_icon);
             };
@@ -4903,25 +4934,26 @@ function initTvNavigationEngine() {
             return;
         }
 
-        // تنقل ذكي في شبكة بطاقات الأفلام والمسلسلات بنظام 5 أعمدة
-        if (currentFocusedEl && currentFocusedEl.classList.contains('vod-card')) {
-            const allVodCards = Array.from(document.querySelectorAll('#vodGrid .vod-card'));
-            const cardIndex = allVodCards.indexOf(currentFocusedEl);
+        // تنقل ذكي في شبكة بطاقات الأفلام والمسلسلات وقنوات البث المباشر بنظام 5 أعمدة
+        if (currentFocusedEl && (currentFocusedEl.classList.contains('vod-card') || currentFocusedEl.classList.contains('live-channel-card'))) {
+            const isLiveCard = currentFocusedEl.classList.contains('live-channel-card');
+            const allCards = Array.from(document.querySelectorAll(isLiveCard ? '#liveChannels .live-channel-card' : '#vodGrid .vod-card'));
+            const cardIndex = allCards.indexOf(currentFocusedEl);
             if (cardIndex !== -1) {
                 if (e.key === 'ArrowDown' || e.keyCode === 40) {
-                    if (cardIndex + 5 < allVodCards.length) {
+                    if (cardIndex + 5 < allCards.length) {
                         e.preventDefault();
-                        setFocus(allVodCards[cardIndex + 5]);
+                        setFocus(allCards[cardIndex + 5]);
                         return;
                     }
                 } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
                     if (cardIndex - 5 >= 0) {
                         e.preventDefault();
-                        setFocus(allVodCards[cardIndex - 5]);
+                        setFocus(allCards[cardIndex - 5]);
                         return;
                     } else {
                         // العودة لحقل البحث عند الوصول لأول صف
-                        const searchInput = document.querySelector('#searchVod, #vodItemsSearchWrap input');
+                        const searchInput = document.querySelector(isLiveCard ? '#searchLiveItems, #liveItemsSearchWrap input' : '#searchVod, #vodItemsSearchWrap input');
                         if (searchInput) {
                             e.preventDefault();
                             setFocus(searchInput);
@@ -4931,7 +4963,7 @@ function initTvNavigationEngine() {
                 } else if (e.key === 'ArrowRight' || e.keyCode === 39) {
                     // في الواجهة العربية: اليمين يتنقل للبطاقة السابقة أو يعود لقائمة التصنيفات
                     if (cardIndex % 5 === 0) {
-                        const activeCat = document.querySelector('#vodCategories .cat-item.active, #vodCategories .cat-item');
+                        const activeCat = document.querySelector(isLiveCard ? '#liveCategories .list-item.active, #liveCategories .list-item, #liveCategories .cat-item.active' : '#vodCategories .cat-item.active, #vodCategories .cat-item');
                         if (activeCat) {
                             e.preventDefault();
                             setFocus(activeCat);
@@ -4939,13 +4971,13 @@ function initTvNavigationEngine() {
                         }
                     } else if (cardIndex - 1 >= 0) {
                         e.preventDefault();
-                        setFocus(allVodCards[cardIndex - 1]);
+                        setFocus(allCards[cardIndex - 1]);
                         return;
                     }
                 } else if (e.key === 'ArrowLeft' || e.keyCode === 37) {
-                    if (cardIndex + 1 < allVodCards.length && (cardIndex % 5 !== 4)) {
+                    if (cardIndex + 1 < allCards.length && (cardIndex % 5 !== 4)) {
                         e.preventDefault();
-                        setFocus(allVodCards[cardIndex + 1]);
+                        setFocus(allCards[cardIndex + 1]);
                         return;
                     }
                 }
@@ -4953,9 +4985,9 @@ function initTvNavigationEngine() {
         }
 
         // تنقل ذكي بين أعمدة البث المباشر (التصنيفات <-> القنوات <-> المشغل)
-        if (currentFocusedEl && currentFocusedEl.classList.contains('cat-item')) {
+        if (currentFocusedEl && (currentFocusedEl.classList.contains('cat-item') || (currentFocusedEl.classList.contains('list-item') && currentFocusedEl.closest('#liveCategories, #vodCategories')))) {
             if (e.key === 'ArrowLeft' || e.keyCode === 37) {
-                const firstChannel = document.querySelector('#liveChannels .list-item.active, #liveChannels .list-item');
+                const firstChannel = document.querySelector('#liveChannels .live-channel-card.active, #liveChannels .live-channel-card, #liveChannels .list-item.active, #liveChannels .list-item');
                 if (firstChannel) {
                     e.preventDefault();
                     setFocus(firstChannel);
