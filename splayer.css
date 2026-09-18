@@ -3220,14 +3220,20 @@ input.search-input[placeholder*="المسلسلات"] {
    تكبير الشريط السفلي لمشغل Video.js وترتيب الأزرار بدقة
    ========================================== */
 .video-js .vjs-control-bar {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
     height: 95px !important;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.95), transparent) !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.6) 70%, transparent 100%) !important;
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: flex-start !important;
     direction: ltr !important;
-    padding: 0 16px !important;
+    padding: 10px 20px 0 20px !important;
+    box-sizing: border-box !important;
 }
 
 /* إزالة زر السرعة تماماً كما طلب المستخدم */
@@ -3235,22 +3241,187 @@ input.search-input[placeholder*="المسلسلات"] {
     display: none !important;
 }
 
-/* أزرار أقصى اليسار (التشغيل/الإيقاف ورفع وخفض الصوت) */
+/* أزرار أقصى اليسار: التشغيل/الإيقاف */
 .video-js .vjs-play-control {
     order: 1 !important;
-    margin-right: 8px !important;
+    margin-right: 6px !important;
 }
 
-.video-js .vjs-volume-panel {
+/* أزرار التقديم والتأخير 10 ثوانٍ */
+.video-js .vjs-skip-backward-10 {
     order: 2 !important;
+    margin-right: 4px !important;
+}
+
+.video-js .vjs-skip-forward-10 {
+    order: 3 !important;
     margin-right: 12px !important;
 }
 
-/* شريط التقدم والوقت في المنتصف */
+.video-js .vjs-skip-backward-10,
+.video-js .vjs-skip-forward-10 {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+}
+
+.video-js .vjs-skip-backward-10:hover,
+.video-js .vjs-skip-forward-10:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    transform: scale(1.1) !important;
+}
+
+/* لوحة مستوى الصوت */
+.video-js .vjs-volume-panel {
+    order: 4 !important;
+    margin-right: 14px !important;
+}
+
+/* عداد الوقت الكامل في الأفلام والمسلسلات (الوقت المنقضي / المدة الكاملة) */
+.video-js .vjs-current-time,
+.video-js .vjs-time-divider,
+.video-js .vjs-duration {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: normal !important;
+}
+
+.video-js .vjs-current-time {
+    order: 5 !important;
+    margin-left: 6px !important;
+}
+
+.video-js .vjs-time-divider {
+    order: 6 !important;
+    min-width: 14px !important;
+    text-align: center !important;
+    padding: 0 2px !important;
+}
+
+.video-js .vjs-duration {
+    order: 7 !important;
+    margin-right: 14px !important;
+}
+
+.video-js .vjs-current-time-display,
+.video-js .vjs-duration-display,
+.video-js .vjs-time-divider span {
+    font-family: 'Outfit', monospace, system-ui !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+}
+
+.video-js .vjs-current-time-display {
+    color: #ffffff !important;
+}
+
+.video-js .vjs-time-divider span {
+    color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.video-js .vjs-duration-display {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.video-js .vjs-remaining-time {
+    display: none !important;
+}
+
+/* شريط التقدم والعداد العريض والكامل أعلى أزرار التحكم */
 .video-js .vjs-progress-control {
-    order: 10 !important;
-    flex: 1 1 auto !important;
-    margin: 0 15px !important;
+    position: absolute !important;
+    top: -12px !important;
+    left: 20px !important;
+    right: 20px !important;
+    width: calc(100% - 40px) !important;
+    height: 22px !important;
+    display: flex !important;
+    align-items: center !important;
+    cursor: pointer !important;
+    z-index: 40 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* المسار الكلي للشريط (Track) */
+.video-js .vjs-progress-holder {
+    height: 6px !important;
+    width: 100% !important;
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-radius: 4px !important;
+    margin: 0 !important;
+    position: relative !important;
+    transition: height 0.15s ease !important;
+}
+
+.video-js .vjs-progress-control:hover .vjs-progress-holder {
+    height: 9px !important;
+}
+
+/* شريط التحميل المؤقت (Buffered / Loaded) */
+.video-js .vjs-load-progress {
+    height: 100% !important;
+    background: rgba(255, 255, 255, 0.45) !important;
+    border-radius: 4px !important;
+}
+
+.video-js .vjs-load-progress div {
+    background: rgba(255, 255, 255, 0.45) !important;
+    height: 100% !important;
+    border-radius: 4px !important;
+}
+
+/* شريط التشغيل المقطوع (Played Progress) */
+.video-js .vjs-play-progress {
+    height: 100% !important;
+    background: linear-gradient(90deg, #e50914, #ff3b30) !important;
+    border-radius: 4px !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+}
+
+/* مقبض السحب الدائري الأنيق (Scrubber Thumb) */
+.video-js .vjs-play-progress:before {
+    content: '' !important;
+    position: absolute !important;
+    right: -7px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 16px !important;
+    height: 16px !important;
+    background: #ffffff !important;
+    border: 2px solid #e50914 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 10px rgba(229, 9, 20, 0.8), 0 2px 6px rgba(0, 0, 0, 0.7) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.video-js .vjs-progress-control:hover .vjs-play-progress:before {
+    transform: translateY(-50%) scale(1.25) !important;
+    box-shadow: 0 0 14px rgba(229, 9, 20, 1), 0 3px 8px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* فقاعة الوقت عند تمرير الماوس فوق الشريط */
+.video-js .vjs-time-tooltip {
+    background: rgba(15, 23, 42, 0.95) !important;
+    color: #ffffff !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    padding: 4px 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+    top: -34px !important;
+    font-family: 'Outfit', sans-serif !important;
 }
 
 .video-js .vjs-live-control {
@@ -3258,11 +3429,7 @@ input.search-input[placeholder*="المسلسلات"] {
     margin: 0 10px !important;
 }
 
-.video-js .vjs-time-control {
-    order: 12 !important;
-}
-
-/* فاصل مرن يدفع أزرار اليمين لأقصى اليمين دائماً (خصوصاً في البث المباشر) */
+/* فاصل مرن يدفع أزرار اليمين لأقصى اليمين دائماً */
 .vjs-custom-spacer {
     flex: 1 1 auto !important;
     order: 15 !important;
@@ -3424,8 +3591,10 @@ input.search-input[placeholder*="المسلسلات"] {
 }
 
 .video-js .vjs-time-control {
-    font-size: 1.5em !important;
-    line-height: 75px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    line-height: normal !important;
 }
 
 /* 3. تعديل مستوى الصوت (تغليظ وتوسيط كما في الصورة) */

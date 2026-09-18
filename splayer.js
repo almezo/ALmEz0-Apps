@@ -1683,7 +1683,7 @@ function playStream(id, type, extension, name, icon) {
                         backward: 10
                     },
                     progressControl: (type !== 'live'),
-                    remainingTimeDisplay: (type !== 'live'),
+                    remainingTimeDisplay: false,
                     currentTimeDisplay: (type !== 'live'),
                     timeDivider: (type !== 'live'),
                     durationDisplay: (type !== 'live'),
@@ -2136,7 +2136,9 @@ function playStream(id, type, extension, name, icon) {
                     customFsBtn.title = "ملء الشاشة";
 
                     const updateFsBtnState = () => {
-                        const isFs = player.isFullscreen() || !!(document.fullscreenElement || document.webkitFullscreenElement);
+                        const liveWrap = document.getElementById('livePlayerWrapper');
+                        const isLiveFs = liveWrap && liveWrap.classList.contains('live-fullscreen-mode');
+                        const isFs = isLiveFs || player.isFullscreen() || !!(document.fullscreenElement || document.webkitFullscreenElement);
                         customFsBtn.innerHTML = isFs ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
                         customFsBtn.title = isFs ? "تصغير الشاشة" : "ملء الشاشة";
                     };
@@ -2144,6 +2146,13 @@ function playStream(id, type, extension, name, icon) {
                     customFsBtn.onclick = (e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        if (type === 'live' && !isFullscreenModal) {
+                            if (typeof toggleLivePlayerFullscreen === 'function') {
+                                toggleLivePlayerFullscreen();
+                            }
+                            updateFsBtnState();
+                            return;
+                        }
                         const isFs = player.isFullscreen() || !!(document.fullscreenElement || document.webkitFullscreenElement);
                         if (isFs) {
                             if (player.isFullscreen()) {
@@ -2169,7 +2178,14 @@ function playStream(id, type, extension, name, icon) {
                     document.addEventListener('fullscreenchange', updateFsBtnState);
                     document.addEventListener('webkitfullscreenchange', updateFsBtnState);
 
+                    // إلغاء زر الفيديو جي إس الافتراضي وربطه بالزر المخصص لمنع التكرار
                     if (fsControl) {
+                        fsControl.style.setProperty('display', 'none', 'important');
+                        fsControl.onclick = (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            customFsBtn.click();
+                        };
                         controlBar.insertBefore(spacer, fsControl);
                         controlBar.insertBefore(settingsBtn, fsControl);
                         controlBar.insertBefore(aspectBtn, fsControl);
@@ -3357,7 +3373,7 @@ function exitNativeFullscreen() {
     } catch (e) { }
 }
 
-function toggleLivePlayerFullscreen() {
+function toggleLivePlayerFullscreen(forceState) {
     const liveWrap = document.getElementById('livePlayerWrapper');
     if (!liveWrap) return;
 
@@ -3368,29 +3384,28 @@ function toggleLivePlayerFullscreen() {
         return;
     }
 
-    const isFs = liveWrap.classList.contains('live-fullscreen-mode') || !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const currentlyFs = liveWrap.classList.contains('live-fullscreen-mode');
+    const targetFs = (typeof forceState === 'boolean') ? forceState : !currentlyFs;
+
     const icon1 = document.getElementById('liveFullscreenIcon');
     const icon2 = document.getElementById('liveOverlayFsIcon');
+    const customFsBtn = document.querySelector('.custom-vjs-fs-btn');
 
-    if (!isFs) {
+    if (targetFs) {
         liveWrap.classList.add('live-fullscreen-mode');
         document.body.classList.add('in-live-fullscreen');
         if (icon1) icon1.className = 'fas fa-compress';
         if (icon2) icon2.className = 'fas fa-compress';
+        if (customFsBtn) {
+            customFsBtn.innerHTML = '<i class="fas fa-compress"></i>';
+            customFsBtn.title = 'تصغير الشاشة';
+        }
 
         try {
-            if (liveWrap.requestFullscreen) {
-                liveWrap.requestFullscreen().catch(() => {});
-            } else if (liveWrap.webkitRequestFullscreen) {
-                liveWrap.webkitRequestFullscreen();
+            if (!document.fullscreenElement && !window.electronAPI && document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => {});
             }
         } catch (e) { }
-
-        if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
-            window.electronAPI.setFullScreen(true);
-        } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setFullScreen === 'function') {
-            window.AlMeZ0App.setFullScreen(true);
-        }
 
         if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
             window.AndroidNativeBridge.setImmersiveFullscreen(true);
@@ -3400,19 +3415,17 @@ function toggleLivePlayerFullscreen() {
         document.body.classList.remove('in-live-fullscreen');
         if (icon1) icon1.className = 'fas fa-expand';
         if (icon2) icon2.className = 'fas fa-expand';
+        if (customFsBtn) {
+            customFsBtn.innerHTML = '<i class="fas fa-expand"></i>';
+            customFsBtn.title = 'ملء الشاشة';
+        }
 
         try {
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (!window.electronAPI && (document.fullscreenElement || document.webkitFullscreenElement)) {
                 if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         } catch (e) { }
-
-        if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
-            window.electronAPI.setFullScreen(false);
-        } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setFullScreen === 'function') {
-            window.AlMeZ0App.setFullScreen(false);
-        }
 
         if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
             window.AndroidNativeBridge.setImmersiveFullscreen(false);
@@ -3423,20 +3436,22 @@ function toggleLivePlayerFullscreen() {
 document.addEventListener('fullscreenchange', () => {
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     const liveWrap = document.getElementById('livePlayerWrapper');
-    if (!fsEl && liveWrap && liveWrap.classList.contains('live-fullscreen-mode')) {
-        liveWrap.classList.remove('live-fullscreen-mode');
-        document.body.classList.remove('in-live-fullscreen');
-        const icon1 = document.getElementById('liveFullscreenIcon');
-        const icon2 = document.getElementById('liveOverlayFsIcon');
-        if (icon1) icon1.className = 'fas fa-expand';
-        if (icon2) icon2.className = 'fas fa-expand';
-        if (window.electronAPI && typeof window.electronAPI.setFullScreen === 'function') {
-            window.electronAPI.setFullScreen(false);
-        } else if (window.AlMeZ0App && typeof window.AlMeZ0App.setFullScreen === 'function') {
-            window.AlMeZ0App.setFullScreen(false);
+    if (!fsEl && !window.electronAPI && liveWrap && liveWrap.classList.contains('live-fullscreen-mode')) {
+        toggleLivePlayerFullscreen(false);
+    }
+});
+
+// اختصارات الكيبورد على الكمبيوتر (Escape للخروج من ملء الشاشة، و F للتبديل السريع)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const liveWrap = document.getElementById('livePlayerWrapper');
+        if (liveWrap && liveWrap.classList.contains('live-fullscreen-mode')) {
+            toggleLivePlayerFullscreen(false);
         }
-        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.setImmersiveFullscreen === 'function') {
-            window.AndroidNativeBridge.setImmersiveFullscreen(false);
+    } else if ((e.key === 'f' || e.key === 'F') && !e.target.matches('input, textarea, select')) {
+        const liveWrap = document.getElementById('livePlayerWrapper');
+        if (liveWrap && currentStreamInfo && currentStreamInfo.type === 'live') {
+            toggleLivePlayerFullscreen();
         }
     }
 });

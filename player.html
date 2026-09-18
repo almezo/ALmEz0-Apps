@@ -987,41 +987,58 @@
                     }
                 });
 
-                // 3. تفعيل وإغلاق الشاشة الكاملة فقط عند النقر المزدوج (Double Tap) على المشغل في الهواتف
-                if (isMobile) {
-                    let lastTapTime = 0;
+                // 3. تفعيل وإغلاق الشاشة الكاملة عند النقر المزدوج (Double Click / Double Tap) على المشغل للكمبيوتر والهواتف
+                let lastPlayerInteractionTime = 0;
+                function handleDoubleToggle(e) {
+                    const playerArea = e.target.closest('.video-js, #livePlayerWrapper, .plyr-container, #fullscreenVideoContainer, video');
+                    if (!playerArea) return;
+                    if (e.target.closest('.vjs-control-bar, .vjs-custom-top-bar, .vjs-progress-control, button, a, input, select')) return;
 
-                    document.addEventListener('touchend', (e) => {
-                        const playerArea = e.target.closest('.video-js, #livePlayerWrapper, .plyr-container, #fullscreenVideoContainer, video');
+                    const currentTime = new Date().getTime();
+                    const interval = currentTime - lastPlayerInteractionTime;
 
-                        if (playerArea) {
-                            const currentTime = new Date().getTime();
-                            const tapInterval = currentTime - lastTapTime;
-
-                            if (tapInterval < 350 && tapInterval > 0) {
-                                e.preventDefault();
-
-                                if (window.vjsPlayer) {
-                                    if (window.vjsPlayer.isFullscreen()) {
-                                        window.vjsPlayer.exitFullscreen();
-                                    } else {
-                                        window.vjsPlayer.requestFullscreen();
-                                        if (typeof tryLandscapeOnFullscreen === 'function') {
-                                            tryLandscapeOnFullscreen();
-                                        }
-                                    }
-                                } else {
-                                    const videoEl = document.querySelector('video');
-                                    if (videoEl) {
-                                        if (document.fullscreenElement) {
-                                            document.exitFullscreen();
-                                        } else {
-                                            videoEl.requestFullscreen().catch(() => { });
-                                        }
-                                    }
+                    if (interval < 350 && interval > 0) {
+                        e.preventDefault();
+                        if (typeof toggleLivePlayerFullscreen === 'function' && currentStreamInfo && currentStreamInfo.type === 'live') {
+                            toggleLivePlayerFullscreen();
+                        } else if (window.vjsPlayer) {
+                            if (window.vjsPlayer.isFullscreen()) {
+                                window.vjsPlayer.exitFullscreen();
+                            } else {
+                                window.vjsPlayer.requestFullscreen();
+                                if (typeof tryLandscapeOnFullscreen === 'function') {
+                                    tryLandscapeOnFullscreen();
                                 }
                             }
-                            lastTapTime = currentTime;
+                        } else {
+                            const videoEl = document.querySelector('video');
+                            if (videoEl) {
+                                if (document.fullscreenElement) {
+                                    document.exitFullscreen();
+                                } else {
+                                    videoEl.requestFullscreen().catch(() => { });
+                                }
+                            }
+                        }
+                    }
+                    lastPlayerInteractionTime = currentTime;
+                }
+
+                if (isMobile) {
+                    document.addEventListener('touchend', handleDoubleToggle);
+                } else {
+                    document.addEventListener('dblclick', (e) => {
+                        const playerArea = e.target.closest('.video-js, #livePlayerWrapper, .plyr-container, #fullscreenVideoContainer, video');
+                        if (!playerArea) return;
+                        if (e.target.closest('.vjs-control-bar, .vjs-custom-top-bar, .vjs-progress-control, button, a, input, select')) return;
+                        if (typeof toggleLivePlayerFullscreen === 'function' && currentStreamInfo && currentStreamInfo.type === 'live') {
+                            toggleLivePlayerFullscreen();
+                        } else if (window.vjsPlayer) {
+                            if (window.vjsPlayer.isFullscreen()) {
+                                window.vjsPlayer.exitFullscreen();
+                            } else {
+                                window.vjsPlayer.requestFullscreen();
+                            }
                         }
                     });
                 }
