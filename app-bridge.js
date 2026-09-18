@@ -244,6 +244,15 @@
         } else if (isAndroid) {
             body.classList.add('platform-native', 'platform-android');
             document.documentElement.classList.add('platform-native');
+            const ua = (navigator.userAgent || '').toLowerCase();
+            const hasNativeTv = window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice();
+            const isNoTouch = (navigator.maxTouchPoints === 0 || (!('ontouchstart' in window) && !('msMaxTouchPoints' in navigator)));
+            const isTv = hasNativeTv || isNoTouch || ua.includes('tv') || ua.includes('box') || ua.includes('large') || ua.includes('amlogic') || ua.includes('allwinner') || ua.includes('rockchip') || localStorage.getItem('mizo_device_mode') === 'tv';
+            if (isTv) {
+                body.classList.add('tv-device-mode', 'tv-mode');
+                document.documentElement.classList.add('tv-device-mode', 'tv-mode');
+                document.documentElement.setAttribute('data-is-tv', 'true');
+            }
         } else if (isIOS) {
             body.classList.add('platform-native', 'platform-ios');
             document.documentElement.classList.add('platform-native');
@@ -452,13 +461,12 @@
         function getSiteFocusables() {
             var selector = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], .main-category-card, .category-card, .price-card, .btn, [tabindex="0"]';
             var all = Array.from(document.querySelectorAll(selector));
-            var vh = window.innerHeight || document.documentElement.clientHeight || 800;
             return all.filter(function (el) {
                 if (el.closest('.hidden') || el.closest('[style*="display: none"]')) return false;
                 var style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
                 var r = el.getBoundingClientRect();
-                return r.width > 0 && r.height > 0 && r.bottom >= -250 && r.top <= (vh * 1.8);
+                return r.width > 0 && r.height > 0;
             });
         }
 
@@ -541,7 +549,7 @@
 
             var nextEl = null;
             if (!currentEl) {
-                var firstCard = document.querySelector('#homeCategoriesGrid .main-category-card, .category-card, .price-card');
+                var firstCard = document.querySelector('#homeCategoriesGrid .main-category-card, .main-category-card, .category-card, .price-card, .btn');
                 nextEl = firstCard || siteFocusables[0];
             } else {
                 var direction = 'down';
@@ -551,6 +559,16 @@
                 else if (e.key === 'ArrowRight' || e.keyCode === 39) direction = 'right';
 
                 nextEl = find2DSpatialNeighbor(currentEl, siteFocusables, direction);
+
+                // الانتقال التتابعي السلس إذا لم يتم العثور على جار مكاني مباشر في ذلك الاتجاه
+                if (!nextEl) {
+                    var curIdx = siteFocusables.indexOf(currentEl);
+                    if (direction === 'down' && curIdx !== -1 && curIdx < siteFocusables.length - 1) {
+                        nextEl = siteFocusables[curIdx + 1];
+                    } else if (direction === 'up' && curIdx !== -1 && curIdx > 0) {
+                        nextEl = siteFocusables[curIdx - 1];
+                    }
+                }
             }
 
             if (nextEl) {
@@ -558,7 +576,7 @@
                 nextEl.focus();
                 nextEl.classList.add('tv-focused');
                 try {
-                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
                 } catch (err) { }
             }
         }
@@ -784,7 +802,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.61';
+    const CURRENT_APP_VERSION = '1.0.62';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

@@ -827,8 +827,8 @@
 
         </div> <!-- END #app-scaler -->
 
-        <!-- زر عائم لمساعد الميزو الذكي للوصول السريع -->
-        <button id="aiFloatingTrigger" class="ai-floating-trigger" onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" title="مساعد الميزو الذكي">
+        <!-- زر عائم لمساعد الميزو الذكي للوصول السريع (يظهر فقط في شاشة الداشبورد الرئيسية للمشغل) -->
+        <button id="aiFloatingTrigger" class="ai-floating-trigger hidden" onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" title="مساعد الميزو الذكي">
             <span class="ai-floating-icon"><i class="fas fa-sparkles"></i></span>
             <span class="ai-floating-label">مساعد الميزو</span>
         </button>
@@ -954,16 +954,33 @@
                     });
                 }
 
-                // 2. إخفاء الكيبورد وتنفيذ زر الدخول عند الضغط على Go / Enter (للجميع)
+                // 2. إخفاء الكيبورد والتنقل الذكي بين الحقول أو تنفيذ الدخول عند الضغط على Go / Enter
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' && e.target.matches(inputsSelector)) {
                         e.preventDefault();
-                        e.target.blur(); // ينزل الكيبورد في الموبايل
 
                         if (e.target.id === 'serverCode') {
+                            e.target.blur();
                             var btnConnect = document.getElementById('btnConnectServer');
                             if (btnConnect) btnConnect.click();
-                        } else if (e.target.id === 'username' || e.target.id === 'password') {
+                        } else if (e.target.id === 'username') {
+                            var passField = document.getElementById('password');
+                            if (passField) {
+                                passField.focus();
+                            }
+                        } else if (e.target.id === 'password') {
+                            var uVal = (document.getElementById('username') ? document.getElementById('username').value : '').trim();
+                            var pVal = (document.getElementById('password') ? document.getElementById('password').value : '').trim();
+                            if (!uVal) {
+                                var uField = document.getElementById('username');
+                                if (uField) uField.focus();
+                                return;
+                            }
+                            if (!pVal) {
+                                e.target.focus();
+                                return;
+                            }
+                            e.target.blur();
                             var btnLogin = document.getElementById('btnLogin');
                             if (btnLogin) btnLogin.click();
                         }

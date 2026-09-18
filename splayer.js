@@ -76,8 +76,8 @@ function applyAutoScaling() {
     const isDesktopMode = document.body.classList.contains('desktop-device-mode');
     const isElectronPlatform = document.body.classList.contains('platform-electron') || (window.electronAPI && window.electronAPI.isElectron);
 
-    // On PC (Desktop / Electron Platform with screen >= 1024): Full-Screen 100% Edge-to-Edge 1:1 display
-    if (isDesktopMode || isElectronPlatform || (!isTvMode && !document.body.classList.contains('touch-device-mode') && windowWidth >= 1024)) {
+    // On TV Mode (Android TV / TV Boxes / Receivers) and PC (Desktop / Electron Platform): Full-Screen 100% Edge-to-Edge 1:1 display
+    if (isTvMode || isDesktopMode || isElectronPlatform || (!document.body.classList.contains('touch-device-mode') && windowWidth >= 1024)) {
         scaler.style.transform = 'none';
         scaler.style.transformOrigin = 'initial';
         scaler.style.top = '0';
@@ -628,6 +628,41 @@ function showScreen(screenId, isBackNavigation = false) {
     const scrollTopBtn = document.getElementById('btnScrollTop');
     if (scrollTopBtn) scrollTopBtn.classList.add('hidden');
 
+    // إخفاء زر مساعد الميزو الذكي في شاشات تسجيل الدخول والفرعية وإظهاره حصرياً في شاشة الداشبورد
+    const aiFloatingBtn = document.getElementById('aiFloatingTrigger');
+    if (aiFloatingBtn) {
+        if (screenId === 'dashboard-screen') {
+            aiFloatingBtn.classList.remove('hidden');
+            aiFloatingBtn.style.display = 'inline-flex';
+        } else {
+            aiFloatingBtn.classList.add('hidden');
+            aiFloatingBtn.style.display = 'none';
+        }
+    }
+
+    // تفعيل التركيز التلقائي للريموت في وضع التلفزيون عند الانتقال لأي شاشة
+    const isTvMode = document.body.classList.contains('tv-device-mode');
+    if (isTvMode && typeof setFocus === 'function') {
+        setTimeout(() => {
+            if (screenId === 'dashboard-screen') {
+                const liveCard = document.getElementById('cardLive');
+                if (liveCard) setFocus(liveCard);
+            } else if (screenId === 'auth1-screen') {
+                const sCode = document.getElementById('serverCode');
+                if (sCode) setFocus(sCode);
+            } else if (screenId === 'auth2-screen') {
+                const uInp = document.getElementById('username');
+                if (uInp) setFocus(uInp);
+            } else if (screenId === 'live-screen') {
+                const firstCat = document.querySelector('#liveCategories .list-item.active') || document.querySelector('#liveCategories .list-item');
+                if (firstCat) setFocus(firstCat);
+            } else if (screenId === 'vod-screen') {
+                const firstCat = document.querySelector('#vodCategories .list-item.active') || document.querySelector('#vodCategories .list-item');
+                if (firstCat) setFocus(firstCat);
+            }
+        }, 140);
+    }
+
     // Toggle Navbar visibility based on screen
     const nav = document.getElementById('dashboard-nav');
     if (nav) {
@@ -639,10 +674,6 @@ function showScreen(screenId, isBackNavigation = false) {
             const isDashboard = (screenId === 'dashboard-screen');
             const isProfile = (screenId === 'profile-screen');
             document.body.classList.toggle('screen-is-dashboard', isDashboard);
-            const aiFloatingBtn = document.getElementById('aiFloatingTrigger');
-            if (aiFloatingBtn) {
-                aiFloatingBtn.style.display = isDashboard ? 'inline-flex' : 'none';
-            }
 
             // Make nav-right container always visible so navReturnBtn is always accessible
             const navRight = nav.querySelector('.nav-right');
@@ -2983,19 +3014,15 @@ async function loadCategories(action, type) {
             localStorage.setItem(countsCacheKey, JSON.stringify(cachedCounts));
         } catch (e) { }
 
-        fetchCategoryCounts(type, container.id);
+        setTimeout(() => {
+            fetchCategoryCounts(type, container.id);
+        }, 1200);
 
         const savedCatId = sessionStorage.getItem('sp_active_cat_' + type);
         let defaultClicked = false;
 
-        if (type === 'vod' || type === 'series') {
-            // دائماً تفتح خانة المضافة حديثاً عند فتح باقة الأفلام أو المسلسلات
-            const recentCat = container.querySelector('[data-cat-id="recent"]');
-            if (recentCat) {
-                recentCat.click();
-                defaultClicked = true;
-            }
-        } else if (savedCatId) {
+        // اختيار قسم محفوظ إن وُجد (ما عدا recent لتسريع الفتح) أو أول قسم حقيقي يحتوي على محتوى
+        if (savedCatId && savedCatId !== 'recent') {
             const savedCatEl = Array.from(container.querySelectorAll('.list-item')).find(el => {
                 const countSpan = el.querySelector('.cat-count');
                 return countSpan && countSpan.getAttribute('data-cat-id') === String(savedCatId);
@@ -3007,8 +3034,12 @@ async function loadCategories(action, type) {
         }
 
         if (!defaultClicked) {
+            // فتح أول قسم فعلي مباشر يحتوي على محتويات سريعة التحميل
             const firstReal = container.querySelector('.list-item:not(.special-category)') || container.querySelector('.list-item');
-            if (firstReal) firstReal.click();
+            if (firstReal) {
+                firstReal.click();
+                defaultClicked = true;
+            }
         }
     } catch (e) {
         console.error("Load Categories Error:", e);
@@ -3169,7 +3200,8 @@ async function loadStreams(action, categoryId, type) {
         let items = [];
         // استخدام الكاش المشترك الفوري في حال كانت الباقة محملة أو جاري تحميلها أو لقسم خاص
         if (specialIds.includes(categoryId) || (globalStreamsCache[cacheKey] && Array.isArray(globalStreamsCache[cacheKey].data)) || globalStreamsInFlight[cacheKey]) {
-            const allStreams = await getAllStreamsForType(type, action);
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
+            const allStreams = await Promise.race([getAllStreamsForType(type, action), timeoutPromise]);
             if (specialIds.includes(categoryId)) {
                 items = [...allStreams];
             } else {
@@ -3260,7 +3292,16 @@ async function loadStreams(action, categoryId, type) {
         renderItems(currentItemsArray, type);
     } catch (e) {
         console.error("Load Streams Error:", e);
-        container.innerHTML = '<div class="empty-state">فشل في تحميل المحتوى</div>';
+        const retryHtml = `
+            <div style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; min-height:300px; color:#fff; text-align:center; padding: 20px;">
+                <i class="fas fa-exclamation-triangle" style="font-size:50px; color:#ef4444; margin-bottom:16px;"></i>
+                <span style="font-size:22px; font-weight:bold; margin-bottom:14px;">تعذر تحميل المحتوى حالياً</span>
+                <button class="btn-primary" style="background:#22c55e; color:#fff; border:none; padding:12px 28px; border-radius:10px; font-weight:bold; cursor:pointer; font-size:16px;" onclick="loadStreams('${action}', '${categoryId}', '${type}')">
+                    <i class="fas fa-redo-alt"></i> إعادة المحاولة
+                </button>
+            </div>
+        `;
+        if (container) container.innerHTML = retryHtml;
     }
 }
 
