@@ -563,27 +563,21 @@
             }
         }
 
-        // مراقبة فورية لتطبيق حصر التركيز التلقائي عند فتح أو إغلاق أي نافذة
-        if (typeof MutationObserver !== 'undefined') {
-            var lastObservedModal = null;
-            var modalObserver = new MutationObserver(function () {
-                var currentModal = getOpenModal();
-                if (currentModal && currentModal !== lastObservedModal) {
-                    lastObservedModal = currentModal;
-                    lockBackgroundForModal(currentModal);
-                } else if (!currentModal && lastObservedModal) {
-                    lastObservedModal = null;
-                    unlockBackgroundFromModal();
-                }
-            });
-
-            modalObserver.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['style', 'class']
-            });
+        // مزامنة حالة النوافذ المنبثقة خفيفة جداً وفورية عند التفاعل بدون مراقب DOM دائم يستهلك المعالج
+        var lastObservedModal = null;
+        function syncModalState() {
+            var currentModal = getOpenModal();
+            if (currentModal && currentModal !== lastObservedModal) {
+                lastObservedModal = currentModal;
+                lockBackgroundForModal(currentModal);
+            } else if (!currentModal && lastObservedModal) {
+                lastObservedModal = null;
+                unlockBackgroundFromModal();
+            }
+            return currentModal;
         }
+
+        window.addEventListener('click', syncModalState, true);
 
         // إدارة زر الرجوع الموحد (Universal Back Handler)
         var lastBackPress = 0;
@@ -757,7 +751,7 @@
             }
 
             // 3. إذا كان هناك نافذة منبثقة مفتوحة (حصر الحركة بداخلها تماماً)
-            var currentOpenModal = getOpenModal();
+            var currentOpenModal = syncModalState();
             if (currentOpenModal) {
                 if (isNavKey) {
                     handleModalDpadNavigation(currentOpenModal, e);
@@ -790,7 +784,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.56';
+    const CURRENT_APP_VERSION = '1.0.57';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

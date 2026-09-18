@@ -812,7 +812,11 @@
                     }
                 }
                 checkAndRenderProfile();
-                setInterval(checkAndRenderProfile, 800);
+                window.addEventListener('storage', function (e) {
+                    if (e && (e.key === 'sp_user' || e.key === 'sp_server_type')) {
+                        checkAndRenderProfile();
+                    }
+                });
 
                 // Show navbar if logged in
                 if (sessionStorage.getItem('sp_user') || localStorage.getItem('sp_user')) {

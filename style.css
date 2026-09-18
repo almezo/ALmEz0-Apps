@@ -77,44 +77,31 @@ html {
 body {
     font-family: 'Tajawal', sans-serif;
     background-color: var(--bg-dark);
-    /* fallback */
-    background-image: linear-gradient(to bottom, rgba(10, 13, 18, 0.4) 0%, rgba(10, 13, 18, 0.98) 100%), url('photo/background.jpeg');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-    background-repeat: no-repeat;
     color: var(--text-primary);
     line-height: 1.7;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    position: relative;
 }
 
-@media (max-width: 768px) {
-    html {
-        background-color: var(--bg-dark);
-    }
-
-    body {
-        /* Remove background from body to use a pseudo-element wrapper instead */
-        background-image: none !important;
-        background-color: transparent !important;
-    }
-
-    body::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: -1;
-        background-color: var(--bg-dark);
-        background-image: linear-gradient(to bottom, rgba(10, 13, 18, 0.4) 0%, rgba(10, 13, 18, 0.98) 100%), url('photo/background.jpeg');
-        background-size: cover;
-        background-position: top center;
-        background-repeat: no-repeat;
-    }
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    background-color: var(--bg-dark);
+    background-image: linear-gradient(to bottom, rgba(10, 13, 18, 0.4) 0%, rgba(10, 13, 18, 0.98) 100%), url('photo/background.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    pointer-events: none;
+    will-change: transform;
 }
 
 a {
@@ -7622,27 +7609,34 @@ body.platform-electron {
     justify-content: center;
     overflow: hidden;
     perspective: 1200px;
-    transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), filter 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: all;
+    transform: translateZ(0);
+}
+
+/* تخطي شاشة البداية الثقيلة فوراً في تطبيقات الأجهزة المثبتة والشاشات لفتح فوري بدون أي تأخير */
+.platform-native .app-launch-splash,
+[data-is-tv="true"] .app-launch-splash,
+body.tv-device-mode .app-launch-splash,
+body.tv-mode .app-launch-splash,
+body.low-spec-mode .app-launch-splash {
+    display: none !important;
 }
 
 .app-launch-splash.splash-dismiss {
     opacity: 0 !important;
-    transform: scale(1.22) !important;
-    filter: blur(14px) !important;
+    transform: scale(1.06) translateZ(0) !important;
     pointer-events: none !important;
 }
 
 .splash-ambient-glow {
     position: absolute;
-    width: 650px;
-    height: 650px;
+    width: 500px;
+    height: 500px;
     max-width: 95vw;
     max-height: 95vw;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(34, 197, 94, 0.35) 0%, rgba(22, 163, 74, 0.25) 35%, rgba(245, 158, 11, 0.18) 60%, transparent 80%);
-    filter: blur(65px);
-    animation: splashAmbientPulse 4s infinite alternate ease-in-out;
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, rgba(22, 163, 74, 0.15) 40%, transparent 70%);
     pointer-events: none;
 }
 

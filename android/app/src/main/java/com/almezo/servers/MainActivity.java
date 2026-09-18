@@ -134,8 +134,9 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                boolean isTv = new NativePlayerBridge().isTvDevice();
                 WindowManager.LayoutParams params = getWindow().getAttributes();
-                params.preferredRefreshRate = 120.0f;
+                params.preferredRefreshRate = isTv ? 60.0f : 120.0f;
                 getWindow().setAttributes(params);
             }
         } catch (Throwable t) {
