@@ -4821,6 +4821,13 @@ body.platform-electron #pwa-install-container,
     display: none !important;
 }
 
+/* برنامج الكمبيوتر (Electron) مخصص للتشغيل على الكمبيوتر فقط، فلا فائدة من بطاقة
+   "الأجهزة الإلكترونية" (صناديق تلفاز/رسيفرات/سمارت) بداخله */
+body.platform-electron .main-category-card.devices,
+.platform-electron .main-category-card.devices {
+    display: none !important;
+}
+
 .pwa-install-box-wrapper {
     background: rgba(26, 30, 35, 0.35);
     /* شفافية عالية جداً */

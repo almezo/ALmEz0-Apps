@@ -417,6 +417,12 @@
             if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
                 return;
             }
+            // مفتاح Tab الحقيقي لا يُرسله ريموت التلفاز إطلاقاً (يرسل أسهم فقط)، فأي ضغطة Tab فعلية
+            // تعني حتماً لوحة مفاتيح كمبيوتر حقيقية؛ نترك سلوكها الافتراضي بين حقول الإدخال بدل
+            // اعتراضها بالتنقل المكاني المخصص للريموت، حتى يعمل الانتقال بين الحقول عبر Tab بشكل طبيعي
+            if (isInput && e.key === 'Tab') {
+                return;
+            }
 
             e.preventDefault();
             e.stopPropagation();
@@ -542,6 +548,10 @@
 
             var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA');
             if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
+                return;
+            }
+            // نفس المنطق: نترك Tab يعمل بسلوكه الطبيعي بين الحقول عند الكتابة الفعلية من لوحة مفاتيح حقيقية
+            if (isInput && e.key === 'Tab') {
                 return;
             }
 
@@ -802,7 +812,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.68';
+    const CURRENT_APP_VERSION = '1.0.69';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

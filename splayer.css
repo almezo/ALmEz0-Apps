@@ -5708,28 +5708,35 @@ body.tv-device-mode .live-player-container-rel {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9) !important;
 }
 
-/* بطاقات الشاشة الرئيسية العريضة والفاخرة في وضع التلفزيون (Android TV / TV Box) */
+/* بطاقات الشاشة الرئيسية العريضة والفاخرة في وضع التلفزيون (Android TV / TV Box)
+   ملاحظة إصلاح مهمة: كانت هذه القياسات أرقاماً ثابتة بالبكسل مصممة فقط لشاشة تلفاز كبيرة فعلية.
+   عند تفعيل وضع "الشاشة/الريسيفر" يدوياً من هاتف حقيقي (نفس الشاشة الصغيرة)، كانت هذه الأرقام
+   الضخمة (خط 42px، أيقونة 84px، بطاقة بارتفاع 390px كحد أدنى) تتسبب في تراكب وتشويه كامل للواجهة
+   لأنها لا تتقلص إطلاقاً مع صغر الشاشة. الآن تعتمد على وحدات vw فتتقلص تلقائياً وتناسبياً على أي
+   حجم شاشة مع الحفاظ على نفس المظهر الفخم الأصلي على شاشات التلفاز الكبيرة الحقيقية. */
 body.tv-device-mode .dash-cards-wrapper {
     display: flex !important;
     flex-direction: row !important;
+    flex-wrap: wrap !important;
     justify-content: center !important;
     align-items: center !important;
-    gap: clamp(24px, 3vw, 44px) !important;
-    padding: 24px clamp(24px, 3.5vw, 48px) !important;
+    gap: clamp(12px, 3vw, 44px) !important;
+    padding: clamp(10px, 2.5vw, 24px) clamp(12px, 3.5vw, 48px) !important;
     max-width: 100% !important;
     width: 100% !important;
-    height: calc(100vh - 110px) !important;
+    height: auto !important;
+    min-height: calc(100vh - 110px) !important;
     box-sizing: border-box !important;
 }
 
 body.tv-device-mode .dash-card {
-    flex: 1 1 0 !important;
+    flex: 1 1 clamp(150px, 28vw, 460px) !important;
     max-width: 460px !important;
-    height: 72vh !important;
-    min-height: 390px !important;
+    height: clamp(150px, 42vw, 72vh) !important;
+    min-height: clamp(140px, 38vw, 390px) !important;
     max-height: 540px !important;
-    border-radius: 28px !important;
-    padding: 38px 34px !important;
+    border-radius: clamp(14px, 2.5vw, 28px) !important;
+    padding: clamp(16px, 3.5vw, 38px) clamp(14px, 3vw, 34px) !important;
     border: 2.5px solid rgba(255, 255, 255, 0.12) !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8) !important;
     background: #0e1422 !important;
@@ -5741,21 +5748,21 @@ body.tv-device-mode .dash-card {
 }
 
 body.tv-device-mode .dash-card i {
-    font-size: 84px !important;
-    top: 42px !important;
-    left: 42px !important;
+    font-size: clamp(28px, 7vw, 84px) !important;
+    top: clamp(14px, 3.5vw, 42px) !important;
+    left: clamp(14px, 3.5vw, 42px) !important;
     opacity: 0.95 !important;
 }
 
 body.tv-device-mode .dash-card h2 {
-    font-size: 42px !important;
+    font-size: clamp(17px, 4vw, 42px) !important;
     font-weight: 900 !important;
     margin-bottom: 12px !important;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6) !important;
 }
 
 body.tv-device-mode .dash-card p {
-    font-size: 20px !important;
+    font-size: clamp(11px, 2vw, 20px) !important;
     font-weight: 700 !important;
     color: rgba(255, 255, 255, 0.88) !important;
 }
@@ -6035,6 +6042,14 @@ body.tv-device-mode .vod-grid {
     align-items: start !important;
 }
 
+/* برنامج أندرويد تحديداً: 5 أعمدة ثابتة وواضحة (لمس وريموت) بدل الاعتماد على حساب الفئة الديناميكي،
+   بناءً على اختبار فعلي على الجهاز أظهر أن عدد الأعمدة كان يتغير بين الاتجاهات بشكل غير متسق */
+body.platform-android #vodGrid.vod-grid,
+body.platform-android .vod-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+}
+
 .vod-card {
     display: flex !important;
     flex-direction: column !important;
@@ -6049,6 +6064,14 @@ body.tv-device-mode .vod-grid {
     max-width: clamp(110px, calc(150px * var(--screen-scale, 1)), 220px) !important;
     margin: 0 auto !important;
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
+}
+
+/* على أندرويد تحديداً: البطاقة تملأ عرض عمودها في الشبكة الثابتة (5 أعمدة) بالكامل بدل حد
+   أقصى قد يكون أضيق أو أوسع من العمود الفعلي على شاشات الهواتف المختلفة، وهو ما كان يترك
+   فراغاً غير متسق حول كل بطاقة */
+body.platform-android .vod-card {
+    max-width: 100% !important;
+    margin: 0 !important;
 }
 
 .vod-card:hover {
@@ -7276,10 +7299,11 @@ body.tv-device-mode #live-screen .col-list {
 
 body.platform-android #live-screen .col-sidebar,
 body.tv-device-mode #live-screen .col-sidebar {
-    width: clamp(320px, 32vw, 420px) !important;
-    min-width: 320px !important;
-    max-width: 440px !important;
-    flex: 0 0 clamp(320px, 32vw, 420px) !important;
+    /* توسيع صندوق الأقسام بناءً على اختبار فعلي على جهاز أندرويد أظهر أن العرض السابق كان ضيقاً */
+    width: clamp(360px, 36vw, 460px) !important;
+    min-width: 340px !important;
+    max-width: 480px !important;
+    flex: 0 0 clamp(360px, 36vw, 460px) !important;
 }
 
 /* هيدر القنوات المركزي مع أزرار البحث والترتيب على اليمين */
@@ -7321,14 +7345,15 @@ body.tv-device-mode #live-screen .col-list .col-header .header-actions {
     margin-right: auto !important;
 }
 
-/* شبكة القنوات الكبيرة والواضحة (Auto-Fill Spacious Responsive Grid) */
+/* شبكة القنوات: 5 أعمدة ثابتة وواضحة بدل التعبئة التلقائية التي كانت تنتج بطاقات بمقاسات
+   متفاوتة وأيقونات صغيرة داخل صناديق كبيرة، بناءً على اختبار فعلي على جهاز أندرويد */
 body.platform-android #liveChannels,
 body.tv-device-mode #liveChannels,
 #liveChannels.channels-grid-mode {
     display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
-    gap: 18px 20px !important;
-    padding: 22px 24px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 12px 10px !important;
+    padding: 16px 18px !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     align-content: start !important;
@@ -7375,8 +7400,8 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover,
     flex-direction: column !important;
     align-items: center !important;
     justify-content: space-between !important;
-    aspect-ratio: 1 / 1.15 !important;
-    min-height: 190px !important;
+    aspect-ratio: 1 / 1.05 !important;
+    min-height: 200px !important;
     position: relative !important;
     transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
@@ -7415,8 +7440,12 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover,
 }
 
 .live-channel-card .channel-icon {
-    max-width: 88% !important;
-    max-height: 105px !important;
+    /* شعار القناة كان يُحدّ بارتفاع ثابت صغير (105px) بغض النظر عن حجم البطاقة الفعلي،
+       فيبدو صغيراً وسط صندوق كبير؛ رفعناه ليملأ مساحة الصندوق فعلياً */
+    max-width: 92% !important;
+    max-height: 130px !important;
+    width: auto !important;
+    height: auto !important;
     object-fit: contain !important;
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8)) !important;
     transition: transform 0.2s ease !important;
@@ -7456,15 +7485,16 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover,
     background: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.14) !important;
     color: #e2e8f0 !important;
-    width: 38px !important;
-    height: 38px !important;
-    border-radius: 10px !important;
+    /* تكبير أزرار البحث و"الخيارات" (3 نقاط) بناءً على اختبار فعلي على أندرويد أظهر أنها صغيرة جداً */
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
-    font-size: 16px !important;
-    transition: all 0.2s ease !important;
+    font-size: 20px !important;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease !important;
     outline: none !important;
     margin-inline-start: 6px !important;
 }
@@ -7538,14 +7568,15 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover,
     background: rgba(255, 255, 255, 0.1) !important;
     border: none !important;
     color: #cbd5e1 !important;
-    width: 28px !important;
-    height: 28px !important;
+    /* تكبير زر إغلاق/مسح البحث (X) بناءً على طلب صريح بعد اختبار فعلي على أندرويد */
+    width: 36px !important;
+    height: 36px !important;
     border-radius: 50% !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
-    font-size: 12px !important;
+    font-size: 16px !important;
     transition: background 0.2s ease !important;
 }
 

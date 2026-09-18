@@ -39,6 +39,7 @@ if (!gotTheLock) {
             height: 820,
             minWidth: 420,
             minHeight: 640,
+            show: false, // نُظهر النافذة فقط بعد تكبيرها لتفادي وميض نافذة صغيرة قبل التكبير الكامل
             title: localizedAppName,
             icon: path.join(__dirname, '../photo/logo.ico'),
             autoHideMenuBar: true,
@@ -68,6 +69,15 @@ if (!gotTheLock) {
 
         // Hide default top menu for clean native look
         Menu.setApplicationMenu(null);
+
+        // فتح البرنامج دائماً بوضعية النافذة المكبّرة بالكامل (Maximized) بدل نافذة صغيرة في المنتصف،
+        // مع إظهار النافذة فقط بعد التكبير لتفادي أي وميض بصري لحجمها الأصلي الصغير أولاً
+        mainWindow.once('ready-to-show', () => {
+            try {
+                mainWindow.maximize();
+            } catch (e) { }
+            mainWindow.show();
+        });
 
         // Load the local index.html file
         mainWindow.loadFile(path.join(__dirname, '../index.html'));
