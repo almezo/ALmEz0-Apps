@@ -4426,6 +4426,51 @@ function applySort() {
 }
 
 // ==========================================
+// IMAGE MEMORY UNLOAD ENGINE
+// تفريغ ذاكرة صور (bitmaps) البطاقات/القنوات البعيدة تماماً عن منطقة الرؤية أثناء التمرير
+// الطويل في قوائم تضم آلاف العناصر، مع إبقاء بنية البطاقة كما هي كي تعود فوراً بلا أي قفزة
+// أو فقدان لموضع التمرير عند العودة إليها. هذا يحل مشكلة تراكم ذاكرة الصور على الأجهزة
+// ضعيفة الرام دون المخاطرة بحذف عناصر DOM فعلياً (وهو ما قد يكسر التمرير للخلف).
+// ==========================================
+const OFFSCREEN_IMG_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7';
+const offscreenImageObservers = new WeakMap();
+
+function getOffscreenImageObserver(rootEl) {
+    if (!rootEl || typeof IntersectionObserver === 'undefined') return null;
+    if (offscreenImageObservers.has(rootEl)) return offscreenImageObservers.get(rootEl);
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            const img = entry.target;
+            if (entry.isIntersecting) {
+                if (img.dataset.unloadedSrc) {
+                    img.src = img.dataset.unloadedSrc;
+                    delete img.dataset.unloadedSrc;
+                }
+            } else if (img.src && !img.dataset.unloadedSrc && img.src.indexOf(OFFSCREEN_IMG_PLACEHOLDER) === -1) {
+                img.dataset.unloadedSrc = img.src;
+                img.src = OFFSCREEN_IMG_PLACEHOLDER;
+            }
+        });
+    }, {
+        root: rootEl,
+        // هامش أمان كبير جداً كي لا تُفرَّغ أي صورة قريبة من حافة الشاشة (تُفرَّغ فقط الأبعد بكثير)
+        rootMargin: '1200px 0px 1200px 0px',
+        threshold: 0
+    });
+
+    offscreenImageObservers.set(rootEl, observer);
+    return observer;
+}
+
+function watchImageForOffscreenUnload(img, rootEl) {
+    try {
+        const observer = getOffscreenImageObserver(rootEl);
+        if (observer) observer.observe(img);
+    } catch (e) { }
+}
+
+// ==========================================
 // PROGRESSIVE CHUNKED RENDERING ENGINE
 // ==========================================
 let activeRenderList = [];
@@ -4522,6 +4567,7 @@ function appendNextItemChunk(customSize) {
 
     const chunk = activeRenderList.slice(activeRenderOffset, activeRenderOffset + chunkSize);
     const fragment = document.createDocumentFragment();
+    const unloadRootEl = getScrollTarget(activeRenderType);
 
     if (activeRenderType === 'live') {
         const isAndroidAppPlatform = document.body.classList.contains('platform-android') || (window.AlMeZ0App && window.AlMeZ0App.isAndroid) || !!window.AndroidNativeBridge || document.body.classList.contains('tv-device-mode');
@@ -4568,6 +4614,9 @@ function appendNextItemChunk(customSize) {
                 `;
             }
 
+            const elImg = el.querySelector('img');
+            if (elImg) watchImageForOffscreenUnload(elImg, unloadRootEl);
+
             el.onclick = () => {
                 document.querySelectorAll('#liveChannels .live-channel-card, #liveChannels .list-item').forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
@@ -4595,6 +4644,9 @@ function appendNextItemChunk(customSize) {
                     <div class="vod-title" title="${name}">${name}</div>
                 </div>
             `;
+            const cardImg = card.querySelector('img');
+            if (cardImg) watchImageForOffscreenUnload(cardImg, unloadRootEl);
+
             card.onclick = () => {
                 const scrollEl = getScrollTarget('vod');
                 if (scrollEl) {

@@ -5807,10 +5807,12 @@ body.platform-android .device-mode-grid {
 }
 
 body.desktop-device-mode .col-sidebar {
-    width: 320px !important;
-    min-width: 320px !important;
-    max-width: 320px !important;
-    flex: 0 0 320px !important;
+    /* عرض ثابت واحد (320px) كان يُفرض على كل شاشات الكمبيوتر واللابتوب والشاشات 2K/4K دون تمييز؛
+       الآن يتبع القيمة المحسوبة فعلياً لكل فئة شاشة من screen-adapter.js (310px للابتوب حتى 430px للشاشات الكبيرة) */
+    width: var(--player-sidebar-w, 320px) !important;
+    min-width: 280px !important;
+    max-width: 440px !important;
+    flex: 0 0 var(--player-sidebar-w, 320px) !important;
 }
 
 body.tv-device-mode .col-sidebar {
@@ -5821,10 +5823,10 @@ body.tv-device-mode .col-sidebar {
 }
 
 body.desktop-device-mode .col-list {
-    width: 390px !important;
-    min-width: 390px !important;
-    max-width: 390px !important;
-    flex: 0 0 390px !important;
+    width: var(--player-list-w, 390px) !important;
+    min-width: 340px !important;
+    max-width: 460px !important;
+    flex: 0 0 var(--player-list-w, 390px) !important;
 }
 
 body.desktop-device-mode .col-player {
@@ -6017,13 +6019,15 @@ body.tv-device-mode .player-wrapper {
 }
 
 
-/* ضبط شبكة الأفلام والمسلسلات: 5 بطاقات في الصف الواحد ومستطيل طولي كامل و 3 صفوف ظاهرة */
+/* ضبط شبكة الأفلام والمسلسلات: عدد الأعمدة يأتي من محرك ذكاء الشاشات (screen-adapter.js)
+   بدل رقم ثابت (5) كان يُفرض على كل الأجهزة بلا استثناء (هاتف صغير 360px وشاشة تلفاز 4K
+   كانا يحصلان على نفس 5 أعمدة بالضبط). القيمة الاحتياطية 5 تبقى كما كانت إن لم يُحقن المتغير لأي سبب. */
 #vodGrid.vod-grid,
 .vod-grid,
 body.desktop-device-mode .vod-grid,
 body.tv-device-mode .vod-grid {
     display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(var(--player-vod-cols, 5), minmax(0, 1fr)) !important;
     gap: 8px 10px !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -6039,7 +6043,10 @@ body.tv-device-mode .vod-grid {
     cursor: pointer !important;
     position: relative !important;
     width: 100% !important;
-    max-width: 150px !important;
+    /* حجم البطاقة يتبع معامل التحجيم المحسوب لكل فئة جهاز (--screen-scale من screen-adapter.js):
+       أصغر قليلاً على الهواتف الصغيرة، وأكبر فعلياً على شاشات التلفاز لمشاهدة من مسافة بعيدة،
+       بدل حجم 150px ثابت كان يتجاهل الفرق بين هاتف صغير وشاشة تلفاز 4K تمامًا. */
+    max-width: clamp(110px, calc(150px * var(--screen-scale, 1)), 220px) !important;
     margin: 0 auto !important;
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
 }
@@ -6179,6 +6186,55 @@ body.low-spec-mode .vod-card:hover,
 body.tv-device-mode .episode-card:hover,
 body.low-spec-mode .episode-card:hover {
     box-shadow: none !important;
+}
+
+/* =========================================================================
+   التحكم حسب طريقة الإدخال الفعلية (لمس / ريموت / ماوس) - data-input-mode
+   من screen-adapter.js، بدل الاعتماد فقط على :hover التي تسبب "تعليق" التأثير
+   بعد اللمس على الشاشات اللمسية (Sticky Hover Bug) ولا تناسب تنقل الريموت.
+   ========================================================================= */
+
+/* اللمس: أهداف ضغط لا تقل عن 44px (معيار Apple/Google)، وتعطيل hover المُعلّق بعد اللمس
+   واستبداله بتأثير ضغط لحظي (active) بدل الحركة الممتدة التي قد "تعلق" على الشاشة */
+[data-input-mode="touch"] .vod-card:hover,
+[data-input-mode="touch"] .episode-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: inherit !important;
+}
+
+[data-input-mode="touch"] .vod-card:active,
+[data-input-mode="touch"] .episode-card:active {
+    transform: scale(0.96) !important;
+    transition: transform 0.1s ease !important;
+}
+
+[data-input-mode="touch"] .list-item:hover {
+    transform: none !important;
+}
+
+[data-input-mode="touch"] .list-item:active {
+    background: linear-gradient(90deg, rgba(217, 36, 36, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+}
+
+[data-input-mode="touch"] .btn-icon,
+[data-input-mode="touch"] .control-btn,
+[data-input-mode="touch"] .live-card-thumb,
+[data-input-mode="touch"] .vjs-control {
+    min-width: 44px !important;
+    min-height: 44px !important;
+}
+
+/* الريموت: حلقة تركيز واضحة وقابلة للمتابعة عن بعد بدل الاعتماد فقط على تأثيرات hover
+   التي لا تُفعَّل أصلاً بأزرار الريموت (لا يوجد مؤشر ماوس حقيقي) */
+[data-input-mode="remote"] .vod-card:focus-visible,
+[data-input-mode="remote"] .episode-card:focus-visible,
+[data-input-mode="remote"] .list-item:focus-visible,
+[data-input-mode="remote"] .live-channel-card:focus-visible {
+    outline: 3px solid #22c55e !important;
+    outline-offset: 2px !important;
+    transform: scale(1.05) !important;
+    z-index: 10 !important;
 }
 
 /* =========================================================================
