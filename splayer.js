@@ -791,6 +791,36 @@ function showToast(title, icon = 'success') {
     });
 }
 
+// عرض إشعار داخلي عائم ومضيء داخل مشغل الفيديو مباشرة للأبعاد والترجمة
+function showPlayerOsd(message, icon = 'fas fa-expand-arrows-alt', customTarget = null) {
+    var target = customTarget ||
+                 document.getElementById('livePlayerWrapper') ||
+                 document.getElementById('mainPlayer') ||
+                 document.querySelector('.video-js');
+
+    if (!target) {
+        if (typeof showToast === 'function') showToast(message, 'info');
+        return;
+    }
+
+    var pill = target.querySelector('.vjs-player-osd-pill');
+    if (!pill) {
+        pill = document.createElement('div');
+        pill.className = 'vjs-player-osd-pill';
+        target.appendChild(pill);
+    }
+
+    pill.innerHTML = '<i class="' + icon + '" style="color: #22c55e;"></i> <span>' + message + '</span>';
+    pill.classList.remove('show');
+    void pill.offsetWidth;
+    pill.classList.add('show');
+
+    if (pill._osdTimeout) clearTimeout(pill._osdTimeout);
+    pill._osdTimeout = setTimeout(function () {
+        pill.classList.remove('show');
+    }, 1900);
+}
+
 // ==========================================
 // MULTI-ACCOUNT & PLAYLIST MANAGEMENT
 // ==========================================
@@ -1918,9 +1948,9 @@ function playStream(id, type, extension, name, icon) {
                         const tracks = player.textTracks();
                         const hasSubtitles = Array.from(tracks || []).some(t => t.kind === 'subtitles' || t.kind === 'captions');
                         if (hasSubtitles) {
-                            if (typeof showToast === 'function') showToast('استخدم أيقونة (CC) التي ظهرت بجانب هذا الزر لاختيار الترجمة', 'success');
+                            showPlayerOsd('استخدم أيقونة (CC) بجانب الزر لاختيار الترجمة', 'fas fa-closed-captioning', playerEl);
                         } else {
-                            if (typeof showToast === 'function') showToast('لا توجد ملفات ترجمة مدمجة في هذا البث', 'warning');
+                            showPlayerOsd('لا توجد ملفات ترجمة مدمجة في هذا البث', 'fas fa-exclamation-circle', playerEl);
                         }
                     };
 
@@ -1994,7 +2024,7 @@ function playStream(id, type, extension, name, icon) {
                         currentAspectIdx = (currentAspectIdx + 1) % aspectStates.length;
                         const current = aspectStates[currentAspectIdx];
                         applyAspectRatio(current.id);
-                        if (typeof showToast === 'function') showToast(`الأبعاد: ${current.label}`, 'info');
+                        showPlayerOsd(`الأبعاد: ${current.label}`, 'fas fa-expand-arrows-alt', playerEl);
                     };
 
                     // 3. زر ملء الشاشة المخصص (Fullscreen Button أقصى اليمين)
@@ -4728,7 +4758,7 @@ function initTvNavigationEngine() {
             el.focus({ preventScroll: true });
         } catch (e) {}
         try {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         } catch (e) {}
     }
 

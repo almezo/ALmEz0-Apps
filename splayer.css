@@ -583,9 +583,14 @@ body.touch-device-mode #app-scaler {
     cursor: pointer;
     border: 1.5px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
-    transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    -webkit-backdrop-filter: blur(18px);
-    backdrop-filter: blur(18px);
+    transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.28s ease, border-color 0.25s ease !important;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    will-change: transform;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
 }
 
 .dash-card:nth-child(1) {
@@ -3253,40 +3258,98 @@ input.search-input[placeholder*="المسلسلات"] {
 .custom-vjs-settings-btn,
 .video-js .vjs-subs-caps-button {
     order: 20 !important;
-    margin-left: 8px !important;
+    margin-left: 6px !important;
 }
 
+/* أزرار أقصى اليمين: الأبعاد وملء الشاشة متساويان في الحجم بدقة 100% */
 .custom-vjs-aspect-btn,
 .vjs-aspect-ratio-btn {
     order: 25 !important;
-    margin-left: 8px !important;
+    margin-left: 6px !important;
     cursor: pointer !important;
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-}
-
-.custom-vjs-aspect-btn i,
-.vjs-aspect-ratio-btn i {
-    color: #fff;
-    font-size: 2.2em;
-    line-height: 95px !important;
-    transition: color 0.3s ease;
-}
-
-.custom-vjs-aspect-btn:hover i,
-.vjs-aspect-ratio-btn:hover i {
-    color: var(--accent-red);
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 10px !important;
+    transition: background 0.2s, transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
 }
 
 .custom-vjs-fs-btn,
 .video-js .vjs-fullscreen-control {
     order: 30 !important;
-    margin-left: 12px !important;
-    display: flex !important;
+    margin-left: 8px !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 10px !important;
+    transition: background 0.2s, transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+}
+
+/* توحيد أحجام أيقونات الأزرار في المشغل لتكون متناسقة ومتساوية تماماً */
+.custom-vjs-aspect-btn i,
+.vjs-aspect-ratio-btn i,
+.custom-vjs-fs-btn i,
+.custom-vjs-settings-btn i {
+    color: #ffffff !important;
+    font-size: 1.4rem !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: color 0.2s cubic-bezier(0.2, 0.9, 0.3, 1), transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+}
+
+.custom-vjs-aspect-btn:hover,
+.custom-vjs-fs-btn:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.custom-vjs-aspect-btn:hover i,
+.vjs-aspect-ratio-btn:hover i,
+.custom-vjs-fs-btn:hover i,
+.custom-vjs-settings-btn:hover i {
+    color: var(--accent-red-hover, #ff2a2a) !important;
+    transform: scale(1.15) !important;
+}
+
+/* شعار وإشعار داخلي في قلب المشغل (In-Player OSD Notification Pill) */
+.vjs-player-osd-pill {
+    position: absolute !important;
+    top: 24px !important;
+    left: 50% !important;
+    transform: translateX(-50%) translateY(-12px) scale(0.95) !important;
+    background: rgba(10, 14, 23, 0.94) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 30px !important;
+    padding: 10px 24px !important;
+    color: #ffffff !important;
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    font-family: 'Cairo', sans-serif !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.85), 0 0 18px rgba(34, 197, 94, 0.35) !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    transition: opacity 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+.vjs-player-osd-pill.show {
+    opacity: 1 !important;
+    transform: translateX(-50%) translateY(0) scale(1) !important;
 }
 
 /* =========================================================
@@ -3476,20 +3539,22 @@ input.search-input[placeholder*="المسلسلات"] {
 .custom-vjs-btn {
     cursor: pointer;
     color: #fff;
-    font-size: 2.5em;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3.5em;
-    transition: color 0.2s;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 1.4rem !important;
+    padding: 0 !important;
+    transition: color 0.2s cubic-bezier(0.2, 0.9, 0.3, 1), transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 .custom-vjs-btn:hover {
-    color: var(--accent-gold);
+    color: var(--accent-red-hover, #ff2a2a);
 }
 
 .custom-vjs-fs-btn {
-    display: flex !important;
+    display: inline-flex !important;
 }
 
 /* تكبير أزرار الترجمة والصوتيات الافتراضية الخاصة بـ Video.js إن وجدت */
@@ -5422,28 +5487,47 @@ body.tv-mode {
 /* =========================================================
    TV MODE HIGH PERFORMANCE & D-PAD FOCUS ENGINE (.tv-device-mode)
    ========================================================= */
-/* Disable expensive blur filters on low-end TV boxes */
-body.tv-device-mode * {
+/* Disable expensive blur filters on low-end TV boxes & TV mode */
+body.tv-device-mode *,
+body.tv-mode *,
+body.low-spec-mode * {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
+}
+
+/* تسريع عتادي فائق عبر كرت الشاشة (Hardware Compositing) لكافة البطاقات والقوائم */
+.dash-card,
+.vod-card,
+.list-item,
+.channel-item,
+.device-card,
+.btn-auth-circular,
+.btn-home-return,
+.vjs-control {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    will-change: transform;
 }
 
 body.tv-device-mode .auth-card,
 body.tv-device-mode .playlists-modal-content,
 body.tv-device-mode .device-mode-content,
-body.tv-device-mode .live-player-container-rel {
+body.tv-device-mode .live-player-container-rel,
+body.tv-device-mode .dash-card {
     background: #0d121f !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9) !important;
 }
 
-/* High-Contrast D-Pad Focus Glow for TV Remotes */
+/* High-Contrast D-Pad Focus Glow for TV Remotes with Silky Spring Curve */
 .tv-focused {
     outline: 3px solid #22c55e !important;
-    outline-offset: 2px !important;
+    outline-offset: 3px !important;
     box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 6px #ffffff !important;
-    transform: scale(1.04) !important;
+    transform: scale(1.05) translateZ(0) !important;
     z-index: 999 !important;
-    transition: transform 0.15s ease, outline 0.15s ease !important;
+    transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), outline 0.15s ease, box-shadow 0.22s ease !important;
 }
 
 .device-card.tv-focused {

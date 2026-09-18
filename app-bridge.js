@@ -452,12 +452,13 @@
         function getSiteFocusables() {
             var selector = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], .main-category-card, .category-card, .price-card, .btn, [tabindex="0"]';
             var all = Array.from(document.querySelectorAll(selector));
+            var vh = window.innerHeight || document.documentElement.clientHeight || 800;
             return all.filter(function (el) {
                 if (el.closest('.hidden') || el.closest('[style*="display: none"]')) return false;
                 var style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
                 var r = el.getBoundingClientRect();
-                return r.width > 0 && r.height > 0 && r.bottom >= 0 && r.top <= (window.innerHeight || document.documentElement.clientHeight);
+                return r.width > 0 && r.height > 0 && r.bottom >= -250 && r.top <= (vh * 1.8);
             });
         }
 
@@ -557,7 +558,7 @@
                 nextEl.focus();
                 nextEl.classList.add('tv-focused');
                 try {
-                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
                 } catch (err) { }
             }
         }
@@ -789,7 +790,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.54';
+    const CURRENT_APP_VERSION = '1.0.55';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -803,6 +804,34 @@
             if (num1 < num2) return -1;
         }
         return 0;
+    }
+
+    // دالة جلب احتياطية متوافقة 100% مع أجهزة الأندرويد القديمة مثل TX9 Pro
+    function fetchJsonFallback(url) {
+        return new Promise(function (resolve) {
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.timeout = 8000;
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try {
+                                var parsed = JSON.parse(xhr.responseText);
+                                resolve(parsed);
+                            } catch (e) { resolve(null); }
+                        } else {
+                            resolve(null);
+                        }
+                    }
+                };
+                xhr.onerror = function () { resolve(null); };
+                xhr.ontimeout = function () { resolve(null); };
+                xhr.send();
+            } catch (e) {
+                resolve(null);
+            }
+        });
     }
 
     async function checkInAppUpdate() {
@@ -829,15 +858,28 @@
 
             for (const url of endpoints) {
                 try {
-                    const res = await fetch(url, { cache: 'no-store' });
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data && data.version) {
-                            versionData = data;
-                            break;
+                    if (typeof fetch === 'function') {
+                        const res = await fetch(url);
+                        if (res && res.ok) {
+                            const data = await res.json();
+                            if (data && data.version) {
+                                versionData = data;
+                                break;
+                            }
                         }
                     }
                 } catch (e) { }
+
+                // إذا فشل fetch في المتصفحات القديمة (مثل أندرويد 7 في أجهزة TV Box) نستخدم XHR
+                if (!versionData) {
+                    try {
+                        const xhrData = await fetchJsonFallback(url);
+                        if (xhrData && xhrData.version) {
+                            versionData = xhrData;
+                            break;
+                        }
+                    } catch (errXhr) { }
+                }
             }
 
             if (!versionData || !versionData.version) return;
@@ -895,6 +937,7 @@
 
         const isMandatory = !!mandatoryFlag;
         const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+        const isUserAndroid = isAndroid || /android/i.test(ua);
         const downloadUrl = (isUserAndroid)
             ? ((info.downloadUrls && info.downloadUrls.android) ? info.downloadUrls.android : 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk')
             : ((info.downloadUrls && info.downloadUrls.windows) ? info.downloadUrls.windows : 'https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe');
@@ -1020,6 +1063,40 @@
         const errorBox = overlay.querySelector('#inappErrorBox');
         const btnRetry = overlay.querySelector('#inappBtnRetry');
         const btnExternalDl = overlay.querySelector('#inappBtnExternalDl');
+
+        // التركيز التلقائي على زر التحديث ودعم ريموت الشاشات والـ TV Box
+        if (btnStart) {
+            btnStart.tabIndex = 0;
+            btnStart.classList.add('tv-focused');
+            setTimeout(function () {
+                try { btnStart.focus(); } catch (e) { }
+            }, 100);
+        }
+        if (btnLater) btnLater.tabIndex = 0;
+
+        overlay.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowDown' || e.keyCode === 40) {
+                if (document.activeElement === btnStart && btnLater) {
+                    e.preventDefault();
+                    btnStart.classList.remove('tv-focused');
+                    btnLater.classList.add('tv-focused');
+                    btnLater.focus();
+                }
+            } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
+                if (document.activeElement === btnLater && btnStart) {
+                    e.preventDefault();
+                    btnLater.classList.remove('tv-focused');
+                    btnStart.classList.add('tv-focused');
+                    btnStart.focus();
+                }
+            } else if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66) {
+                var act = document.activeElement;
+                if (act && (act === btnStart || act === btnLater || act === btnClose || act === btnRetry || act === btnExternalDl)) {
+                    e.preventDefault();
+                    act.click();
+                }
+            }
+        });
 
         let isDownloadPaused = false;
         let lastDownloadedBytes = 0;

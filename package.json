@@ -1,6 +1,6 @@
 {
     "name": "almezo-servers",
-    "version": "1.0.54",
+    "version": "1.0.55",
     "description": "سيرفرات الميزو - AlMeZ0 Servers Multi-Platform App",
     "main": "electron/main.js",
     "scripts": {
