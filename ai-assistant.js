@@ -595,37 +595,22 @@
         return results;
     }
 
-    function getApiKey() {
-        return ((window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.apiKey) || localStorage.getItem('almezo_gemini_key') || "").trim();
-    }
-
-    function promptApiKey() {
-        const current = getApiKey();
-        const input = prompt("أدخل مفتاح Google Gemini API Key الخاص بك (مجاني من aistudio.google.com):", current);
-        if (input !== null) {
-            const clean = input.trim();
-            if (clean) {
-                localStorage.setItem('almezo_gemini_key', clean);
-                if (window.ALMEZ0_AI_CONFIG) window.ALMEZ0_AI_CONFIG.apiKey = clean;
-                alert("تم حفظ مفتاح API بنجاح! يمكنك الآن استخدام المساعد بحرية.");
-            } else {
-                localStorage.removeItem('almezo_gemini_key');
-                alert("تمت إزالة المفتاح المحفوظ.");
-            }
+    // ملاحظة أمنية: لم يعد المساعد يستخدم مفتاح Gemini API من المتصفح مطلقاً.
+    // الطلبات تمر عبر Cloud Function آمنة (generateAiReply) يبقى فيها المفتاح
+    // على الخادم فقط، بنفس أسلوب دالة إشعارات واتساب.
+    function getAiCallable() {
+        if (typeof functions === 'undefined' || !functions) {
+            throw new Error('خدمة المساعد الذكي غير متاحة حالياً في هذه الصفحة.');
         }
+        return functions.httpsCallable('generateAiReply');
     }
 
     // =========================================================================
-    // 3. استدعاء Google Gemini 2.5 / 1.5 Flash مع بحث الويب (Google Search)
+    // 3. استدعاء Google Gemini 2.5 / 1.5 Flash عبر Cloud Function آمنة
     // =========================================================================
     async function requestGeminiAi(userMessage, serverContext) {
-        const apiKey = getApiKey();
         const configuredModel = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.5-flash";
         const systemPrompt = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.systemInstruction) || "";
-
-        if (!apiKey) {
-            throw new Error('يرجى الضغط على أيقونة المفتاح 🔑 في الأعلى وإدخال مفتاح Gemini API المجاني الخاص بك.');
-        }
 
         // صياغة السياق المستخرج من سيرفر العميل الحالي بدقة تامة وبدون أي هلوسة
         let contextText = '';
@@ -654,6 +639,7 @@
         const promptWithContext = `${contextText}\nسؤال العميل: ${userMessage}`;
 
         const payload = {
+            model: configuredModel,
             systemInstruction: {
                 parts: [{ text: systemPrompt }]
             },
@@ -670,56 +656,21 @@
             }
         };
 
-        const modelsToTry = [configuredModel, "gemini-1.5-flash"];
-        let lastError = null;
-
-        for (const m of modelsToTry) {
-            try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
-                const res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!res.ok) {
-                    const errJson = await res.json().catch(() => ({}));
-                    const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
-                    if (res.status === 403 || errMsg.includes('leaked') || errMsg.includes('API key')) {
-                        throw new Error('مفتاح Gemini API الحالي معطل من جوجل (Leaked Key). يرجى الضغط على زر المفتاح 🔑 في أعلى النافذة وإدخال مفتاح جديد مجاني من aistudio.google.com');
-                    }
-                    if (res.status === 404) {
-                        lastError = new Error(errMsg);
-                        continue;
-                    }
-                    throw new Error(errMsg);
-                }
-
-                const data = await res.json();
-                const candidate = data.candidates && data.candidates[0];
-                if (!candidate || !candidate.content || !candidate.content.parts) {
-                    throw new Error('لم يتم استلام رد من النموذج');
-                }
-
-                const replyText = candidate.content.parts.map(p => p.text || '').join('').trim();
-                return replyText;
-            } catch (err) {
-                lastError = err;
-                if (err.message.includes('Leaked Key') || err.message.includes('🔑')) throw err;
-            }
+        try {
+            const aiCallable = getAiCallable();
+            const result = await aiCallable(payload);
+            const replyText = (result.data && result.data.text) || '';
+            if (!replyText) throw new Error('لم يتم استلام رد من النموذج');
+            return replyText;
+        } catch (err) {
+            const msg = (err && err.message) || 'فشل الاتصال بنموذج الذكاء الاصطناعي';
+            throw new Error(msg);
         }
-
-        throw lastError || new Error('فشل الاتصال بنموذج الذكاء الاصطناعي');
     }
 
     async function requestGeminiAiAudio(base64Audio, mimeType, serverContext) {
-        const apiKey = getApiKey();
         const configuredModel = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.5-flash";
         const systemPrompt = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.systemInstruction) || "";
-
-        if (!apiKey) {
-            throw new Error('يرجى الضغط على زر المفتاح 🔑 أعلى النافذة وإدخال مفتاح Gemini API مجاني خاص بك.');
-        }
 
         let contextText = '';
         if (serverContext.isSports) {
@@ -747,6 +698,7 @@
         const audioPrompt = `استمع إلى هذا التسجيل الصوتي للعميل، وافهم سؤاله (سواء باللهجة الليبية أو العربية الفصحى أو أي لهجة عربية) وأجب عليه بدقة وود وفق إرشادات النظام، مع الاستفادة من سياق السيرفر إذا كان سؤاله يتعلق بفيلم أو مسلسل أو مباراة أو قناة:\n${contextText}`;
 
         const payload = {
+            model: configuredModel,
             systemInstruction: {
                 parts: [{ text: systemPrompt }]
             },
@@ -774,45 +726,16 @@
             }
         };
 
-        const modelsToTry = [configuredModel, "gemini-1.5-flash"];
-        let lastError = null;
-
-        for (const m of modelsToTry) {
-            try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
-                const res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!res.ok) {
-                    const errJson = await res.json().catch(() => ({}));
-                    const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
-                    if (res.status === 403 || errMsg.includes('leaked') || errMsg.includes('API key')) {
-                        throw new Error('مفتاح Gemini API الحالي معطل من جوجل (Leaked Key). يرجى الضغط على زر المفتاح 🔑 في أعلى النافذة وإدخال مفتاح جديد مجاني من aistudio.google.com');
-                    }
-                    if (res.status === 404) {
-                        lastError = new Error(errMsg);
-                        continue;
-                    }
-                    throw new Error(errMsg);
-                }
-
-                const data = await res.json();
-                const candidate = data.candidates && data.candidates[0];
-                if (!candidate || !candidate.content || !candidate.content.parts) {
-                    throw new Error('لم يتم استلام رد من النموذج');
-                }
-
-                return candidate.content.parts.map(p => p.text || '').join('').trim();
-            } catch (err) {
-                lastError = err;
-                if (err.message.includes('Leaked Key') || err.message.includes('🔑')) throw err;
-            }
+        try {
+            const aiCallable = getAiCallable();
+            const result = await aiCallable(payload);
+            const replyText = (result.data && result.data.text) || '';
+            if (!replyText) throw new Error('لم يتم استلام رد من النموذج');
+            return replyText;
+        } catch (err) {
+            const msg = (err && err.message) || 'فشل معالجة المقطع الصوتي';
+            throw new Error(msg);
         }
-
-        throw lastError || new Error('فشل معالجة المقطع الصوتي');
     }
 
     // =========================================================================
@@ -1248,7 +1171,6 @@
         clearChat,
         submitMessage,
         sendQuickPrompt,
-        promptApiKey,
         handleSendAudioMessage,
         playMovie,
         playSeries,

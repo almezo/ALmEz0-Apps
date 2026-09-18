@@ -2,14 +2,9 @@
  * إعدادات وتكوين مساعد الميزو الذكي (AlMeZ0 AI Assistant Configuration)
  */
 window.ALMEZ0_AI_CONFIG = {
-    // مفتاح Google Gemini API الرسمي (محمي ومفكك برمجياً وقت التشغيل لمنع فلاتر الحظر التلقائي)
-    apiKey: (function () {
-        try {
-            return atob("QVEuQWI4Uk42SUp1QzNmcFdzOEQwRFdyVjRxamdsWll2T2hZTzVicWxwd3E2ZUlwV0xlUmc=");
-        } catch (e) {
-            return "";
-        }
-    })(),
+    // ملاحظة أمنية: مفتاح Google Gemini API لم يعد يُشحن داخل كود العميل.
+    // الطلبات تمر الآن عبر Cloud Function آمنة (generateAiReply) يبقى فيها
+    // المفتاح حصراً على الخادم، بنفس أسلوب دالة واتساب. راجع ai-assistant.js وfunctions/index.js.
 
     // نموذج الذكاء الاصطناعي فائق السرعة
     model: "gemini-2.5-flash",
