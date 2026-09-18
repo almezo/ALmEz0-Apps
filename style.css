@@ -8970,10 +8970,16 @@ html body main #homeCategoriesGrid .main-category-card.web-player {
     margin-right: auto !important;
 }
 
-/* TV Remote & Keyboard D-Pad Navigation Focus Ring */
-[data-input-mode="remote"] :focus,
-[data-is-tv="true"] :focus,
-body.tv-nav-active :focus,
+/* TV Remote & Keyboard D-Pad Navigation Focus Ring
+   ---------------------------------------------------------
+   إصلاح مهم: كانت القاعدة تستخدم :focus وهي تُطبَّق على أي عنصر يحمل تركيز المتصفح الفعلي
+   لأي سبب (نقرة، لمسة، أو استدعاء focus() برمجي)، وليس فقط العنصر الذي وصله المستخدم فعلاً
+   عبر الريموت أو لوحة المفاتيح. لهذا كانت تظهر إطارات خضراء تلقائية حول صندوق الكتابة بمجرد
+   النقر فيه، وحول أزرار الاقتراحات بمجرد الضغط عليها باللمس. :focus-visible يقتصر على
+   التركيز الناتج فعلاً عن تنقل بالكيبورد/الريموت، ولا يُفعَّل عند النقر أو اللمس العادي. */
+[data-input-mode="remote"] :focus-visible,
+[data-is-tv="true"] :focus-visible,
+body.tv-nav-active :focus-visible,
 .tv-focused {
     outline: 3px solid #22c55e !important;
     outline-offset: 3px !important;

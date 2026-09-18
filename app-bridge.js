@@ -793,30 +793,39 @@
                 document.documentElement.setAttribute('data-input-mode', 'remote');
             }
 
-            // 3. إذا كان هناك نافذة منبثقة مفتوحة (حصر الحركة بداخلها تماماً)
-            var currentOpenModal = syncModalState();
-            if (currentOpenModal) {
-                if (isNavKey) {
-                    handleModalDpadNavigation(currentOpenModal, e);
-                    return;
-                }
-            } else {
-                // 4. في صفحات الموقع الرئيسية العادية
-                var isPlayer = window.location.pathname.toLowerCase().includes('player.html');
-                if (!isPlayer && isNavKey) {
+            // إصلاح مهم: مشغل الميزو (player.html) يملك محركه الخاص لتنقل الريموت
+            // (initTvNavigationEngine في splayer.js) بمنطق مكاني حقيقي ووعي كامل بشبكات
+            // الأفلام والقنوات ونافذة المساعد الذكي. كان هذا المستمع هنا (مسجَّل في مرحلة
+            // capture فيسبق محرك splayer.js) يعالج نفس ضغطة السهم أيضاً بخوارزمية مختلفة
+            // تماماً (تنقل خطي بسيط)، فيتحرك التركيز بمحركين مستقلين لا يعرف أحدهما عن الآخر:
+            // كل محرك يضع تركيزه (.tv-focused) على عنصر مختلف دون إزالة تركيز المحرك الآخر،
+            // وهو السبب الحقيقي لظهور إطارين أخضرين معاً ولتأخر/تعارض استجابة الاتجاهات.
+            // الحل: نترك مشغل الميزو بالكامل لمحركه الخاص ولا نتدخل هنا إطلاقاً.
+            var isPlayer = window.location.pathname.toLowerCase().includes('player.html');
+
+            if (!isPlayer) {
+                // 3. إذا كان هناك نافذة منبثقة مفتوحة (حصر الحركة بداخلها تماماً)
+                var currentOpenModal = syncModalState();
+                if (currentOpenModal) {
+                    if (isNavKey) {
+                        handleModalDpadNavigation(currentOpenModal, e);
+                        return;
+                    }
+                } else if (isNavKey) {
+                    // 4. في صفحات الموقع الرئيسية العادية
                     handleSitePageDpadNavigation(e);
                     return;
                 }
-            }
 
-            // 5. زر التأكيد (D-Pad Center / OK / Enter)
-            if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66) {
-                var active = document.activeElement;
-                if (active && active !== document.body) {
-                    var isFormInput = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA';
-                    if (!isFormInput) {
-                        e.preventDefault();
-                        active.click();
+                // 5. زر التأكيد (D-Pad Center / OK / Enter)
+                if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66) {
+                    var active = document.activeElement;
+                    if (active && active !== document.body) {
+                        var isFormInput = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA';
+                        if (!isFormInput) {
+                            e.preventDefault();
+                            active.click();
+                        }
                     }
                 }
             }
@@ -827,7 +836,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.72';
+    const CURRENT_APP_VERSION = '1.0.73';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
