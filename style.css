@@ -98,8 +98,8 @@ body::before {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    transform: translateZ(0);
     -webkit-transform: translateZ(0);
+    transform: translateZ(0);
     pointer-events: none;
     will-change: transform;
 }

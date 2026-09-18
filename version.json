@@ -1,9 +1,9 @@
 {
-  "version": "1.0.57",
-  "versionCode": 58,
+  "version": "1.0.58",
+  "versionCode": 59,
   "releaseDate": "2026-09-18",
-  "title": "إزالة اللاق بالكامل وتسريع الأجهزة الضعيفة و TX9 Pro v1.0.57 🚀⚡",
-  "notes": "إلغاء خلفيات background-attachment fixed المسببة لثقل الشاشات، إزالة مراقب الـ DOM المستمر لتفريغ المعالج بنسبة 85%، حذف مؤقت فحص البروفايل المتكرر، تخطي شاشات البداية الثقيلة للأجهزة المثبتة والشاشات، وضبط معدل الإنعاش المستقر 60Hz لأجهزة الـ TV Box.",
+  "title": "تحسين توافقية ملفات التنسيق CSS وترتيب الخصائص القياسية v1.0.58",
+  "notes": "ضبط ترتيب خصائص التحويل transform بعد بادئات المتصفحات -webkit- لضمان التوافق التام ومنع تحذيرات بيئة التطوير.",
   "minSupportedVersion": "1.0.0",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
