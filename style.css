@@ -8909,6 +8909,43 @@ header, .main-header, .top-nav {
     border-width: 2px !important;
 }
 
+/* =========================================================
+   شبكة بطاقات الخدمات الرئيسية: 2×2 دائماً وفي المنتصف
+   ---------------------------------------------------------
+   السبب: قواعد فئات الأجهزة أعلاه كانت تستبدل الشبكة الأساسية (عمودان) بـ auto-fill
+   مع !important، فينتج 3 أو 4 أو 6 أعمدة حسب عرض الشاشة، ويتشوه الترتيب تماماً على
+   الشاشات الكبيرة وشاشات التلفاز. هذه القاعدة تأتي بعدها وتفرض 2×2 في كل الأوضاع.
+   ========================================================= */
+#homeCategoriesGrid,
+.main-categories-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: clamp(14px, 1.8vw, 28px) !important;
+    max-width: 980px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    align-content: center !important;
+    justify-content: center !important;
+}
+
+/* على الشاشات الضيقة جداً (هواتف صغيرة) يبقى عمود واحد حتى لا تنضغط البطاقات */
+[data-device-tier="watch"] #homeCategoriesGrid,
+[data-device-tier="compact-phone"] #homeCategoriesGrid {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+/* النص الترحيبي: لا يتمدد ولا يدفع البطاقات خارج الشاشة، ويتقلص تلقائياً
+   على الشاشات القصيرة بدل أن يتراكب مع الترويسة أو البطاقات */
+.page-title {
+    max-width: 980px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    margin-bottom: clamp(12px, 2vh, 28px) !important;
+    font-size: clamp(0.95rem, 2vw, 1.6rem) !important;
+    line-height: 1.45 !important;
+    overflow-wrap: break-word !important;
+}
+
 /* Ultra-wide Displays (21:9 and 32:9) */
 [data-aspect-ratio="ultrawide"] .main-content,
 [data-aspect-ratio="ultrawide"] .container {

@@ -315,15 +315,30 @@
                 '[id*="Modal"]'
             ];
 
+            // عناصر لا يمكن أن تكون "نافذة منبثقة" مهما كان اسمها (أزرار وحقول وروابط).
+            // سبب هذا الشرط: كانت المحددات الفضفاضة [id*="Modal"] تلتقط أزراراً عادية مثل
+            // btnDownloadFromPlayerModal و btnClosePlayerExclusiveModal داخل طبقات مخفية،
+            // فيُعتبر الزر نافذة مفتوحة ويُحصر تنقل الريموت داخله (وهو فارغ) فيتوقف التنقل
+            // في الصفحة الرئيسية تماماً ولا تصل الأسهم لبطاقات الخدمات ولا للأزرار الجانبية.
+            var NON_MODAL_TAGS = ['BUTTON', 'A', 'INPUT', 'TEXTAREA', 'SELECT', 'IMG', 'I', 'SPAN', 'H1', 'H2', 'H3', 'P', 'LABEL'];
+
             for (var i = 0; i < modalSelectors.length; i++) {
                 var list = Array.from(document.querySelectorAll(modalSelectors[i]));
                 for (var j = 0; j < list.length; j++) {
                     var el = list[j];
                     if (el.classList.contains('hidden')) continue;
                     if (el.id === 'app-scaler' || el.id === 'livePlayerWrapper') continue;
+                    if (NON_MODAL_TAGS.indexOf(el.tagName) !== -1) continue;
+
+                    // فحص حقيقي للظهور: offsetParent يساوي null إذا كان العنصر أو أي أب له مخفي،
+                    // وهو أدق بكثير من فحص خصائص العنصر نفسه فقط (التي تبقى كما هي داخل أب مخفي)
+                    if (el.offsetParent === null && window.getComputedStyle(el).position !== 'fixed') continue;
+                    var rect = el.getBoundingClientRect();
+                    if (rect.width < 40 || rect.height < 40) continue;
+
                     var style = window.getComputedStyle(el);
                     if (style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
-                        var isOverlay = (style.position === 'fixed' || style.position === 'absolute') || el.classList.contains('modal') || (el.id && el.id.toLowerCase().includes('modal'));
+                        var isOverlay = (style.position === 'fixed' || style.position === 'absolute') || el.classList.contains('modal');
                         if (isOverlay) {
                             return el;
                         }
@@ -812,7 +827,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.70';
+    const CURRENT_APP_VERSION = '1.0.71';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -1081,6 +1096,20 @@
         const progressFill = overlay.querySelector('#inappProgressFill');
         const progressBytes = overlay.querySelector('#inappProgressBytes');
         const progressSpeed = overlay.querySelector('#inappProgressSpeed');
+
+        // إصلاح ترتيب النص: النص "5.0 MB / 123.5 MB" كان يُبنى صحيحاً في الكود لكنه يُعرض
+        // مقلوباً ("MB / 123.5 MB 5.0") لأن العنصر داخل حاوية عربية (RTL)، فتقوم خوارزمية
+        // الاتجاه ثنائي الاتجاه (bidi) بإعادة ترتيب الأرقام والحروف اللاتينية.
+        // الحل: فرض اتجاه LTR وعزل النص على عناصر الأرقام فقط.
+        [progressBytes, progressSpeed, progressPct].forEach((el) => {
+            if (!el) return;
+            try {
+                el.setAttribute('dir', 'ltr');
+                el.style.direction = 'ltr';
+                el.style.unicodeBidi = 'isolate';
+                el.style.textAlign = 'center';
+            } catch (e) { }
+        });
         const btnPauseResume = overlay.querySelector('#inappBtnPauseResume');
         const errorBox = overlay.querySelector('#inappErrorBox');
         const btnRetry = overlay.querySelector('#inappBtnRetry');

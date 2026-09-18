@@ -2903,12 +2903,42 @@ async function manualRefreshCategory(type, event) {
 
     try {
         const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${action}`;
-        await proxyFetch(url, false);
+
+        // تحديث فعلي كامل: نجلب الأقسام والقوائم معاً من السيرفر مباشرة (بدون كاش)،
+        // بدل الاكتفاء بمسح الذاكرة المؤقتة كما كان سابقاً
+        const streamsAction = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
+
+        const [, freshStreams] = await Promise.all([
+            proxyFetch(url, false),
+            getAllStreamsForType(type === 'live' ? 'live' : (type === 'vod' ? 'vod' : 'series'), streamsAction)
+        ]);
+
         const now = Date.now();
         localStorage.setItem('sp_last_updated_' + type, String(now));
         setCardSyncState(type, 'idle', now);
+
+        // تحديث الواجهة المعروضة حالياً إن كانت تخص نفس النوع، حتى يرى المستخدم الجديد فوراً
+        try {
+            if (currentScreenId === 'live-screen' && type === 'live') {
+                loadCategories('get_live_categories', 'live');
+            } else if (currentScreenId === 'vod-screen' &&
+                       ((type === 'vod' && state.activeTab === 'movies') || (type === 'series' && state.activeTab === 'series'))) {
+                loadCategories(type === 'vod' ? 'get_vod_categories' : 'get_series_categories', state.activeTab);
+            }
+        } catch (e) { }
+
+        // تحديث عدّاد عناصر الباقة على البطاقة إن كان متاحاً
+        try {
+            if (typeof updateCardItemsCount === 'function' && Array.isArray(freshStreams)) {
+                updateCardItemsCount(type, freshStreams.length);
+            }
+        } catch (e) { }
+
         if (typeof showToast === 'function') {
-            showToast(`تم تحديث باقة ${typeName} بنجاح`, 'success');
+            const count = Array.isArray(freshStreams) ? freshStreams.length : 0;
+            showToast(count > 0
+                ? `تم تحديث باقة ${typeName} بنجاح (${count} عنصر)`
+                : `تم تحديث باقة ${typeName} بنجاح`, 'success');
         }
     } catch (e) {
         console.warn('Manual refresh failed', e);

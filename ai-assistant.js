@@ -431,6 +431,61 @@
         return detected;
     }
 
+    // اختيار عشوائي من أفضل النتائج بدل أخذ الأربعة الأوائل دائماً بالترتيب نفسه.
+    // السبب: الاقتراح العام ("اقترح لي فيلم") كان يُرجع دائماً نفس الأفلام الأعلى تقييماً
+    // بالترتيب ذاته، فيبدو المساعد وكأنه يحفظ إجابة واحدة ويكررها في كل مرة.
+    // الآن نأخذ عينة متنوعة من أفضل المرشحين فتتغير الاقتراحات مع كل طلب.
+    function pickVariedTop(sortedList, count) {
+        if (!Array.isArray(sortedList) || sortedList.length === 0) return [];
+        if (sortedList.length <= count) return sortedList.slice(0, count);
+
+        const poolSize = Math.min(sortedList.length, Math.max(count * 6, 30));
+        const pool = sortedList.slice(0, poolSize);
+
+        // خلط فيشر-ييتس على نسخة من المجموعة ثم أخذ العدد المطلوب
+        const shuffled = pool.slice();
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = shuffled[i];
+            shuffled[i] = shuffled[j];
+            shuffled[j] = tmp;
+        }
+        return shuffled.slice(0, count);
+    }
+
+    // تصفية كروت التشغيل لتطابق ما ذكره المساعد فعلياً في نص رده فقط.
+    // السبب: كان النص يتحدث عن فيلم بينما الكروت أسفله تعرض أفلاماً أخرى لم تُذكر إطلاقاً،
+    // لأن الكروت كانت تُبنى من نتائج البحث المحلي بغض النظر عما اختاره المساعد.
+    function filterContextToMentioned(serverContext, replyText) {
+        if (!serverContext || !replyText) return serverContext;
+
+        const normReply = normalizeArabic(replyText);
+        const isMentioned = (name) => {
+            const n = normalizeArabic(name || '');
+            if (!n || n.length < 2) return false;
+            if (normReply.includes(n)) return true;
+            // مطابقة مرنة: يكفي ورود أغلب كلمات العنوان في الرد (لاختلاف علامات الترقيم والسنة)
+            const words = n.split(' ').filter(w => w.length > 2);
+            if (words.length === 0) return false;
+            const hit = words.filter(w => normReply.includes(w)).length;
+            return (hit / words.length) >= 0.75;
+        };
+
+        const filtered = {
+            isSports: serverContext.isSports,
+            movies: (serverContext.movies || []).filter(m => isMentioned(m.name)),
+            series: (serverContext.series || []).filter(s => isMentioned(s.name)),
+            channels: serverContext.channels || []
+        };
+
+        // إن لم يُذكر أي عنوان صراحةً (مثل رد عام أو سؤال عن قناة) نُبقي القائمة الأصلية
+        // بدل إخفاء كل الكروت وحرمان المستخدم من التشغيل السريع
+        if (filtered.movies.length === 0 && filtered.series.length === 0) {
+            return serverContext;
+        }
+        return filtered;
+    }
+
     async function searchActiveClientServer(query) {
         const normQuery = normalizeArabic(query);
         const allWords = normQuery.split(' ').filter(w => w.length > 1);
@@ -514,7 +569,7 @@
                                 if (rB !== rA) return rB - rA;
                                 return (b.stream_id || 0) - (a.stream_id || 0);
                             });
-                            results.movies = genreMatches.slice(0, 4);
+                            results.movies = pickVariedTop(genreMatches, 4);
                         }
                     }
 
@@ -547,7 +602,7 @@
                             if (rB !== rA) return rB - rA;
                             return (b.stream_id || 0) - (a.stream_id || 0);
                         });
-                        results.movies = topRatedMovies.slice(0, 4);
+                        results.movies = pickVariedTop(topRatedMovies, 4);
                     }
                 }
             }
@@ -679,7 +734,7 @@
                 { role: "user", parts: [{ text: promptWithContext }] }
             ],
             generationConfig: {
-                temperature: 0.6,
+                temperature: 0.9,
                 maxOutputTokens: 650
             }
         };
@@ -746,7 +801,7 @@
                 }
             ],
             generationConfig: {
-                temperature: 0.6,
+                temperature: 0.9,
                 maxOutputTokens: 650
             }
         };
@@ -1038,8 +1093,9 @@
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
 
-            // 5. تجهيز الكروت التفاعلية للتشغيل
-            const actionCardsHtml = buildInteractiveCardsHtml(serverContext);
+            // 5. تجهيز الكروت التفاعلية للتشغيل — مقتصرة على الأعمال التي ذكرها المساعد فعلاً
+            const matchedContext = filterContextToMentioned(serverContext, aiReply);
+            const actionCardsHtml = buildInteractiveCardsHtml(matchedContext);
 
             // 6. إظهار رد الذكاء الاصطناعي مع الكروت وحفظه
             appendMessage('model', aiReply, actionCardsHtml, true);
@@ -1112,8 +1168,9 @@
                 serverContext.series = [];
             }
 
-            // تجهيز كروت التشغيل وعرض الرد
-            const actionCardsHtml = buildInteractiveCardsHtml(serverContext);
+            // تجهيز كروت التشغيل وعرض الرد — مقتصرة على ما ذكره المساعد فعلاً في رده
+            const matchedContext = filterContextToMentioned(serverContext, aiReply);
+            const actionCardsHtml = buildInteractiveCardsHtml(matchedContext);
             appendMessage('model', aiReply, actionCardsHtml, true);
             conversationHistory.push({ role: "model", parts: [{ text: aiReply }] });
 
@@ -1163,10 +1220,29 @@
         const modal = document.getElementById('almezoAiModal');
         if (modal) {
             modal.classList.remove('hidden');
-            setTimeout(() => {
-                const input = document.getElementById('aiChatInput');
-                if (input) input.focus();
-            }, 100);
+
+            // لا نضع التركيز تلقائياً على حقل الكتابة على الأجهزة اللمسية وشاشات التلفاز،
+            // لأن ذلك يفتح لوحة المفاتيح فوراً دون طلب المستخدم ويغطي نصف الشاشة.
+            // التركيز التلقائي يبقى فقط على الكمبيوتر حيث توجد لوحة مفاتيح حقيقية.
+            const hasPhysicalKeyboard = (function () {
+                try {
+                    if (isElectronEnvironment()) return true;
+                    if (document.body.classList.contains('desktop-device-mode')) return true;
+                    if (document.body.classList.contains('touch-device-mode')) return false;
+                    if (document.body.classList.contains('tv-device-mode')) return false;
+                    if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) return false;
+                    return !(('ontouchstart' in window) || navigator.maxTouchPoints > 0);
+                } catch (e) {
+                    return false;
+                }
+            })();
+
+            if (hasPhysicalKeyboard) {
+                setTimeout(() => {
+                    const input = document.getElementById('aiChatInput');
+                    if (input) input.focus();
+                }, 100);
+            }
         }
     }
 
