@@ -1629,7 +1629,6 @@ window.saveHomeCard = async function (key) {
 
 // Temporary migration script
 window.migrateDataToFirestore = async function () {
-    console.log("بدأ الترحيل...");
     const batch = db.batch();
     let count = 0;
 
@@ -1649,7 +1648,6 @@ window.migrateDataToFirestore = async function () {
     }
 
     await batch.commit();
-    console.log(`تم ترحيل ${count} منتج بنجاح إلى فايربيز`);
     showToast("تم ترحيل البيانات بنجاح", "success");
 };
 

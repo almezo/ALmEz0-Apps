@@ -486,6 +486,23 @@
         return filtered;
     }
 
+    // تحويل أي خطأ تقني إلى رسالة ودية بالعربية. الرسائل الخام (مثل
+    // "models/gemini-1.5-flash is not found for API version v1beta") لا تُعرض للمستخدم أبداً،
+    // وتبقى في وحدة التحكم للمطورين فقط.
+    function toFriendlyAiError(err) {
+        const raw = String((err && err.message) || '');
+        if (/مهلة|timeout|deadline/i.test(raw)) {
+            return 'عذراً، استغرق الرد وقتاً أطول من المعتاد. تحقق من اتصال الإنترنت وحاول مجدداً.';
+        }
+        if (/unauthenticated|مسجلاً للدخول/i.test(raw)) {
+            return 'يرجى تسجيل الدخول أولاً لاستخدام مساعد الميزو.';
+        }
+        if (/غير متاحة/.test(raw)) {
+            return 'مساعد الميزو غير متاح في هذه الصفحة حالياً.';
+        }
+        return 'عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً.';
+    }
+
     async function searchActiveClientServer(query) {
         const normQuery = normalizeArabic(query);
         const allWords = normQuery.split(' ').filter(w => w.length > 1);
@@ -969,11 +986,7 @@
         if (saveToSession) {
             saveMessageToCurrentSession(sender, text, actionCardsHtml);
         }
-
-        // تحديث محرك الريموت لتسجيل الأزرار الجديدة
-        if (typeof initTvNavigationEngine === 'function') {
-            try { initTvNavigationEngine(); } catch (e) { }
-        }
+        // ملاحظة: لا نعيد تهيئة محرك الريموت هنا؛ فهو يقرأ الأزرار الجديدة تلقائياً عند كل ضغطة
     }
 
     // =========================================================================
@@ -1107,7 +1120,7 @@
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
 
-            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الطلب: ${err.message || 'يرجى المحاولة مجدداً'}.`, '', true);
+            appendMessage('model', toFriendlyAiError(err), '', true);
             showAiStatus('جاهز لمساعدتك ✨');
         }
     }
@@ -1181,7 +1194,7 @@
             if (typingEl) typingEl.remove();
 
             let errMsg = err.message || 'يرجى المحاولة مجدداً';
-            appendMessage('model', `عذراً، حدث خطأ أثناء معالجة الرسالة الصوتية: ${errMsg}`, '', true);
+            appendMessage('model', toFriendlyAiError(err), '', true);
             showAiStatus('جاهز لمساعدتك ✨');
         }
     }

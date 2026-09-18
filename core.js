@@ -369,7 +369,6 @@ async function loadXtreamChannels(config) {
       }
       
       showSpinner(false);
-      console.log("Loaded " + parsedChannels.length + " channels in " + allCategories.length + " categories");
       return true;
     } else {
       throw new Error("Invalid response from API");
@@ -472,7 +471,6 @@ async function loadXtreamChannelsByCategories(config, categoryIds) {
       }
       
       showSpinner(false);
-      console.log("Loaded " + parsedChannels.length + " channels in " + allCategories.length + " categories");
       return true;
     } else {
       throw new Error("Invalid response from API");
@@ -516,7 +514,6 @@ async function loadXtreamMovies(config) {
       allMovieCategories = Object.keys(categorizedMovies);
       
       showSpinner(false);
-      console.log("Loaded " + parsedMovies.length + " movies in " + allMovieCategories.length + " categories");
       return true;
     } else {
       throw new Error("Invalid response from API");
@@ -906,7 +903,6 @@ async function fetchMovieInfo(streamId) {
   try {
     const response = await fetch(apiUrl);
     const data = await response.json();
-    console.log("Full API response for movie info:", JSON.stringify(data, null, 2));
     return data;
   } catch (error) {
     console.error("Error fetching movie info:", error);
@@ -917,7 +913,6 @@ async function fetchMovieInfo(streamId) {
 function loadSubtitles(subtitles) {
   currentSubtitles = subtitles || [];
   
-  console.log("loadSubtitles called with:", currentSubtitles);
   
   // Clear existing subtitle tracks
   const existingTracks = video.querySelectorAll("track");
@@ -939,16 +934,13 @@ function loadSubtitles(subtitles) {
   if (currentSubtitles.length === 0) {
     subtitleBtn.style.display = "none";
     subtitleBtn.classList.remove("active");
-    console.log("No subtitles to load, hiding subtitle button");
     return;
   }
   
   subtitleBtn.style.display = "block";
-  console.log("Showing subtitle button, loading " + currentSubtitles.length + " tracks");
   
   // Add subtitle tracks to video element
   currentSubtitles.forEach(function(sub, index) {
-    console.log("Adding subtitle track " + index + ":", sub);
     const track = document.createElement("track");
     track.kind = "subtitles";
     track.label = sub.language || "Subtitle " + (index + 1);
@@ -962,7 +954,6 @@ function loadSubtitles(subtitles) {
     });
     
     track.addEventListener("load", function() {
-      console.log("✅ Subtitle track " + index + " loaded successfully:", track.label);
     });
     
     if (index === 0) {
@@ -984,14 +975,11 @@ function loadSubtitles(subtitles) {
     subtitleMenu.appendChild(option);
   });
   
-  console.log("Added " + video.textTracks.length + " text tracks to video element");
 }
 
 function selectSubtitle(trackIndex) {
   const tracks = video.textTracks;
   
-  console.log("selectSubtitle called with index:", trackIndex);
-  console.log("Available text tracks:", tracks.length);
   
   // Disable all tracks
   for (let i = 0; i < tracks.length; i++) {
@@ -1005,13 +993,11 @@ function selectSubtitle(trackIndex) {
   });
   
   if (trackIndex === "off" || trackIndex < 0) {
-    console.log("Disabling all subtitles");
     options[0].classList.add("active");
     subtitleBtn.classList.remove("active");
   } else {
     if (tracks[trackIndex]) {
       tracks[trackIndex].mode = "showing";
-      console.log("✅ Enabled subtitle track " + trackIndex + ":", tracks[trackIndex].label);
     } else {
       console.error("❌ Track index " + trackIndex + " not found!");
     }
@@ -1024,10 +1010,8 @@ function selectSubtitle(trackIndex) {
 
 function detectEmbeddedSubtitles() {
   const tracks = video.textTracks;
-  console.log("🔍 Checking for embedded subtitles... Found " + tracks.length + " text tracks");
   
   if (tracks.length === 0) {
-    console.log("No embedded subtitle tracks detected");
     return;
   }
   
@@ -1051,10 +1035,8 @@ function detectEmbeddedSubtitles() {
   }
   
   if (detectedSubtitles.length > 0) {
-    console.log("✅ Detected " + detectedSubtitles.length + " embedded subtitle tracks");
     updateSubtitleMenuWithEmbedded(detectedSubtitles);
   } else {
-    console.log("⚠️ No subtitle or caption tracks found in " + tracks.length + " total tracks");
   }
 }
 
@@ -1064,15 +1046,12 @@ function checkForEmbeddedSubtitlesRepeatedly() {
   
   const checkInterval = setInterval(function() {
     attempts++;
-    console.log("Subtitle check attempt " + attempts + "/" + maxAttempts);
     
     const tracks = video.textTracks;
     if (tracks.length > 0) {
-      console.log("🎯 Found " + tracks.length + " tracks on attempt " + attempts);
       detectEmbeddedSubtitles();
       clearInterval(checkInterval);
     } else if (attempts >= maxAttempts) {
-      console.log("❌ No embedded subtitles found after " + maxAttempts + " attempts");
       clearInterval(checkInterval);
     }
   }, 500);
@@ -1108,7 +1087,6 @@ function updateSubtitleMenuWithEmbedded(embeddedSubs) {
     subtitleMenu.appendChild(option);
   });
   
-  console.log("✅ Subtitle menu updated with " + embeddedSubs.length + " embedded tracks");
 }
 
 function playMovie(movie) {
@@ -1123,7 +1101,6 @@ function playMovie(movie) {
   
   // For MKV files, try HLS version which may have embedded subtitles extracted
   if (movie.containerExtension === "mkv" && movie.name.includes("[MULTI-SUB]")) {
-    console.log("🔄 Movie has [MULTI-SUB] tag, trying HLS version for subtitle support");
     movieUrl = host + "/movie/" + username + "/" + password + "/" + movie.streamId + ".m3u8";
   }
   
@@ -1133,7 +1110,6 @@ function playMovie(movie) {
   
   // Fetch movie info including subtitles
   fetchMovieInfo(movie.streamId).then(function(info) {
-    console.log("Movie info:", info);
     if (info) {
       const subtitleList = [];
       
@@ -1211,14 +1187,11 @@ function playMovie(movie) {
       });
       
       if (subtitleList.length > 0) {
-        console.log("✅ Found " + subtitleList.length + " subtitles:", subtitleList);
       } else {
-        console.log("❌ No subtitles in API response. [MULTI-SUB] movies have embedded subtitles that cannot be accessed via web browser.");
       }
       
       loadSubtitles(subtitleList);
     } else {
-      console.log("No movie info returned from API");
       loadSubtitles([]);
     }
   }).catch(function(error) {
@@ -1798,7 +1771,6 @@ loadUrlBtn.addEventListener("click", async function() {
     showSpinner(false);
     showStatus(urlStatus, "Playlist loaded successfully!", "success");
     
-    console.log("Loaded M3U playlist from URL: " + url);
   } catch (error) {
     console.error("Error loading M3U URL:", error);
     showStatus(urlStatus, "Failed to load playlist: " + error.message, "error");
@@ -2035,7 +2007,6 @@ applyCategoriesBtn.addEventListener("click", function() {
   saveSelectedCategoriesToCookie(selectedCategories);
   renderChannelsByCategory();
   categoriesModal.classList.remove("show");
-  console.log("Selected categories:", selectedCategories);
 });
 
 // Search Box - General search across ALL channels or movies (trigger on Enter key)
@@ -2146,8 +2117,6 @@ window.addEventListener("DOMContentLoaded", async function() {
     selectedCategories = savedCategoriesFromCookie;
   }
   
-  console.log("Loaded favorites:", favoriteChannelIds);
-  console.log("Loaded selected categories:", selectedCategories);
   
   const savedCreds = loadCredentialsFromCookie();
   if (savedCreds) {

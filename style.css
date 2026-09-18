@@ -8916,11 +8916,15 @@ header, .main-header, .top-nav {
    مع !important، فينتج 3 أو 4 أو 6 أعمدة حسب عرض الشاشة، ويتشوه الترتيب تماماً على
    الشاشات الكبيرة وشاشات التلفاز. هذه القاعدة تأتي بعدها وتفرض 2×2 في كل الأوضاع.
    ========================================================= */
-#homeCategoriesGrid,
-.main-categories-grid {
+/* ملاحظة أولوية مهمة: قواعد الفئات مثل [data-device-tier="tablet-landscape"] #homeCategoriesGrid
+   أعلى أولوية (id + سمة) من #homeCategoriesGrid وحده، فكانت تتغلب على هذه القاعدة وتظهر
+   4 بطاقات في صف واحد في الوضع العرضي. المحدد أدناه (html body main + id + class) أعلى منها
+   جميعاً، فيفرض 2×2 فعلياً في كل المقاسات والأوضاع بما فيها التلفاز والعرضي. */
+html body main #homeCategoriesGrid.main-categories-grid,
+html body .main-categories-grid {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: clamp(14px, 1.8vw, 28px) !important;
+    gap: 24px !important;
     max-width: 980px !important;
     margin-left: auto !important;
     margin-right: auto !important;
@@ -8928,10 +8932,22 @@ header, .main-header, .top-nav {
     justify-content: center !important;
 }
 
-/* على الشاشات الضيقة جداً (هواتف صغيرة) يبقى عمود واحد حتى لا تنضغط البطاقات */
-[data-device-tier="watch"] #homeCategoriesGrid,
-[data-device-tier="compact-phone"] #homeCategoriesGrid {
-    grid-template-columns: minmax(0, 1fr) !important;
+/* البطاقة الخامسة (مشغل الميزو) في صف مستقل أسفل الشبكة ومتمركزة بعرض بطاقة واحدة */
+html body main #homeCategoriesGrid .main-category-card.web-player {
+    grid-column: 1 / -1 !important;
+    justify-self: center !important;
+    width: 100% !important;
+    max-width: calc(50% - 12px) !important;
+    margin: 0 auto !important;
+}
+
+@media (max-width: 480px) {
+    html body main #homeCategoriesGrid.main-categories-grid {
+        gap: 12px !important;
+    }
+    html body main #homeCategoriesGrid .main-category-card.web-player {
+        max-width: calc(50% - 6px) !important;
+    }
 }
 
 /* النص الترحيبي: لا يتمدد ولا يدفع البطاقات خارج الشاشة، ويتقلص تلقائياً

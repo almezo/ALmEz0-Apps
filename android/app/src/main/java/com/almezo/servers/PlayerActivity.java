@@ -1148,7 +1148,16 @@ public class PlayerActivity extends AppCompatActivity {
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
                     .build();
 
-            player = new ExoPlayer.Builder(this)
+            // فك التشفير العتادي: ExoPlayer يستخدم افتراضياً مُفكّكات MediaCodec العتادية (وليس
+            // البرمجية) ما دامت الإضافات البرمجية معطلة، وهذا مثبت هنا صراحة. نضيف "الرجوع لمُفكك
+            // آخر" حتى إن فشل المفكك العتادي الأساسي في التهيئة (شائع مع HEVC/H265 على شرائح
+            // Amlogic الاقتصادية مثل TX9 Pro) يُجرَّب مفكك عتادي بديل بدل ظهور خطأ تشغيل.
+            androidx.media3.exoplayer.DefaultRenderersFactory renderersFactory =
+                    new androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                            .setEnableDecoderFallback(true);
+
+            player = new ExoPlayer.Builder(this, renderersFactory)
                     .setMediaSourceFactory(mediaSourceFactory)
                     .setLoadControl(loadControl)
                     .setAudioAttributes(audioAttributes, true)

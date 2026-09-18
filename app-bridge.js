@@ -827,7 +827,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.71';
+    const CURRENT_APP_VERSION = '1.0.72';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -1154,13 +1154,44 @@
         let lastSpeedTime = Date.now();
         let currentSpeedStr = '0.0 MB/s';
 
+        // حراسة تصاعدية لعداد التحميل: تقارير التقدم قد تصل من الطبقة الأصلية بترتيب غير مضمون
+        // أو بعد إعادة اتصال/تحويل (redirect) فيعود الرقم للخلف (مثلاً 72% ثم 63%).
+        // الواجهة الآن لا تعرض أبداً قيمة أقل مما عُرض فعلاً، ولا تتراجع النسبة إطلاقاً.
+        let maxShownPct = 0;
+        let maxShownBytes = 0;
+        let isDownloadRunning = false;
+
+        function resetProgressGuards() {
+            maxShownPct = 0;
+            maxShownBytes = 0;
+            lastDownloadedBytes = 0;
+            lastSpeedTime = Date.now();
+            currentSpeedStr = '0.0 MB/s';
+        }
+
         function formatBytes(bytes) {
             if (!bytes || bytes <= 0) return '0.0 MB';
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
         function setProgress(pct, downloaded, total) {
-            const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+            let clamped = Math.max(0, Math.min(100, Math.round(pct)));
+
+            // لا نسمح أبداً بتراجع النسبة أو حجم المُنزَّل للخلف
+            if (clamped < maxShownPct) {
+                clamped = maxShownPct;
+            } else {
+                maxShownPct = clamped;
+            }
+
+            if (typeof downloaded === 'number' && downloaded > 0) {
+                if (downloaded < maxShownBytes) {
+                    downloaded = maxShownBytes;
+                } else {
+                    maxShownBytes = downloaded;
+                }
+            }
+
             progressFill.style.width = clamped + '%';
             progressPct.innerText = clamped + '%';
 
@@ -1225,6 +1256,12 @@
         }
 
         function startDownload() {
+            // منع بدء تنزيلين متوازيين على نفس الملف (كل واحد بعدّاده الخاص)،
+            // وهو سبب معروف لظهور تراجع مفاجئ في النسبة أثناء التحميل
+            if (isDownloadRunning) return;
+            isDownloadRunning = true;
+
+            resetProgressGuards();
             btnStart.classList.add('hidden');
             errorBox.classList.add('hidden');
             progressBox.classList.remove('hidden');
@@ -1254,6 +1291,7 @@
                 });
 
                 window.electronAPI.onUpdateError(() => {
+                    isDownloadRunning = false;
                     progressBox.classList.add('hidden');
                     errorBox.classList.remove('hidden');
                 });
@@ -1275,6 +1313,7 @@
                 };
 
                 window.onAndroidUpdateError = () => {
+                    isDownloadRunning = false;
                     progressBox.classList.add('hidden');
                     errorBox.classList.remove('hidden');
                 };

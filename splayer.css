@@ -7767,3 +7767,77 @@ html.has-active-player-session #dashboard-screen.hidden {
 html.has-active-player-session #dashboard-nav.hidden {
     display: flex !important;
 }
+/* =========================================================
+   إصلاحات أندرويد: تداخل بطاقات القنوات وصغر عناوين الأفلام
+   ---------------------------------------------------------
+   1) بطاقات القنوات كانت تجمع aspect-ratio مع min-height داخل شبكة Grid، فيُحسب ارتفاع
+      الصف من النسبة (أقصر) بينما تتمدد البطاقة لحدها الأدنى، فتتراكب الصفوف فوق بعضها
+      وتُقص أسماء القنوات. الآن: ارتفاع صريح ثابت لمنطقة الشعار، واسم يظهر كاملاً في سطرين.
+   2) في وضع النقال تُرسم الواجهة على كانفاس 750px ثم تُصغَّر لنحو النصف، فعنوان بحجم 15px
+      يظهر فعلياً بحجم ~8px. نكبّره داخل الكانفاس ليُقرأ بوضوح على الهاتف.
+   ========================================================= */
+body.platform-android #liveChannels,
+body.tv-device-mode #liveChannels,
+#liveChannels.channels-grid-mode {
+    grid-auto-rows: auto !important;
+    align-items: start !important;
+    gap: 20px 16px !important;
+}
+
+body.platform-android .live-channel-card,
+body.tv-device-mode .live-channel-card,
+#liveChannels.channels-grid-mode .live-channel-card {
+    aspect-ratio: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    justify-content: flex-start !important;
+}
+
+body.platform-android .live-channel-card .live-card-thumb,
+body.tv-device-mode .live-channel-card .live-card-thumb,
+#liveChannels.channels-grid-mode .live-channel-card .live-card-thumb {
+    flex: 0 0 auto !important;
+    height: 130px !important;
+    padding: 14px 12px 8px !important;
+}
+
+body.platform-android .live-channel-card .live-card-title-bar,
+body.tv-device-mode .live-channel-card .live-card-title-bar,
+#liveChannels.channels-grid-mode .live-channel-card .live-card-title-bar {
+    flex: 0 0 auto !important;
+    min-height: 62px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px 10px !important;
+}
+
+body.platform-android .live-channel-card .live-card-title,
+body.tv-device-mode .live-channel-card .live-card-title,
+#liveChannels.channels-grid-mode .live-channel-card .live-card-title {
+    font-size: 19px !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    word-break: break-word !important;
+}
+
+body.platform-android .vod-title,
+body.touch-device-mode .vod-title {
+    font-size: 21px !important;
+    font-weight: 800 !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    margin-top: 8px !important;
+}
+
+body.platform-android #vodGrid.vod-grid {
+    row-gap: 18px !important;
+}

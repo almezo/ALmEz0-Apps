@@ -284,6 +284,9 @@ public class MainActivity extends BridgeActivity {
 
         private volatile boolean isApkDownloadPaused = false;
         private volatile boolean isApkDownloadCancelled = false;
+        // يمنع تشغيل خيطي تنزيل متوازيين على نفس ملف APK، فلكل خيط عدّاده الخاص
+        // وكانا يرسلان تقارير تقدم متضاربة تجعل النسبة تقفز للخلف أثناء التحميل
+        private volatile boolean isApkDownloadRunning = false;
         private android.os.PowerManager.WakeLock apkWakeLock = null;
 
         @JavascriptInterface
@@ -302,6 +305,8 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void downloadAndInstallApk(String apkUrl) {
             if (apkUrl == null || apkUrl.trim().isEmpty()) return;
+            if (isApkDownloadRunning) return; // تنزيل جارٍ بالفعل: نتجاهل الطلب المكرر
+            isApkDownloadRunning = true;
             isApkDownloadPaused = false;
             isApkDownloadCancelled = false;
 
@@ -428,6 +433,7 @@ public class MainActivity extends BridgeActivity {
                         }
                     });
                 } finally {
+                    isApkDownloadRunning = false;
                     try {
                         if (apkWakeLock != null && apkWakeLock.isHeld()) {
                             apkWakeLock.release();

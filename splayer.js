@@ -484,7 +484,6 @@ function initForceLandscapeButton() {
                 return;
             }
         } catch (e) {
-            console.log('Direct orientation lock not supported, falling back to fullscreen.');
         }
 
         try {
@@ -901,7 +900,6 @@ function showToast(title, icon = 'success') {
             title: title
         });
     } else {
-        console.log('[Toast]', icon, title);
     }
 }
 
@@ -5158,7 +5156,16 @@ function initLivePlayerGestures() {
 // =========================================================
 // ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE
 // =========================================================
+// حارس تهيئة واحدة: كانت الدالة تُستدعى من مساعد الميزو مع كل رسالة جديدة، فتُضاف في كل مرة
+// مستمعات keydown/touchstart/mousedown/F11 جديدة فوق القديمة. بعد عشر رسائل تصبح كل ضغطة سهم
+// تنفَّذ عشر مرات (قفزات في التركيز وإطارات خضراء تظهر فجأة واستهلاك متزايد للمعالج).
+// المحرك يقرأ العناصر من الصفحة لحظياً عند كل ضغطة، فلا حاجة لإعادة تهيئته أبداً.
+let tvNavigationEngineInitialized = false;
+
 function initTvNavigationEngine() {
+    if (tvNavigationEngineInitialized) return;
+    tvNavigationEngineInitialized = true;
+
     let currentFocusedEl = null;
 
     const FOCUSABLE_SELECTOR = [
@@ -5213,7 +5220,7 @@ function initTvNavigationEngine() {
 
     function getVisibleFocusables() {
         // فحص النوافذ المنبثقة النشطة لحصر التركيز داخلها ومنع تسرب الأسهم لخلفية الشاشة
-        const activeModal = document.querySelector('#fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
+        const activeModal = document.querySelector('#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
         let container = activeModal;
         if (!container) {
             // إذا كانت شاشة إدخال كود السيرفر أو تسجيل الدخول هي النشطة، نحصر التركيز بداخلها لمنع القفز للشاشات المخفية
@@ -5344,7 +5351,26 @@ function initTvNavigationEngine() {
         return bestCandidate;
     }
 
+    // تنظيم سرعة أسهم الريموت: عند الضغط المستمر يرسل الريموت ~30 ضغطة في الثانية، وكل ضغطة
+    // تفحص كل عناصر الشاشة (قد تكون آلاف البطاقات). على الأجهزة الضعيفة تتراكم هذه الأعمال
+    // فيتأخر التركيز ثم يقفز فجأة. نسمح بحركة واحدة كل فترة قصيرة جداً لا يلاحظها المستخدم.
+    let lastArrowMoveTime = 0;
+    const ARROW_MOVE_MIN_INTERVAL_MS = document.body.classList.contains('low-spec-mode') ? 110 : 70;
+
     window.addEventListener('keydown', (e) => {
+        const isArrowKey = (e.keyCode >= 37 && e.keyCode <= 40) || /^Arrow/.test(e.key || '');
+        if (isArrowKey && e.repeat) {
+            const nowTs = Date.now();
+            if (nowTs - lastArrowMoveTime < ARROW_MOVE_MIN_INTERVAL_MS) {
+                const tag = document.activeElement && document.activeElement.tagName;
+                if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
+                return;
+            }
+            lastArrowMoveTime = nowTs;
+        } else if (isArrowKey) {
+            lastArrowMoveTime = Date.now();
+        }
+
         const activeTag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toUpperCase() : '';
         const targetTag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
         const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag) ||

@@ -43,7 +43,15 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
     }
 
     const apiKey = GEMINI_API_KEY.value();
-    const modelsToTry = [model || "gemini-2.5-flash", "gemini-1.5-flash"];
+    // النموذج الاحتياطي القديم gemini-1.5-flash أُوقف من جوجل ولم يعد موجوداً في v1beta،
+    // فكان يرجع الخطأ "models/gemini-1.5-flash is not found" ويظهر نصه الخام للمستخدم.
+    // سلسلة احتياطية حديثة ومدعومة، مع إزالة التكرار إن كان النموذج المطلوب ضمنها.
+    const modelsToTry = Array.from(new Set([
+        model || "gemini-2.5-flash",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-flash-latest",
+    ]));
     let lastError = null;
 
     for (const m of modelsToTry) {
@@ -78,6 +86,7 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
         }
     }
 
+    // التفاصيل التقنية تُسجَّل في سجلات الخادم فقط، ولا تُرسل للمستخدم أبداً
     logger.error("خطأ في توليد رد مساعد الميزو الذكي:", lastError);
-    throw new HttpsError("internal", (lastError && lastError.message) || "فشل الاتصال بنموذج الذكاء الاصطناعي.");
+    throw new HttpsError("internal", "عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً.");
 });
