@@ -3961,7 +3961,11 @@ input.search-input[placeholder*="المسلسلات"] {
 /* 3. تأثيرات بطاقات الأفلام والمسلسلات والحلقات */
 .vod-card,
 .episode-card {
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    /* تحديد الخصائص المتحركة فعلياً بدل "all" يقلل عبء إعادة الحساب على كل بطاقة،
+       وهو فارق ملموس عند وجود عشرات البطاقات المعروضة معاً على أجهزة ضعيفة */
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+                box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+                border-color 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
 }
 
 .vod-card:hover,
@@ -3975,7 +3979,7 @@ input.search-input[placeholder*="المسلسلات"] {
 
 /* 4. حركة القوائم الجانبية (الأقسام والقنوات) */
 .list-item {
-    transition: all 0.3s ease !important;
+    transition: transform 0.3s ease, background 0.3s ease, border-left-color 0.3s ease !important;
     position: relative;
     overflow: hidden;
 }
@@ -6157,6 +6161,24 @@ body.low-spec-mode .vod-card::after,
 body.tv-device-mode .episode-card::after,
 body.low-spec-mode .episode-card::after {
     display: none !important;
+}
+
+/* تحريك box-shadow يفرض إعادة رسم (repaint) مكلفة على كل إطار، بعكس transform المسرّع بالعتاد؛
+   على الأجهزة الضعيفة نكتفي بتأثير الحركة (transform) دون توهج الظل المتحرك */
+body.tv-device-mode .vod-card,
+body.low-spec-mode .vod-card,
+body.tv-device-mode .episode-card,
+body.low-spec-mode .episode-card,
+body.tv-device-mode .list-item,
+body.low-spec-mode .list-item {
+    transition: transform 0.2s ease !important;
+}
+
+body.tv-device-mode .vod-card:hover,
+body.low-spec-mode .vod-card:hover,
+body.tv-device-mode .episode-card:hover,
+body.low-spec-mode .episode-card:hover {
+    box-shadow: none !important;
 }
 
 /* =========================================================================

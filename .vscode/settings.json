@@ -1,3 +1,15 @@
 {
-    "css.lint.browserCompatibility": "ignore"
+    "css.lint.browserCompatibility": "ignore",
+    "java.import.gradle.enabled": false,
+    "java.import.maven.enabled": false,
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.metadata/**",
+        "**/archetype-resources/**",
+        "**/META-INF/maven/**",
+        "**/android/**",
+        "**/dist-electron/**"
+    ],
+    "gradle.autoDetect": "off",
+    "gradle.nestedProjects": false
 }
