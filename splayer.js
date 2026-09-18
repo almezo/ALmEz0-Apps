@@ -74,12 +74,27 @@ function applyAutoScaling() {
 
     const isTvMode = document.body.classList.contains('tv-device-mode');
     const isDesktopMode = document.body.classList.contains('desktop-device-mode');
+    const isElectronPlatform = document.body.classList.contains('platform-electron') || (window.electronAPI && window.electronAPI.isElectron);
 
-    // Proportional Auto-Scaler Engine for All Devices:
-    // يملأ الشاشة 100% بنسبة تكبير متناسقة دقيقة تمنع صغر الخطوط أو تشوه القياسات
+    // On PC & Android TV / Receiver: Full-Screen 100% Edge-to-Edge with standard 1:1 crisp display (NO artificial scaling)
+    if (isTvMode || isDesktopMode || isElectronPlatform || (!document.body.classList.contains('touch-device-mode') && windowWidth >= 1024)) {
+        scaler.style.transform = 'none';
+        scaler.style.transformOrigin = 'initial';
+        scaler.style.top = '0';
+        scaler.style.left = '0';
+        scaler.style.width = '100vw';
+        scaler.style.height = '100vh';
+        scaler.style.minWidth = '100vw';
+        scaler.style.minHeight = '100vh';
+        scaler.style.maxWidth = '100vw';
+        scaler.style.maxHeight = '100vh';
+        scaler.style.position = 'fixed';
+        scaler.style.boxShadow = 'none';
+        scaler.style.borderRadius = '0';
+        return;
+    }
 
-
-    // Touch Mode (Smartphones & Tablets):
+    // Touch Mode (Smartphones & Tablets in Landscape):
     // نظام ذكي لحساب أبعاد الكانفاس المتكيفة بدقة مع نسبة عرض الشاشة لمنع الحواف السوداء نهائياً
     scaler.style.position = 'absolute';
     scaler.style.top = '50%';
@@ -121,7 +136,8 @@ function applyAutoScaling() {
     scaler.style.maxHeight = baseHeight + 'px';
     scaler.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.85)';
 
-    const scale = effectiveH / baseHeight;
+    // DO NOT scale above 1.0 to prevent inflating/magnifying elements on large or high-DPI displays
+    const scale = Math.min(1.0, effectiveH / baseHeight);
 
     scaler.style.transform = `translate(-50%, -50%) scale(${scale})`;
     scaler.style.transformOrigin = 'center center';
@@ -541,10 +557,16 @@ function initPlayerSession() {
 
     // ربط الأزرار الأساسية
     const connectBtn = document.getElementById('btnConnectServer');
-    if (connectBtn) connectBtn.addEventListener('click', handleServerCode);
+    if (connectBtn) {
+        connectBtn.onclick = handleServerCode;
+        connectBtn.addEventListener('click', handleServerCode);
+    }
 
     const loginBtn = document.getElementById('btnLogin');
-    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+    if (loginBtn) {
+        loginBtn.onclick = handleLogin;
+        loginBtn.addEventListener('click', handleLogin);
+    }
 }
 
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -759,36 +781,45 @@ function showAppAlert(text, icon = 'warning', title = '') {
         success: 'تم بنجاح',
         info: 'معلومة'
     };
-    return Swal.fire({
-        title: title || defaultTitles[icon] || 'تنبيه',
-        text: text,
-        icon: icon,
-        confirmButtonText: 'حسناً',
-        confirmButtonColor: '#f4c242',
-        background: '#141820',
-        color: '#fff',
-        customClass: {
-            popup: 'almezo-swal-popup',
-            confirmButton: 'almezo-swal-btn'
-        }
-    });
+    if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
+        return Swal.fire({
+            title: title || defaultTitles[icon] || 'تنبيه',
+            text: text,
+            icon: icon,
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#f4c242',
+            background: '#141820',
+            color: '#fff',
+            customClass: {
+                popup: 'almezo-swal-popup',
+                confirmButton: 'almezo-swal-btn'
+            }
+        });
+    } else {
+        alert(text);
+        return Promise.resolve();
+    }
 }
 
 function showToast(title, icon = 'success') {
-    const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 2500,
-        timerProgressBar: true,
-        background: '#141820',
-        color: '#fff',
-        iconColor: icon === 'success' ? '#4caf50' : '#f4c242'
-    });
-    Toast.fire({
-        icon: icon,
-        title: title
-    });
+    if (typeof Swal !== 'undefined' && typeof Swal.mixin === 'function') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2500,
+            timerProgressBar: true,
+            background: '#141820',
+            color: '#fff',
+            iconColor: icon === 'success' ? '#4caf50' : '#f4c242'
+        });
+        Toast.fire({
+            icon: icon,
+            title: title
+        });
+    } else {
+        console.log('[Toast]', icon, title);
+    }
 }
 
 // عرض إشعار داخلي عائم ومضيء داخل مشغل الفيديو مباشرة للأبعاد والترجمة
@@ -1130,85 +1161,120 @@ function updateActiveServerBanner() {
 
 // 1. جلب الهوست من ملف servers.json المحلي وحفظه بشكل صحيح
 async function handleServerCode() {
-    const code = document.getElementById('serverCode').value.trim();
-    if (!code) {
-        return showAppAlert('يرجى إدخال كود السيرفر للمتابعة', 'warning');
-    }
-
     const btn = document.getElementById('btnConnectServer');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner spinner"></i> جاري الاتصال...';
-
-    // 1. خريطة السيرفرات التي أضفتها أنت
-    const serverHostsMap = {
-        "001": "http://cafott.com",
-        "002": "http://nv2egy.com:80",
-        "003": "http://mar10.sbs",
-        "004": "http://pk8dkz.mvten.net",
-        "005": "http://mgtv.pro",
-        "006": "http://n1.new2027.xyz:80",
-        "007": "http://24.mhpro1.xyz:80"
-    };
-
-    // 2. التحقق من الكود مباشرة من القريطة
-    const hostUrl = serverHostsMap[code];
-
-    if (!hostUrl) {
-        btn.disabled = false;
-        btn.innerHTML = 'الاتصال بالسيرفر';
-        if (typeof logActivity === 'function') {
-            logActivity({
-                action: 'player_server_failed',
-                category: 'security',
-                severity: 'danger',
-                title: '⚠️ محاولة إدخال كود سيرفر غير صالح في المشغل',
-                details: { attemptedCode: code }
-            });
+    try {
+        const inputEl = document.getElementById('serverCode');
+        if (!inputEl) {
+            console.error('serverCode input element not found');
+            return;
         }
-        return showAppAlert('كود السيرفر غير صحيح، يرجى التأكد من الكود والمحاولة مجدداً.', 'error');
+        let code = inputEl.value.trim();
+        // تحويل الأرقام العربية الهندية (مثل ٠٠١ إلى 001) لمنع خطأ إدخال الكود في الشاشات
+        code = code.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+        inputEl.value = code;
+
+        if (!code) {
+            return showAppAlert('يرجى إدخال كود السيرفر للمتابعة', 'warning');
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner spinner"></i> جاري الاتصال...';
+        }
+
+        // 1. خريطة السيرفرات التي أضفتها أنت
+        const serverHostsMap = {
+            "001": "http://cafott.com",
+            "002": "http://nv2egy.com:80",
+            "003": "http://mar10.sbs",
+            "004": "http://pk8dkz.mvten.net",
+            "005": "http://mgtv.pro",
+            "006": "http://n1.new2027.xyz:80",
+            "007": "http://24.mhpro1.xyz:80"
+        };
+
+        // 2. التحقق من الكود مباشرة من القريطة
+        const hostUrl = serverHostsMap[code];
+
+        if (!hostUrl) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = 'الاتصال بالسيرفر';
+            }
+            if (typeof logActivity === 'function') {
+                try {
+                    logActivity({
+                        action: 'player_server_failed',
+                        category: 'security',
+                        severity: 'danger',
+                        title: '⚠️ محاولة إدخال كود سيرفر غير صالح في المشغل',
+                        details: { attemptedCode: code }
+                    });
+                } catch (e) { }
+            }
+            return showAppAlert('كود السيرفر غير صحيح، يرجى التأكد من الكود والمحاولة مجدداً.', 'error');
+        }
+
+        // 3. حفظ الهوست والانتقال للخطوة التالية
+        state.host = hostUrl;
+        try { sessionStorage.setItem('sp_fixed_host', hostUrl); } catch (e) { }
+
+        state.serverCode = code;
+        try {
+            localStorage.setItem('sp_server_code', code);
+            sessionStorage.setItem('sp_server_code', code);
+            sessionStorage.setItem('sp_current_screen', 'auth2-screen');
+        } catch (e) { }
+
+        const serverMap = {
+            '001': { name: 'سيرفر اكس', logo: 'photo/x.jpeg' },
+            '002': { name: 'سيرفر نوفا', logo: 'photo/nova.jpeg' },
+            '003': { name: 'سيرفر مارفل', logo: 'photo/marvel.jpeg' },
+            '004': { name: 'سيرفر مافين', logo: 'photo/maven.jpeg' },
+            '005': { name: 'سيرفر ميجا', logo: 'photo/mega.jpeg' },
+            '006': { name: 'سيرفر نينجا', logo: 'photo/ninja.jpeg' },
+            '007': { name: 'سيرفر MH', logo: 'photo/mh.png' }
+        };
+
+        const sInfo = serverMap[code] || { name: `سيرفر (${code})`, logo: 'photo/logo.ico' };
+        try {
+            localStorage.setItem('sp_server_info', JSON.stringify(sInfo));
+            sessionStorage.setItem('sp_server_info', JSON.stringify(sInfo));
+        } catch (e) { }
+
+        const srvDisplay = document.getElementById('authServerDisplay');
+        if (srvDisplay) srvDisplay.innerText = sInfo.name;
+        const srvLogo = document.getElementById('auth2Logo');
+        if (srvLogo) srvLogo.src = sInfo.logo;
+
+        showScreen('auth2-screen');
+
+        if (typeof logActivity === 'function') {
+            try {
+                logActivity({
+                    action: 'player_server_connected',
+                    category: 'iptv',
+                    severity: 'info',
+                    title: `دخول لشاشة بيانات: ${sInfo.name}`,
+                    details: { serverCode: code, serverName: sInfo.name }
+                });
+            } catch (e) { }
+        }
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'الاتصال بالسيرفر';
+        }
+    } catch (err) {
+        console.error('Error connecting server:', err);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'الاتصال بالسيرفر';
+        }
+        showAppAlert('حدث خطأ أثناء محاولة الاتصال بالسيرفر: ' + (err.message || err), 'error');
     }
-
-    // 3. حفظ الهوست والانتقال للخطوة التالية
-    state.host = hostUrl;
-    sessionStorage.setItem('sp_fixed_host', hostUrl);
-
-    state.serverCode = code;
-    localStorage.setItem('sp_server_code', code);
-    sessionStorage.setItem('sp_server_code', code);
-    sessionStorage.setItem('sp_current_screen', 'auth2-screen');
-
-    const serverMap = {
-        '001': { name: 'سيرفر اكس', logo: 'photo/x.jpeg' },
-        '002': { name: 'سيرفر نوفا', logo: 'photo/nova.jpeg' },
-        '003': { name: 'سيرفر مارفل', logo: 'photo/marvel.jpeg' },
-        '004': { name: 'سيرفر مافين', logo: 'photo/maven.jpeg' },
-        '005': { name: 'سيرفر ميجا', logo: 'photo/mega.jpeg' },
-        '006': { name: 'سيرفر نينجا', logo: 'photo/ninja.jpeg' },
-        '007': { name: 'سيرفر MH', logo: 'photo/mh.png' }
-    };
-
-    const sInfo = serverMap[code] || { name: `سيرفر (${code})`, logo: 'photo/logo.ico' };
-    localStorage.setItem('sp_server_info', JSON.stringify(sInfo));
-    sessionStorage.setItem('sp_server_info', JSON.stringify(sInfo));
-
-    document.getElementById('authServerDisplay').innerText = sInfo.name;
-    document.getElementById('auth2Logo').src = sInfo.logo;
-
-    showScreen('auth2-screen');
-
-    if (typeof logActivity === 'function') {
-        logActivity({
-            action: 'player_server_connected',
-            category: 'iptv',
-            severity: 'info',
-            title: `دخول لشاشة بيانات: ${sInfo.name}`,
-            details: { serverCode: code, serverName: sInfo.name }
-        });
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = 'الاتصال بالسيرفر';
 }
+window.handleServerCode = handleServerCode;
 
 // 2. تسجيل الدخول وقراءة الهوست المحفوظ بشكل صحيح وحفظ الحسابات في قوائم التشغيل
 async function handleLogin() {
@@ -1332,6 +1398,7 @@ async function handleLogin() {
         btn.innerHTML = 'تسجيل الدخول';
     }
 }
+window.handleLogin = handleLogin;
 
 function playStream(id, type, extension, name, icon) {
     // توحيد المعاملات عند الاستدعاء بأي ترتيب (Normalization)

@@ -145,10 +145,10 @@
                     <label class="input-label auto-style-4">أدخل كود السيرفر للمتابعة</label>
                     <div class="input-wrapper">
                         <i class="fas fa-desktop input-icon"></i>
-                        <input class="input-field" id="serverCode" placeholder="مثال: 123" dir="rtl" type="text" />
+                        <input class="input-field" id="serverCode" placeholder="مثال: 123" dir="rtl" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();handleServerCode();}" />
                     </div>
                 </div>
-                <button class="btn-primary btn-gold" id="btnConnectServer">الاتصال بالسيرفر</button>
+                <button class="btn-primary btn-gold" id="btnConnectServer" onclick="handleServerCode()">الاتصال بالسيرفر</button>
             </div>
             <div class="auth-footer">
                 <div class="copyright auto-style-5" dir="ltr">
@@ -172,19 +172,19 @@
                 <div class="input-group auto-style-8">
                     <div class="input-wrapper">
                         <i class="fas fa-user input-icon"></i>
-                        <input class="input-field" id="username" placeholder="اسم المستخدم" dir="rtl" type="text" />
+                        <input class="input-field" id="username" placeholder="اسم المستخدم" dir="rtl" type="text" onkeydown="if(event.key==='Enter'){event.preventDefault();const p=document.getElementById('password');if(p)p.focus();}" />
                     </div>
                 </div>
                 <div class="input-group auto-style-9">
                     <div class="input-wrapper">
                         <i class="fas fa-lock input-icon"></i>
                         <input class="input-field auto-style-10" id="password" placeholder="كلمة المرور" dir="rtl"
-                            type="password" />
+                            type="password" onkeydown="if(event.key==='Enter'){event.preventDefault();handleLogin();}" />
                         <i class="fas fa-eye auto-style-11" id="togglePasswordIcon" onclick="togglePasswordVisibility()"
                             title="إظهار/إخفاء كلمة المرور"></i>
                     </div>
                 </div>
-                <button class="btn-primary btn-gold" id="btnLogin">تسجيل الدخول</button>
+                <button class="btn-primary btn-gold" id="btnLogin" onclick="handleLogin()">تسجيل الدخول</button>
             </div>
             <div class="auth-footer">
                 <div class="copyright auto-style-12" dir="ltr">
