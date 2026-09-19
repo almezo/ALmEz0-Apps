@@ -1047,7 +1047,8 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.0.88';
+    const CURRENT_APP_VERSION = '1.0.89';
+    const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;
@@ -1142,23 +1143,59 @@
             if (!versionData || !versionData.version) return;
 
             let installedVersion = CURRENT_APP_VERSION;
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && typeof window.Capacitor.Plugins.App.getInfo === 'function') {
-                try {
-                    const appInfo = await window.Capacitor.Plugins.App.getInfo();
-                    if (appInfo && appInfo.version) {
-                        installedVersion = appInfo.version;
-                    }
-                } catch (e) { }
+            let latestVer = versionData.version;
+            let minSupported = versionData.minSupportedVersion || '1.0.0';
+            let updateTitle = versionData.title || '';
+            let updateNotes = versionData.notes || '';
+
+            // فصل تام بين نظام ويندوز (الكمبيوتر) ونظام أندرويد
+            if (isElectron) {
+                // نحن على برنامج الكمبيوتر (Windows):
+                if (window.electronAPI && window.electronAPI.appVersion) {
+                    installedVersion = window.electronAPI.appVersion;
+                } else {
+                    installedVersion = CURRENT_WINDOWS_VERSION;
+                }
+
+                // التحقق من قسم الويندوز المستقل في version.json
+                if (versionData.windows && versionData.windows.version) {
+                    latestVer = versionData.windows.version;
+                    minSupported = versionData.windows.minSupportedVersion || '1.0.0';
+                    if (versionData.windows.title) updateTitle = versionData.windows.title;
+                    if (versionData.windows.notes) updateNotes = versionData.windows.notes;
+                } else if (versionData.windowsVersion) {
+                    latestVer = versionData.windowsVersion;
+                    minSupported = versionData.windowsMinSupportedVersion || '1.0.0';
+                } else {
+                    // إذا لم يوجد قسم خاص بالويندوز، لا نطلب أي تحديث على الكمبيوتر نهائياً
+                    return;
+                }
+            } else {
+                // نحن على نظام أندرويد (أو الويب):
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App && typeof window.Capacitor.Plugins.App.getInfo === 'function') {
+                    try {
+                        const appInfo = await window.Capacitor.Plugins.App.getInfo();
+                        if (appInfo && appInfo.version) {
+                            installedVersion = appInfo.version;
+                        }
+                    } catch (e) { }
+                }
+
+                if (versionData.android && versionData.android.version) {
+                    latestVer = versionData.android.version;
+                    minSupported = versionData.android.minSupportedVersion || versionData.minSupportedVersion || '1.0.0';
+                    if (versionData.android.title) updateTitle = versionData.android.title;
+                    if (versionData.android.notes) updateNotes = versionData.android.notes;
+                }
             }
 
-            const latestVer = versionData.version;
             if (compareVersions(latestVer, installedVersion) <= 0) {
                 return; // التطبيق على أحدث إصدار
             }
 
             // التحقق مما إذا كان التحديث إلزامياً أو اختيارياً لتفادي إزعاج العملاء
             const isMandatory = !!(
-                (versionData.minSupportedVersion && compareVersions(versionData.minSupportedVersion, installedVersion) > 0) ||
+                (minSupported && compareVersions(minSupported, installedVersion) > 0) ||
                 versionData.mandatory === true
             );
 
@@ -1170,8 +1207,15 @@
                 } catch (e) { }
             }
 
+            // إعداد كائن البيانات الممرر للنافذة المنبثقة
+            const activeVersionInfo = Object.assign({}, versionData, {
+                version: latestVer,
+                title: updateTitle || versionData.title,
+                notes: updateNotes || versionData.notes
+            });
+
             // عرض نافذة التحديث في منتصف الشاشة
-            showInAppUpdateBanner(versionData, isMandatory);
+            showInAppUpdateBanner(activeVersionInfo, isMandatory);
         } catch (err) {
             console.warn('In-app update check failed:', err);
         }

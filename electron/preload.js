@@ -1,8 +1,12 @@
-const { contextBridge, ipcRenderer } = require('electron');
+let appVersion = '1.0.88';
+try {
+    appVersion = require('../package.json').version || '1.0.88';
+} catch (e) { }
 
 contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
     isElectron: true,
+    appVersion: appVersion,
     setFullScreen: (enabled) => ipcRenderer.send('set-fullscreen', enabled),
     isFullScreen: () => ipcRenderer.invoke('is-fullscreen'),
     openExternal: (url) => ipcRenderer.send('open-external', url),
