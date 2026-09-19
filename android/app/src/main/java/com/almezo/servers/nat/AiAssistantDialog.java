@@ -483,6 +483,9 @@ public final class AiAssistantDialog {
                 reply = new Message(false, false, r.text, r.cards, r.sources);
             } catch (AiClient.AuthRequiredException e) {
                 reply = Message.bot("لتفعيل مساعد الميزو افتح المشغل من داخل موقع الميزو بعد تسجيل الدخول في الموقع، ثم أعد السؤال.");
+            } catch (AiBrain.EmptyReplyException e) {
+                android.util.Log.w("AiAssistantDialog", "AI empty reply");
+                reply = Message.bot("لم يصلني رد مكتمل هذه المرة. جرّب إعادة صياغة السؤال أو أعد إرساله.");
             } catch (Throwable e) {
                 android.util.Log.e("AiAssistantDialog", "AI ask error", e);
                 reply = Message.bot("عذراً، تعذر الوصول إلى المساعد الآن. تحقق من اتصال الإنترنت وحاول مجدداً.");

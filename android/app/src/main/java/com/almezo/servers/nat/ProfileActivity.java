@@ -59,7 +59,24 @@ public class ProfileActivity extends BaseActivity {
         if (sWa != null) sWa.setOnClickListener(v -> openUrl("https://wa.me/218945772649"));
 
         render(parse(acc.userInfoJson));
+        // أول قراءة حيّة تبدأ من onResume مع حلقة التحديث، فلا حاجة لطلب إضافي هنا.
+    }
 
+    /**
+     * عدد الاتصالات النشطة يتغيّر لحظياً حين يفتح جهاز آخر نفس الحساب، فنعيد سؤال السيرفر كل
+     * 10 ثوانٍ ما دامت الشاشة ظاهرة، بدل قراءة واحدة تبقى ثابتة حتى إغلاق الشاشة وفتحها.
+     */
+    private static final long REFRESH_MS = 10_000L;
+
+    private final Runnable refreshLoop = new Runnable() {
+        @Override
+        public void run() {
+            fetchAccountInfo();
+            ui.postDelayed(this, REFRESH_MS);
+        }
+    };
+
+    private void fetchAccountInfo() {
         Xtream.IO.execute(() -> {
             try {
                 JSONObject fresh = new Xtream(this, acc).accountInfo().optJSONObject("user_info");
@@ -100,9 +117,16 @@ public class ProfileActivity extends BaseActivity {
 
         if (tvMaxConn != null) tvMaxConn.setText(u.optString("max_connections", "1"));
         if (tvActiveConn != null) {
+            // نفس قاعدة الويب في splayer.js: الجهاز الحالي نفسه اتصال، فالحد الأدنى 1 وليس 0.
             String act = u.optString("active_cons", "");
-            if (act.isEmpty()) act = u.optString("active_connections", "0");
-            tvActiveConn.setText(act.isEmpty() ? "0" : act);
+            if (act.isEmpty()) act = u.optString("active_connections", "");
+            int activeVal;
+            try {
+                activeVal = Math.max(1, Integer.parseInt(act.trim()));
+            } catch (Exception e) {
+                activeVal = 1;
+            }
+            tvActiveConn.setText(String.valueOf(activeVal));
         }
 
         if (tvCreatedAt != null) tvCreatedAt.setText(formatDate(u.optString("created_at", "")));
@@ -124,11 +148,16 @@ public class ProfileActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         if (nav != null) nav.start();
+        if (acc != null) {
+            ui.removeCallbacks(refreshLoop);
+            ui.post(refreshLoop);
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         if (nav != null) nav.stop();
+        ui.removeCallbacks(refreshLoop);
     }
 }

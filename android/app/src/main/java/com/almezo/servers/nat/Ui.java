@@ -16,6 +16,8 @@ import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.engine.cache.InternalCacheDiskCacheFactory;
 import com.bumptech.glide.load.engine.executor.GlideExecutor;
+import com.bumptech.glide.load.model.GlideUrl;
+import com.bumptech.glide.load.model.LazyHeaders;
 import com.bumptech.glide.request.RequestOptions;
 
 import java.util.Calendar;
@@ -114,14 +116,28 @@ public final class Ui {
     /** مهلة أطول من الافتراضي (2.5 ثانية) لأن سيرفرات الشعارات البطيئة كانت تفشل وتبقى على الشعار الافتراضي. */
     /** مهلة صور الأفلام والمسلسلات 10 ثوانٍ لضمان جودة الملصقات العالية. */
     private static final int IMAGE_TIMEOUT_MS = 10000;
-    /** مهلة سريعة لشعارات القنوات (3.5 ثانية) لتخطي الروابط الميتة والبطيئة وتوفير الخيوط للقنوات الشغالة. */
-    private static final int CHANNEL_LOGO_TIMEOUT_MS = 3500;
+    /**
+     * مهلة شعارات القنوات 10 ثوانٍ مثل الملصقات. كانت 3.5 ثانية فقط، وسيرفرات Xtream تقدّم
+     * الشعارات ببطء، فكانت كل القنوات تقريباً تنتهي مهلتها وتظهر بالشعار الافتراضي.
+     */
+    private static final int CHANNEL_LOGO_TIMEOUT_MS = 10000;
 
     private static String cleanUrl(String url) {
         if (url == null) return null;
         String u = url.trim();
         if (u.length() < 5 || "null".equals(u)) return null;
         return u.replace(" ", "%20");
+    }
+
+    /**
+     * رابط صورة بهوية متصفح. Glide يرسل افتراضياً هوية النظام (Dalvik/…) وكثير من سيرفرات
+     * الشعارات والملصقات ترفضها بـ 403، بينما تقبل نفس الهوية التي نستعملها في طلبات player_api.
+     * مفتاح الكاش في GlideUrl هو نص الرابط وحده، فالصور المخزّنة مسبقاً تبقى صالحة.
+     */
+    private static GlideUrl imageUrl(String url) {
+        return new GlideUrl(url, new LazyHeaders.Builder()
+                .addHeader("User-Agent", Xtream.USER_AGENT)
+                .build());
     }
 
     /**
@@ -143,14 +159,14 @@ public final class Ui {
                 .placeholder(placeholderRes)
                 .error(placeholderRes)
                 .dontAnimate();
-        Glide.with(ctx).load(u).apply(opts)
-                .error(Glide.with(ctx).load(u).apply(opts))
+        Glide.with(ctx).load(imageUrl(u)).apply(opts)
+                .error(Glide.with(ctx).load(imageUrl(u)).apply(opts))
                 .into(view);
     }
 
     /**
-     * تحميل مخصص وسريع لشعارات قنوات البث المباشر: مهلة خاطفة 3.5 ثانية، وبلا إعادة محاولة للروابط
-     * المعطلة، وفك ترميز RGB_565 خفيف وموفّر للذاكرة لتسريع ظهور بقية القنوات دون انتظار الروابط الميتة.
+     * تحميل شعارات قنوات البث المباشر: مهلة 10 ثوانٍ وإعادة محاولة واحدة مثل الملصقات، مع فك ترميز
+     * RGB_565 خفيف وموفّر للذاكرة لأن الشعارات صغيرة ولا تحتاج جودة الملصقات الكاملة.
      */
     public static void loadChannelLogo(ImageView view, String url, int placeholderRes) {
         Context ctx = view.getContext();
@@ -168,7 +184,9 @@ public final class Ui {
                 .placeholder(placeholderRes)
                 .error(placeholderRes)
                 .dontAnimate();
-        Glide.with(ctx).load(u).apply(opts).into(view);
+        Glide.with(ctx).load(imageUrl(u)).apply(opts)
+                .error(Glide.with(ctx).load(imageUrl(u)).apply(opts))
+                .into(view);
     }
 
     /** تنزيل صورة مسبقاً إلى كاش القرص (للأفلام والمسلسلات). */
@@ -176,18 +194,18 @@ public final class Ui {
         String u = cleanUrl(url);
         if (u == null) return;
         try {
-            Glide.with(ctx.getApplicationContext()).downloadOnly().load(u)
+            Glide.with(ctx.getApplicationContext()).downloadOnly().load(imageUrl(u))
                     .apply(new RequestOptions().timeout(IMAGE_TIMEOUT_MS).priority(Priority.LOW))
                     .submit();
         } catch (Throwable ignored) { }
     }
 
-    /** تنزيل مسبق لشعارات القنوات بمهلة سريعة 3.5 ثوانٍ. */
+    /** تنزيل مسبق لشعارات القنوات إلى كاش القرص بنفس هوية المتصفح ومهلة الملصقات. */
     public static void prefetchChannelLogo(Context ctx, String url) {
         String u = cleanUrl(url);
         if (u == null) return;
         try {
-            Glide.with(ctx.getApplicationContext()).downloadOnly().load(u)
+            Glide.with(ctx.getApplicationContext()).downloadOnly().load(imageUrl(u))
                     .apply(new RequestOptions().timeout(CHANNEL_LOGO_TIMEOUT_MS).priority(Priority.LOW))
                     .submit();
         } catch (Throwable ignored) { }

@@ -9194,3 +9194,31 @@ body.tv-nav-active :focus-visible,
         filter: brightness(1.18) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35));
     }
 }
+
+/* ==========================================================================
+   إصلاحان للشاشة الرئيسية على أجهزة التلفاز
+   ========================================================================== */
+
+/* 1. إعادة بناء البطاقات بعد وصول بيانات فايربيز كانت تُعيد تشغيل حركة الدخول،
+      فيبدو للمستخدم أن الصفحة تحدّثت من جديد. الحركة للرسم الأول فقط. */
+.main-categories-grid.cards-no-entrance .main-category-card {
+    animation: none !important;
+}
+
+/* 2. الإطار الأبيض للتنقل بالريموت (.tv-focused في app-bridge.js) كانت تتغلّب عليه
+      قواعد التركيز الملوّنة الخاصة بكل بطاقة لأن أولويتها أعلى (0,3,0)، فيظهر إطار
+      أخضر/أصفر خافت بدل الأبيض مع تكبير 1.025 لا يكاد يُرى على التلفاز.
+      القواعد التالية أعلى أولوية (0,3,1) فتفوز، بنفس شكل تركيز المشغل الأصلي. */
+body.tv-nav-active .main-category-card.tv-focused,
+body.tv-nav-active .main-category-card:focus-visible,
+html[data-input-mode="remote"] .main-category-card.tv-focused,
+html[data-input-mode="remote"] .main-category-card:focus-visible {
+    outline: none !important;
+    border-color: #ffffff !important;
+    box-shadow:
+        0 0 0 3px #ffffff,
+        0 0 0 11px rgba(255, 255, 255, 0.18),
+        0 18px 45px rgba(0, 0, 0, 0.55) !important;
+    transform: translateY(-8px) scale(1.06) !important;
+    z-index: 10 !important;
+}

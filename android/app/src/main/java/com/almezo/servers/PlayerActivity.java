@@ -199,10 +199,24 @@ public class PlayerActivity extends AppCompatActivity {
         }
     };
 
+    /**
+     * آخر زر كان عليه تركيز الريموت داخل طبقة التحكم. بدونه كان التركيز يعود إلى زر التشغيل
+     * في كل مرة تظهر فيها الطبقة، فيضطر المستخدم لإعادة التنقل من البداية بعد كل ضغطة.
+     */
+    private View lastFocusedControl;
+
     private final Runnable hideControlsRunnable = new Runnable() {
         @Override
         public void run() {
             try {
+                // أثناء الإيقاف المؤقت تبقى طبقة التحكم ظاهرة، فالمستخدم يكون واقفاً يتصفح
+                // الأزرار بالريموت، وإخفاؤها كان يضيّع التركيز ويجبره على البدء من جديد.
+                if (player != null && !player.isPlaying()) {
+                    if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
+                        resetControlsHideTimer();
+                    }
+                    return;
+                }
                 hideControls();
             } catch (Throwable t) {
                 Log.w(TAG, "hideControls runnable error", t);
@@ -1481,8 +1495,9 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+    /** بلا وجهة محدّدة: يعود التركيز إلى آخر زر كان عليه المستخدم، لا إلى زر التشغيل دائماً. */
     private void showControls() {
-        showControls(btnPlayPause);
+        showControls(null);
     }
 
     private void showControls(View focusTarget) {
@@ -1528,8 +1543,10 @@ public class PlayerActivity extends AppCompatActivity {
 
             resetControlsHideTimer();
             if (isTvDevice) {
-                View target = focusTarget != null && focusTarget.getVisibility() == View.VISIBLE ? focusTarget : btnPlayPause;
-                if (target != null && (target != btnPlayPause || !controlsFocused())) target.requestFocus();
+                View preferred = focusTarget != null ? focusTarget : lastFocusedControl;
+                View target = preferred != null && preferred.getVisibility() == View.VISIBLE ? preferred : btnPlayPause;
+                // وجهة صريحة (شريط التقديم مثلاً) تُحترم دائماً، وإلا لا ننقل التركيز إن كان داخل الطبقة أصلاً
+                if (target != null && (focusTarget != null || !controlsFocused())) target.requestFocus();
             }
         } catch (Throwable t) {
             Log.w(TAG, "showControls error", t);
@@ -1543,6 +1560,9 @@ public class PlayerActivity extends AppCompatActivity {
                     return; // Don't hide while settings drawer is open
                 }
                 if (controlsOverlay != null) {
+                    // نحفظ موضع التركيز قبل الإخفاء ليعود إليه المستخدم عند ظهور الطبقة مجدداً
+                    View focused = getCurrentFocus();
+                    if (focused != null && controlsFocused()) lastFocusedControl = focused;
                     controlsOverlay.setVisibility(View.GONE);
                 }
             }
@@ -1554,7 +1574,9 @@ public class PlayerActivity extends AppCompatActivity {
     private void resetControlsHideTimer() {
         try {
             handler.removeCallbacks(hideControlsRunnable);
-            handler.postDelayed(hideControlsRunnable, 4500);
+            // على التلفاز التنقل بالريموت أبطأ من اللمس (زر لكل خطوة)، و4.5 ثانية كانت تُخفي
+            // الطبقة في منتصف تنقل المستخدم بين الأزرار.
+            handler.postDelayed(hideControlsRunnable, isTvDevice ? 8000 : 4500);
         } catch (Throwable ignored) { }
     }
 

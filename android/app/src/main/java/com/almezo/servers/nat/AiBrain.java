@@ -47,6 +47,14 @@ public final class AiBrain {
         Source(String title, String uri) { this.title = title; this.uri = uri; }
     }
 
+    /**
+     * وصل رد من الخادم لكنه بلا نص (انتهت حدود الإخراج مثلاً). نميّزه عن أعطال الشبكة حتى
+     * لا تظهر للعميل رسالة "تحقق من اتصال الإنترنت" وهو متصل فعلاً.
+     */
+    public static final class EmptyReplyException extends Exception {
+        EmptyReplyException() { super("empty reply"); }
+    }
+
     public static final class Reply {
         public final String text;
         public final List<Card> cards;
@@ -117,13 +125,17 @@ public final class AiBrain {
         contents.put(userTurn(context + "\n\nسؤال العميل: " + question));
         payload.put("contents", contents);
         payload.put("tools", new JSONArray().put(new JSONObject().put("googleSearch", new JSONObject())));
+        // gemini-2.5-flash نموذج تفكير: رموز التفكير تُحسب من maxOutputTokens. بحدّ 1200 وبلا
+        // ضبط للتفكير كان النموذج يستهلك الحدّ كله في التفكير ويعود بنص فارغ، فتظهر للعميل
+        // رسالة "تعذر الوصول إلى المساعد" في كل سؤال. نضبط ميزانية التفكير ونترك مساحة للرد.
         payload.put("generationConfig", new JSONObject()
                 .put("temperature", 0.7)
-                .put("maxOutputTokens", 1200));
+                .put("maxOutputTokens", 4096)
+                .put("thinkingConfig", new JSONObject().put("thinkingBudget", 1024)));
 
         JSONObject result = client.generate(payload);
         String raw = result.optString("text", "").trim();
-        if (raw.isEmpty()) throw new Exception("empty reply");
+        if (raw.isEmpty()) throw new EmptyReplyException();
 
         synchronized (history) {
             history.add(userTurn(question));
@@ -232,9 +244,11 @@ public final class AiBrain {
                     .put("contents", new JSONArray().put(userTurn(prompt)))
                     .put("generationConfig", new JSONObject()
                             .put("temperature", 0)
-                            .put("maxOutputTokens", 600)
+                            .put("maxOutputTokens", 2048)
                             .put("responseMimeType", "application/json")
-                            .put("responseSchema", schema));
+                            .put("responseSchema", schema)
+                            // تحليل نيّة السؤال لا يحتاج تفكيراً، وتركه مفتوحاً كان يبتلع حدّ الإخراج
+                            .put("thinkingConfig", new JSONObject().put("thinkingBudget", 0)));
             String text = client.generate(payload).optString("text", "").trim();
             int a = text.indexOf('{'), b = text.lastIndexOf('}');
             if (a >= 0 && b > a) return new JSONObject(text.substring(a, b + 1));

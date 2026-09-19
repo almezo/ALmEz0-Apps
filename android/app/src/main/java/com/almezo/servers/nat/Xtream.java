@@ -36,6 +36,11 @@ import java.util.concurrent.Executors;
 public final class Xtream {
 
     public static final ExecutorService IO = Executors.newFixedThreadPool(3);
+    /**
+     * هوية المتصفح التي تقبلها سيرفرات Xtream. تُستعمل أيضاً عند تحميل الشعارات والملصقات بـ Glide،
+     * لأن هويته الافتراضية (Dalvik/…) ترفضها كثير من سيرفرات الصور فتعيد 403 ويبقى الشعار الافتراضي.
+     */
+    public static final String USER_AGENT = "Mozilla/5.0 (Linux; Android) ALmEz0/Native";
     private static final long DISK_TTL_MS = 12L * 60 * 60 * 1000;
     private static final Map<String, List<Models.Item>> MEM_STREAMS = Collections.synchronizedMap(new HashMap<>());
     private static final Map<String, List<Models.Category>> MEM_CATS = Collections.synchronizedMap(new HashMap<>());
@@ -89,7 +94,7 @@ public final class Xtream {
             c.setConnectTimeout(20000);
             c.setReadTimeout(45000);
             c.setInstanceFollowRedirects(false);
-            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) ALmEz0/Native");
+            c.setRequestProperty("User-Agent", USER_AGENT);
             c.setRequestProperty("Accept-Encoding", "identity");
             int code = c.getResponseCode();
             if (code >= 300 && code < 400) {

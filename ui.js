@@ -1504,6 +1504,11 @@ if (typeof db !== 'undefined') {
     });
 }
 
+// آخر شكل مرسوم للبطاقات. الدالة تُستدعى أربع مرات عند فتح الصفحة (رسم فوري + مستمعا
+// فايربيز + renderCurrentPage)، وكل استدعاء كان يستبدل محتوى الحاوية فتُعاد حركة الدخول
+// ويبدو للمستخدم أن الصفحة تحدّثت من جديد بعد أجزاء من الثانية.
+var lastHomeCardsHtml = '';
+
 /**
  * عرض كروت الصفحة الرئيسية (وضع عادي / وضع تعديل المدير)
  */
@@ -1566,7 +1571,11 @@ function renderHomeCards() {
         }
     });
 
+    if (html === lastHomeCardsHtml) return; // لا تغيير فعلي: نترك البطاقات كما هي
+    var isRepeatRender = lastHomeCardsHtml !== '';
+    lastHomeCardsHtml = html;
     container.innerHTML = html;
+    if (isRepeatRender) container.classList.add('cards-no-entrance');
 }
 
 // تشغيل فوري لكروت الصفحة الرئيسية لضمان ظهورها حتى لو تأخر فايربيز أو في بيئات TV Box الضعيفة

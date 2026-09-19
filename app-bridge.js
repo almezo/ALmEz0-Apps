@@ -787,7 +787,7 @@
                     if (e && typeof e.preventDefault === 'function') e.preventDefault();
                     return true;
                 }
-                var btnLater = document.getElementById('btnInAppLater');
+                var btnLater = document.getElementById('inappBtnLater');
                 if (btnLater && !btnLater.classList.contains('hidden') && btnLater.offsetParent !== null) {
                     if (e && typeof e.preventDefault === 'function') e.preventDefault();
                     btnLater.click();
@@ -940,6 +940,10 @@
                 return true;
             }
 
+            // مسار الصفحة الحالي. كان مستخدماً بلا تعريف منذ إعادة هيكلة الدالة، فيرمي
+            // ReferenceError ويعيد __almezoBack القيمة 'legacy' بدل 'exit'، فلا يخرج التطبيق أبداً.
+            var currentPath = (window.location.pathname || '').toLowerCase();
+
             var isHome = currentPath.endsWith('index.html') || currentPath === '/' || currentPath.endsWith('/') || currentPath === '';
 
             if (!isHome) {
@@ -1047,7 +1051,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.0.93';
+    const CURRENT_APP_VERSION = '1.0.94';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
