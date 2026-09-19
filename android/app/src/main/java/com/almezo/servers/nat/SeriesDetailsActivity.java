@@ -1,8 +1,8 @@
 package com.almezo.servers.nat;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,7 +13,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.res.ResourcesCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -24,14 +23,29 @@ import com.almezo.servers.R;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * تفاصيل المسلسل (#series-details-screen):
- * المواسم، الحلقات، التشغيل، التقييم، شريط مسلسلات رائجة أفقي، وزر الصعود للأعلى الدائري.
+ * مطابقة كلياً لتصميم نسخة الكمبيوتر المرجعية:
+ * - بطاقة سينمائية زجاجية عائمة (Hero Card) بزوايا دائرية، مع خلفية مائية للعمل.
+ * - بوستر رأسي متناسق على اليمين بنسبة 2:3.
+ * - بيانات وصفية كاملة: المفضلة، التصنيف العربي، التقييم الذهبي، الإعلان الترويجي، القصة المترجمة، المخرج والممثلين.
+ * - عرض الحلقات كبطاقات مصغرة 16:9 أفقية مع عناوين صافية (الحلقة X) ومدة العرض مع أيقونة الساعة.
+ * - أزرار مواسم بشكل كبسولة حمراء مع أيقونة الطبقات وبادج عدد الحلقات.
+ * - شريط مسلسلات رائجة للمشاهدة الآن مع أيقونة اللهب وبادجات التقييم الذهبية وحدود التركيز الحمراء.
  */
 public class SeriesDetailsActivity extends BaseActivity {
 
@@ -39,6 +53,7 @@ public class SeriesDetailsActivity extends BaseActivity {
     private Xtream api;
     private NavBar nav;
     private String seriesId, name, cover;
+    private String trailerKey;
     private JSONObject episodesBySeason;
     private final List<String> seasonKeys = new ArrayList<>();
     private final List<JSONObject> episodes = new ArrayList<>();
@@ -49,6 +64,39 @@ public class SeriesDetailsActivity extends BaseActivity {
     private View btnScrollTop;
     private final List<Models.Item> popularItems = new ArrayList<>();
     private PopularAdapter popularAdapter;
+
+    private static final Map<String, String> GENRE_MAP = new HashMap<>();
+    static {
+        GENRE_MAP.put("action", "أكشن");
+        GENRE_MAP.put("adventure", "مغامرة");
+        GENRE_MAP.put("animation", "رسوم متحركة");
+        GENRE_MAP.put("anime", "أنمي");
+        GENRE_MAP.put("comedy", "كوميدي");
+        GENRE_MAP.put("crime", "جريمة");
+        GENRE_MAP.put("documentary", "وثائقي");
+        GENRE_MAP.put("drama", "دراما");
+        GENRE_MAP.put("family", "عائلي");
+        GENRE_MAP.put("fantasy", "فانتازيا");
+        GENRE_MAP.put("history", "تاريخي");
+        GENRE_MAP.put("horror", "رعب");
+        GENRE_MAP.put("music", "موسيقى");
+        GENRE_MAP.put("musical", "موسيقي");
+        GENRE_MAP.put("mystery", "غموض");
+        GENRE_MAP.put("romance", "رومانسي");
+        GENRE_MAP.put("romantic", "رومانسي");
+        GENRE_MAP.put("sci-fi", "خيال علمي");
+        GENRE_MAP.put("science fiction", "خيال علمي");
+        GENRE_MAP.put("thriller", "إثارة وتشويق");
+        GENRE_MAP.put("war", "حرب");
+        GENRE_MAP.put("western", "غرب أمريكي");
+        GENRE_MAP.put("biography", "سيرة ذاتية");
+        GENRE_MAP.put("sport", "رياضة");
+        GENRE_MAP.put("sports", "رياضة");
+        GENRE_MAP.put("news", "أخبار");
+        GENRE_MAP.put("talk-show", "برنامج حواري");
+        GENRE_MAP.put("reality-tv", "واقعي");
+        GENRE_MAP.put("short", "قصير");
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -61,29 +109,13 @@ public class SeriesDetailsActivity extends BaseActivity {
         name = getIntent().getStringExtra("name");
         cover = getIntent().getStringExtra("cover");
 
-        setContentView(R.layout.nat_activity_details);
+        setContentView(R.layout.nat_activity_series_details);
         nav = new NavBar(this).backOnly(this);
 
         ((TextView) findViewById(R.id.det_title)).setText(name);
         Ui.loadImage(findViewById(R.id.det_poster), cover, Ui.logoPlaceholder());
-        ((TextView) findViewById(R.id.det_btn_play_text)).setText("تشغيل الحلقة الأولى");
 
-        // في المسلسل: الحلقات تأخذ مساحة القصة
-        View storyBox = findViewById(R.id.det_story_box);
-        if (storyBox != null) storyBox.setVisibility(View.GONE);
-
-        RecyclerView list = findViewById(R.id.det_episodes);
-        list.setVisibility(View.VISIBLE);
-        list.setLayoutManager(new LinearLayoutManager(this));
-        list.setItemAnimator(null);
-        adapter = new EpisodeAdapter();
-        list.setAdapter(adapter);
-
-        View play = findViewById(R.id.det_btn_play);
-        applyFocusScale(play, 1.05f);
-        play.setOnClickListener(v -> { if (!episodes.isEmpty()) playEpisode(episodes.get(0)); });
-        play.requestFocus();
-
+        // زر المفضلة الدائري
         ImageButton fav = findViewById(R.id.det_btn_fav);
         applyFocusScale(fav, 1.12f);
         paintFav(fav);
@@ -92,6 +124,18 @@ public class SeriesDetailsActivity extends BaseActivity {
             toast(now ? "تمت الإضافة إلى المفضلة" : "تمت الإزالة من المفضلة");
             paintFav(fav);
         });
+
+        // زر مشاهدة الإعلان الترويجي
+        View trailerBtn = findViewById(R.id.det_btn_trailer);
+        applyFocusScale(trailerBtn, 1.06f);
+        trailerBtn.setOnClickListener(v -> openTrailer());
+
+        // قائمة الحلقات الأفقية (Horizontal RecyclerView)
+        RecyclerView list = findViewById(R.id.det_episodes);
+        list.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        list.setItemAnimator(null);
+        adapter = new EpisodeAdapter();
+        list.setAdapter(adapter);
 
         setupScrollAndRecommendations();
         load();
@@ -105,8 +149,8 @@ public class SeriesDetailsActivity extends BaseActivity {
 
         btnScrollTop.setOnClickListener(v -> {
             if (mainScroll != null) mainScroll.smoothScrollTo(0, 0);
-            View play = findViewById(R.id.det_btn_play);
-            if (play != null) play.requestFocus();
+            View fav = findViewById(R.id.det_btn_fav);
+            if (fav != null) fav.requestFocus();
         });
 
         if (mainScroll != null) {
@@ -181,22 +225,64 @@ public class SeriesDetailsActivity extends BaseActivity {
             String backdrop = MovieDetailsActivity.firstBackdrop(info);
             if (backdrop != null) Ui.loadImage(findViewById(R.id.det_backdrop), backdrop, android.R.color.transparent);
 
-            StringBuilder meta = new StringBuilder();
-            MovieDetailsActivity.appendPart(meta, info.optString("genre"));
-            String year = MovieDetailsActivity.firstNonEmpty(info.optString("releaseDate"), info.optString("releasedate"));
-            if (year.length() >= 4) MovieDetailsActivity.appendPart(meta, year.substring(0, 4));
-            String plot = info.optString("plot", "");
-            if (!plot.isEmpty() && !"null".equals(plot)) {
-                meta.append(meta.length() > 0 ? "\n" : "").append(plot.length() > 220 ? plot.substring(0, 220) + "…" : plot);
+            // التصنيف العربي
+            String rawGenre = info.optString("genre", "Series");
+            TextView genreView = findViewById(R.id.det_genre);
+            if (genreView != null) {
+                genreView.setText(translateGenre(rawGenre));
             }
-            TextView metaView = findViewById(R.id.det_meta);
-            metaView.setMaxLines(4);
-            metaView.setText(meta.toString());
 
+            // التقييم الذهبي
             String rating = info.optString("rating", "");
             TextView ratingView = findViewById(R.id.det_rating);
-            if (!rating.isEmpty() && !"0".equals(rating) && !"null".equals(rating)) ratingView.setText("★  التقييم: " + rating);
-            else ratingView.setVisibility(View.GONE);
+            if (ratingView != null) {
+                if (!rating.isEmpty() && !"0".equals(rating) && !"null".equals(rating)) {
+                    ratingView.setText("★  التقييم: " + rating);
+                    ratingView.setVisibility(View.VISIBLE);
+                } else {
+                    ratingView.setVisibility(View.GONE);
+                }
+            }
+
+            // زر الإعلان الترويجي
+            trailerKey = MovieDetailsActivity.firstNonEmpty(info.optString("youtube_trailer"), info.optString("trailer"));
+            View trailerBtn = findViewById(R.id.det_btn_trailer);
+            if (trailerBtn != null) {
+                if (!trailerKey.isEmpty()) {
+                    trailerBtn.setVisibility(View.VISIBLE);
+                } else {
+                    trailerBtn.setVisibility(View.GONE);
+                }
+            }
+
+            // ترجمة القصة إلى العربية
+            String rawPlot = MovieDetailsActivity.firstNonEmpty(info.optString("plot"), info.optString("description"));
+            translatePlotToArabic(rawPlot);
+
+            // المخرج والممثلين
+            String director = info.optString("director", "");
+            TextView dirView = findViewById(R.id.det_director);
+            View dirBox = findViewById(R.id.det_director_box);
+            if (dirView != null && dirBox != null) {
+                if (!director.isEmpty() && !"null".equals(director)) {
+                    dirView.setText(director);
+                    dirBox.setVisibility(View.VISIBLE);
+                } else {
+                    dirView.setText("غير معروف");
+                }
+            }
+
+            String cast = MovieDetailsActivity.firstNonEmpty(info.optString("cast"), info.optString("actors"));
+            TextView castView = findViewById(R.id.det_actors);
+            View castBox = findViewById(R.id.det_actors_box);
+            if (castView != null && castBox != null) {
+                if (!cast.isEmpty() && !"null".equals(cast)) {
+                    castView.setText(cast);
+                    castBox.setVisibility(View.VISIBLE);
+                } else {
+                    castView.setText("غير معروف");
+                }
+            }
         }
 
         episodesBySeason = root.optJSONObject("episodes");
@@ -218,24 +304,22 @@ public class SeriesDetailsActivity extends BaseActivity {
         tabs.removeAllViews();
         if (seasonKeys.isEmpty()) return;
         findViewById(R.id.det_seasons_scroll).setVisibility(View.VISIBLE);
-        float d = getResources().getDisplayMetrics().density;
+
+        LayoutInflater inflater = LayoutInflater.from(this);
         for (final String key : seasonKeys) {
-            TextView tab = new TextView(this);
-            tab.setText("الموسم " + key);
-            tab.setTextSize(18);
-            tab.setTextColor(0xFFFFFFFF);
-            tab.setTypeface(ResourcesCompat.getFont(this, R.font.tajawal_extrabold));
-            tab.setGravity(Gravity.CENTER);
-            tab.setBackgroundResource(R.drawable.nat_category_item);
-            tab.setFocusable(true);
-            tab.setClickable(true);
-            tab.setPadding(Math.round(22 * d), Math.round(10 * d), Math.round(22 * d), Math.round(10 * d));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.setMarginEnd(Math.round(10 * d));
-            tab.setTag(key);
-            tab.setOnClickListener(v -> selectSeason(key));
-            applyFocusScale(tab, 1.06f);
-            tabs.addView(tab, lp);
+            View tabView = inflater.inflate(R.layout.nat_item_season_tab, tabs, false);
+            TextView title = tabView.findViewById(R.id.season_tab_title);
+            TextView count = tabView.findViewById(R.id.season_tab_count);
+
+            title.setText("موسم " + key);
+            JSONArray arr = (episodesBySeason != null) ? episodesBySeason.optJSONArray(key) : null;
+            int epCount = (arr != null) ? arr.length() : 0;
+            count.setText(String.valueOf(epCount));
+
+            tabView.setTag(key);
+            tabView.setOnClickListener(v -> selectSeason(key));
+            applyFocusScale(tabView, 1.06f);
+            tabs.addView(tabView);
         }
     }
 
@@ -244,22 +328,38 @@ public class SeriesDetailsActivity extends BaseActivity {
         LinearLayout tabs = findViewById(R.id.det_seasons);
         for (int i = 0; i < tabs.getChildCount(); i++) {
             View t = tabs.getChildAt(i);
-            t.setActivated(key.equals(t.getTag()));
+            boolean isActive = key.equals(t.getTag());
+            t.setActivated(isActive);
+
+            TextView title = t.findViewById(R.id.season_tab_title);
+            TextView count = t.findViewById(R.id.season_tab_count);
+            ImageView icon = t.findViewById(R.id.season_tab_icon);
+            if (title != null) title.setTextColor(isActive ? 0xFFFFFFFF : 0xFFCBD5E1);
+            if (count != null) count.setTextColor(isActive ? 0xFFFFFFFF : 0xFFCBD5E1);
+            if (icon != null) icon.setColorFilter(isActive ? 0xFFFFFFFF : 0xFFCBD5E1);
         }
+
         episodes.clear();
         JSONArray arr = episodesBySeason != null ? episodesBySeason.optJSONArray(key) : null;
-        if (arr != null) for (int i = 0; i < arr.length(); i++) {
-            JSONObject e = arr.optJSONObject(i);
-            if (e != null) episodes.add(e);
+        if (arr != null) {
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject e = arr.optJSONObject(i);
+                if (e != null) episodes.add(e);
+            }
         }
-        adapter.notifyDataSetChanged();
+        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     private void playEpisode(JSONObject ep) {
         store.recordContinueWatching(Models.SERIES, seriesId);
         String epId = ep.optString("id");
+        if (epId.isEmpty()) epId = ep.optString("stream_id");
+        if (epId.isEmpty()) epId = ep.optString("episode_id");
         String ext = ep.optString("container_extension", "mp4");
-        String title = name + " - الموسم " + activeSeason + " - الحلقة " + ep.optString("episode_num", "");
+        String epNum = ep.optString("episode_num", "");
+        String cleanTitle = cleanEpisodeTitle(ep.optString("title", ""), epNum, 1);
+        String title = name + " - " + cleanTitle;
+
         Intent i = new Intent(this, PlayerActivity.class);
         i.putExtra("videoUrl", api.streamUrl(Models.SERIES, epId, ext));
         i.putExtra("title", title);
@@ -269,43 +369,227 @@ public class SeriesDetailsActivity extends BaseActivity {
         startActivity(i);
     }
 
+    private void openTrailer() {
+        if (trailerKey == null || trailerKey.trim().isEmpty()) return;
+        String key = trailerKey.trim();
+        String url = key.startsWith("http") ? key : "https://www.youtube.com/watch?v=" + key;
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception e) {
+            toast("لا يوجد تطبيق لتشغيل الإعلان على هذا الجهاز");
+        }
+    }
+
+    private void translatePlotToArabic(String rawPlot) {
+        if (rawPlot == null || rawPlot.trim().isEmpty() || "null".equals(rawPlot)) {
+            TextView plotView = findViewById(R.id.det_plot);
+            if (plotView != null) plotView.setText("لا يوجد وصف متاح لهذا المسلسل.");
+            return;
+        }
+
+        // فحص ما إذا كان النص يحتوي على أحرف عربية بالفعل
+        boolean hasArabic = false;
+        for (int i = 0; i < rawPlot.length(); i++) {
+            char c = rawPlot.charAt(i);
+            if (c >= '\u0600' && c <= '\u06FF') {
+                hasArabic = true;
+                break;
+            }
+        }
+        if (hasArabic && rawPlot.length() > 20) {
+            TextView plotView = findViewById(R.id.det_plot);
+            if (plotView != null) plotView.setText(rawPlot);
+            return;
+        }
+
+        TextView plotView = findViewById(R.id.det_plot);
+        if (plotView != null) plotView.setText("جاري ترجمة القصة...");
+
+        Xtream.IO.execute(() -> {
+            String translated = null;
+            try {
+                String urlStr = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ar&dt=t&q="
+                        + URLEncoder.encode(rawPlot, "UTF-8");
+                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) sb.append(line);
+                    reader.close();
+                    JSONArray outer = new JSONArray(sb.toString());
+                    if (outer.length() > 0) {
+                        JSONArray arr = outer.getJSONArray(0);
+                        StringBuilder transSb = new StringBuilder();
+                        for (int j = 0; j < arr.length(); j++) {
+                            JSONArray item = arr.optJSONArray(j);
+                            if (item != null && item.length() > 0) {
+                                transSb.append(item.optString(0, ""));
+                            }
+                        }
+                        if (transSb.length() > 0) translated = transSb.toString();
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            final String result = (translated != null && !translated.isEmpty()) ? translated : rawPlot;
+            ui.post(() -> {
+                if (isFinishing()) return;
+                TextView pv = findViewById(R.id.det_plot);
+                if (pv != null) pv.setText(result);
+            });
+        });
+    }
+
+    public static String translateGenre(String raw) {
+        if (raw == null || raw.trim().isEmpty() || "null".equals(raw)) return "مسلسل";
+        String[] parts = raw.split("[,|/]");
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts) {
+            String clean = p.trim().toLowerCase();
+            String ar = GENRE_MAP.get(clean);
+            if (sb.length() > 0) sb.append("، ");
+            sb.append(ar != null ? ar : p.trim());
+        }
+        return sb.length() > 0 ? sb.toString() : "مسلسل";
+    }
+
+    /**
+     * معالج تنظيف أسماء الحلقات من الرموز البرمجية والملفات الخام
+     * واستخراج العنوان الصافي فقط: "الحلقة 1"، "الحلقة 2"، إلخ.
+     */
+    public static String cleanEpisodeTitle(String rawTitle, String epNum, int fallbackIndex) {
+        int num = -1;
+        if (epNum != null && !epNum.trim().isEmpty() && !"null".equals(epNum)) {
+            try {
+                String digits = epNum.replaceAll("[^0-9]", "");
+                if (!digits.isEmpty()) {
+                    num = Integer.parseInt(digits);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (rawTitle != null && !rawTitle.trim().isEmpty() && !"null".equals(rawTitle)) {
+            String t = rawTitle.trim();
+            // مطابقة نمط S01E02 أو E02
+            Matcher m = Pattern.compile("(?i)(?:s\\d+[.\\s_-]*)?e(\\d+)").matcher(t);
+            if (m.find()) {
+                try {
+                    num = Integer.parseInt(m.group(1));
+                } catch (Exception ignored) {}
+            } else {
+                // مطابقة نمط 1x02
+                Matcher m2 = Pattern.compile("(?i)\\d+x(\\d+)").matcher(t);
+                if (m2.find()) {
+                    try {
+                        num = Integer.parseInt(m2.group(1));
+                    } catch (Exception ignored) {}
+                } else {
+                    // مطابقة بالعربية "الحلقة X"
+                    Matcher m3 = Pattern.compile("(?:الحلقة|حلقة)\\s*(\\d+)").matcher(t);
+                    if (m3.find()) {
+                        try {
+                            num = Integer.parseInt(m3.group(1));
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }
+
+        if (num <= 0) {
+            num = (fallbackIndex > 0) ? fallbackIndex : 1;
+        }
+
+        return "الحلقة " + num;
+    }
+
+    /**
+     * تنسيق مدة الحلقة بصيغة عربية نظيفة (مثلاً: 45 دقيقة / 1 س 15 د)
+     */
+    public static String formatDuration(String raw) {
+        if (raw == null || raw.trim().isEmpty() || "null".equals(raw) || "0".equals(raw)) {
+            return "حلقة كاملة";
+        }
+        String s = raw.trim();
+        if (s.contains(":")) {
+            String[] parts = s.split(":");
+            try {
+                if (parts.length == 3) {
+                    int h = Integer.parseInt(parts[0]);
+                    int m = Integer.parseInt(parts[1]);
+                    if (h > 0) return h + " س " + m + " د";
+                    return m + " دقيقة";
+                } else if (parts.length == 2) {
+                    int m = Integer.parseInt(parts[0]);
+                    return m + " دقيقة";
+                }
+            } catch (Exception ignored) {}
+        }
+        if (s.matches("^\\d+$")) {
+            try {
+                int sec = Integer.parseInt(s);
+                int m = sec / 60;
+                if (m > 60) {
+                    int h = m / 60;
+                    int remM = m % 60;
+                    return h + " س " + remM + " د";
+                }
+                if (m > 0) return m + " دقيقة";
+            } catch (Exception ignored) {}
+        }
+        s = s.replaceAll("(?i)\\s*min(?:ute)?s?", " دقيقة");
+        s = s.replaceAll("(?i)\\s*m$", " دقيقة");
+        return s;
+    }
+
+    // ------------------------------------------------------------------ محول بطاقات الحلقات المصغرة 16:9
     private class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.VH> {
         class VH extends RecyclerView.ViewHolder {
             final ImageView thumb;
-            final TextView title, sub;
+            final TextView title, duration, badge;
+
             VH(View v) {
                 super(v);
                 thumb = v.findViewById(R.id.ep_thumb);
                 title = v.findViewById(R.id.ep_title);
-                sub = v.findViewById(R.id.ep_sub);
-                applyFocusScale(v, 1.02f);
+                duration = v.findViewById(R.id.ep_duration);
+                badge = v.findViewById(R.id.ep_badge);
+                applyFocusScale(v, 1.06f);
             }
         }
 
         @NonNull
         @Override
         public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new VH(LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_episode, parent, false));
+            return new VH(LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_episode_card, parent, false));
         }
 
         @Override
         public void onBindViewHolder(@NonNull VH h, int position) {
             final JSONObject ep = episodes.get(position);
             JSONObject info = ep.optJSONObject("info");
-            String num = ep.optString("episode_num", String.valueOf(position + 1));
-            String t = ep.optString("title", "");
-            h.title.setText("الحلقة " + num + (t.isEmpty() || "null".equals(t) ? "" : "  •  " + t));
-            String sub = "";
-            if (info != null) {
-                String dur = info.optString("duration", "");
-                String plot = info.optString("plot", "");
-                sub = (dur.isEmpty() || "null".equals(dur) ? "" : dur) +
-                        (plot.isEmpty() || "null".equals(plot) ? "" : (dur.isEmpty() ? "" : "  |  ") + plot);
+
+            String epNum = ep.optString("episode_num", String.valueOf(position + 1));
+            String rawTitle = ep.optString("title", "");
+            String cleanTitle = cleanEpisodeTitle(rawTitle, epNum, position + 1);
+            h.title.setText(cleanTitle);
+
+            if (h.badge != null) {
+                h.badge.setText(epNum);
             }
-            h.sub.setText(sub);
-            h.sub.setVisibility(sub.isEmpty() ? View.GONE : View.VISIBLE);
-            String img = info != null ? info.optString("movie_image", "") : "";
-            Ui.loadImage(h.thumb, img.isEmpty() ? cover : img, Ui.logoPlaceholder());
+
+            String dur = (info != null) ? info.optString("duration", "") : "";
+            String formattedDur = formatDuration(dur);
+            if (h.duration != null) {
+                h.duration.setText(formattedDur);
+            }
+
+            String img = (info != null) ? info.optString("movie_image", "") : "";
+            Ui.loadImage(h.thumb, (img != null && !img.isEmpty()) ? img : cover, Ui.logoPlaceholder());
+
             h.itemView.setOnClickListener(v -> playEpisode(ep));
         }
 
@@ -330,6 +614,16 @@ public class SeriesDetailsActivity extends BaseActivity {
             Models.Item it = popularItems.get(position);
             holder.title.setText(it.safeName());
             Ui.loadImage(holder.img, it.icon, Ui.logoPlaceholder());
+
+            if (holder.rating != null) {
+                if (it.rating != null && !it.rating.isEmpty() && !"0".equals(it.rating) && !"null".equals(it.rating)) {
+                    holder.rating.setText("★ " + it.rating);
+                    holder.rating.setVisibility(View.VISIBLE);
+                } else {
+                    holder.rating.setVisibility(View.GONE);
+                }
+            }
+
             holder.itemView.setOnClickListener(v -> {
                 Intent i = new Intent(SeriesDetailsActivity.this, SeriesDetailsActivity.class);
                 i.putExtra("id", it.id);
@@ -349,11 +643,13 @@ public class SeriesDetailsActivity extends BaseActivity {
     private static class PopularHolder extends RecyclerView.ViewHolder {
         final ImageView img;
         final TextView title;
+        final TextView rating;
 
         PopularHolder(@NonNull View itemView) {
             super(itemView);
             img = itemView.findViewById(R.id.pop_poster_img);
             title = itemView.findViewById(R.id.pop_poster_title);
+            rating = itemView.findViewById(R.id.pop_poster_rating);
         }
     }
 

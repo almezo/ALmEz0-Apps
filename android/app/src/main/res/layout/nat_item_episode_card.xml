@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- بطاقة الحلقة المصغرة بنسبة 16:9 وتصميم مطابق للكمبيوتر -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="250dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/nat_bg_episode_card"
+    android:clipToOutline="true"
+    android:clickable="true"
+    android:focusable="true"
+    android:layoutDirection="rtl"
+    android:orientation="vertical">
+
+    <!-- حاوية الصورة المصغرة بنسبة 16:9 مع زر التشغيل وبادج رقم الحلقة -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:background="#FF0B0E14">
+
+        <ImageView
+            android:id="@+id/ep_thumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <!-- غطاء مظلل خفيف للتباين -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#26000000" />
+
+        <!-- زر التشغيل الدائري الأحمر في المنتصف -->
+        <FrameLayout
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:background="@drawable/nat_circle_play_btn"
+            android:elevation="2dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:layout_marginStart="2dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/fa_play"
+                app:tint="#FFFFFFFF" />
+        </FrameLayout>
+
+        <!-- بادج رقم الحلقة في الزاوية العلوية -->
+        <TextView
+            android:id="@+id/ep_badge"
+            style="@style/NatText.ExtraBold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="10dp"
+            android:background="@drawable/nat_badge"
+            android:paddingStart="10dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="3dp"
+            android:text="1"
+            android:textColor="@color/nat_gold"
+            android:textSize="13sp" />
+    </FrameLayout>
+
+    <!-- صندوق معلومات الحلقة: العنوان الصافي + المدة مع أيقونة الساعة -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/ep_title"
+            style="@style/NatText.Black"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="الحلقة 1"
+            android:textColor="#FFFFFFFF"
+            android:textSize="18sp" />
+
+        <LinearLayout
+            android:id="@+id/ep_duration_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginEnd="6dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/fa_clock"
+                app:tint="#FF94A3B8" />
+
+            <TextView
+                android:id="@+id/ep_duration"
+                style="@style/NatText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="45 دقيقة"
+                android:textColor="#FF94A3B8"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

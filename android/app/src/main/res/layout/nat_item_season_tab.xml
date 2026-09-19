@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- زر كبسولة الموسم المطابق لنسخة الكمبيوتر المرجعية -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/season_tab_root"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="12dp"
+    android:background="@drawable/nat_btn_season_pill"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:layoutDirection="rtl"
+    android:orientation="horizontal"
+    android:paddingStart="22dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="18dp"
+    android:paddingBottom="10dp">
+
+    <!-- أيقونة الطبقات / الموسم -->
+    <ImageView
+        android:id="@+id/season_tab_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="10dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/fa_layer_group"
+        app:tint="#FFFFFFFF" />
+
+    <!-- اسم الموسم: موسم X -->
+    <TextView
+        android:id="@+id/season_tab_title"
+        style="@style/NatText.ExtraBold"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="10dp"
+        android:text="موسم 1"
+        android:textColor="#FFFFFFFF"
+        android:textSize="17sp" />
+
+    <!-- بادج عدد الحلقات -->
+    <TextView
+        android:id="@+id/season_tab_count"
+        style="@style/NatText.ExtraBold"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/nat_bg_season_badge"
+        android:paddingStart="10dp"
+        android:paddingTop="3dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="3dp"
+        android:text="0"
+        android:textColor="#FFFFFFFF"
+        android:textSize="14sp" />
+</LinearLayout>
