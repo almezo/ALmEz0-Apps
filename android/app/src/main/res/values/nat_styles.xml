@@ -8,6 +8,7 @@
     <color name="nat_gold">#FFF59E0B</color>
     <color name="nat_green">#FF22C55E</color>
     <color name="nat_red">#FFE50914</color>
+    <color name="nat_accent">#FFE50914</color>
     <color name="nat_nav_home">#FF4CAF50</color>
     <color name="nat_nav_accounts">#FFF4C242</color>
     <color name="nat_nav_profile">#FF2196F3</color>
@@ -30,6 +31,12 @@
         <item name="android:fontFamily">@font/tajawal_bold</item>
         <item name="fontFamily">@font/tajawal_bold</item>
         <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="NatText.Bold">
+        <item name="android:textColor">@color/nat_white</item>
+        <item name="android:fontFamily">@font/tajawal_bold</item>
+        <item name="fontFamily">@font/tajawal_bold</item>
     </style>
 
     <style name="NatText.Black">
