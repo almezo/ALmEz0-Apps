@@ -366,8 +366,11 @@ public class MovieDetailsActivity extends BaseActivity {
             Ui.loadImage(holder.img, it.icon, Ui.logoPlaceholder());
 
             if (holder.rating != null) {
-                if (it.rating != null && !it.rating.isEmpty() && !"0".equals(it.rating) && !"null".equals(it.rating)) {
-                    holder.rating.setText("★ " + it.rating);
+                if (it.rating > 0) {
+                    String rStr = (it.rating == (int) it.rating)
+                            ? String.valueOf((int) it.rating)
+                            : String.format(java.util.Locale.US, "%.1f", it.rating);
+                    holder.rating.setText("★ " + rStr);
                     holder.rating.setVisibility(View.VISIBLE);
                 } else {
                     holder.rating.setVisibility(View.GONE);
