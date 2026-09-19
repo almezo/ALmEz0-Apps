@@ -65,7 +65,7 @@ public class SeriesDetailsActivity extends BaseActivity {
     private final List<Models.Item> popularItems = new ArrayList<>();
     private PopularAdapter popularAdapter;
 
-    private static final Map<String, String> GENRE_MAP = new HashMap<>();
+    public static final Map<String, String> GENRE_MAP = new HashMap<>();
     static {
         GENRE_MAP.put("action", "أكشن");
         GENRE_MAP.put("adventure", "مغامرة");
