@@ -26,6 +26,16 @@
             android:importantForAccessibility="no"
             android:scaleType="centerCrop" />
 
+        <ProgressBar
+            android:id="@+id/ep_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_gravity="bottom"
+            android:max="1000"
+            android:progressDrawable="@drawable/nat_watch_progress"
+            android:visibility="gone" />
+
         <!-- تعتيم خفيف وزر التشغيل عند التركيز -->
         <View
             android:id="@+id/ep_dim"

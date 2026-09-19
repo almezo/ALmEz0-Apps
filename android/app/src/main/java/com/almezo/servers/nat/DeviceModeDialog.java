@@ -23,11 +23,9 @@ public final class DeviceModeDialog {
         final Store store = new Store(a);
         String currentMode = Store.deviceMode(a);
 
-        final Dialog d = new Dialog(a);
-        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        final Dialog d = new NatDialog(a);
         d.setContentView(R.layout.nat_dialog_device_mode);
         if (d.getWindow() != null) {
-            d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             d.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         Ui.widenDialogCard(d, R.id.dialog_device_card, 760);
@@ -75,7 +73,7 @@ public final class DeviceModeDialog {
     private static void select(Activity a, Dialog d, Store store, String mode, String msg) {
         boolean changed = !mode.equals(Store.deviceMode(a));
         store.putString("device_mode", mode);
-        Toast.makeText(a, msg, Toast.LENGTH_SHORT).show();
+        Ui.toast(a, msg);
         d.dismiss();
         // مقاسات الواجهة (الكانفاس والخطوط) تعتمد على النمط، فنعيد بناء الشاشة لتطبيقها فوراً
         if (changed) a.recreate();

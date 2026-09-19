@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- رابط مصدر تحت رد المساعد -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- رابط مصدر تحت رد المساعد --><selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
-        <shape><corners android:radius="14dp" /><solid android:color="#332196F3" /><stroke android:width="2dp" android:color="#FF60A5FA" /></shape>
+        <shape><corners android:radius="14dp"/><solid android:color="#332196F3"/><stroke android:width="2.5dp" android:color="#FFFFFFFF"/></shape>
     </item>
     <item android:state_pressed="true">
-        <shape><corners android:radius="14dp" /><solid android:color="#332196F3" /><stroke android:width="2dp" android:color="#FF60A5FA" /></shape>
+        <shape><corners android:radius="14dp"/><solid android:color="#332196F3"/><stroke android:width="2.5dp" android:color="#FFFFFFFF"/></shape>
     </item>
     <item>
-        <shape><corners android:radius="14dp" /><solid android:color="#1A60A5FA" /><stroke android:width="1dp" android:color="#5960A5FA" /></shape>
+        <shape><corners android:radius="14dp"/><solid android:color="#1A60A5FA"/><stroke android:width="1dp" android:color="#5960A5FA"/></shape>
     </item>
 </selector>

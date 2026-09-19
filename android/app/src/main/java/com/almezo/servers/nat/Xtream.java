@@ -278,6 +278,11 @@ public final class Xtream {
         return new JSONObject(new String(httpGet(api("get_series_info", "&series_id=" + enc(id))), StandardCharsets.UTF_8));
     }
 
+    /** برنامج الآن والتالي لقناة مباشرة (دليل البرامج المختصر). */
+    public JSONObject shortEpg(String streamId) throws Exception {
+        return new JSONObject(new String(httpGet(api("get_short_epg", "&stream_id=" + enc(streamId) + "&limit=2")), StandardCharsets.UTF_8));
+    }
+
     public JSONObject accountInfo() throws Exception {
         return new JSONObject(new String(httpGet(api(null, null)), StandardCharsets.UTF_8));
     }

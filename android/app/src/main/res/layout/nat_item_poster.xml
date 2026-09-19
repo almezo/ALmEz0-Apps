@@ -45,6 +45,17 @@
             android:textSize="15sp"
             android:visibility="gone" />
 
+        <!-- تقدم المشاهدة (للأفلام التي بدأ المستخدم مشاهدتها) -->
+        <ProgressBar
+            android:id="@+id/poster_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_gravity="bottom"
+            android:max="1000"
+            android:progressDrawable="@drawable/nat_watch_progress"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/poster_fav"
             android:layout_width="28dp"

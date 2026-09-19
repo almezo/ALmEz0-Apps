@@ -666,11 +666,12 @@
         }
 
         function isAlMeZ0PlayerEnv() {
+            // المسار فقط (بدون الاستعلام): بعد الرجوع من المشغل قد يبقى الرابط index.html?auth_required=player
+            // فكان يُعتبر داخل المشغل، فيعيد تحميل الصفحة بدل تنبيه "اضغط مرة أخرى للخروج"
             return !!document.getElementById('app-scaler') ||
                    !!document.getElementById('dashboard-screen') ||
                    !!document.getElementById('auth1-screen') ||
-                   window.location.pathname.toLowerCase().includes('player') ||
-                   window.location.href.toLowerCase().includes('player');
+                   window.location.pathname.toLowerCase().includes('player');
         }
 
         function handleSitePageDpadNavigation(e) {
@@ -777,7 +778,9 @@
 
         // إدارة زر الرجوع الموحد (Universal Back Handler)
         var lastBackPress = 0;
-        function handleUniversalBackButton(e) {
+        // fromNative: تطبيق أندرويد يسأل الصفحة أولاً؛ إن لم يبقَ ما يُغلق أو يُرجَع إليه في الصفحة
+        // الرئيسية تُعيد 'exit' ويتولى التطبيق تنبيه "اضغط مرة أخرى للخروج" والخروج بنفسه
+        function handleUniversalBackButton(e, fromNative) {
             if (document.getElementById('almezo-inapp-update-overlay')) {
                 var vData = window._almezoVersionData;
                 if (vData && vData.isMandatory) {
@@ -949,6 +952,8 @@
                 return true;
             }
 
+            if (fromNative) return 'exit';
+
             var now = Date.now();
             if (now - lastBackPress < 2000) {
                 if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
@@ -971,6 +976,15 @@
             }
             return true;
         }
+
+        // يستدعيه تطبيق أندرويد (MainActivity) عند كل ضغطة رجوع
+        window.__almezoBack = function () {
+            try {
+                return handleUniversalBackButton(null, true) === 'exit' ? 'exit' : 'handled';
+            } catch (err) {
+                return 'legacy';
+            }
+        };
 
         // الاستماع المباشر لزر الريموت في كاباسيتور
         if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
@@ -1033,7 +1047,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.0.87';
+    const CURRENT_APP_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

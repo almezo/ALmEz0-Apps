@@ -149,6 +149,31 @@ public final class Store {
         writeIds(scoped("continue", type), ids);
     }
 
+    // ---------------- نقطة التوقف (الاستئناف) ----------------
+
+    /** يحفظ آخر موضع مشاهدة لعمل (فيلم أو حلقة) ومدته، لاستئنافه لاحقاً وعرض شريط التقدم. */
+    public void savePosition(String key, long positionMs, long durationMs) {
+        if (key == null || key.isEmpty()) return;
+        sp.edit().putString(scoped("pos", key), positionMs + "|" + durationMs).apply();
+    }
+
+    /** {الموضع، المدة} بالمللي ثانية، أو null إن لم يُشاهَد. */
+    public long[] position(String key) {
+        if (key == null) return null;
+        String v = sp.getString(scoped("pos", key), null);
+        if (v == null) return null;
+        try {
+            int sep = v.indexOf('|');
+            return new long[]{Long.parseLong(v.substring(0, sep)), Long.parseLong(v.substring(sep + 1))};
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public void clearPosition(String key) {
+        if (key != null) sp.edit().remove(scoped("pos", key)).apply();
+    }
+
     // ---------------- أوقات آخر تحديث ----------------
 
     public long lastUpdated(String type) {

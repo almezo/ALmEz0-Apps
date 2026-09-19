@@ -35,11 +35,9 @@ public final class AccountsDialog {
         final List<Models.Account> accounts = store.accounts();
         final Models.Account active = store.active();
 
-        final Dialog d = new Dialog(a);
-        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        final Dialog d = new NatDialog(a);
         d.setContentView(R.layout.nat_dialog_playlists);
         if (d.getWindow() != null) {
-            d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             d.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         Ui.widenDialogCard(d, R.id.dialog_playlists_card, 1020);
@@ -136,7 +134,7 @@ public final class AccountsDialog {
 
             h.btnActivate.setOnClickListener(v -> {
                 store.activate(acc.id);
-                Toast.makeText(activity, "تم تفعيل " + serverName, Toast.LENGTH_SHORT).show();
+                Ui.toast(activity, "تم تفعيل " + serverName);
                 dialog.dismiss();
                 activity.recreate();
             });
@@ -148,7 +146,7 @@ public final class AccountsDialog {
                 notifyItemRangeChanged(position, list.size());
                 TextView countTv = dialog.findViewById(R.id.dialog_playlists_count);
                 if (countTv != null) countTv.setText(list.size() + " سيرفرات محفوظة");
-                Toast.makeText(activity, "تم حذف الحساب", Toast.LENGTH_SHORT).show();
+                Ui.toast(activity, "تم حذف الحساب");
 
                 if (store.active() == null) {
                     dialog.dismiss();

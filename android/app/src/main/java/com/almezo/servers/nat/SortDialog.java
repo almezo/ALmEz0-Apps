@@ -25,11 +25,9 @@ public final class SortDialog {
     public static void show(Activity a, String type, String currentSort, boolean currentHideNames, Callback callback) {
         if (a == null || a.isFinishing()) return;
 
-        final Dialog d = new Dialog(a);
-        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        final Dialog d = new NatDialog(a);
         d.setContentView(R.layout.nat_dialog_sort);
         if (d.getWindow() != null) {
-            d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             d.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
 

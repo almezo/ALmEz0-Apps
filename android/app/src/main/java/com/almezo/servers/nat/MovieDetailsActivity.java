@@ -303,8 +303,11 @@ public class MovieDetailsActivity extends BaseActivity {
 
     private void playMovie() {
         store.recordContinueWatching(Models.VOD, id);
+        String url = api.streamUrl(Models.VOD, id, ext);
+        PlayQueue.single(new PlayQueue.Entry(url, name, cover, "vod:" + id, id, Models.VOD));
         Intent i = new Intent(this, PlayerActivity.class);
-        i.putExtra("videoUrl", api.streamUrl(Models.VOD, id, ext));
+        i.putExtra("queue", true);
+        i.putExtra("videoUrl", url);
         i.putExtra("title", name);
         i.putExtra("posterUrl", cover == null ? "" : cover);
         i.putExtra("isLive", false);
@@ -327,6 +330,17 @@ public class MovieDetailsActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         if (nav != null) nav.start();
+        // زر المشاهدة يعرض "استئناف" مع موضع التوقف إن بدأ المستخدم الفيلم سابقاً
+        TextView playText = findViewById(R.id.det_btn_play_text);
+        long[] watched = store != null ? store.position("vod:" + id) : null;
+        if (playText != null) playText.setText(watched != null ? "استئناف " + clock(watched[0]) : "شاهد الآن");
+    }
+
+    static String clock(long ms) {
+        long t = ms / 1000;
+        return t >= 3600
+                ? String.format(java.util.Locale.US, "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60)
+                : String.format(java.util.Locale.US, "%02d:%02d", t / 60, t % 60);
     }
 
     @Override
@@ -342,6 +356,7 @@ public class MovieDetailsActivity extends BaseActivity {
         public PopularHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_popular_poster, parent, false);
             applyFocusScale(v, 1.08f);
+            Fx.noRing(v);
             return new PopularHolder(v);
         }
 

@@ -212,6 +212,8 @@ public class AuthActivity extends BaseActivity {
     private void openDashboard() {
         Intent i = new Intent(this, DashboardActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        // فتح المشغل من البرنامج: تحديث إجباري للباقات الثلاث مرة واحدة في لوحة التحكم
+        i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, getIntent().getBooleanExtra(DashboardActivity.EXTRA_FRESH_OPEN, false));
         startActivity(i);
         finish();
     }

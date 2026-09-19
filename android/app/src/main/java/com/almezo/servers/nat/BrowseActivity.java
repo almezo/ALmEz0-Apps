@@ -181,6 +181,7 @@ public class BrowseActivity extends BaseActivity {
         catList = findViewById(R.id.browse_categories);
         catList.setLayoutManager(new LinearLayoutManager(this));
         catAdapter = new CategoryAdapter();
+        catAdapter.setHasStableIds(true);
         catList.setAdapter(catAdapter);
         catList.setItemAnimator(null);
 
@@ -201,6 +202,7 @@ public class BrowseActivity extends BaseActivity {
             }
         });
         gridAdapter = new PosterAdapter();
+        gridAdapter.setHasStableIds(true);
         grid.setAdapter(gridAdapter);
     }
 
@@ -254,7 +256,9 @@ public class BrowseActivity extends BaseActivity {
         categories.clear();
         categories.add(new Models.Category("all", "الكل", allItems.size(), true));
         categories.add(new Models.Category("favs", "المفضلة", store.favorites(type).size(), true));
-        if (!Models.LIVE.equals(type)) {
+        if (Models.LIVE.equals(type)) {
+            categories.add(new Models.Category("continue", "آخر القنوات المشاهدة", store.continueWatching(type).size(), true));
+        } else {
             categories.add(new Models.Category("continue", "متابعة المشاهدة", store.continueWatching(type).size(), true));
             categories.add(new Models.Category("recent", "المضافة حديثاً", Math.min(20, allItems.size()), true));
         }
@@ -351,12 +355,23 @@ public class BrowseActivity extends BaseActivity {
 
     private void open(Models.Item it) {
         if (Models.LIVE.equals(type)) {
+            List<PlayQueue.Entry> list = new ArrayList<>(shown.size());
+            int index = 0;
+            for (int n = 0; n < shown.size(); n++) {
+                Models.Item c = shown.get(n);
+                if (c == it) index = n;
+                list.add(new PlayQueue.Entry(api.streamUrl(Models.LIVE, c.id, "m3u8"), c.safeName(), c.icon,
+                        "live:" + c.id, c.id, Models.LIVE));
+            }
+            PlayQueue.set(list, index);
+            store.recordContinueWatching(Models.LIVE, it.id);
             Intent i = new Intent(this, PlayerActivity.class);
             i.putExtra("videoUrl", api.streamUrl(Models.LIVE, it.id, "m3u8"));
             i.putExtra("title", it.safeName());
             i.putExtra("posterUrl", it.icon == null ? "" : it.icon);
             i.putExtra("isLive", true);
             i.putExtra("isTv", isTvDevice(this));
+            i.putExtra("queue", true);
             startActivity(i);
         } else if (Models.VOD.equals(type)) {
             Intent i = new Intent(this, MovieDetailsActivity.class);
@@ -437,13 +452,16 @@ public class BrowseActivity extends BaseActivity {
             h.count.setText(c.count > 0 || c.special ? String.valueOf(c.count) : "");
             h.itemView.setActivated(c.id.equals(activeCatId));
             h.itemView.setOnClickListener(v -> {
+                int previous = -1;
+                for (int n = 0; n < categories.size(); n++) if (categories.get(n).id.equals(activeCatId)) { previous = n; break; }
                 activeCatId = c.id;
                 store.putString("last_cat_" + type, activeCatId);
                 if (!query.isEmpty()) {
                     searchInput.setText("");
                     searchBox.setVisibility(View.GONE);
                 }
-                notifyDataSetChanged();
+                if (previous >= 0) notifyItemChanged(previous);
+                notifyItemChanged(h.getBindingAdapterPosition());
                 applyFilter();
             });
         }
@@ -452,14 +470,22 @@ public class BrowseActivity extends BaseActivity {
         public int getItemCount() {
             return categories.size();
         }
+
+        @Override
+        public long getItemId(int position) {
+            return categories.get(position).id.hashCode();
+        }
     }
 
     private class PosterAdapter extends RecyclerView.Adapter<PosterAdapter.VH> {
         class VH extends RecyclerView.ViewHolder {
             final ImageView img, fav;
             final TextView name, rating;
+            final android.widget.ProgressBar progress;
             VH(View v) {
                 super(v);
+                progress = v.findViewById(R.id.poster_progress);
+                Fx.noRing(v);
                 img = v.findViewById(R.id.poster_img);
                 fav = v.findViewById(R.id.poster_fav);
                 name = v.findViewById(R.id.poster_title);
@@ -493,6 +519,13 @@ public class BrowseActivity extends BaseActivity {
             } else {
                 h.rating.setVisibility(View.GONE);
             }
+            long[] watched = Models.VOD.equals(type) ? store.position("vod:" + it.id) : null;
+            if (watched != null && watched[1] > 0) {
+                h.progress.setProgress((int) Math.min(1000, watched[0] * 1000 / watched[1]));
+                h.progress.setVisibility(View.VISIBLE);
+            } else {
+                h.progress.setVisibility(View.GONE);
+            }
             prefetchAhead(position);
             h.itemView.setOnClickListener(v -> open(it));
             h.itemView.setOnLongClickListener(v -> { toggleFavorite(it, h.getBindingAdapterPosition()); return true; });
@@ -508,6 +541,12 @@ public class BrowseActivity extends BaseActivity {
         @Override
         public int getItemCount() {
             return shown.size();
+        }
+
+        @Override
+        public long getItemId(int position) {
+            String id = shown.get(position).id;
+            return id == null ? position : id.hashCode();
         }
 
         /** تنزيل صور الصفوف الثلاثة التالية مسبقاً حتى تظهر فوراً عند التمرير إليها. */

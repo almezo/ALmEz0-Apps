@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- مقدمة افتتاحية قصيرة لمشغل الميزو عند فتحه من البرنامج -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/nat_bg_app"
+    android:layoutDirection="rtl">
+
+    <LinearLayout
+        android:id="@+id/intro_content"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="240dp"
+            android:layout_height="240dp">
+
+            <View
+                android:id="@+id/intro_ring"
+                android:layout_width="170dp"
+                android:layout_height="170dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:background="@drawable/nat_intro_ring" />
+
+            <View
+                android:id="@+id/intro_ring2"
+                android:layout_width="170dp"
+                android:layout_height="170dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:background="@drawable/nat_intro_ring" />
+
+            <ImageView
+                android:id="@+id/intro_logo"
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:contentDescription="ALmEz0"
+                android:elevation="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/almezo_logo" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/intro_title"
+            style="@style/NatText.Black"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:alpha="0"
+            android:shadowColor="#8022C55E"
+            android:shadowRadius="18"
+            android:text="مشغل الميزو"
+            android:textSize="46sp" />
+
+        <TextView
+            android:id="@+id/intro_sub"
+            style="@style/NatText.ExtraBold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0"
+            android:letterSpacing="0.35"
+            android:text="ALmEz0 PLAYER"
+            android:textColor="@color/nat_gold"
+            android:textSize="17sp" />
+
+        <FrameLayout
+            android:layout_width="280dp"
+            android:layout_height="5dp"
+            android:layout_marginTop="30dp"
+            android:background="@drawable/nat_intro_track">
+
+            <View
+                android:id="@+id/intro_bar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/nat_intro_bar"
+                android:scaleX="0" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

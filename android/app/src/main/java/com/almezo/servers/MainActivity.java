@@ -53,6 +53,8 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+        installBackHandler();
+
         try {
             if (new NativePlayerBridge().isTvDevice()) {
                 getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -61,6 +63,50 @@ public class MainActivity extends BridgeActivity {
                 enableImmersiveFullscreen();
             }
         } catch (Throwable ignored) { }
+    }
+
+    private long lastBackPressAt = 0;
+
+    /**
+     * زر الرجوع: الصفحة تتولى أولاً إغلاق النوافذ والرجوع من الصفحات الداخلية (window.__almezoBack)،
+     * وفي الصفحة الرئيسية للبرنامج يظهر تنبيه أخضر "اضغط مرة أخرى للخروج" ثم يُغلق البرنامج
+     * بالضغطة الثانية خلال ثانيتين. يعمل أصلياً دون الاعتماد على مستمع backButton في كاباسيتور.
+     */
+    private void installBackHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                final androidx.activity.OnBackPressedCallback self = this;
+                android.webkit.WebView wv = bridge != null ? bridge.getWebView() : null;
+                if (wv == null) {
+                    passBack(self);
+                    return;
+                }
+                wv.evaluateJavascript(
+                        "(function(){try{return window.__almezoBack?window.__almezoBack():'legacy';}catch(e){return 'legacy';}})()",
+                        result -> {
+                            String r = result == null ? "" : result.replace("\"", "");
+                            if ("exit".equals(r)) confirmExit();
+                            else if (!"handled".equals(r)) passBack(self);
+                        });
+            }
+        });
+    }
+
+    private void passBack(androidx.activity.OnBackPressedCallback self) {
+        self.setEnabled(false);
+        getOnBackPressedDispatcher().onBackPressed();
+        self.setEnabled(true);
+    }
+
+    private void confirmExit() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastBackPressAt < 2000) {
+            finish();
+            return;
+        }
+        lastBackPressAt = now;
+        com.almezo.servers.nat.Ui.toast(this, "اضغط مرة أخرى للخروج من التطبيق", true);
     }
 
     public void enableImmersiveFullscreen() {
@@ -252,7 +298,8 @@ public class MainActivity extends BridgeActivity {
             runOnUiThread(() -> {
                 try {
                     com.almezo.servers.nat.Migration.importFromWeb(MainActivity.this, migrationJson);
-                    Intent intent = new Intent(MainActivity.this, com.almezo.servers.nat.AuthActivity.class);
+                    // المقدمة الافتتاحية ثم المشغل (مع تحديث إجباري للباقات عند كل فتح من البرنامج)
+                    Intent intent = new Intent(MainActivity.this, com.almezo.servers.nat.IntroActivity.class);
                     startActivity(intent);
                 } catch (Throwable t) {
                     android.util.Log.e("MainActivity", "Failed to open native player", t);

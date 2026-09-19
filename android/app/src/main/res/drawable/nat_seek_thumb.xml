@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- مقبض شريط الوقت: يكبر ويتوهج بإطار أحمر شفاف عند التركيز بالريموت أو اللمس -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <size android:width="26dp" android:height="26dp" />
+            <solid android:color="#FFFFFFFF" />
+            <stroke android:width="6dp" android:color="#80E50914" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <size android:width="26dp" android:height="26dp" />
+            <solid android:color="#FFFFFFFF" />
+            <stroke android:width="6dp" android:color="#80E50914" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <size android:width="16dp" android:height="16dp" />
+            <solid android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+</selector>

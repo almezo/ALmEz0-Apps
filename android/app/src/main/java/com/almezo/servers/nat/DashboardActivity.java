@@ -19,10 +19,17 @@ import java.util.List;
 /** لوحة التحكم (#dashboard-screen): البث المباشر، الأفلام، المسلسلات. */
 public class DashboardActivity extends BaseActivity {
 
+    /** المشغل فُتح للتو من البرنامج (وليس رجوعاً من شاشة داخلية): تحديث إجباري للباقات. */
+    public static final String EXTRA_FRESH_OPEN = "fresh_open";
+    /** خيوط مستقلة لتحديث الفتح حتى لا تنتظر شاشات التصفح انتهاءه */
+    private static final java.util.concurrent.ExecutorService OPEN_REFRESH = java.util.concurrent.Executors.newFixedThreadPool(2);
+
     private Store store;
     private Models.Account account;
     private NavBar nav;
     private View cardLive, cardMovies, cardSeries;
+    /** الباقات الجاري تحديثها الآن (حتى لا يكتب مؤقّت الحالة فوق "جاري التحديث...") */
+    private final java.util.Set<String> refreshing = new java.util.HashSet<>();
 
     private final Runnable statusTicker = new Runnable() {
         @Override
@@ -66,7 +73,10 @@ public class DashboardActivity extends BaseActivity {
         fitCardsWidth();
         setupFooter();
         cardLive.requestFocus();
-        prefetchAll();
+        Fx.enter(cardLive, cardMovies, cardSeries, aiBtn);
+        boolean freshOpen = savedInstanceState == null && getIntent().getBooleanExtra(EXTRA_FRESH_OPEN, false);
+        if (freshOpen) refreshAllOnOpen();
+        else prefetchAll();
     }
 
     @Override
@@ -118,6 +128,22 @@ public class DashboardActivity extends BaseActivity {
         View refresh = card.findViewById(R.id.card_refresh);
         applyFocusScale(refresh, 1.15f);
         refresh.setOnClickListener(v -> refreshType(card, type, title));
+        // زر التحديث داخل البطاقة: نظام التركيز لا ينتقل من البطاقة إلى عنصر بداخلها تلقائياً،
+        // فيُربط يدوياً: الأسفل من البطاقة إلى زر التحديث، والأعلى من الزر إلى البطاقة
+        card.setOnKeyListener((v, keyCode, e) -> {
+            if (e.getAction() == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                refresh.requestFocus();
+                return true;
+            }
+            return false;
+        });
+        refresh.setOnKeyListener((v, keyCode, e) -> {
+            if (e.getAction() == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                card.requestFocus();
+                return true;
+            }
+            return false;
+        });
     }
 
     private View cardFor(String type) {
@@ -130,6 +156,7 @@ public class DashboardActivity extends BaseActivity {
         for (String t : new String[]{Models.LIVE, Models.VOD, Models.SERIES}) {
             View card = cardFor(t);
             TextView status = card.findViewById(R.id.card_status);
+            if (refreshing.contains(t)) continue;
             status.setText("آخر تحديث: " + Ui.relativeArabic(store.lastUpdated(t)));
         }
     }
@@ -142,7 +169,6 @@ public class DashboardActivity extends BaseActivity {
         Xtream.IO.execute(() -> {
             int count = -1;
             try {
-                api.clearCache(type);
                 api.categories(type, true);
                 List<Models.Item> items = api.streams(type, true);
                 count = items.size();
@@ -160,6 +186,41 @@ public class DashboardActivity extends BaseActivity {
                 updateStatuses();
             });
         });
+    }
+
+    /**
+     * عند فتح المشغل من البرنامج: تحديث فعلي من السيرفر للباقات الثلاث (بدون حجب البطاقات؛
+     * يظهر "جاري التحديث..." مع دوران أيقونة التحديث). الرجوع من شاشة داخلية لا يعيد التحديث.
+     */
+    private void refreshAllOnOpen() {
+        final Xtream api = new Xtream(this, account);
+        for (final String t : new String[]{Models.LIVE, Models.VOD, Models.SERIES}) {
+            final View card = cardFor(t);
+            final View icon = card.findViewById(R.id.card_refresh);
+            final TextView status = card.findViewById(R.id.card_status);
+            refreshing.add(t);
+            status.setText("جاري تحديث الباقة...");
+            icon.animate().rotationBy(360f * 40).setDuration(40_000).setInterpolator(new android.view.animation.LinearInterpolator()).start();
+            OPEN_REFRESH.execute(() -> {
+                boolean ok = false;
+                try {
+                    // التحميل الإجباري يستبدل الكاش عند النجاح فقط، فإن فشل تبقى آخر نسخة محفوظة صالحة للتصفح
+                    api.categories(t, true);
+                    api.streams(t, true);
+                    ok = true;
+                } catch (Exception ignored) { }
+                final boolean success = ok;
+                ui.post(() -> {
+                    if (isFinishing()) return;
+                    refreshing.remove(t);
+                    icon.animate().cancel();
+                    icon.animate().rotation(0).setDuration(250).start();
+                    if (success) store.setLastUpdated(t, System.currentTimeMillis());
+                    updateStatuses();
+                    if (!success) status.setText("تعذر التحديث - تُعرض آخر نسخة محفوظة");
+                });
+            });
+        }
     }
 
     /** تحميل مسبق هادئ للقوائم الثلاث (من الكاش إن كان صالحاً) لتُفتح الشاشات فوراً. */
@@ -196,11 +257,9 @@ public class DashboardActivity extends BaseActivity {
     }
 
     private void confirmLogout() {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        android.app.Dialog dialog = new NatDialog(this);
         dialog.setContentView(R.layout.nat_dialog_logout);
         if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             dialog.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         Ui.widenDialogCard(dialog, R.id.dialog_logout_card, 600);

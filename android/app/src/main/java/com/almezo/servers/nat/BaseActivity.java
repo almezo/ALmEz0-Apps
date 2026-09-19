@@ -8,11 +8,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
-import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -38,6 +38,18 @@ public abstract class BaseActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // تقليل إعادة الرسم: جذر كل شاشة يرسم خلفيته بنفسه
         getWindow().setBackgroundDrawable(null);
+    }
+
+    @Override
+    protected void onPostCreate(@Nullable Bundle savedInstanceState) {
+        super.onPostCreate(savedInstanceState);
+        Fx.install(getWindow());
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        Fx.onTouch(getWindow().getDecorView(), ev);
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override
@@ -74,7 +86,7 @@ public abstract class BaseActivity extends AppCompatActivity {
     }
 
     protected void toast(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        Ui.toast(this, msg);
     }
 
     public static boolean isTvDevice(Context ctx) {
@@ -97,20 +109,10 @@ public abstract class BaseActivity extends AppCompatActivity {
     }
 
     /**
-     * تأثير التركيز الموحّد لكل العناصر: تكبير خفيف مُسرَّع بالعتاد بدل مربع التركيز الأخضر
-     * الافتراضي من النظام (الذي يرسم مستطيلاً فوق العناصر الدائرية).
+     * مقدار تكبير العنصر عند التركيز بالريموت. التكبير نفسه والتوهج وإطار التركيز تتولاها Fx مركزياً
+     * لكل عناصر الشاشة (انظر Fx.install)، وهذه الدالة تحدد المقدار المفضّل لعنصر بعينه فقط.
      */
     public static void applyFocusScale(View v, float scale) {
-        if (v == null) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try { v.setDefaultFocusHighlightEnabled(false); } catch (Throwable ignored) { }
-        }
-        final View.OnFocusChangeListener previous = v.getOnFocusChangeListener();
-        v.setOnFocusChangeListener((view, hasFocus) -> {
-            view.animate().scaleX(hasFocus ? scale : 1f).scaleY(hasFocus ? scale : 1f).setDuration(120).start();
-            // رفع العنصر المُركَّز فوق جيرانه حتى لا يُرسم تكبيره تحت البطاقة المجاورة
-            view.setTranslationZ(hasFocus ? 8f * view.getResources().getDisplayMetrics().density : 0f);
-            if (previous != null) previous.onFocusChange(view, hasFocus);
-        });
+        Fx.setFocusScale(v, scale);
     }
 }

@@ -30,6 +30,12 @@
 
         <!-- مشغل الميزو الأصلي (بديل player.html داخل WebView) -->
         <activity
+            android:name=".nat.IntroActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/NatTheme" />
+        <activity
             android:name=".nat.AuthActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:exported="false"

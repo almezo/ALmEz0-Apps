@@ -7,7 +7,8 @@
     android:background="#000000"
     android:fitsSystemWindows="false"
     android:focusable="true"
-    android:focusableInTouchMode="true">
+    android:focusableInTouchMode="true"
+    android:layoutDirection="ltr">
 
     <!-- ExoPlayer Video Surface
          SurfaceView بدل TextureView: مع TextureView يُنسخ كل إطار مفكوك إلى نسيج (texture) في
@@ -26,15 +27,6 @@
         app:surface_type="surface_view"
         app:resize_mode="fit" />
 
-    <!-- Buffering Progress Indicator (Matching Black Background & Professional Spinner) -->
-    <ProgressBar
-        android:id="@+id/pb_buffering"
-        style="?android:attr/progressBarStyleLarge"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_gravity="center"
-        android:indeterminateTint="#5240d8"
-        android:visibility="gone" />
 
     <!-- Double-Tap Seek Pill Feedback (+10s / -10s) -->
     <TextView
@@ -94,8 +86,6 @@
                     android:layout_height="38dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
-                    android:nextFocusRight="@+id/btn_cast"
-                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Back"
                     android:src="@drawable/ic_player_back" />
 
@@ -144,11 +134,9 @@
                     android:layout_marginEnd="18dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
-                    android:nextFocusLeft="@+id/btn_back"
-                    android:nextFocusRight="@+id/btn_lock"
-                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Cast"
-                    android:src="@drawable/ic_player_cast" />
+                    android:src="@drawable/ic_player_cast"
+                    android:visibility="gone" />
 
                 <ImageButton
                     android:id="@+id/btn_lock"
@@ -157,9 +145,6 @@
                     android:layout_marginEnd="18dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
-                    android:nextFocusLeft="@+id/btn_cast"
-                    android:nextFocusRight="@+id/btn_settings"
-                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Lock"
                     android:src="@drawable/ic_player_lock" />
 
@@ -169,8 +154,6 @@
                     android:layout_height="38dp"
                     android:background="@drawable/bg_circle_button"
                     android:focusable="true"
-                    android:nextFocusLeft="@+id/btn_lock"
-                    android:nextFocusDown="@+id/btn_play_pause"
                     android:contentDescription="Settings"
                     android:src="@drawable/ic_player_settings" />
             </LinearLayout>
@@ -253,9 +236,6 @@
                 android:layout_marginEnd="40dp"
                 android:background="@drawable/bg_circle_button"
                 android:focusable="true"
-                android:nextFocusUp="@+id/btn_back"
-                android:nextFocusRight="@+id/btn_play_pause"
-                android:nextFocusDown="@+id/seek_bar"
                 android:contentDescription="Rewind 10 seconds"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -267,10 +247,6 @@
                 android:layout_height="78dp"
                 android:background="@drawable/bg_circle_button"
                 android:focusable="true"
-                android:nextFocusUp="@+id/btn_settings"
-                android:nextFocusLeft="@+id/btn_rewind_10"
-                android:nextFocusRight="@+id/btn_forward_10"
-                android:nextFocusDown="@+id/seek_bar"
                 android:contentDescription="Play/Pause"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -283,9 +259,6 @@
                 android:layout_marginStart="40dp"
                 android:background="@drawable/bg_circle_button"
                 android:focusable="true"
-                android:nextFocusUp="@+id/btn_settings"
-                android:nextFocusLeft="@+id/btn_play_pause"
-                android:nextFocusDown="@+id/seek_bar"
                 android:contentDescription="Forward 10 seconds"
                 android:scaleType="fitCenter"
                 android:tint="#FFFFFFFF"
@@ -329,11 +302,14 @@
                     android:max="1000"
                     android:progress="0"
                     android:focusable="true"
-                    android:nextFocusUp="@+id/btn_play_pause"
-                    android:nextFocusDown="@+id/btn_aspect"
+                    android:minHeight="6dp"
+                    android:maxHeight="6dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
                     android:progressBackgroundTint="#4DFFFFFF"
-                    android:progressTint="#FFFFFF"
-                    android:thumbTint="#FFFFFF" />
+                    android:progressTint="#FFE50914"
+                    android:thumb="@drawable/nat_seek_thumb"
+                    android:splitTrack="false" />
 
                 <TextView
                     android:id="@+id/tv_duration"
@@ -363,8 +339,6 @@
                     android:background="@drawable/bg_pill_button"
                     android:clickable="true"
                     android:focusable="true"
-                    android:nextFocusUp="@+id/seek_bar"
-                    android:nextFocusRight="@+id/btn_speed"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:paddingStart="14dp"
@@ -381,7 +355,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="Aspect Ratio"
+                        android:text="الأبعاد"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp" />
                 </LinearLayout>
@@ -394,8 +368,6 @@
                     android:background="@drawable/bg_pill_button"
                     android:clickable="true"
                     android:focusable="true"
-                    android:nextFocusLeft="@+id/btn_aspect"
-                    android:nextFocusUp="@+id/seek_bar"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:paddingStart="14dp"
@@ -412,13 +384,250 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="Speed (1x)"
+                        android:text="السرعة (1x)"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- الحلقة/القناة التالية (يظهر عند وجود قائمة تشغيل) -->
+                <LinearLayout
+                    android:id="@+id/btn_next_item"
+                    android:layout_width="wrap_content"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="18dp"
+                    android:background="@drawable/bg_pill_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_marginEnd="8dp"
+                        android:src="@drawable/ic_player_forward" />
+
+                    <TextView
+                        android:id="@+id/tv_next_item"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/tajawal_bold"
+                        android:text="الحلقة التالية"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
+
+    <!-- مؤشر التحميل: وحده في منتصف الشاشة أثناء بطء الإنترنت (زر التشغيل يختفي في هذه اللحظة) -->
+    <ProgressBar
+        android:id="@+id/pb_buffering"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:indeterminateTint="#FFE50914"
+        android:visibility="gone" />
+
+    <!-- بطاقة القناة عند التنقل بين القنوات: الشعار والرقم والاسم وبرنامج الآن/التالي -->
+    <LinearLayout
+        android:id="@+id/osd_channel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|left"
+        android:layout_marginStart="28dp"
+        android:layout_marginBottom="96dp"
+        android:background="@drawable/nat_osd_bg"
+        android:gravity="center_vertical"
+        android:maxWidth="620dp"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/osd_logo"
+            android:layout_width="84dp"
+            android:layout_height="64dp"
+            android:scaleType="fitCenter" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/osd_number"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/bg_badge_red"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/osd_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/tajawal_extrabold"
+                    android:maxWidth="420dp"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/osd_now"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/tajawal_bold"
+                android:maxWidth="480dp"
+                android:maxLines="1"
+                android:textColor="#FFF59E0B"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/osd_next"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/tajawal_bold"
+                android:maxWidth="480dp"
+                android:maxLines="1"
+                android:textColor="#B3FFFFFF"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- استئناف المشاهدة من آخر نقطة، مع خيار البدء من البداية -->
+    <LinearLayout
+        android:id="@+id/resume_chip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|left"
+        android:layout_marginStart="28dp"
+        android:layout_marginBottom="120dp"
+        android:background="@drawable/nat_osd_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/resume_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/tajawal_bold"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/btn_restart"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginStart="14dp"
+            android:background="@drawable/bg_pill_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="@font/tajawal_extrabold"
+            android:gravity="center"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="من البداية ↺"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- الحلقة التالية عند انتهاء الحلقة: عدّ تنازلي ثم تشغيل تلقائي -->
+    <LinearLayout
+        android:id="@+id/next_panel"
+        android:layout_width="360dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:layout_margin="28dp"
+        android:background="@drawable/nat_osd_bg"
+        android:orientation="vertical"
+        android:padding="18dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/next_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/tajawal_bold"
+            android:text="الحلقة التالية"
+            android:textColor="#FFF59E0B"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/next_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/tajawal_extrabold"
+            android:maxLines="2"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btn_next_now"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:background="@drawable/nat_btn_watch"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/tajawal_extrabold"
+                android:gravity="center"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/btn_next_cancel"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_pill_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/tajawal_extrabold"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="إلغاء"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- ================= SETTINGS SIDE DRAWER OVERLAY (Matching Image 4 Exactly) ================= -->
     <FrameLayout
@@ -461,7 +670,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
-                    android:text="Settings"
+                    android:text="الإعدادات"
                     android:textColor="#FFFFFF"
                     android:textSize="18sp"
                     android:textStyle="bold" />
@@ -502,7 +711,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Video Tracks"
+                            android:text="جودة الفيديو"
                             android:textColor="#FFFFFF"
                             android:textSize="15sp"
                             android:textStyle="bold" />
@@ -541,7 +750,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Audio Tracks"
+                            android:text="الصوت واللغة"
                             android:textColor="#FFFFFF"
                             android:textSize="15sp"
                             android:textStyle="bold" />
@@ -580,7 +789,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Subtitle Tracks"
+                            android:text="الترجمة"
                             android:textColor="#FFFFFF"
                             android:textSize="15sp"
                             android:textStyle="bold" />
@@ -602,7 +811,7 @@
                         android:paddingTop="4dp"
                         android:paddingEnd="16dp"
                         android:paddingBottom="12dp"
-                        android:text="No subtitle found for this video"
+                        android:text="لا توجد ترجمة لهذا الفيديو"
                         android:textColor="#80FFFFFF"
                         android:textSize="13sp"
                         android:visibility="gone" />

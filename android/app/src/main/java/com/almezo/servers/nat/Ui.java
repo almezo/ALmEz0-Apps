@@ -181,6 +181,51 @@ public final class Ui {
         card.setLayoutParams(lp);
     }
 
+    /** رسالة منبثقة بتصميم المشغل: كبسولة داكنة زجاجية بإطار ذهبي خفيف أسفل الشاشة. */
+    public static void toast(Context ctx, String msg) {
+        toast(ctx, msg, false);
+    }
+
+    /**
+     * @param green كبسولة خضراء (للتنبيهات الإيجابية مثل "اضغط مرة أخرى للخروج")
+     */
+    public static void toast(Context ctx, String msg, boolean green) {
+        if (ctx == null || msg == null) return;
+        try {
+            float d = ctx.getResources().getDisplayMetrics().density;
+            android.widget.TextView tv = new android.widget.TextView(ctx);
+            tv.setText(msg);
+            tv.setTextColor(0xFFFFFFFF);
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
+            tv.setGravity(android.view.Gravity.CENTER);
+            tv.setMaxWidth(Math.round(ctx.getResources().getDisplayMetrics().widthPixels * 0.8f));
+            try {
+                tv.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(ctx, R.font.tajawal_extrabold));
+            } catch (Throwable ignored) { }
+            int padH = Math.round(24 * d), padV = Math.round(13 * d);
+            tv.setPadding(padH, padV, padH, padV);
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setCornerRadius(40 * d);
+            if (green) {
+                bg.setColors(new int[]{0xF222C55E, 0xF215803D});
+                bg.setOrientation(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT);
+                bg.setStroke(Math.round(1.5f * d), 0x80BBF7D0);
+            } else {
+                bg.setColor(0xF2111827);
+                bg.setStroke(Math.round(1.5f * d), 0x80F59E0B);
+            }
+            tv.setBackground(bg);
+            tv.setElevation(8 * d);
+            android.widget.Toast t = new android.widget.Toast(ctx.getApplicationContext());
+            t.setView(tv);
+            t.setDuration(android.widget.Toast.LENGTH_SHORT);
+            t.setGravity(android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL, 0, Math.round(48 * d));
+            t.show();
+        } catch (Throwable e) {
+            android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show();
+        }
+    }
+
     public static int logoPlaceholder() {
         return R.drawable.almezo_logo;
     }

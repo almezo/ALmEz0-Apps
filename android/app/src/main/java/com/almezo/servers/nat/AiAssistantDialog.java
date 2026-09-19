@@ -89,12 +89,10 @@ public final class AiAssistantDialog {
         final Xtream api = new Xtream(a, acc);
         final AiBrain brain = new AiBrain(a, api, acc);
 
-        final Dialog d = new Dialog(a);
-        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        final Dialog d = new NatDialog(a);
         d.setContentView(R.layout.nat_dialog_ai_assistant);
 
         if (d.getWindow() != null) {
-            d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             DisplayMetrics dm = a.getResources().getDisplayMetrics();
             int w, h;
             if (AppScale.isTouchMode(a)) {
@@ -175,7 +173,7 @@ public final class AiAssistantDialog {
             try {
                 a.startActivityForResult(intent, REQ_CODE_SPEECH);
             } catch (ActivityNotFoundException ex) {
-                Toast.makeText(a, "ميزة الإدخال الصوتي غير مدعومة على هذا الجهاز", Toast.LENGTH_SHORT).show();
+                Ui.toast(a, "ميزة الإدخال الصوتي غير مدعومة على هذا الجهاز");
             }
         });
 
@@ -324,7 +322,7 @@ public final class AiAssistantDialog {
                     try {
                         activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(s.uri)));
                     } catch (Exception e) {
-                        Toast.makeText(activity, "تعذر فتح المصدر", Toast.LENGTH_SHORT).show();
+                        Ui.toast(activity, "تعذر فتح المصدر");
                     }
                 });
                 LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) chip.getLayoutParams();

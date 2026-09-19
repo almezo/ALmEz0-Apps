@@ -24,6 +24,20 @@
         <item name="android:textColorHint">@color/nat_muted</item>
         <item name="fontFamily">@font/tajawal_bold</item>
         <item name="android:fontFamily">@font/tajawal_bold</item>
+        <item name="android:windowAnimationStyle">@style/NatScreenAnim</item>
+    </style>
+
+    <!-- انتقالات الشاشات: الجديدة تظهر بتلاشٍ وتكبير خفيف فوق السابقة، وتختفي بعكسهما عند الرجوع -->
+    <style name="NatScreenAnim" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/nat_screen_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/nat_hold</item>
+        <item name="android:activityCloseEnterAnimation">@anim/nat_hold</item>
+        <item name="android:activityCloseExitAnimation">@anim/nat_screen_exit</item>
+    </style>
+
+    <style name="NatDialogAnim" parent="@android:style/Animation.Dialog">
+        <item name="android:windowEnterAnimation">@anim/nat_dialog_in</item>
+        <item name="android:windowExitAnimation">@anim/nat_dialog_out</item>
     </style>
 
     <style name="NatText">

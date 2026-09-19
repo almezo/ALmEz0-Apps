@@ -51,6 +51,20 @@ import androidx.media3.ui.PlayerView;
 
 import android.app.ActivityManager;
 
+import com.almezo.servers.nat.Fx;
+import com.almezo.servers.nat.Models;
+import com.almezo.servers.nat.PlayQueue;
+import com.almezo.servers.nat.Store;
+import com.almezo.servers.nat.Ui;
+import com.almezo.servers.nat.Xtream;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class PlayerActivity extends AppCompatActivity {
@@ -116,6 +130,35 @@ public class PlayerActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private GestureDetector gestureDetector;
 
+    // قائمة التشغيل (قنوات القسم أو حلقات الموسم)، والاستئناف، والطبقات العائمة
+    private List<PlayQueue.Entry> queue;
+    private String contentKey;
+    private boolean resumeChecked = false;
+    private int saveTick = 0;
+    private Store store;
+    private View osdChannel, resumeChip, nextPanel, btnNextItem;
+    private ImageView osdLogo;
+    private TextView osdNumber, osdName, osdNow, osdNext, resumeText, btnRestart, nextTitle, btnNextNow, btnNextCancel, tvNextItem;
+    private int nextCountdown = 0;
+    private boolean silentAspect = false;
+    private Thread.UncaughtExceptionHandler previousCrashHandler;
+
+    private final Runnable hideOsdRunnable = () -> { if (osdChannel != null) fade(osdChannel, false); };
+    private final Runnable hideResumeRunnable = () -> { if (resumeChip != null) fade(resumeChip, false); };
+    private final Runnable nextCountdownRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (nextPanel == null || nextPanel.getVisibility() != View.VISIBLE) return;
+            if (nextCountdown <= 0) {
+                playNext();
+                return;
+            }
+            if (btnNextNow != null) btnNextNow.setText("تشغيل الآن (" + nextCountdown + ")");
+            nextCountdown--;
+            handler.postDelayed(this, 1000);
+        }
+    };
+
     private final Runnable updateProgressRunnable = new Runnable() {
         @Override
         public void run() {
@@ -135,6 +178,10 @@ public class PlayerActivity extends AppCompatActivity {
                         }
                         if (!isUserSeeking && tvPosition != null) {
                             tvPosition.setText(formatTime(pos));
+                        }
+                        if (++saveTick >= 20) {
+                            saveTick = 0;
+                            savePosition();
                         }
                     } else if (pos > 0 && !isUserSeeking && tvPosition != null) {
                         tvPosition.setText(formatTime(pos));
@@ -183,7 +230,9 @@ public class PlayerActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Crash guard to prevent app exits
+        // Crash guard to prevent app exits (يُعاد المعالج الأصلي عند إغلاق المشغل حتى لا يبقى
+        // مرتبطاً بهذه الشاشة ويلتقط أخطاء بقية التطبيق بعدها)
+        previousCrashHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             Log.e(TAG, "Uncaught exception in PlayerActivity on thread " + thread.getName(), throwable);
             try {
@@ -201,6 +250,8 @@ public class PlayerActivity extends AppCompatActivity {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
             setContentView(R.layout.activity_player);
+            Fx.install(getWindow());
+            store = new Store(this);
             // تقليل إعادة الرسم (Overdraw): الثيم يرسم خلفية نافذة سوداء كاملة، ثم يرسم الـ layout
             // الجذري (player_root) خلفية سوداء كاملة أخرى فوقها مباشرة في كل إطار. إزالة خلفية النافذة
             // توفّر طبقة رسم كاملة بحجم الشاشة دون أي تغيير مرئي، لأن الجذر يغطي الشاشة بنفس اللون.
@@ -391,7 +442,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (playerView != null) {
                 playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
                 currentAspectIndex = 3;
-                if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
+                if (tvAspectText != null) tvAspectText.setText("تمديد");
             }
         } else {
             updateVerticalSlider(layoutBrightnessSlider, barBrightnessFill, currentBrightness);
@@ -404,6 +455,35 @@ public class PlayerActivity extends AppCompatActivity {
         rgAudioTracks = findViewById(R.id.rg_audio_tracks);
         rgSubtitleTracks = findViewById(R.id.rg_subtitle_tracks);
         tvNoSubtitles = findViewById(R.id.tv_no_subtitles);
+
+        osdChannel = findViewById(R.id.osd_channel);
+        osdLogo = findViewById(R.id.osd_logo);
+        osdNumber = findViewById(R.id.osd_number);
+        osdName = findViewById(R.id.osd_name);
+        osdNow = findViewById(R.id.osd_now);
+        osdNext = findViewById(R.id.osd_next);
+        resumeChip = findViewById(R.id.resume_chip);
+        resumeText = findViewById(R.id.resume_text);
+        btnRestart = findViewById(R.id.btn_restart);
+        nextPanel = findViewById(R.id.next_panel);
+        nextTitle = findViewById(R.id.next_title);
+        btnNextNow = findViewById(R.id.btn_next_now);
+        btnNextCancel = findViewById(R.id.btn_next_cancel);
+        btnNextItem = findViewById(R.id.btn_next_item);
+        tvNextItem = findViewById(R.id.tv_next_item);
+
+        if (btnRestart != null) btnRestart.setOnClickListener(v -> {
+            if (player != null) player.seekTo(0);
+            handler.removeCallbacks(hideResumeRunnable);
+            fade(resumeChip, false);
+        });
+        if (btnNextNow != null) btnNextNow.setOnClickListener(v -> playNext());
+        if (btnNextCancel != null) btnNextCancel.setOnClickListener(v -> {
+            handler.removeCallbacks(nextCountdownRunnable);
+            fade(nextPanel, false);
+            showControls();
+        });
+        if (btnNextItem != null) btnNextItem.setOnClickListener(v -> playNext());
 
         String title = getIntent().getStringExtra("title");
         if (title != null && !title.isEmpty() && tvTitle != null) {
@@ -474,7 +554,7 @@ public class PlayerActivity extends AppCompatActivity {
                             playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
                             if (contentFrame != null) contentFrame.setAspectRatio(0);
                             toastMsg = "الأبعاد: أصلي (تناسب)";
-                            if (tvAspectText != null) tvAspectText.setText("Fit (أصلي)");
+                            if (tvAspectText != null) tvAspectText.setText("أصلي");
                             break;
                         case 1: // 1: 16:9
                             playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -491,15 +571,16 @@ public class PlayerActivity extends AppCompatActivity {
                         case 3: // 3: تمديد كامل (Fill)
                             playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
                             toastMsg = "الأبعاد: تمديد كامل (Fill)";
-                            if (tvAspectText != null) tvAspectText.setText("Fill (تمديد)");
+                            if (tvAspectText != null) tvAspectText.setText("تمديد");
                             break;
                         case 4: // 4: تكبير وقص (Zoom)
                             playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
                             toastMsg = "الأبعاد: تكبير وقص (Zoom)";
-                            if (tvAspectText != null) tvAspectText.setText("Zoom (تكبير)");
+                            if (tvAspectText != null) tvAspectText.setText("تكبير");
                             break;
                     }
-                    Toast.makeText(this, toastMsg, Toast.LENGTH_SHORT).show();
+                    if (!silentAspect) Toast.makeText(this, toastMsg, Toast.LENGTH_SHORT).show();
+                    if (store != null) store.putString("player_aspect", String.valueOf(currentAspectIndex));
                 } catch (Throwable t) {
                     Log.w(TAG, "aspect change error", t);
                 }
@@ -516,7 +597,7 @@ public class PlayerActivity extends AppCompatActivity {
                         player.setPlaybackParameters(new PlaybackParameters(speed));
                     }
                     if (tvSpeedText != null) {
-                        tvSpeedText.setText("Speed (" + (speed == (int) speed ? (int) speed + "x" : speed + "x") + ")");
+                        tvSpeedText.setText("السرعة (" + (speed == (int) speed ? (int) speed + "x" : speed + "x") + ")");
                     }
                 } catch (Throwable t) {
                     Log.w(TAG, "speed change error", t);
@@ -571,14 +652,17 @@ public class PlayerActivity extends AppCompatActivity {
             // (خاصتان باللمس والسحب فقط)، فكان الشريط يتحرك بصرياً بلا أي تأثير حقيقي على التشغيل.
             seekBar.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+                        || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                    togglePlayPause();
+                    resetControlsHideTimer();
+                    return true;
+                }
                 if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) {
                     return false;
                 }
                 if (isLiveStream || player == null) return true; // استهلاك المفتاح فقط دون تنفيذ أي شيء
-                long deltaMs = (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) ? 10000 : -10000;
-                seekRelativeDebounced(deltaMs);
-                showSeekFeedback(deltaMs > 0 ? "+10s" : "-10s");
-                resetControlsHideTimer();
+                remoteSeek(keyCode == KeyEvent.KEYCODE_DPAD_RIGHT, event.getRepeatCount());
                 return true;
             });
         }
@@ -595,26 +679,18 @@ public class PlayerActivity extends AppCompatActivity {
     // (تحريك transform عبر RenderNode، مُسرَّع بالعتاد تماماً ودون أي تكلفة حسابية أو رسومية)
     // مع الاعتماد على توهج bg_circle_button/bg_pill_button الدائري الموجود أصلاً لحالة التركيز.
     private void setupFocusEffects() {
-        View[] focusTargets = new View[] {
-            btnBack, btnCast, btnLock, btnUnlockScreen, btnSettings, btnCloseSettings,
-            btnPlayPause, btnRewind10, btnForward10, btnAspect, btnSpeed, seekBar
+        View[] buttons = new View[] {
+            btnBack, btnLock, btnUnlockScreen, btnSettings, btnCloseSettings,
+            btnPlayPause, btnRewind10, btnForward10, btnAspect, btnSpeed, btnNextItem,
+            btnRestart, btnNextNow, btnNextCancel
         };
-        for (View v : focusTargets) {
-            if (v == null) continue;
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    v.setDefaultFocusHighlightEnabled(false);
-                }
-            } catch (Throwable ignored) { }
-
-            v.setOnFocusChangeListener((view, hasFocus) -> {
-                float scale = hasFocus ? 1.12f : 1.0f;
-                view.animate()
-                        .scaleX(scale)
-                        .scaleY(scale)
-                        .setDuration(120)
-                        .start();
-            });
+        for (View v : buttons) {
+            if (v != null) Fx.setFocusScale(v, v == btnPlayPause ? 1.14f : 1.1f);
+        }
+        if (seekBar != null) {
+            // التركيز على شريط الوقت يظهر بتكبير مقبضه وتوهجه، دون تكبير الشريط كله أو رسم إطار حوله
+            Fx.setFocusScale(seekBar, 1f);
+            Fx.noRing(seekBar);
         }
     }
 
@@ -1118,42 +1194,40 @@ public class PlayerActivity extends AppCompatActivity {
                 return true;
 
             case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
+                    // التحكم ظاهر: الأسهم تنقل التركيز بين الأزرار حسب مكانها على الشاشة
+                    resetControlsHideTimer();
+                    break;
+                }
+                if (!isLiveStream) {
+                    // التحكم مخفي: التقديم/التأخير مباشرة، ثم يظهر شريط الوقت والتركيز عليه ليكمل المستخدم بالأسهم
+                    remoteSeek(keyCode == KeyEvent.KEYCODE_DPAD_RIGHT, event.getRepeatCount());
+                    showControls(seekBar);
+                } else {
+                    showControls();
+                }
+                return true;
+
             case KeyEvent.KEYCODE_MEDIA_REWIND:
             case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
-                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
-                    resetControlsHideTimer();
-                    break;
-                }
-                if (!isLiveStream) {
-                    seekRelativeDebounced(-10000);
-                    showSeekFeedback("-10s");
-                    showControls();
-                    return true;
-                } else {
-                    showControls();
-                    return true;
-                }
-
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
             case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
-                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
-                    resetControlsHideTimer();
-                    break;
-                }
                 if (!isLiveStream) {
-                    seekRelativeDebounced(10000);
-                    showSeekFeedback("+10s");
-                    showControls();
-                    return true;
-                } else {
-                    showControls();
-                    return true;
+                    boolean fwd = keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || keyCode == KeyEvent.KEYCODE_MEDIA_STEP_FORWARD;
+                    remoteSeek(fwd, event.getRepeatCount());
+                    showControls(seekBar);
                 }
+                return true;
 
             case KeyEvent.KEYCODE_DPAD_UP:
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
+                    // البث المباشر: الأعلى/الأسفل للتنقل بين قنوات القسم مثل مشغلات IPTV العالمية
+                    if (isLiveStream && queue != null && queue.size() > 1) {
+                        zap(keyCode == KeyEvent.KEYCODE_DPAD_UP ? 1 : -1);
+                        return true;
+                    }
                     showControls();
                     return true;
                 }
@@ -1162,12 +1236,20 @@ public class PlayerActivity extends AppCompatActivity {
 
             case KeyEvent.KEYCODE_CHANNEL_UP:
             case KeyEvent.KEYCODE_PAGE_UP:
-                showSeekFeedback("القناة التالية");
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+                if (queue != null && queue.size() > 1) {
+                    if (isLiveStream) zap(1); else playNext();
+                    return true;
+                }
                 break;
 
             case KeyEvent.KEYCODE_CHANNEL_DOWN:
             case KeyEvent.KEYCODE_PAGE_DOWN:
-                showSeekFeedback("القناة السابقة");
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                if (queue != null && queue.size() > 1) {
+                    if (isLiveStream) zap(-1); else playIndex(PlayQueue.index() - 1);
+                    return true;
+                }
                 break;
 
             case KeyEvent.KEYCODE_MEDIA_STOP:
@@ -1176,6 +1258,11 @@ public class PlayerActivity extends AppCompatActivity {
 
             case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_ESCAPE:
+                if (nextPanel != null && nextPanel.getVisibility() == View.VISIBLE) {
+                    handler.removeCallbacks(nextCountdownRunnable);
+                    fade(nextPanel, false);
+                    return true;
+                }
                 if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) {
                     hideControls();
                     return true;
@@ -1196,6 +1283,14 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         videoUrl = videoUrl.trim();
+
+        PlayQueue.Entry cur = PlayQueue.current();
+        if (getIntent().getBooleanExtra("queue", false) && cur != null && videoUrl.equals(cur.url)) {
+            queue = PlayQueue.entries();
+            contentKey = cur.key;
+        } else {
+            contentKey = getIntent().getStringExtra("contentKey");
+        }
 
         // Detect live stream
         isLiveStream = getIntent().getBooleanExtra("isLive", false) ||
@@ -1283,15 +1378,18 @@ public class PlayerActivity extends AppCompatActivity {
                 playerView.setPlayer(player);
             }
 
-            Uri uri = Uri.parse(videoUrl);
-            MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(uri);
-            if (isLiveStream || videoUrl.contains(".m3u8") || videoUrl.contains("/live/")) {
-                if (!videoUrl.contains(".ts") && !videoUrl.contains(".mp4") && !videoUrl.contains(".mkv")) {
-                    mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8);
+            // آخر أبعاد اختارها المستخدم
+            try {
+                int savedAspect = Integer.parseInt(store.getString("player_aspect", "-1"));
+                if (savedAspect >= 0 && btnAspect != null) {
+                    currentAspectIndex = (savedAspect + 4) % 5;
+                    silentAspect = true;
+                    btnAspect.performClick();
+                    silentAspect = false;
                 }
-            }
-            MediaItem mediaItem = mediaItemBuilder.build();
-            player.setMediaItem(mediaItem);
+            } catch (Throwable ignored) { }
+
+            player.setMediaItem(buildMediaItem(videoUrl));
             player.prepare();
             player.setPlayWhenReady(true);
 
@@ -1299,20 +1397,19 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     try {
-                        if (pbBuffering != null) {
-                            if (playbackState == Player.STATE_BUFFERING) {
-                                pbBuffering.setVisibility(View.VISIBLE);
-                            } else {
-                                pbBuffering.setVisibility(View.GONE);
-                            }
-                        }
+                        // بطء الإنترنت: علامة التحميل وحدها، وزر التشغيل يختفي في هذه اللحظة فقط
+                        boolean buffering = playbackState == Player.STATE_BUFFERING;
+                        if (pbBuffering != null) pbBuffering.setVisibility(buffering ? View.VISIBLE : View.GONE);
+                        if (btnPlayPause != null) btnPlayPause.setVisibility(buffering ? View.INVISIBLE : View.VISIBLE);
 
                         if (playbackState == Player.STATE_READY && player != null) {
                             long dur = player.getDuration();
                             if (dur > 0 && tvDuration != null) {
                                 tvDuration.setText(formatTime(dur));
                             }
+                            maybeResume();
                         }
+                        if (playbackState == Player.STATE_ENDED) onPlaybackEnded();
                     } catch (Throwable t) {
                         Log.w(TAG, "playbackStateChanged error", t);
                     }
@@ -1321,15 +1418,17 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override
                 public void onIsPlayingChanged(boolean isPlaying) {
                     try {
-                        if (btnPlayPause != null) {
+                        if (btnPlayPause != null && player != null) {
+                            // الأيقونة تتبع رغبة المستخدم (تشغيل/إيقاف) وليس حالة التحميل المؤقت
+                            boolean wantsPlay = player.getPlayWhenReady();
+                            btnPlayPause.setImageResource(wantsPlay ? R.drawable.ic_player_pause : R.drawable.ic_player_play);
+                            btnPlayPause.setColorFilter(Color.WHITE);
                             if (isPlaying) {
-                                btnPlayPause.setImageResource(R.drawable.ic_player_pause);
                                 resetControlsHideTimer();
-                            } else {
-                                btnPlayPause.setImageResource(R.drawable.ic_player_play);
+                            } else if (!wantsPlay && player.getPlaybackState() != Player.STATE_ENDED) {
+                                // إيقاف فعلي من المستخدم فقط؛ التوقف بسبب بطء الإنترنت لا يُظهر أزرار التحكم
                                 showControls();
                             }
-                            btnPlayPause.setColorFilter(Color.WHITE);
                         }
                     } catch (Throwable t) {
                         Log.w(TAG, "isPlayingChanged error", t);
@@ -1373,6 +1472,7 @@ public class PlayerActivity extends AppCompatActivity {
 
             handler.post(updateProgressRunnable);
             resetControlsHideTimer();
+            setupQueueUi();
 
         } catch (Throwable t) {
             Log.e(TAG, "Error initializing ExoPlayer", t);
@@ -1382,6 +1482,10 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void showControls() {
+        showControls(btnPlayPause);
+    }
+
+    private void showControls(View focusTarget) {
         if (isScreenLocked) return;
         try {
             if (controlsOverlay != null) {
@@ -1423,8 +1527,9 @@ public class PlayerActivity extends AppCompatActivity {
             }
 
             resetControlsHideTimer();
-            if (isTvDevice && btnPlayPause != null) {
-                btnPlayPause.requestFocus();
+            if (isTvDevice) {
+                View target = focusTarget != null && focusTarget.getVisibility() == View.VISIBLE ? focusTarget : btnPlayPause;
+                if (target != null && (target != btnPlayPause || !controlsFocused())) target.requestFocus();
             }
         } catch (Throwable t) {
             Log.w(TAG, "showControls error", t);
@@ -1453,6 +1558,205 @@ public class PlayerActivity extends AppCompatActivity {
         } catch (Throwable ignored) { }
     }
 
+    /** هل التركيز حالياً على أحد عناصر طبقة التحكم؟ (فلا ننقله للزر الرئيسي عند كل ضغطة) */
+    private boolean controlsFocused() {
+        View f = getCurrentFocus();
+        while (f != null) {
+            if (f == controlsOverlay) return true;
+            f = f.getParent() instanceof View ? (View) f.getParent() : null;
+        }
+        return false;
+    }
+
+    /**
+     * التقديم والتأخير بالريموت مع تسريع تدريجي عند الضغط المطوّل على السهم:
+     * ضغطة عادية 10 ثوانٍ، ثم 30 ثانية، ثم دقيقة، ثم دقيقتان، حتى يمكن الوصول لأي نقطة في الفيلم بسرعة.
+     */
+    private void remoteSeek(boolean forward, int repeat) {
+        long step = repeat < 4 ? 10000 : repeat < 12 ? 30000 : repeat < 24 ? 60000 : 120000;
+        long delta = forward ? step : -step;
+        seekRelativeDebounced(delta);
+        long total = pendingSeekDeltaMs;
+        showSeekFeedback((total >= 0 ? "+" : "-") + formatTime(Math.abs(total)));
+        resetControlsHideTimer();
+    }
+
+    private MediaItem buildMediaItem(String url) {
+        MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(url));
+        if (isLiveStream || url.contains(".m3u8") || url.contains("/live/")) {
+            if (!url.contains(".ts") && !url.contains(".mp4") && !url.contains(".mkv")) {
+                b.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8);
+            }
+        }
+        return b.build();
+    }
+
+    private void fade(View v, boolean show) {
+        if (v == null) return;
+        if (show) {
+            if (v.getVisibility() != View.VISIBLE) {
+                v.setAlpha(0f);
+                v.setTranslationY(24f * getResources().getDisplayMetrics().density);
+                v.setVisibility(View.VISIBLE);
+            }
+            v.animate().alpha(1f).translationY(0).setDuration(220).start();
+        } else if (v.getVisibility() == View.VISIBLE) {
+            v.animate().alpha(0f).setDuration(200).withEndAction(() -> v.setVisibility(View.GONE)).start();
+        }
+    }
+
+    // ---------------------------------------------------------------- قائمة التشغيل
+
+    private void setupQueueUi() {
+        boolean hasNext = queue != null && queue.size() > 1;
+        if (btnNextItem != null) btnNextItem.setVisibility(hasNext ? View.VISIBLE : View.GONE);
+        if (tvNextItem != null) tvNextItem.setText(isLiveStream ? "القناة التالية" : "الحلقة التالية");
+        if (isLiveStream && queue != null) showChannelOsd();
+    }
+
+    private void playNext() {
+        if (queue == null || queue.size() < 2) return;
+        if (!isLiveStream && PlayQueue.index() >= queue.size() - 1) {
+            Toast.makeText(this, "هذه آخر حلقة في الموسم", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        playIndex(PlayQueue.index() + 1);
+    }
+
+    private void zap(int delta) {
+        playIndex(PlayQueue.index() + delta);
+    }
+
+    /** تشغيل عنصر آخر من القائمة (قناة أو حلقة) داخل نفس المشغل دون إغلاقه. */
+    private void playIndex(int i) {
+        if (queue == null || queue.isEmpty() || player == null) return;
+        if (!isLiveStream && (i < 0 || i >= queue.size())) return;
+        savePosition();
+        PlayQueue.setIndex(i);
+        PlayQueue.Entry e = PlayQueue.current();
+        if (e == null) return;
+        handler.removeCallbacks(nextCountdownRunnable);
+        if (nextPanel != null) nextPanel.setVisibility(View.GONE);
+        if (resumeChip != null) resumeChip.setVisibility(View.GONE);
+        videoUrl = e.url;
+        contentKey = e.key;
+        resumeChecked = false;
+        isRetried = false;
+        if (tvTitle != null) tvTitle.setText(e.title);
+        try {
+            player.setMediaItem(buildMediaItem(e.url));
+            player.prepare();
+            player.setPlayWhenReady(true);
+            isUserPaused = false;
+        } catch (Throwable t) {
+            Log.w(TAG, "playIndex error", t);
+        }
+        if (isLiveStream) {
+            try { if (store != null) store.recordContinueWatching(Models.LIVE, e.streamId); } catch (Throwable ignored) { }
+            showChannelOsd();
+        } else {
+            showControls();
+        }
+    }
+
+    /** بطاقة القناة: الرقم والاسم والشعار، ثم برنامج الآن/التالي من دليل البرامج إن توفر. */
+    private void showChannelOsd() {
+        final PlayQueue.Entry e = PlayQueue.current();
+        if (osdChannel == null || e == null) return;
+        if (osdNumber != null) osdNumber.setText(String.valueOf(PlayQueue.index() + 1));
+        if (osdName != null) osdName.setText(e.title);
+        if (osdLogo != null) Ui.loadImage(osdLogo, e.icon, R.drawable.almezo_logo);
+        if (osdNow != null) osdNow.setVisibility(View.GONE);
+        if (osdNext != null) osdNext.setVisibility(View.GONE);
+        fade(osdChannel, true);
+        handler.removeCallbacks(hideOsdRunnable);
+        handler.postDelayed(hideOsdRunnable, 5000);
+
+        final Models.Account acc = store != null ? store.active() : null;
+        if (acc == null || e.streamId == null) return;
+        Xtream.IO.execute(() -> {
+            String now = null, next = null;
+            try {
+                JSONArray list = new Xtream(this, acc).shortEpg(e.streamId).optJSONArray("epg_listings");
+                if (list != null) {
+                    if (list.length() > 0) now = epgLine(list.optJSONObject(0));
+                    if (list.length() > 1) next = epgLine(list.optJSONObject(1));
+                }
+            } catch (Throwable ignored) { }
+            final String fNow = now, fNext = next;
+            runOnUiThread(() -> {
+                if (isFinishing() || PlayQueue.current() != e) return;
+                if (fNow != null && osdNow != null) {
+                    osdNow.setText("الآن: " + fNow);
+                    osdNow.setVisibility(View.VISIBLE);
+                }
+                if (fNext != null && osdNext != null) {
+                    osdNext.setText("التالي: " + fNext);
+                    osdNext.setVisibility(View.VISIBLE);
+                }
+            });
+        });
+    }
+
+    private static String epgLine(JSONObject o) {
+        if (o == null) return null;
+        String title = o.optString("title", "");
+        try {
+            title = new String(android.util.Base64.decode(title, android.util.Base64.DEFAULT), StandardCharsets.UTF_8).trim();
+        } catch (Throwable ignored) { }
+        if (title.isEmpty()) return null;
+        long start = o.optLong("start_timestamp", 0), end = o.optLong("stop_timestamp", o.optLong("end_timestamp", 0));
+        if (start > 0 && end > 0) {
+            SimpleDateFormat f = new SimpleDateFormat("HH:mm", Locale.US);
+            return title + "  (" + f.format(new Date(start * 1000)) + " - " + f.format(new Date(end * 1000)) + ")";
+        }
+        return title;
+    }
+
+    // ---------------------------------------------------------------- الاستئناف والحلقة التالية
+
+    /** يستأنف الفيلم/الحلقة من آخر نقطة توقف، مع زر "من البداية" لبضع ثوانٍ. */
+    private void maybeResume() {
+        if (resumeChecked || isLiveStream || contentKey == null || store == null || player == null) return;
+        resumeChecked = true;
+        long[] saved = store.position(contentKey);
+        if (saved == null) return;
+        long dur = player.getDuration();
+        long pos = saved[0];
+        if (pos < 30000 || (dur > 0 && pos > dur - 90000)) return;
+        player.seekTo(pos);
+        if (resumeText != null) resumeText.setText("تم الاستئناف من " + formatTime(pos));
+        fade(resumeChip, true);
+        handler.removeCallbacks(hideResumeRunnable);
+        handler.postDelayed(hideResumeRunnable, 8000);
+    }
+
+    private void savePosition() {
+        if (isLiveStream || contentKey == null || store == null || player == null) return;
+        try {
+            long pos = player.getCurrentPosition(), dur = player.getDuration();
+            if (dur <= 0) return;
+            if (pos > dur - 60000) store.clearPosition(contentKey);
+            else if (pos > 10000) store.savePosition(contentKey, pos, dur);
+        } catch (Throwable ignored) { }
+    }
+
+    private void onPlaybackEnded() {
+        if (store != null && contentKey != null) store.clearPosition(contentKey);
+        boolean hasNext = !isLiveStream && queue != null && PlayQueue.index() < queue.size() - 1;
+        if (!hasNext) {
+            showControls();
+            return;
+        }
+        PlayQueue.Entry next = queue.get(PlayQueue.index() + 1);
+        if (nextTitle != null) nextTitle.setText(next.title);
+        nextCountdown = 8;
+        fade(nextPanel, true);
+        if (btnNextNow != null) btnNextNow.requestFocus();
+        handler.removeCallbacks(nextCountdownRunnable);
+        handler.post(nextCountdownRunnable);
+    }
+
     // FIXED: Exactly matches Image 3 formatting and prevents MissingFormatArgumentException
     private String formatTime(long ms) {
         if (ms <= 0) return "00:00";
@@ -1470,6 +1774,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        savePosition();
         if (player != null) {
             try {
                 player.pause();
@@ -1495,6 +1800,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (previousCrashHandler != null) Thread.setDefaultUncaughtExceptionHandler(previousCrashHandler);
         try {
             handler.removeCallbacksAndMessages(null);
             if (player != null) {

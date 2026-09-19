@@ -365,18 +365,32 @@ public class SeriesDetailsActivity extends BaseActivity {
         if (adapter != null) adapter.notifyDataSetChanged();
     }
 
-    private void playEpisode(JSONObject ep) {
-        store.recordContinueWatching(Models.SERIES, seriesId);
+    static String episodeId(JSONObject ep) {
         String epId = ep.optString("id");
         if (epId.isEmpty()) epId = ep.optString("stream_id");
         if (epId.isEmpty()) epId = ep.optString("episode_id");
-        String ext = ep.optString("container_extension", "mp4");
-        String epNum = ep.optString("episode_num", "");
-        String cleanTitle = cleanEpisodeTitle(ep.optString("title", ""), epNum, 1);
-        String title = name + " - " + cleanTitle;
+        return epId;
+    }
+
+    /** تشغيل حلقة مع باقي حلقات الموسم كقائمة تشغيل (للحلقة التالية داخل المشغل). */
+    private void playEpisode(int position) {
+        if (position < 0 || position >= episodes.size()) return;
+        store.recordContinueWatching(Models.SERIES, seriesId);
+        List<PlayQueue.Entry> list = new ArrayList<>(episodes.size());
+        for (int n = 0; n < episodes.size(); n++) {
+            JSONObject e = episodes.get(n);
+            String eId = episodeId(e);
+            String t = name + " - " + cleanEpisodeTitle(e.optString("title", ""), e.optString("episode_num", ""), n + 1);
+            list.add(new PlayQueue.Entry(api.streamUrl(Models.SERIES, eId, e.optString("container_extension", "mp4")),
+                    t, cover, "ep:" + eId, eId, Models.SERIES));
+        }
+        PlayQueue.set(list, position);
+        PlayQueue.Entry cur = PlayQueue.current();
+        String title = cur.title;
 
         Intent i = new Intent(this, PlayerActivity.class);
-        i.putExtra("videoUrl", api.streamUrl(Models.SERIES, epId, ext));
+        i.putExtra("queue", true);
+        i.putExtra("videoUrl", cur.url);
         i.putExtra("title", title);
         i.putExtra("posterUrl", cover == null ? "" : cover);
         i.putExtra("isLive", false);
@@ -511,9 +525,11 @@ public class SeriesDetailsActivity extends BaseActivity {
         class VH extends RecyclerView.ViewHolder {
             final ImageView thumb;
             final TextView title, duration;
+            final android.widget.ProgressBar progress;
 
             VH(View v) {
                 super(v);
+                progress = v.findViewById(R.id.ep_progress);
                 thumb = v.findViewById(R.id.ep_thumb);
                 title = v.findViewById(R.id.ep_title);
                 duration = v.findViewById(R.id.ep_duration);
@@ -547,7 +563,14 @@ public class SeriesDetailsActivity extends BaseActivity {
             String img = (info != null) ? info.optString("movie_image", "") : "";
             Ui.loadImage(h.thumb, (img != null && !img.isEmpty() && !"null".equals(img)) ? img : cover, Ui.logoPlaceholder());
 
-            h.itemView.setOnClickListener(v -> playEpisode(ep));
+            long[] watched = store.position("ep:" + episodeId(ep));
+            if (watched != null && watched[1] > 0) {
+                h.progress.setProgress((int) Math.min(1000, watched[0] * 1000 / watched[1]));
+                h.progress.setVisibility(View.VISIBLE);
+            } else {
+                h.progress.setVisibility(View.GONE);
+            }
+            h.itemView.setOnClickListener(v -> playEpisode(h.getBindingAdapterPosition()));
         }
 
         @Override
@@ -563,6 +586,7 @@ public class SeriesDetailsActivity extends BaseActivity {
         public PopularHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_popular_poster, parent, false);
             applyFocusScale(v, 1.08f);
+            Fx.noRing(v);
             return new PopularHolder(v);
         }
 
@@ -614,6 +638,8 @@ public class SeriesDetailsActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         if (nav != null) nav.start();
+        // تحديث أشرطة تقدم المشاهدة بعد الرجوع من المشغل
+        if (adapter != null && !episodes.isEmpty()) adapter.notifyDataSetChanged();
     }
 
     @Override

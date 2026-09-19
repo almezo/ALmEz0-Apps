@@ -9065,4 +9065,42 @@ body.tv-nav-active :focus-visible,
     .hero-title {
         font-size: 3.2rem !important;
     }
-}
+}
+/* =====================================================================
+   مؤثرات الأزرار والتركيز الموحّدة (نمط نتفلكس وشاهد)
+   ---------------------------------------------------------------------
+   - التركيز بالريموت: حلقة بيضاء ناعمة تتبع استدارة العنصر مع توهج خفيف، بدل الإطار
+     الأخضر المربع (outline) الذي لا يتبع شكل الأزرار المستديرة.
+   - الضغط: الزر ينكمش قليلاً ويضيء. نستخدم خاصية scale المستقلة (وليس transform) حتى لا
+     تتأثر الأزرار التي تعتمد على transform في تموضعها.
+   ===================================================================== */
+[data-input-mode="remote"] :focus-visible,
+[data-is-tv="true"] :focus-visible,
+body.tv-nav-active :focus-visible,
+.tv-focused {
+    outline: none !important;
+    box-shadow: 0 0 0 3px #ffffff, 0 0 28px rgba(255, 255, 255, 0.45) !important;
+}
+
+.modal .tv-focused,
+.modal-content .tv-focused,
+.auth-view .tv-focused {
+    outline: none !important;
+    box-shadow: 0 0 0 3px #ffffff, 0 0 24px rgba(255, 255, 255, 0.4) !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    button,
+    .btn,
+    [role="button"] {
+        transition: scale 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.3), filter 0.18s ease, box-shadow 0.22s ease;
+    }
+
+    button:active,
+    .btn:active,
+    [role="button"]:active {
+        scale: 0.95;
+        filter: brightness(1.18) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35));
+    }
+}
