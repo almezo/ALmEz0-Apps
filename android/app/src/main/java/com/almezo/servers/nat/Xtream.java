@@ -249,7 +249,15 @@ public final class Xtream {
                             break;
                         case "category_id": it.categoryId = loose(r); break;
                         case "container_extension": it.extension = loose(r); break;
-                        case "rating": rating = loose(r); break;
+                        case "rating":
+                        case "vote_average":
+                        case "rating_imdb":
+                        case "imdb_rating":
+                        case "tmdb_rating":
+                        case "score":
+                            if (rating == null || rating.isEmpty() || "0".equals(rating)) rating = loose(r);
+                            else r.skipValue();
+                            break;
                         case "genre": it.genre = loose(r); break;
                         case "rating_5based": rating5 = loose(r); break;
                         case "added": added = loose(r); break;
@@ -260,7 +268,12 @@ public final class Xtream {
                 r.endObject();
                 if (it.id == null) continue;
                 it.rating = parseFloat(rating);
-                if (it.rating <= 0) it.rating = parseFloat(rating5);
+                if (it.rating <= 0) {
+                    float r5 = parseFloat(rating5);
+                    if (r5 > 0) {
+                        it.rating = r5 <= 5.0f ? r5 * 2f : r5;
+                    }
+                }
                 it.added = parseLong(added != null ? added : modified);
                 out.add(it);
             }

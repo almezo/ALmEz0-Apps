@@ -68,6 +68,7 @@ public class MovieDetailsActivity extends BaseActivity {
 
         ((TextView) findViewById(R.id.det_title)).setText(name);
         Ui.loadImage(findViewById(R.id.det_poster), cover, Ui.logoPlaceholder());
+        showBackdrop(this, findViewById(R.id.det_backdrop), null, cover);
 
         View play = findViewById(R.id.det_btn_play);
         applyFocusScale(play, 1.05f);
@@ -116,7 +117,7 @@ public class MovieDetailsActivity extends BaseActivity {
         popularTitle.setText("أفلام رائجة للمشاهدة الآن");
 
         TextView popularSubtitle = findViewById(R.id.det_popular_subtitle);
-        popularSubtitle.setText("من نفس نوع الفيلم ولغته");
+        popularSubtitle.setText("الأفلام الأكثر مشاهدة واختياراً");
         // يظهر الشريط بعد اختيار أفلام مطابقة فعلاً لتصنيف الفيلم وبلده
         findViewById(R.id.det_popular_section).setVisibility(View.GONE);
 
@@ -161,10 +162,7 @@ public class MovieDetailsActivity extends BaseActivity {
                 popularItems.clear();
                 popularItems.addAll(found);
                 if (popularAdapter != null) popularAdapter.notifyDataSetChanged();
-                if (!genre.trim().isEmpty() && !"null".equals(genre)) {
-                    ((TextView) findViewById(R.id.det_popular_subtitle)).setText(
-                            "أفلام " + SeriesDetailsActivity.translateGenre(genre) + " من نفس لغة الفيلم وبلده");
-                }
+                ((TextView) findViewById(R.id.det_popular_subtitle)).setText("الأفلام الأكثر مشاهدة واختياراً");
                 findViewById(R.id.det_popular_section).setVisibility(found.isEmpty() ? View.GONE : View.VISIBLE);
             });
         });
@@ -173,41 +171,107 @@ public class MovieDetailsActivity extends BaseActivity {
     private void bind(JSONObject root) {
         JSONObject info = root.optJSONObject("info");
         JSONObject data = root.optJSONObject("movie_data");
-        if (data != null) {
-            String e = data.optString("container_extension", "");
-            if (!e.isEmpty()) ext = e;
-        }
-        if (info == null) return;
+        if (info == null) info = new JSONObject();
+        if (data == null) data = new JSONObject();
 
-        String poster = firstNonEmpty(info.optString("movie_image"), info.optString("cover_big"), cover);
+        String e = firstNonEmpty(
+                data.optString("container_extension"),
+                data.optString("extension"),
+                info.optString("container_extension"),
+                info.optString("extension")
+        );
+        if (!e.isEmpty()) ext = e;
+
+        String poster = firstNonEmpty(
+                resolveImageUrl(info.optString("movie_image")),
+                resolveImageUrl(info.optString("cover_big")),
+                resolveImageUrl(data.optString("movie_image")),
+                resolveImageUrl(data.optString("cover_big")),
+                resolveImageUrl(data.optString("cover")),
+                cover
+        );
         Ui.loadImage(findViewById(R.id.det_poster), poster, Ui.logoPlaceholder());
-        showBackdrop(this, findViewById(R.id.det_backdrop), firstBackdrop(info), poster);
+
+        String backdrop = firstBackdrop(info);
+        if (backdrop == null) backdrop = firstBackdrop(data);
+        showBackdrop(this, findViewById(R.id.det_backdrop), backdrop, poster);
+
+        String rawGenre = firstNonEmpty(
+                info.optString("genre"),
+                data.optString("genre"),
+                info.optString("category_name"),
+                data.optString("category_name")
+        );
+        String rawDuration = firstNonEmpty(
+                info.optString("duration"),
+                info.optString("duration_secs"),
+                info.optString("runtime"),
+                info.optString("movie_duration"),
+                data.optString("duration"),
+                data.optString("duration_secs"),
+                data.optString("runtime")
+        );
+        String rawCountry = firstNonEmpty(info.optString("country"), data.optString("country"));
+        String rawYear = firstNonEmpty(
+                info.optString("releasedate"),
+                info.optString("release_date"),
+                info.optString("year"),
+                data.optString("releasedate"),
+                data.optString("release_date"),
+                data.optString("year")
+        );
 
         StringBuilder meta = new StringBuilder();
-        appendPart(meta, SeriesDetailsActivity.translateGenre(info.optString("genre")));
-        appendPart(meta, SeriesDetailsActivity.formatDuration(info.optString("duration")));
-        appendPart(meta, info.optString("country"));
-        String year = info.optString("releasedate", "");
-        if (year.length() >= 4) appendPart(meta, year.substring(0, 4));
+        appendPart(meta, translateMovieGenre(rawGenre));
+        appendPart(meta, formatMovieDuration(rawDuration));
+        appendPart(meta, rawCountry);
+        if (rawYear.length() >= 4) {
+            try {
+                java.util.regex.Matcher ym = java.util.regex.Pattern.compile("(\\d{4})").matcher(rawYear);
+                if (ym.find()) appendPart(meta, ym.group(1));
+                else appendPart(meta, rawYear.substring(0, 4));
+            } catch (Exception ignored) {
+                appendPart(meta, rawYear.substring(0, 4));
+            }
+        }
         ((TextView) findViewById(R.id.det_meta)).setText(meta.toString());
 
-        String rating = info.optString("rating", "");
+        String rating = extractRating(info);
+        if (rating.isEmpty()) rating = extractRating(data);
         TextView ratingView = findViewById(R.id.det_rating);
-        if (!rating.isEmpty() && !"0".equals(rating) && !"null".equals(rating)) {
-            ratingView.setText("★  التقييم: " + rating);
+        if (ratingView != null) {
+            String displayRating = (!rating.isEmpty() && !"0".equals(rating) && !"0.0".equals(rating)) ? rating : "N/A";
+            ratingView.setText("★  التقييم: " + displayRating);
             ratingView.setVisibility(View.VISIBLE);
-        } else {
-            ratingView.setVisibility(View.GONE);
         }
 
-        String rawPlot = firstNonEmpty(info.optString("plot"), info.optString("description"));
+        String rawPlot = firstNonEmpty(
+                info.optString("plot"),
+                info.optString("description"),
+                info.optString("overview"),
+                info.optString("story"),
+                info.optString("synopsis"),
+                data.optString("plot"),
+                data.optString("description"),
+                data.optString("overview"),
+                data.optString("story"),
+                root.optString("plot"),
+                root.optString("description")
+        );
         translatePlotToArabic(rawPlot);
 
-        String director = info.optString("director", "");
+        String director = firstNonEmpty(
+                info.optString("director"),
+                info.optString("directors"),
+                info.optString("directed_by"),
+                data.optString("director"),
+                data.optString("directors"),
+                data.optString("directed_by")
+        );
         TextView dirView = findViewById(R.id.det_director);
         View dirBox = findViewById(R.id.det_director_box);
         if (dirView != null && dirBox != null) {
-            if (!director.isEmpty() && !"null".equals(director)) {
+            if (!director.isEmpty() && !"null".equalsIgnoreCase(director)) {
                 dirView.setText(director);
                 dirBox.setVisibility(View.VISIBLE);
             } else {
@@ -215,11 +279,19 @@ public class MovieDetailsActivity extends BaseActivity {
             }
         }
 
-        String cast = firstNonEmpty(info.optString("cast"), info.optString("actors"));
+        String cast = firstNonEmpty(
+                info.optString("cast"),
+                info.optString("actors"),
+                info.optString("starring"),
+                info.optString("cast_list"),
+                data.optString("cast"),
+                data.optString("actors"),
+                data.optString("starring")
+        );
         TextView castView = findViewById(R.id.det_actors);
         View castBox = findViewById(R.id.det_actors_box);
         if (castView != null && castBox != null) {
-            if (!cast.isEmpty() && !"null".equals(cast)) {
+            if (!cast.isEmpty() && !"null".equalsIgnoreCase(cast)) {
                 castView.setText(cast);
                 castBox.setVisibility(View.VISIBLE);
             } else {
@@ -227,10 +299,71 @@ public class MovieDetailsActivity extends BaseActivity {
             }
         }
 
-        trailerKey = info.optString("youtube_trailer", "");
-        if (trailerKey != null && !trailerKey.trim().isEmpty()) {
-            findViewById(R.id.det_btn_trailer).setVisibility(View.VISIBLE);
+        trailerKey = firstNonEmpty(
+                info.optString("youtube_trailer"),
+                info.optString("trailer"),
+                data.optString("youtube_trailer"),
+                data.optString("trailer")
+        );
+        View trailerBtn = findViewById(R.id.det_btn_trailer);
+        if (trailerBtn != null) {
+            trailerBtn.setVisibility(View.VISIBLE);
         }
+    }
+
+    public static String translateMovieGenre(String raw) {
+        if (raw == null || raw.trim().isEmpty() || "null".equalsIgnoreCase(raw)) return "فيلم";
+        String[] parts = raw.split("[,|/]");
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts) {
+            String clean = p.trim().toLowerCase();
+            String ar = SeriesDetailsActivity.GENRE_MAP.get(clean);
+            if (sb.length() > 0) sb.append("، ");
+            sb.append(ar != null ? ar : p.trim());
+        }
+        return sb.length() > 0 ? sb.toString() : "فيلم";
+    }
+
+    public static String formatMovieDuration(String raw) {
+        if (raw == null || raw.trim().isEmpty() || "null".equalsIgnoreCase(raw) || "0".equals(raw)) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.contains(":")) {
+            String[] parts = s.split(":");
+            try {
+                if (parts.length == 3) {
+                    int h = Integer.parseInt(parts[0].trim());
+                    int m = Integer.parseInt(parts[1].trim());
+                    if (h > 0 && m > 0) return h + " س " + m + " د";
+                    if (h > 0) return h + " ساعة";
+                    if (m > 0) return m + " دقيقة";
+                } else if (parts.length == 2) {
+                    int m = Integer.parseInt(parts[0].trim());
+                    if (m >= 60) return (m / 60) + " س " + (m % 60) + " د";
+                    if (m > 0) return m + " دقيقة";
+                }
+            } catch (Exception ignored) {}
+        }
+        if (s.matches("^\\d+$")) {
+            try {
+                int val = Integer.parseInt(s);
+                if (val <= 0) return "";
+                int minutes = val;
+                if (val > 300) {
+                    minutes = val / 60;
+                }
+                if (minutes >= 60) {
+                    int h = minutes / 60;
+                    int rem = minutes % 60;
+                    return rem > 0 ? (h + " س " + rem + " د") : (h + " ساعة");
+                }
+                return minutes + " دقيقة";
+            } catch (Exception ignored) {}
+        }
+        s = s.replaceAll("(?i)\\s*hours?", " س").replaceAll("(?i)\\s*h\\b", " س");
+        s = s.replaceAll("(?i)\\s*min(?:ute)?s?", " د").replaceAll("(?i)\\s*m\\b", " د");
+        return s;
     }
 
     private void translatePlotToArabic(String rawPlot) {
@@ -243,7 +376,7 @@ public class MovieDetailsActivity extends BaseActivity {
      */
     static void showArabicPlot(BaseActivity a, TextView plotView, String rawPlot, String emptyText) {
         if (plotView == null) return;
-        if (rawPlot == null || rawPlot.trim().isEmpty() || "null".equals(rawPlot)) {
+        if (rawPlot == null || rawPlot.trim().isEmpty() || "null".equalsIgnoreCase(rawPlot)) {
             plotView.setText(emptyText);
             return;
         }
@@ -268,35 +401,71 @@ public class MovieDetailsActivity extends BaseActivity {
      */
     static void showBackdrop(BaseActivity a, ImageView bd, String backdrop, String poster) {
         if (bd == null) return;
-        if (backdrop != null) {
-            Ui.loadImage(bd, backdrop, android.R.color.transparent);
+        String target = resolveImageUrl(backdrop);
+        if (target != null) {
+            Ui.loadImage(bd, target, android.R.color.transparent);
             return;
         }
-        if (poster == null || poster.trim().isEmpty()) return;
+        String pTarget = resolveImageUrl(poster);
+        if (pTarget == null || pTarget.trim().isEmpty()) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             float r = 18f * a.getResources().getDisplayMetrics().density;
             bd.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP));
         }
-        Ui.loadImage(bd, poster, android.R.color.transparent);
+        Ui.loadImage(bd, pTarget, android.R.color.transparent);
+    }
+
+    public static String resolveImageUrl(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) return null;
+
+        if (s.startsWith("[") && s.endsWith("]")) {
+            try {
+                JSONArray arr = new JSONArray(s);
+                if (arr.length() > 0) return resolveImageUrl(arr.optString(0, ""));
+            } catch (Exception ignored) {}
+            s = s.replaceAll("^\\[\"?", "").replaceAll("\"?\\]$", "").replace("\\/", "/").trim();
+            if (s.isEmpty() || "null".equalsIgnoreCase(s)) return null;
+        }
+
+        s = s.replace("\\/", "/");
+
+        if (s.startsWith("//")) return "https:" + s;
+        if (s.startsWith("http://") || s.startsWith("https://")) {
+            return s.replaceAll("/t/p/w\\d+/", "/t/p/w1280/");
+        }
+        if (s.startsWith("/")) {
+            return "https://image.tmdb.org/t/p/w1280" + s;
+        }
+        return s;
     }
 
     static String firstNonEmpty(String... values) {
-        for (String v : values) if (v != null && !v.trim().isEmpty() && !"null".equals(v)) return v.trim();
+        for (String v : values) if (v != null && !v.trim().isEmpty() && !"null".equalsIgnoreCase(v)) return v.trim();
         return "";
     }
 
-    static String firstBackdrop(JSONObject info) {
+    public static String firstBackdrop(JSONObject info) {
+        if (info == null) return null;
         JSONArray arr = info.optJSONArray("backdrop_path");
         if (arr != null && arr.length() > 0) {
-            String s = arr.optString(0, "");
-            if (!s.isEmpty()) return s;
+            String res = resolveImageUrl(arr.optString(0, ""));
+            if (res != null) return res;
         }
-        String s = info.optString("backdrop_path", "");
-        return s.isEmpty() || s.startsWith("[") ? null : s;
+        String bp = resolveImageUrl(info.optString("backdrop_path", ""));
+        if (bp != null) return bp;
+
+        String[] altKeys = {"backdrop", "movie_image", "cover_big", "fanart", "background", "image"};
+        for (String k : altKeys) {
+            String val = resolveImageUrl(info.optString(k, ""));
+            if (val != null) return val;
+        }
+        return null;
     }
 
     static void appendPart(StringBuilder sb, String part) {
-        if (part == null || part.trim().isEmpty() || "null".equals(part)) return;
+        if (part == null || part.trim().isEmpty() || "null".equalsIgnoreCase(part)) return;
         if (sb.length() > 0) sb.append("  |  ");
         sb.append(part.trim());
     }
@@ -316,9 +485,13 @@ public class MovieDetailsActivity extends BaseActivity {
     }
 
     private void openTrailer() {
-        if (trailerKey == null || trailerKey.trim().isEmpty()) return;
-        String key = trailerKey.trim();
-        String url = key.startsWith("http") ? key : "https://www.youtube.com/watch?v=" + key;
+        String url;
+        if (trailerKey != null && !trailerKey.trim().isEmpty() && !"null".equalsIgnoreCase(trailerKey)) {
+            String key = trailerKey.trim();
+            url = key.startsWith("http") ? key : "https://www.youtube.com/watch?v=" + key;
+        } else {
+            url = "https://www.youtube.com/results?search_query=" + Uri.encode((name != null ? name : "") + " trailer اعلان فيلم");
+        }
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {
@@ -341,6 +514,26 @@ public class MovieDetailsActivity extends BaseActivity {
         return t >= 3600
                 ? String.format(java.util.Locale.US, "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60)
                 : String.format(java.util.Locale.US, "%02d:%02d", t / 60, t % 60);
+    }
+
+    public static String extractRating(JSONObject o) {
+        if (o == null) return "";
+        String[] keys = {"rating", "vote_average", "rating_imdb", "imdb_rating", "tmdb_rating", "rating_5based", "score"};
+        for (String k : keys) {
+            String v = o.optString(k, "").trim();
+            if (!v.isEmpty() && !"0".equals(v) && !"0.0".equals(v) && !"null".equalsIgnoreCase(v)) {
+                try {
+                    float f = Float.parseFloat(v);
+                    if (f > 0) {
+                        if ("rating_5based".equals(k) && f <= 5.0f) f *= 2.0f;
+                        return f == (int) f ? String.valueOf((int) f) : String.format(java.util.Locale.US, "%.1f", f);
+                    }
+                } catch (Exception ignored) {
+                    return v;
+                }
+            }
+        }
+        return "";
     }
 
     @Override

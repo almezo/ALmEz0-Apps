@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <!-- Red circle background -->
+    <path
+        android:fillColor="#FF2A2A"
+        android:pathData="M256,0C114.6,0 0,114.6 0,256s114.6,256 256,256s256,-114.6 256,-256S397.4,0 256,0z" />
+    <!-- White play triangle inside -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M188.3,147.1c-7.6,-4.2 -16.8,-4.1 -24.3,0.5s-12.3,12.2 -12.3,20.9V343.5c0,8.7 4.7,16.7 12.3,20.9s16.7,4 24.3,-0.5l144,-88c7.1,-4.4 11.5,-12.1 11.5,-20.5s-4.4,-16.1 -11.5,-20.5l-144,-88z" />
+</vector>

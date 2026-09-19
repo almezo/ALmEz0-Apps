@@ -1,227 +1,329 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_gravity="center"
-    android:layout_margin="20dp"
+    android:layout_margin="16dp"
     android:background="@drawable/nat_bg_dialog_card"
-    android:layoutDirection="rtl"
-    android:orientation="vertical"
-    android:padding="20dp">
+    android:layoutDirection="rtl">
 
-    <!-- Header -->
+    <!-- Main Chat Content -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <ImageView
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/nat_btn_ai"
-            android:padding="9dp"
-            android:src="@drawable/fa_sparkles"
-            app:tint="#FFFFFFFF" />
-
+        <!-- Header -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-            <TextView
-                style="@style/NatText.ExtraBold"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="مساعد الميزو الذكي ✨"
-                android:textSize="22sp" />
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/nat_btn_ai"
+                android:padding="9dp"
+                android:src="@drawable/fa_sparkles"
+                app:tint="#FFFFFFFF" />
 
-            <TextView
-                style="@style/NatText"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="يعرف محتوى سيرفرك ويبحث لك في الإنترنت عن المباريات والمعلومات"
-                android:textColor="@color/nat_muted"
-                android:textSize="14sp" />
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="مساعد الميزو الذكي ✨"
+                    android:textSize="22sp" />
+
+                <TextView
+                    style="@style/NatText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="يعرف محتوى سيرفرك ويبحث لك في الإنترنت عن المباريات والمعلومات"
+                    android:textColor="@color/nat_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/ai_btn_history"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="سجل المحادثات"
+                android:focusable="true"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_clock_rotate_left"
+                app:tint="@color/nat_soft" />
+
+            <ImageButton
+                android:id="@+id/ai_btn_clear"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="مسح المحادثة"
+                android:focusable="true"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_trash"
+                app:tint="@color/nat_soft" />
+
+            <ImageButton
+                android:id="@+id/ai_btn_close"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="إغلاق"
+                android:focusable="true"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_xmark"
+                app:tint="@color/nat_soft" />
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/ai_btn_clear"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/nat_btn_social"
-            android:contentDescription="مسح المحادثة"
-            android:focusable="true"
-            android:padding="11dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/fa_trash"
-            app:tint="@color/nat_soft" />
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="12dp"
+            android:background="#22FFFFFF" />
 
-        <ImageButton
-            android:id="@+id/ai_btn_close"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/nat_btn_social"
-            android:contentDescription="إغلاق"
-            android:focusable="true"
-            android:padding="11dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/fa_xmark"
-            app:tint="@color/nat_soft" />
-    </LinearLayout>
+        <!-- Chat messages -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/ai_chat_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginTop="14dp"
-        android:layout_marginBottom="12dp"
-        android:background="#22FFFFFF" />
-
-    <!-- Chat messages -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/ai_chat_list"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp" />
-
-    <!-- Quick prompt chips -->
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:layout_marginBottom="10dp"
-        android:scrollbars="none">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <!-- Quick prompt chips -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="10dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingTop="5dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="5dp">
+
+                <TextView
+                    android:id="@+id/chip_matches"
+                    style="@style/NatText.Bold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/nat_bg_ai_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="⚽ مباريات الليلة"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/chip_movie"
+                    style="@style/NatText.Bold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/nat_bg_ai_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="🎬 فيلم سهرة"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/chip_series"
+                    style="@style/NatText.Bold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/nat_bg_ai_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="📺 أحدث المسلسلات"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/chip_sports"
+                    style="@style/NatText.Bold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:background="@drawable/nat_bg_ai_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="🏆 القنوات الرياضية"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="15sp" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- Input Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:background="@drawable/nat_bg_input"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="4dp"
-            android:paddingTop="5dp"
-            android:paddingEnd="4dp"
-            android:paddingBottom="5dp">
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
 
-            <TextView
-                android:id="@+id/chip_matches"
-                style="@style/NatText.Bold"
-                android:layout_width="wrap_content"
-                android:layout_height="42dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/nat_bg_ai_chip"
-                android:clickable="true"
+            <ImageButton
+                android:id="@+id/ai_btn_mic"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="تحدث بالصوت"
                 android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:text="⚽ مباريات الليلة"
-                android:textColor="#FFFFFFFF"
-                android:textSize="15sp" />
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_microphone"
+                app:tint="@color/nat_gold" />
 
-            <TextView
-                android:id="@+id/chip_movie"
-                style="@style/NatText.Bold"
-                android:layout_width="wrap_content"
-                android:layout_height="42dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/nat_bg_ai_chip"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:text="🎬 فيلم سهرة"
+            <EditText
+                android:id="@+id/ai_input_text"
+                style="@style/NatText"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="اكتب سؤالك أو اضغط على الميكروفون للتحدث..."
+                android:imeActionLabel="إرسال"
+                android:imeOptions="actionSend"
+                android:inputType="text"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:textColor="#FFFFFFFF"
-                android:textSize="15sp" />
+                android:textColorHint="@color/nat_muted"
+                android:textSize="17sp" />
 
-            <TextView
-                android:id="@+id/chip_series"
-                style="@style/NatText.Bold"
-                android:layout_width="wrap_content"
-                android:layout_height="42dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/nat_bg_ai_chip"
-                android:clickable="true"
+            <ImageButton
+                android:id="@+id/ai_btn_send"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/nat_btn_watch"
+                android:contentDescription="إرسال"
                 android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:text="📺 أحدث المسلسلات"
-                android:textColor="#FFFFFFFF"
-                android:textSize="15sp" />
-
-            <TextView
-                android:id="@+id/chip_sports"
-                style="@style/NatText.Bold"
-                android:layout_width="wrap_content"
-                android:layout_height="42dp"
-                android:background="@drawable/nat_bg_ai_chip"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:text="🏆 القنوات الرياضية"
-                android:textColor="#FFFFFFFF"
-                android:textSize="15sp" />
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_paper_plane"
+                app:tint="#FFFFFFFF" />
         </LinearLayout>
-    </HorizontalScrollView>
-
-    <!-- Input Bar -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="58dp"
-        android:background="@drawable/nat_bg_input"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp">
-
-        <ImageButton
-            android:id="@+id/ai_btn_mic"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:background="@drawable/nat_btn_social"
-            android:contentDescription="تحدث بالصوت"
-            android:focusable="true"
-            android:padding="11dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/fa_microphone"
-            app:tint="@color/nat_gold" />
-
-        <EditText
-            android:id="@+id/ai_input_text"
-            style="@style/NatText"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@null"
-            android:hint="اكتب سؤالك أو اضغط على الميكروفون للتحدث..."
-            android:imeOptions="actionSend"
-            android:inputType="text"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textColor="#FFFFFFFF"
-            android:textColorHint="@color/nat_muted"
-            android:textSize="17sp" />
-
-        <ImageButton
-            android:id="@+id/ai_btn_send"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:background="@drawable/nat_btn_watch"
-            android:contentDescription="إرسال"
-            android:focusable="true"
-            android:padding="11dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/fa_paper_plane"
-            app:tint="#FFFFFFFF" />
     </LinearLayout>
-</LinearLayout>
+
+    <!-- History Drawer / Overlay Panel (سجل المحادثات السابقة) -->
+    <LinearLayout
+        android:id="@+id/ai_history_drawer"
+        android:layout_width="320dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start|top"
+        android:background="@drawable/nat_bg_dialog_card"
+        android:elevation="14dp"
+        android:orientation="vertical"
+        android:padding="18dp"
+        android:visibility="gone">
+
+        <!-- History Drawer Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/fa_clock_rotate_left"
+                app:tint="#FFF8FAFC" />
+
+            <TextView
+                style="@style/NatText.Bold"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="سجل المحادثات"
+                android:textColor="#FFF8FAFC"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/ai_btn_new_chat"
+                style="@style/NatText.Bold"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/nat_btn_new_chat"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="+ جديدة"
+                android:textColor="#FF000000"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="12dp"
+            android:background="#22FFFFFF" />
+
+        <!-- History Empty State -->
+        <TextView
+            android:id="@+id/ai_history_empty"
+            style="@style/NatText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:gravity="center"
+            android:text="لا توجد محادثات سابقة محفوظة"
+            android:textColor="@color/nat_muted"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <!-- History Sessions List -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/ai_history_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp" />
+    </LinearLayout>
+</FrameLayout>

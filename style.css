@@ -254,13 +254,58 @@ header {
     border-radius: var(--radius-lg);
     padding: 35px 20px;
     text-align: center;
-    transition: var(--transition);
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s ease, border-color 0.28s ease;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     position: relative;
     overflow: hidden;
+    will-change: transform, opacity;
+    animation: homeCardEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* تأثير دخول ناعم ومتتالي للبطاقات */
+.main-categories-grid .main-category-card:nth-child(1) { animation-delay: 0.04s; }
+.main-categories-grid .main-category-card:nth-child(2) { animation-delay: 0.08s; }
+.main-categories-grid .main-category-card:nth-child(3) { animation-delay: 0.12s; }
+.main-categories-grid .main-category-card:nth-child(4) { animation-delay: 0.16s; }
+.main-categories-grid .main-category-card:nth-child(5) { animation-delay: 0.20s; }
+
+@keyframes homeCardEntrance {
+    0% {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* تفاعل لمس طبيعي وسلس على الهاتف */
+.main-category-card:active {
+    transform: scale(0.96) !important;
+    transition-duration: 0.12s;
+}
+
+/* لمعان ناعم وخفيف جداً عند التحويم */
+.main-category-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    transform: skewX(-20deg);
+    pointer-events: none;
+}
+
+.main-category-card:hover::after,
+.main-category-card:focus::after {
+    left: 160%;
+    transition: left 0.75s ease-in-out;
 }
 
 /* 1. اشتراكات IPTV - أخضر */
@@ -270,6 +315,8 @@ header {
 }
 
 .main-category-card.iptv:hover,
+.main-category-card.iptv:focus,
+.main-category-card.iptv:focus-visible,
 .main-category-card:not(.smart):not(.vip):not(.devices):not(.web-player):hover {
     transform: translateY(-8px);
     border-color: var(--green-accent);
@@ -281,7 +328,9 @@ header {
     background: linear-gradient(90deg, #f57c00, var(--yellow-accent), #f57c00);
 }
 
-.main-category-card.smart:hover {
+.main-category-card.smart:hover,
+.main-category-card.smart:focus,
+.main-category-card.smart:focus-visible {
     transform: translateY(-8px);
     border-color: var(--yellow-accent);
     box-shadow: 0 12px 35px var(--yellow-glow);
@@ -292,7 +341,9 @@ header {
     background: linear-gradient(90deg, #7e22ce, var(--purple-accent), #7e22ce);
 }
 
-.main-category-card.vip:hover {
+.main-category-card.vip:hover,
+.main-category-card.vip:focus,
+.main-category-card.vip:focus-visible {
     transform: translateY(-8px);
     border-color: var(--purple-accent);
     box-shadow: 0 12px 35px var(--purple-glow);
@@ -308,7 +359,9 @@ header {
     background: linear-gradient(90deg, #1976d2, var(--blue-accent), #1976d2);
 }
 
-.main-category-card.devices:hover {
+.main-category-card.devices:hover,
+.main-category-card.devices:focus,
+.main-category-card.devices:focus-visible {
     transform: translateY(-8px);
     border-color: var(--blue-accent);
     box-shadow: 0 12px 35px var(--blue-glow);
@@ -319,7 +372,9 @@ header {
     background: linear-gradient(90deg, var(--green-primary), var(--green-accent), var(--green-primary));
 }
 
-.main-category-card.web-player:hover {
+.main-category-card.web-player:hover,
+.main-category-card.web-player:focus,
+.main-category-card.web-player:focus-visible {
     transform: translateY(-8px);
     border-color: var(--green-accent);
     box-shadow: 0 12px 35px var(--green-glow);
@@ -337,14 +392,16 @@ header {
     justify-content: center;
     color: var(--green-accent);
     font-size: 40px;
-    transition: var(--transition);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.main-category-card.web-player:hover .web-player-icon-wrapper {
+.main-category-card.web-player:hover .web-player-icon-wrapper,
+.main-category-card.web-player:focus .web-player-icon-wrapper {
     transform: scale(1.08);
 }
 
-.main-category-card:hover::before {
+.main-category-card:hover::before,
+.main-category-card:focus::before {
     opacity: 1;
 }
 

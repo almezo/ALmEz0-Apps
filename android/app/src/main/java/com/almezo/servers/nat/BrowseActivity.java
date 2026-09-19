@@ -509,7 +509,11 @@ public class BrowseActivity extends BaseActivity {
             h.img.setScaleType(isLive ? ImageView.ScaleType.FIT_CENTER : ImageView.ScaleType.CENTER_CROP);
             int pad = isLive ? Math.round(h.itemView.getResources().getDisplayMetrics().density * 22) : 0;
             h.img.setPadding(pad, pad, pad, pad);
-            Ui.loadImage(h.img, it.icon, Ui.logoPlaceholder());
+            if (isLive) {
+                Ui.loadChannelLogo(h.img, it.icon, Ui.logoPlaceholder());
+            } else {
+                Ui.loadImage(h.img, it.icon, Ui.logoPlaceholder());
+            }
             h.name.setText(it.safeName());
             h.name.setVisibility(hideNames ? View.GONE : View.VISIBLE);
             h.fav.setVisibility(favIds.contains(it.id) ? View.VISIBLE : View.GONE);
@@ -552,9 +556,13 @@ public class BrowseActivity extends BaseActivity {
         /** تنزيل صور الصفوف الثلاثة التالية مسبقاً حتى تظهر فوراً عند التمرير إليها. */
         private void prefetchAhead(int position) {
             int end = Math.min(shown.size(), position + 1 + COLUMNS * 3);
+            boolean isLive = Models.LIVE.equals(type);
             for (int i = position + 1; i < end; i++) {
                 String icon = shown.get(i).icon;
-                if (icon != null && prefetched.add(icon)) Ui.prefetch(BrowseActivity.this, icon);
+                if (icon != null && prefetched.add(icon)) {
+                    if (isLive) Ui.prefetchChannelLogo(BrowseActivity.this, icon);
+                    else Ui.prefetch(BrowseActivity.this, icon);
+                }
             }
         }
     }

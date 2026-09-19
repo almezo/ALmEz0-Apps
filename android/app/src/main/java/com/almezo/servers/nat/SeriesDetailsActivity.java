@@ -115,6 +115,7 @@ public class SeriesDetailsActivity extends BaseActivity {
 
         ((TextView) findViewById(R.id.det_title)).setText(name);
         Ui.loadImage(findViewById(R.id.det_poster), cover, Ui.logoPlaceholder());
+        MovieDetailsActivity.showBackdrop(this, findViewById(R.id.det_backdrop), null, cover);
 
         // زر المفضلة الدائري
         ImageButton fav = findViewById(R.id.det_btn_fav);
@@ -176,7 +177,7 @@ public class SeriesDetailsActivity extends BaseActivity {
         popularTitle.setText("مسلسلات رائجة للمشاهدة الآن");
 
         TextView popularSubtitle = findViewById(R.id.det_popular_subtitle);
-        popularSubtitle.setText("من نفس نوع المسلسل ولغته");
+        popularSubtitle.setText("المسلسلات الأكثر مشاهدة واختياراً");
         // يظهر الشريط بعد اختيار مسلسلات مطابقة فعلاً لتصنيف المسلسل ولغته
         findViewById(R.id.det_popular_section).setVisibility(View.GONE);
 
@@ -224,10 +225,7 @@ public class SeriesDetailsActivity extends BaseActivity {
                 popularItems.clear();
                 popularItems.addAll(found);
                 if (popularAdapter != null) popularAdapter.notifyDataSetChanged();
-                if (!genre.trim().isEmpty() && !"null".equals(genre)) {
-                    ((TextView) findViewById(R.id.det_popular_subtitle)).setText(
-                            "مسلسلات " + translateGenre(genre) + " من نفس لغة المسلسل");
-                }
+                ((TextView) findViewById(R.id.det_popular_subtitle)).setText("المسلسلات الأكثر مشاهدة واختياراً");
                 findViewById(R.id.det_popular_section).setVisibility(found.isEmpty() ? View.GONE : View.VISIBLE);
             });
         });
@@ -236,7 +234,11 @@ public class SeriesDetailsActivity extends BaseActivity {
     private void bind(JSONObject root) {
         JSONObject info = root.optJSONObject("info");
         if (info != null) {
-            String poster = MovieDetailsActivity.firstNonEmpty(info.optString("cover"), cover);
+            String poster = MovieDetailsActivity.firstNonEmpty(
+                    MovieDetailsActivity.resolveImageUrl(info.optString("cover")),
+                    MovieDetailsActivity.resolveImageUrl(info.optString("cover_big")),
+                    cover
+            );
             Ui.loadImage(findViewById(R.id.det_poster), poster, Ui.logoPlaceholder());
             MovieDetailsActivity.showBackdrop(this, findViewById(R.id.det_backdrop), MovieDetailsActivity.firstBackdrop(info), poster);
 
@@ -248,38 +250,43 @@ public class SeriesDetailsActivity extends BaseActivity {
             }
 
             // التقييم الذهبي
-            String rating = info.optString("rating", "");
+            String rating = MovieDetailsActivity.extractRating(info);
             TextView ratingView = findViewById(R.id.det_rating);
             if (ratingView != null) {
-                if (!rating.isEmpty() && !"0".equals(rating) && !"null".equals(rating)) {
-                    ratingView.setText("★  التقييم: " + rating);
-                    ratingView.setVisibility(View.VISIBLE);
-                } else {
-                    ratingView.setVisibility(View.GONE);
-                }
+                String displayRating = (!rating.isEmpty() && !"0".equals(rating) && !"0.0".equals(rating)) ? rating : "N/A";
+                ratingView.setText("★  التقييم: " + displayRating);
+                ratingView.setVisibility(View.VISIBLE);
             }
 
             // زر الإعلان الترويجي
             trailerKey = MovieDetailsActivity.firstNonEmpty(info.optString("youtube_trailer"), info.optString("trailer"));
             View trailerBtn = findViewById(R.id.det_btn_trailer);
             if (trailerBtn != null) {
-                if (!trailerKey.isEmpty()) {
-                    trailerBtn.setVisibility(View.VISIBLE);
-                } else {
-                    trailerBtn.setVisibility(View.GONE);
-                }
+                trailerBtn.setVisibility(View.VISIBLE);
             }
 
             // ترجمة القصة إلى العربية
-            String rawPlot = MovieDetailsActivity.firstNonEmpty(info.optString("plot"), info.optString("description"));
+            String rawPlot = MovieDetailsActivity.firstNonEmpty(
+                    info.optString("plot"),
+                    info.optString("description"),
+                    info.optString("overview"),
+                    info.optString("story"),
+                    info.optString("synopsis"),
+                    root.optString("plot"),
+                    root.optString("description")
+            );
             translatePlotToArabic(rawPlot);
 
             // المخرج والممثلين
-            String director = info.optString("director", "");
+            String director = MovieDetailsActivity.firstNonEmpty(
+                    info.optString("director"),
+                    info.optString("directors"),
+                    info.optString("directed_by")
+            );
             TextView dirView = findViewById(R.id.det_director);
             View dirBox = findViewById(R.id.det_director_box);
             if (dirView != null && dirBox != null) {
-                if (!director.isEmpty() && !"null".equals(director)) {
+                if (!director.isEmpty() && !"null".equalsIgnoreCase(director)) {
                     dirView.setText(director);
                     dirBox.setVisibility(View.VISIBLE);
                 } else {
@@ -287,11 +294,16 @@ public class SeriesDetailsActivity extends BaseActivity {
                 }
             }
 
-            String cast = MovieDetailsActivity.firstNonEmpty(info.optString("cast"), info.optString("actors"));
+            String cast = MovieDetailsActivity.firstNonEmpty(
+                    info.optString("cast"),
+                    info.optString("actors"),
+                    info.optString("starring"),
+                    info.optString("cast_list")
+            );
             TextView castView = findViewById(R.id.det_actors);
             View castBox = findViewById(R.id.det_actors_box);
             if (castView != null && castBox != null) {
-                if (!cast.isEmpty() && !"null".equals(cast)) {
+                if (!cast.isEmpty() && !"null".equalsIgnoreCase(cast)) {
                     castView.setText(cast);
                     castBox.setVisibility(View.VISIBLE);
                 } else {
@@ -399,9 +411,13 @@ public class SeriesDetailsActivity extends BaseActivity {
     }
 
     private void openTrailer() {
-        if (trailerKey == null || trailerKey.trim().isEmpty()) return;
-        String key = trailerKey.trim();
-        String url = key.startsWith("http") ? key : "https://www.youtube.com/watch?v=" + key;
+        String url;
+        if (trailerKey != null && !trailerKey.trim().isEmpty() && !"null".equalsIgnoreCase(trailerKey)) {
+            String key = trailerKey.trim();
+            url = key.startsWith("http") ? key : "https://www.youtube.com/watch?v=" + key;
+        } else {
+            url = "https://www.youtube.com/results?search_query=" + Uri.encode((name != null ? name : "") + " trailer اعلان مسلسل");
+        }
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {

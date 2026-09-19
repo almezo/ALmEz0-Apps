@@ -121,13 +121,20 @@ public class DashboardActivity extends BaseActivity {
         ((TextView) card.findViewById(R.id.card_subtitle)).setText(subtitle);
         applyFocusScale(card, 1.05f);
         card.setOnClickListener(v -> {
+            if (refreshing.contains(type)) {
+                toast("جاري تحديث باقة " + title + "، يرجى الانتظار...");
+                return;
+            }
             Intent i = new Intent(this, BrowseActivity.class);
             i.putExtra(BrowseActivity.EXTRA_TYPE, type);
             startActivity(i);
         });
         View refresh = card.findViewById(R.id.card_refresh);
         applyFocusScale(refresh, 1.15f);
-        refresh.setOnClickListener(v -> refreshType(card, type, title));
+        refresh.setOnClickListener(v -> {
+            if (refreshing.contains(type)) return;
+            refreshType(card, type, title);
+        });
         // زر التحديث داخل البطاقة: نظام التركيز لا ينتقل من البطاقة إلى عنصر بداخلها تلقائياً،
         // فيُربط يدوياً: الأسفل من البطاقة إلى زر التحديث، والأعلى من الزر إلى البطاقة
         card.setOnKeyListener((v, keyCode, e) -> {
@@ -161,10 +168,17 @@ public class DashboardActivity extends BaseActivity {
         }
     }
 
-    /** تحديث فعلي من السيرفر (تجاوز الكاش) للأقسام والقوائم معاً، كما في manualRefreshCategory. */
+    /** تحديث فعلي من السيرفر (تجاوز الكاش) للأقسام والقوائم معاً، مع حجب البطاقة وعرض مؤشر التحميل والتنبيه بعد الانتهاء. */
     private void refreshType(View card, String type, String name) {
         final View overlay = card.findViewById(R.id.card_overlay);
-        overlay.setVisibility(View.VISIBLE);
+        final View icon = card.findViewById(R.id.card_refresh);
+        final TextView status = card.findViewById(R.id.card_status);
+        if (overlay != null) overlay.setVisibility(View.VISIBLE);
+        refreshing.add(type);
+        if (status != null) status.setText("جاري تحديث الباقة...");
+        if (icon != null) {
+            icon.animate().rotationBy(360f * 40).setDuration(40_000).setInterpolator(new android.view.animation.LinearInterpolator()).start();
+        }
         final Xtream api = new Xtream(this, account);
         Xtream.IO.execute(() -> {
             int count = -1;
@@ -176,12 +190,18 @@ public class DashboardActivity extends BaseActivity {
             final int finalCount = count;
             ui.post(() -> {
                 if (isFinishing()) return;
-                overlay.setVisibility(View.GONE);
+                refreshing.remove(type);
+                if (icon != null) {
+                    icon.animate().cancel();
+                    icon.animate().rotation(0).setDuration(250).start();
+                }
+                if (overlay != null) overlay.setVisibility(View.GONE);
                 if (finalCount >= 0) {
                     store.setLastUpdated(type, System.currentTimeMillis());
                     toast("تم تحديث باقة " + name + " بنجاح (" + finalCount + " عنصر)");
                 } else {
                     toast("تعذر تحديث باقة " + name);
+                    if (status != null) status.setText("تعذر التحديث - تُعرض آخر نسخة محفوظة");
                 }
                 updateStatuses();
             });
@@ -189,37 +209,15 @@ public class DashboardActivity extends BaseActivity {
     }
 
     /**
-     * عند فتح المشغل من البرنامج: تحديث فعلي من السيرفر للباقات الثلاث (بدون حجب البطاقات؛
-     * يظهر "جاري التحديث..." مع دوران أيقونة التحديث). الرجوع من شاشة داخلية لا يعيد التحديث.
+     * عند فتح المشغل من البرنامج: تحديث فعلي للباقات الثلاث بحجب البطاقات وطبقة التحميل الداكنة،
+     * وإظهار تنبيه اكتمال التحديث مع عدد المحتويات لكل باقة بالضبط كما في التحديث اليدوي.
      */
     private void refreshAllOnOpen() {
-        final Xtream api = new Xtream(this, account);
-        for (final String t : new String[]{Models.LIVE, Models.VOD, Models.SERIES}) {
-            final View card = cardFor(t);
-            final View icon = card.findViewById(R.id.card_refresh);
-            final TextView status = card.findViewById(R.id.card_status);
-            refreshing.add(t);
-            status.setText("جاري تحديث الباقة...");
-            icon.animate().rotationBy(360f * 40).setDuration(40_000).setInterpolator(new android.view.animation.LinearInterpolator()).start();
-            OPEN_REFRESH.execute(() -> {
-                boolean ok = false;
-                try {
-                    // التحميل الإجباري يستبدل الكاش عند النجاح فقط، فإن فشل تبقى آخر نسخة محفوظة صالحة للتصفح
-                    api.categories(t, true);
-                    api.streams(t, true);
-                    ok = true;
-                } catch (Exception ignored) { }
-                final boolean success = ok;
-                ui.post(() -> {
-                    if (isFinishing()) return;
-                    refreshing.remove(t);
-                    icon.animate().cancel();
-                    icon.animate().rotation(0).setDuration(250).start();
-                    if (success) store.setLastUpdated(t, System.currentTimeMillis());
-                    updateStatuses();
-                    if (!success) status.setText("تعذر التحديث - تُعرض آخر نسخة محفوظة");
-                });
-            });
+        for (String t : new String[]{Models.LIVE, Models.VOD, Models.SERIES}) {
+            View card = cardFor(t);
+            TextView tv = card.findViewById(R.id.card_title);
+            String title = tv != null ? tv.getText().toString() : "";
+            refreshType(card, t, title);
         }
     }
 

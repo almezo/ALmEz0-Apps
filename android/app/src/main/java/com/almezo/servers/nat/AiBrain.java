@@ -80,6 +80,25 @@ public final class AiBrain {
         synchronized (history) { history.clear(); }
     }
 
+    public void restoreTurns(List<JSONObject> turns) {
+        synchronized (history) {
+            history.clear();
+            if (turns != null) {
+                history.addAll(turns);
+                while (history.size() > 8) history.remove(0);
+            }
+        }
+    }
+
+    public static JSONObject createTurn(String role, String text) {
+        try {
+            return new JSONObject().put("role", role).put("parts",
+                    new org.json.JSONArray().put(new JSONObject().put("text", text)));
+        } catch (Exception e) {
+            return new JSONObject();
+        }
+    }
+
     /** يُستدعى من خيط خلفي. */
     public Reply ask(String question) throws Exception {
         Catalog cat = new Catalog();

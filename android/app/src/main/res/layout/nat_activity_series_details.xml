@@ -87,54 +87,58 @@
                         android:orientation="vertical">
 
                         <!-- صف العنوان وزر المفضلة الدائري -->
+                        <!-- صف العنوان وزر المفضلة الدائري ملاصقين في الجانب الأيمن تماماً مثل الصورة -->
                         <LinearLayout
-                            android:layout_width="match_parent"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
+                            android:gravity="center_vertical|start"
                             android:orientation="horizontal">
 
                             <TextView
                                 android:id="@+id/det_title"
                                 style="@style/NatText.Black"
-                                android:layout_width="0dp"
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
+                                android:gravity="start|center_vertical"
+                                android:textAlignment="viewStart"
                                 android:ellipsize="end"
                                 android:maxLines="2"
                                 android:shadowColor="#E6000000"
                                 android:shadowDy="1"
                                 android:shadowRadius="8"
                                 android:textColor="#FFFFFFFF"
-                                android:textSize="42sp" />
+                                android:textSize="44sp" />
 
                             <ImageButton
                                 android:id="@+id/det_btn_fav"
-                                android:layout_width="52dp"
-                                android:layout_height="52dp"
-                                android:layout_marginStart="16dp"
+                                android:layout_width="56dp"
+                                android:layout_height="56dp"
+                                android:layout_marginStart="20dp"
                                 android:background="@drawable/nat_btn_circle_fav"
                                 android:contentDescription="المفضلة"
                                 android:focusable="true"
-                                android:padding="14dp"
+                                android:padding="15dp"
                                 android:scaleType="fitCenter"
                                 android:src="@drawable/fa_heart"
                                 app:tint="#FFCBD5E1" />
                         </LinearLayout>
 
-                        <!-- تصنيف العمل (Series Genre) -->
+                        <!-- تصنيف العمل (Series Genre) محاذاة للجانب الأيمن -->
                         <TextView
                             android:id="@+id/det_genre"
                             style="@style/NatText.Bold"
-                            android:layout_width="match_parent"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
+                            android:gravity="start"
+                            android:textAlignment="viewStart"
                             android:shadowColor="#E6000000"
                             android:shadowRadius="6"
                             android:text="مسلسل"
                             android:textColor="#FFE2E8F0"
                             android:textSize="20sp" />
 
-                        <!-- شارة التقييم الذهبية + زر مشاهدة الإعلان الترويجي -->
+                        <!-- شارة التقييم الذهبية + زر مشاهدة الإعلان الترويجي بتصميم طبق الأصل للصورة -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -142,38 +146,48 @@
                             android:gravity="center_vertical"
                             android:orientation="horizontal">
 
+                            <!-- التقييم: نص ذهبي مع النجمة بدون إطار ليتطابق تماماً مع الصورة -->
                             <TextView
                                 android:id="@+id/det_rating"
                                 style="@style/NatText.ExtraBold"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:background="@drawable/nat_bg_rating_badge"
-                                android:paddingStart="16dp"
-                                android:paddingTop="7dp"
-                                android:paddingEnd="16dp"
-                                android:paddingBottom="7dp"
-                                android:text="★  التقييم: 0.0"
+                                android:text="★  التقييم: N/A"
                                 android:textColor="@color/nat_gold"
-                                android:textSize="19sp" />
+                                android:textSize="20sp" />
 
-                            <TextView
+                            <!-- زر مشاهدة الإعلان الترويجي: كبسولة داكنة وأيقونة تشغيل دائرية حمراء -->
+                            <LinearLayout
                                 android:id="@+id/det_btn_trailer"
-                                style="@style/NatText.ExtraBold"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="16dp"
                                 android:background="@drawable/nat_btn_trailer_pill"
                                 android:clickable="true"
                                 android:focusable="true"
-                                android:gravity="center"
-                                android:paddingStart="20dp"
-                                android:paddingTop="8dp"
-                                android:paddingEnd="20dp"
-                                android:paddingBottom="8dp"
-                                android:text="▶  مشاهدة الإعلان الترويجي"
-                                android:textColor="#FFFFFFFF"
-                                android:textSize="17sp"
-                                android:visibility="gone" />
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingStart="18dp"
+                                android:paddingTop="9dp"
+                                android:paddingEnd="18dp"
+                                android:paddingBottom="9dp"
+                                android:visibility="visible">
+
+                                <TextView
+                                    style="@style/NatText.ExtraBold"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="مشاهدة الإعلان الترويجي"
+                                    android:textColor="#FFFFFFFF"
+                                    android:textSize="17sp" />
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    android:layout_marginStart="10dp"
+                                    android:importantForAccessibility="no"
+                                    android:src="@drawable/ic_trailer_play_red" />
+                            </LinearLayout>
                         </LinearLayout>
 
                         <!-- ملخص القصة -->
@@ -201,6 +215,8 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="6dp"
+                                android:gravity="start"
+                                android:textAlignment="viewStart"
                                 android:ellipsize="end"
                                 android:lineSpacingMultiplier="1.15"
                                 android:maxLines="6"

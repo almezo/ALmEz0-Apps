@@ -1665,7 +1665,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (osdChannel == null || e == null) return;
         if (osdNumber != null) osdNumber.setText(String.valueOf(PlayQueue.index() + 1));
         if (osdName != null) osdName.setText(e.title);
-        if (osdLogo != null) Ui.loadImage(osdLogo, e.icon, R.drawable.almezo_logo);
+        if (osdLogo != null) Ui.loadChannelLogo(osdLogo, e.icon, R.drawable.almezo_logo);
         if (osdNow != null) osdNow.setVisibility(View.GONE);
         if (osdNext != null) osdNext.setVisibility(View.GONE);
         fade(osdChannel, true);

@@ -112,7 +112,10 @@ public final class Ui {
     }
 
     /** مهلة أطول من الافتراضي (2.5 ثانية) لأن سيرفرات الشعارات البطيئة كانت تفشل وتبقى على الشعار الافتراضي. */
+    /** مهلة صور الأفلام والمسلسلات 10 ثوانٍ لضمان جودة الملصقات العالية. */
     private static final int IMAGE_TIMEOUT_MS = 10000;
+    /** مهلة سريعة لشعارات القنوات (3.5 ثانية) لتخطي الروابط الميتة والبطيئة وتوفير الخيوط للقنوات الشغالة. */
+    private static final int CHANNEL_LOGO_TIMEOUT_MS = 3500;
 
     private static String cleanUrl(String url) {
         if (url == null) return null;
@@ -122,10 +125,7 @@ public final class Ui {
     }
 
     /**
-     * تحميل صورة بصيغة موفّرة: تُصغَّر لحجم العنصر الفعلي (downsampling)، وتُفك بصيغة 16-بت على
-     * الأجهزة الضعيفة (نصف ذاكرة الصورة تقريباً دون فرق ملحوظ في البوسترات).
-     * يُحفظ على القرص الأصل والنسخة المصغّرة معاً (ALL): فتح الصورة لاحقاً بأي حجم لا يعيد تنزيلها،
-     * والتحميل المسبق (prefetch) للصفوف القادمة يُستفاد منه مباشرة. وعند الفشل تُعاد المحاولة مرة واحدة.
+     * تحميل بوسترات الأفلام والمسلسلات: جودة كاملة مع مهلة 10 ثوانٍ وإعادة محاولة للأعمال الفنية.
      */
     public static void loadImage(ImageView view, String url, int placeholderRes) {
         Context ctx = view.getContext();
@@ -148,13 +148,47 @@ public final class Ui {
                 .into(view);
     }
 
-    /** تنزيل صورة مسبقاً إلى كاش القرص بأولوية منخفضة، حتى تظهر فوراً عند الوصول إليها بالتمرير. */
+    /**
+     * تحميل مخصص وسريع لشعارات قنوات البث المباشر: مهلة خاطفة 3.5 ثانية، وبلا إعادة محاولة للروابط
+     * المعطلة، وفك ترميز RGB_565 خفيف وموفّر للذاكرة لتسريع ظهور بقية القنوات دون انتظار الروابط الميتة.
+     */
+    public static void loadChannelLogo(ImageView view, String url, int placeholderRes) {
+        Context ctx = view.getContext();
+        String u = cleanUrl(url);
+        if (u == null) {
+            Glide.with(ctx).clear(view);
+            view.setImageResource(placeholderRes);
+            return;
+        }
+        RequestOptions opts = new RequestOptions()
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .format(DecodeFormat.PREFER_RGB_565)
+                .timeout(CHANNEL_LOGO_TIMEOUT_MS)
+                .priority(Priority.HIGH)
+                .placeholder(placeholderRes)
+                .error(placeholderRes)
+                .dontAnimate();
+        Glide.with(ctx).load(u).apply(opts).into(view);
+    }
+
+    /** تنزيل صورة مسبقاً إلى كاش القرص (للأفلام والمسلسلات). */
     public static void prefetch(Context ctx, String url) {
         String u = cleanUrl(url);
         if (u == null) return;
         try {
             Glide.with(ctx.getApplicationContext()).downloadOnly().load(u)
                     .apply(new RequestOptions().timeout(IMAGE_TIMEOUT_MS).priority(Priority.LOW))
+                    .submit();
+        } catch (Throwable ignored) { }
+    }
+
+    /** تنزيل مسبق لشعارات القنوات بمهلة سريعة 3.5 ثوانٍ. */
+    public static void prefetchChannelLogo(Context ctx, String url) {
+        String u = cleanUrl(url);
+        if (u == null) return;
+        try {
+            Glide.with(ctx.getApplicationContext()).downloadOnly().load(u)
+                    .apply(new RequestOptions().timeout(CHANNEL_LOGO_TIMEOUT_MS).priority(Priority.LOW))
                     .submit();
         } catch (Throwable ignored) { }
     }
