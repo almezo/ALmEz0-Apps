@@ -6,6 +6,7 @@
     android:background="@color/nat_bg_main"
     android:layoutDirection="rtl">
 
+    <!-- خلفية مائية سينمائية للعمل (Backdrop) -->
     <ImageView
         android:id="@+id/det_backdrop"
         android:layout_width="match_parent"
@@ -13,6 +14,7 @@
         android:importantForAccessibility="no"
         android:scaleType="centerCrop" />
 
+    <!-- غطاء التدرج السينمائي الداكن -->
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -23,6 +25,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <!-- شريط التنقل العلوي -->
         <include layout="@layout/nat_navbar" />
 
         <androidx.core.widget.NestedScrollView
@@ -37,27 +40,34 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingStart="44dp"
+                android:paddingStart="40dp"
                 android:paddingTop="20dp"
-                android:paddingEnd="44dp"
-                android:paddingBottom="40dp">
+                android:paddingEnd="40dp"
+                android:paddingBottom="50dp">
 
-                <!-- 1. بطاقة العمل الرئيسية (Hero Card) -->
+                <!-- 1. بطاقة تفاصيل الفيلم العلوية (Movie Hero Card - الحاوية الزجاجية العائمة) -->
                 <LinearLayout
+                    android:id="@+id/det_hero_card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:background="@drawable/nat_bg_series_card"
+                    android:orientation="horizontal"
+                    android:paddingStart="36dp"
+                    android:paddingTop="32dp"
+                    android:paddingEnd="36dp"
+                    android:paddingBottom="32dp">
 
-                    <!-- عمود الملصق وزر المشاهدة المباشر -->
+                    <!-- عمود ملصق الفيلم وزر المشاهدة المباشر على اليمين بنسبة 2:3 -->
                     <LinearLayout
-                        android:layout_width="260dp"
+                        android:layout_width="220dp"
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
                         <com.almezo.servers.nat.RatioFrameLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:background="@drawable/nat_bg_poster">
+                            android:background="@drawable/nat_bg_poster"
+                            android:clipToOutline="true">
 
                             <ImageView
                                 android:id="@+id/det_poster"
@@ -67,10 +77,11 @@
                                 android:scaleType="centerCrop" />
                         </com.almezo.servers.nat.RatioFrameLayout>
 
+                        <!-- زر المشاهدة المباشر (شاهد الآن) -->
                         <LinearLayout
                             android:id="@+id/det_btn_play"
                             android:layout_width="match_parent"
-                            android:layout_height="56dp"
+                            android:layout_height="54dp"
                             android:layout_marginTop="16dp"
                             android:background="@drawable/nat_btn_watch"
                             android:clickable="true"
@@ -79,8 +90,8 @@
                             android:orientation="horizontal">
 
                             <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
                                 android:layout_marginEnd="10dp"
                                 android:importantForAccessibility="no"
                                 android:src="@drawable/fa_play"
@@ -91,12 +102,12 @@
                                 style="@style/NatText.ExtraBold"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="مشاهدة الآن"
-                                android:textSize="19sp" />
+                                android:text="شاهد الآن"
+                                android:textSize="18sp" />
                         </LinearLayout>
                     </LinearLayout>
 
-                    <!-- عمود المعلومات والتفاصيل -->
+                    <!-- عمود المعلومات والتفاصيل على اليسار -->
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -104,6 +115,7 @@
                         android:layout_weight="1"
                         android:orientation="vertical">
 
+                        <!-- صف العنوان وزر المفضلة الدائري -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -118,14 +130,15 @@
                                 android:layout_weight="1"
                                 android:ellipsize="end"
                                 android:maxLines="2"
+                                android:textColor="#FFFFFFFF"
                                 android:textSize="36sp" />
 
                             <ImageButton
                                 android:id="@+id/det_btn_fav"
                                 android:layout_width="52dp"
                                 android:layout_height="52dp"
-                                android:layout_marginStart="14dp"
-                                android:background="@drawable/nat_btn_social"
+                                android:layout_marginStart="16dp"
+                                android:background="@drawable/nat_btn_circle_fav"
                                 android:contentDescription="المفضلة"
                                 android:focusable="true"
                                 android:padding="14dp"
@@ -134,15 +147,17 @@
                                 app:tint="#FFCBD5E1" />
                         </LinearLayout>
 
+                        <!-- بيانات التصنيف والمدة والبلد والإنتاج -->
                         <TextView
                             android:id="@+id/det_meta"
-                            style="@style/NatText"
+                            style="@style/NatText.Bold"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:textColor="@color/nat_soft"
                             android:textSize="17sp" />
 
+                        <!-- شارة التقييم الذهبية + زر مشاهدة الإعلان الترويجي -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -155,12 +170,12 @@
                                 style="@style/NatText.ExtraBold"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:background="@drawable/nat_badge"
-                                android:paddingStart="14dp"
-                                android:paddingTop="6dp"
-                                android:paddingEnd="14dp"
-                                android:paddingBottom="6dp"
-                                android:text="★ 0.0"
+                                android:background="@drawable/nat_bg_rating_badge"
+                                android:paddingStart="16dp"
+                                android:paddingTop="7dp"
+                                android:paddingEnd="16dp"
+                                android:paddingBottom="7dp"
+                                android:text="★  التقييم: 0.0"
                                 android:textColor="@color/nat_gold"
                                 android:textSize="16sp" />
 
@@ -169,42 +184,27 @@
                                 style="@style/NatText.ExtraBold"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginStart="14dp"
-                                android:background="@drawable/nat_btn_secondary"
+                                android:layout_marginStart="16dp"
+                                android:background="@drawable/nat_btn_trailer_pill"
                                 android:clickable="true"
                                 android:focusable="true"
-                                android:paddingStart="18dp"
+                                android:gravity="center"
+                                android:paddingStart="20dp"
                                 android:paddingTop="8dp"
-                                android:paddingEnd="18dp"
+                                android:paddingEnd="20dp"
                                 android:paddingBottom="8dp"
-                                android:text="▶  مشاهدة الإعلان"
+                                android:text="▶  مشاهدة الإعلان الترويجي"
                                 android:textColor="#FFFFFFFF"
                                 android:textSize="15sp"
                                 android:visibility="gone" />
                         </LinearLayout>
 
-                        <!-- للمسلسلات: شريط المواسم -->
-                        <HorizontalScrollView
-                            android:id="@+id/det_seasons_scroll"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
-                            android:scrollbars="none"
-                            android:visibility="gone">
-
-                            <LinearLayout
-                                android:id="@+id/det_seasons"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal" />
-                        </HorizontalScrollView>
-
-                        <!-- القصة والممثلين والمخرج -->
+                        <!-- ملخص القصة -->
                         <LinearLayout
                             android:id="@+id/det_story_box"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
+                            android:layout_marginTop="18dp"
                             android:orientation="vertical">
 
                             <TextView
@@ -212,6 +212,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="القصة"
+                                android:textColor="#FFFFFFFF"
                                 android:textSize="20sp" />
 
                             <TextView
@@ -220,32 +221,76 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="6dp"
+                                android:ellipsize="end"
                                 android:lineSpacingMultiplier="1.3"
+                                android:maxLines="5"
                                 android:textColor="@color/nat_soft"
                                 android:textSize="16sp" />
-
-                            <TextView
-                                android:id="@+id/det_people"
-                                style="@style/NatText"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:lineSpacingMultiplier="1.25"
-                                android:textColor="@color/nat_muted"
-                                android:textSize="15sp" />
                         </LinearLayout>
 
-                        <!-- للمسلسلات: قائمة الحلقات -->
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/det_episodes"
+                        <!-- اسم المخرج والممثلين -->
+                        <LinearLayout
+                            android:id="@+id/det_cast_row"
                             android:layout_width="match_parent"
-                            android:layout_height="240dp"
-                            android:layout_marginTop="12dp"
-                            android:visibility="gone" />
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:orientation="vertical">
+
+                            <LinearLayout
+                                android:id="@+id/det_director_box"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    style="@style/NatText.ExtraBold"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="المخرج: "
+                                    android:textColor="#FF94A3B8"
+                                    android:textSize="15sp" />
+
+                                <TextView
+                                    android:id="@+id/det_director"
+                                    style="@style/NatText.Bold"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:textColor="#FFFFFFFF"
+                                    android:textSize="15sp" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/det_actors_box"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    style="@style/NatText.ExtraBold"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="الممثلين: "
+                                    android:textColor="#FF94A3B8"
+                                    android:textSize="15sp" />
+
+                                <TextView
+                                    android:id="@+id/det_actors"
+                                    style="@style/NatText.Bold"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textColor="#FFFFFFFF"
+                                    android:textSize="15sp" />
+                            </LinearLayout>
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- 2. قسم أعمال رائجة للمشاهدة الآن (Popular Section) -->
+                <!-- 2. قسم أفلام رائجة للمشاهدة الآن (Popular Shelf) -->
                 <LinearLayout
                     android:id="@+id/det_popular_section"
                     android:layout_width="match_parent"
@@ -253,6 +298,7 @@
                     android:layout_marginTop="36dp"
                     android:orientation="vertical">
 
+                    <!-- ترويسة القسم -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -260,10 +306,12 @@
                         android:orientation="horizontal">
 
                         <ImageView
-                            android:layout_width="26dp"
-                            android:layout_height="26dp"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
                             android:layout_marginEnd="10dp"
-                            android:src="@drawable/fa_fire" />
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/fa_fire"
+                            app:tint="#FFE50914" />
 
                         <LinearLayout
                             android:layout_width="0dp"
@@ -277,6 +325,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="أفلام رائجة للمشاهدة الآن"
+                                android:textColor="#FFFFFFFF"
                                 android:textSize="22sp" />
 
                             <TextView
@@ -284,7 +333,7 @@
                                 style="@style/NatText"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="الأعمال الأكثر مشاهدة وتقييماً"
+                                android:text="الأفلام الأكثر متابعة وتقييماً"
                                 android:textColor="@color/nat_muted"
                                 android:textSize="13sp" />
                         </LinearLayout>
@@ -293,30 +342,32 @@
                             android:id="@+id/det_popular_view_all"
                             style="@style/NatText.ExtraBold"
                             android:layout_width="wrap_content"
-                            android:layout_height="40dp"
+                            android:layout_height="42dp"
                             android:background="@drawable/nat_btn_secondary"
                             android:drawableStart="@drawable/fa_arrow_left"
                             android:drawablePadding="8dp"
-                            android:paddingStart="16dp"
-                            android:paddingEnd="16dp"
+                            android:focusable="true"
+                            android:paddingStart="18dp"
+                            android:paddingEnd="18dp"
                             android:text="عرض الكل"
                             android:textColor="#FFFFFFFF"
                             android:textSize="14sp" />
                     </LinearLayout>
 
-                    <!-- شريط الكروت الأفقي -->
+                    <!-- شريط بوسترات الأفلام الرائجة الأفقي -->
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/det_popular_list"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
+                        android:clipToPadding="false"
                         android:orientation="horizontal" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
     </LinearLayout>
 
-    <!-- زر الصعود للأعلى الدائري الفاخر (Floating Scroll To Top) -->
+    <!-- زر الصعود للأعلى الدائري الفاخر -->
     <ImageButton
         android:id="@+id/det_btn_scroll_top"
         android:layout_width="54dp"
@@ -332,6 +383,7 @@
         android:visibility="gone"
         app:tint="#FFFFFFFF" />
 
+    <!-- مؤشر التحميل -->
     <ProgressBar
         android:id="@+id/det_progress"
         android:layout_width="64dp"

@@ -4,10 +4,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center"
+    android:layoutDirection="rtl"
     android:padding="20dp">
 
     <LinearLayout
-        android:layout_width="780dp"
+        android:layout_width="600dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:background="@drawable/nat_bg_dialog_card"
@@ -53,29 +54,29 @@
                 app:tint="#FFFFFFFF" />
         </LinearLayout>
 
-        <!-- شبكة الخيارات الثلاثة -->
+        <!-- شبكة الخيارين المتوافقة مع بيئة الأندرويد والشاشات -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <!-- 1. شاشة لمس -->
+            <!-- 1. شاشة لمس (هاتف أو تابلت) -->
             <LinearLayout
                 android:id="@+id/card_mode_touch"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
+                android:layout_marginEnd="16dp"
                 android:layout_weight="1"
                 android:background="@drawable/nat_bg_device_card"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_horizontal"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="22dp">
 
                 <ImageView
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
                     android:layout_marginBottom="12dp"
                     android:src="@drawable/fa_mobile_screen_button"
                     app:tint="@color/nat_gold" />
@@ -92,11 +93,11 @@
                     style="@style/NatText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="14dp"
+                    android:layout_marginBottom="16dp"
                     android:background="@drawable/nat_badge"
-                    android:paddingStart="10dp"
+                    android:paddingStart="12dp"
                     android:paddingTop="4dp"
-                    android:paddingEnd="10dp"
+                    android:paddingEnd="12dp"
                     android:paddingBottom="4dp"
                     android:text="شاشة لمس"
                     android:textColor="@color/nat_gold"
@@ -106,7 +107,7 @@
                     android:id="@+id/btn_mode_touch"
                     style="@style/NatText.ExtraBold"
                     android:layout_width="match_parent"
-                    android:layout_height="42dp"
+                    android:layout_height="44dp"
                     android:background="@drawable/nat_btn_gold"
                     android:clickable="false"
                     android:text="تفعيل النمط"
@@ -114,23 +115,22 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- 2. ريموت كنترول / تلفزيون -->
+            <!-- 2. ريموت كنترول (شاشة أندرويد / رسيفر) -->
             <LinearLayout
                 android:id="@+id/card_mode_tv"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
                 android:layout_weight="1"
                 android:background="@drawable/nat_bg_device_card"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_horizontal"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="22dp">
 
                 <ImageView
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
                     android:layout_marginBottom="12dp"
                     android:src="@drawable/fa_tv"
                     app:tint="#FF8B5CF6" />
@@ -141,17 +141,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="6dp"
                     android:text="شاشة أندرويد / رسيفر"
-                    android:textSize="17sp" />
+                    android:textSize="18sp" />
 
                 <TextView
                     style="@style/NatText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="14dp"
+                    android:layout_marginBottom="16dp"
                     android:background="@drawable/bg_badge_red"
-                    android:paddingStart="10dp"
+                    android:paddingStart="12dp"
                     android:paddingTop="4dp"
-                    android:paddingEnd="10dp"
+                    android:paddingEnd="12dp"
                     android:paddingBottom="4dp"
                     android:text="ريموت كنترول"
                     android:textColor="#FFFFFFFF"
@@ -161,61 +161,7 @@
                     android:id="@+id/btn_mode_tv"
                     style="@style/NatText.ExtraBold"
                     android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:background="@drawable/nat_btn_gold"
-                    android:clickable="false"
-                    android:text="تفعيل النمط"
-                    android:textColor="#FF000000"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <!-- 3. كمبيوتر / كيبورد وماوس -->
-            <LinearLayout
-                android:id="@+id/card_mode_desktop"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@drawable/nat_bg_device_card"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:padding="20dp">
-
-                <ImageView
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="12dp"
-                    android:src="@drawable/fa_desktop"
-                    app:tint="#FF3B82F6" />
-
-                <TextView
-                    style="@style/NatText.ExtraBold"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="6dp"
-                    android:text="كمبيوتر أو لابتوب"
-                    android:textSize="18sp" />
-
-                <TextView
-                    style="@style/NatText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="14dp"
-                    android:background="@drawable/nat_badge"
-                    android:paddingStart="10dp"
-                    android:paddingTop="4dp"
-                    android:paddingEnd="10dp"
-                    android:paddingBottom="4dp"
-                    android:text="ماوس وكيبورد"
-                    android:textColor="#FF3B82F6"
-                    android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/btn_mode_desktop"
-                    style="@style/NatText.ExtraBold"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
+                    android:layout_height="44dp"
                     android:background="@drawable/nat_btn_gold"
                     android:clickable="false"
                     android:text="تفعيل النمط"

@@ -22,12 +22,21 @@ import com.almezo.servers.R;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * تفاصيل الفيلم (#movie-details-screen):
- * الملصق، مشغل الفيديو، الإعلان، التقييم، القصة، شريط الأعمال الرائجة الأفقي، وزر الصعود للأعلى الدائري.
+ * مطابقة كلياً لتصميم نسخة الكمبيوتر المرجعية:
+ * - بطاقة سينمائية زجاجية عائمة (Hero Card) بزوايا دائرية، مع خلفية مائية للعمل.
+ * - بوستر رأسي متناسق على اليمين بنسبة 2:3 مع زر شاهد الآن.
+ * - بيانات وصفية كاملة: المفضلة، التصنيف المترجم، التقييم الذهبي، الإعلان الترويجي، القصة المترجمة، المخرج والممثلين.
+ * - شريط أفلام رائجة للمشاهدة الآن مع أيقونة اللهب المتوهج وبادجات التقييم الذهبية وحدود التركيز الحمراء.
  */
 public class MovieDetailsActivity extends BaseActivity {
 
@@ -74,7 +83,7 @@ public class MovieDetailsActivity extends BaseActivity {
             paintFav(fav);
         });
 
-        TextView trailer = findViewById(R.id.det_btn_trailer);
+        View trailer = findViewById(R.id.det_btn_trailer);
         applyFocusScale(trailer, 1.06f);
         trailer.setOnClickListener(v -> openTrailer());
 
@@ -106,6 +115,9 @@ public class MovieDetailsActivity extends BaseActivity {
 
         TextView popularTitle = findViewById(R.id.det_popular_title);
         popularTitle.setText("أفلام رائجة للمشاهدة الآن");
+
+        TextView popularSubtitle = findViewById(R.id.det_popular_subtitle);
+        popularSubtitle.setText("الأفلام الأكثر متابعة وتقييماً");
 
         View viewAll = findViewById(R.id.det_popular_view_all);
         applyFocusScale(viewAll, 1.06f);
@@ -170,8 +182,8 @@ public class MovieDetailsActivity extends BaseActivity {
         if (backdrop != null) Ui.loadImage(bd, backdrop, android.R.color.transparent);
 
         StringBuilder meta = new StringBuilder();
-        appendPart(meta, info.optString("genre"));
-        appendPart(meta, info.optString("duration"));
+        appendPart(meta, SeriesDetailsActivity.translateGenre(info.optString("genre")));
+        appendPart(meta, SeriesDetailsActivity.formatDuration(info.optString("duration")));
         appendPart(meta, info.optString("country"));
         String year = info.optString("releasedate", "");
         if (year.length() >= 4) appendPart(meta, year.substring(0, 4));
@@ -179,24 +191,107 @@ public class MovieDetailsActivity extends BaseActivity {
 
         String rating = info.optString("rating", "");
         TextView ratingView = findViewById(R.id.det_rating);
-        if (!rating.isEmpty() && !"0".equals(rating)) ratingView.setText("★  التقييم: " + rating);
-        else ratingView.setVisibility(View.GONE);
-
-        String plot = firstNonEmpty(info.optString("plot"), info.optString("description"), "لا يوجد وصف متاح لهذا العمل.");
-        ((TextView) findViewById(R.id.det_plot)).setText(plot);
-
-        StringBuilder people = new StringBuilder();
-        String director = info.optString("director", "");
-        String cast = firstNonEmpty(info.optString("cast"), info.optString("actors"), "");
-        if (!director.isEmpty()) people.append("المخرج: ").append(director);
-        if (!cast.isEmpty()) {
-            if (people.length() > 0) people.append("\n");
-            people.append("الممثلين: ").append(cast);
+        if (!rating.isEmpty() && !"0".equals(rating) && !"null".equals(rating)) {
+            ratingView.setText("★  التقييم: " + rating);
+            ratingView.setVisibility(View.VISIBLE);
+        } else {
+            ratingView.setVisibility(View.GONE);
         }
-        ((TextView) findViewById(R.id.det_people)).setText(people.toString());
+
+        String rawPlot = firstNonEmpty(info.optString("plot"), info.optString("description"));
+        translatePlotToArabic(rawPlot);
+
+        String director = info.optString("director", "");
+        TextView dirView = findViewById(R.id.det_director);
+        View dirBox = findViewById(R.id.det_director_box);
+        if (dirView != null && dirBox != null) {
+            if (!director.isEmpty() && !"null".equals(director)) {
+                dirView.setText(director);
+                dirBox.setVisibility(View.VISIBLE);
+            } else {
+                dirView.setText("غير معروف");
+            }
+        }
+
+        String cast = firstNonEmpty(info.optString("cast"), info.optString("actors"));
+        TextView castView = findViewById(R.id.det_actors);
+        View castBox = findViewById(R.id.det_actors_box);
+        if (castView != null && castBox != null) {
+            if (!cast.isEmpty() && !"null".equals(cast)) {
+                castView.setText(cast);
+                castBox.setVisibility(View.VISIBLE);
+            } else {
+                castView.setText("غير معروف");
+            }
+        }
 
         trailerKey = info.optString("youtube_trailer", "");
-        if (trailerKey != null && !trailerKey.trim().isEmpty()) findViewById(R.id.det_btn_trailer).setVisibility(View.VISIBLE);
+        if (trailerKey != null && !trailerKey.trim().isEmpty()) {
+            findViewById(R.id.det_btn_trailer).setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void translatePlotToArabic(String rawPlot) {
+        if (rawPlot == null || rawPlot.trim().isEmpty() || "null".equals(rawPlot)) {
+            TextView plotView = findViewById(R.id.det_plot);
+            if (plotView != null) plotView.setText("لا يوجد وصف متاح لهذا الفيلم.");
+            return;
+        }
+
+        boolean hasArabic = false;
+        for (int i = 0; i < rawPlot.length(); i++) {
+            char c = rawPlot.charAt(i);
+            if (c >= '\u0600' && c <= '\u06FF') {
+                hasArabic = true;
+                break;
+            }
+        }
+        if (hasArabic && rawPlot.length() > 20) {
+            TextView plotView = findViewById(R.id.det_plot);
+            if (plotView != null) plotView.setText(rawPlot);
+            return;
+        }
+
+        TextView plotView = findViewById(R.id.det_plot);
+        if (plotView != null) plotView.setText("جاري ترجمة القصة...");
+
+        Xtream.IO.execute(() -> {
+            String translated = null;
+            try {
+                String urlStr = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ar&dt=t&q="
+                        + URLEncoder.encode(rawPlot, "UTF-8");
+                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) sb.append(line);
+                    reader.close();
+                    JSONArray outer = new JSONArray(sb.toString());
+                    if (outer.length() > 0) {
+                        JSONArray arr = outer.getJSONArray(0);
+                        StringBuilder transSb = new StringBuilder();
+                        for (int j = 0; j < arr.length(); j++) {
+                            JSONArray item = arr.optJSONArray(j);
+                            if (item != null && item.length() > 0) {
+                                transSb.append(item.optString(0, ""));
+                            }
+                        }
+                        if (transSb.length() > 0) translated = transSb.toString();
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            final String result = (translated != null && !translated.isEmpty()) ? translated : rawPlot;
+            ui.post(() -> {
+                if (isFinishing()) return;
+                TextView pv = findViewById(R.id.det_plot);
+                if (pv != null) pv.setText(result);
+            });
+        });
     }
 
     static String firstNonEmpty(String... values) {
@@ -269,6 +364,16 @@ public class MovieDetailsActivity extends BaseActivity {
             Models.Item it = popularItems.get(position);
             holder.title.setText(it.safeName());
             Ui.loadImage(holder.img, it.icon, Ui.logoPlaceholder());
+
+            if (holder.rating != null) {
+                if (it.rating != null && !it.rating.isEmpty() && !"0".equals(it.rating) && !"null".equals(it.rating)) {
+                    holder.rating.setText("★ " + it.rating);
+                    holder.rating.setVisibility(View.VISIBLE);
+                } else {
+                    holder.rating.setVisibility(View.GONE);
+                }
+            }
+
             holder.itemView.setOnClickListener(v -> {
                 Intent i = new Intent(MovieDetailsActivity.this, MovieDetailsActivity.class);
                 i.putExtra("id", it.id);
@@ -289,11 +394,13 @@ public class MovieDetailsActivity extends BaseActivity {
     private static class PopularHolder extends RecyclerView.ViewHolder {
         final ImageView img;
         final TextView title;
+        final TextView rating;
 
         PopularHolder(@NonNull View itemView) {
             super(itemView);
             img = itemView.findViewById(R.id.pop_poster_img);
             title = itemView.findViewById(R.id.pop_poster_title);
+            rating = itemView.findViewById(R.id.pop_poster_rating);
         }
     }
 }

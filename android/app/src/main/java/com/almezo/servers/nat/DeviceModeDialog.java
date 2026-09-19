@@ -34,21 +34,17 @@ public final class DeviceModeDialog {
         View close = d.findViewById(R.id.dialog_device_close);
         View cardTouch = d.findViewById(R.id.card_mode_touch);
         View cardTv = d.findViewById(R.id.card_mode_tv);
-        View cardDesktop = d.findViewById(R.id.card_mode_desktop);
 
         Button btnTouch = d.findViewById(R.id.btn_mode_touch);
         Button btnTv = d.findViewById(R.id.btn_mode_tv);
-        Button btnDesktop = d.findViewById(R.id.btn_mode_desktop);
 
-        highlight(cardTouch, btnTouch, "touch".equals(currentMode));
+        highlight(cardTouch, btnTouch, !"tv".equals(currentMode));
         highlight(cardTv, btnTv, "tv".equals(currentMode));
-        highlight(cardDesktop, btnDesktop, "desktop".equals(currentMode));
 
         if (a instanceof BaseActivity) {
             BaseActivity ba = (BaseActivity) a;
             ba.applyFocusScale(cardTouch, 1.05f);
             ba.applyFocusScale(cardTv, 1.05f);
-            ba.applyFocusScale(cardDesktop, 1.05f);
             ba.applyFocusScale(close, 1.1f);
         }
 
@@ -56,7 +52,6 @@ public final class DeviceModeDialog {
 
         cardTouch.setOnClickListener(v -> select(a, d, store, "touch", "تم تفعيل نمط اللمس (هاتف / تابلت)"));
         cardTv.setOnClickListener(v -> select(a, d, store, "tv", "تم تفعيل نمط التلفزيون (ريموت كنترول)"));
-        cardDesktop.setOnClickListener(v -> select(a, d, store, "desktop", "تم تفعيل نمط الكمبيوتر"));
 
         d.show();
         if ("tv".equals(currentMode)) cardTv.requestFocus();

@@ -19,7 +19,7 @@
         <!-- الشريط الجانبي للأقسام -->
         <LinearLayout
             android:id="@+id/browse_sidebar"
-            android:layout_width="360dp"
+            android:layout_width="320dp"
             android:layout_height="match_parent"
             android:background="@drawable/nat_bg_sidebar"
             android:orientation="vertical">
@@ -63,6 +63,7 @@
             android:orientation="vertical">
 
             <FrameLayout
+                android:id="@+id/browse_grid_header"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
                 android:paddingStart="20dp"

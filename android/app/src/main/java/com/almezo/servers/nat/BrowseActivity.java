@@ -1,6 +1,7 @@
 package com.almezo.servers.nat;
 
 import android.content.Intent;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -115,6 +116,8 @@ public class BrowseActivity extends BaseActivity {
             gridActions.removeView(menu);
             sideActions.addView(search);
             sideActions.addView(menu);
+            View gridHeader = findViewById(R.id.browse_grid_header);
+            if (gridHeader != null) gridHeader.setVisibility(View.GONE);
         }
 
         search.setOnClickListener(v -> toggleSearch());
@@ -185,6 +188,16 @@ public class BrowseActivity extends BaseActivity {
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
         grid.setItemViewCacheSize(COLUMNS * 3);
+        final int spacing = Math.round(14 * getResources().getDisplayMetrics().density);
+        grid.addItemDecoration(new RecyclerView.ItemDecoration() {
+            @Override
+            public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+                outRect.left = spacing / 2;
+                outRect.right = spacing / 2;
+                outRect.bottom = spacing;
+                outRect.top = 0;
+            }
+        });
         gridAdapter = new PosterAdapter();
         grid.setAdapter(gridAdapter);
     }
@@ -418,7 +431,7 @@ public class BrowseActivity extends BaseActivity {
         @Override
         public void onBindViewHolder(@NonNull VH h, int position) {
             final Models.Category c = categories.get(position);
-            h.name.setText(c.name);
+            h.name.setText("\u200F" + c.name);
             h.count.setText(c.count > 0 || c.special ? String.valueOf(c.count) : "");
             h.itemView.setActivated(c.id.equals(activeCatId));
             h.itemView.setOnClickListener(v -> {

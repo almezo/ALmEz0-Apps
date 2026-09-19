@@ -22,7 +22,7 @@ import android.view.WindowManager;
  */
 public final class AppScale {
 
-    public static final float CANVAS_HEIGHT = 750f;
+    public static final float CANVAS_HEIGHT = 700f;
 
     private AppScale() { }
 
