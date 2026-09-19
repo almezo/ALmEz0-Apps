@@ -15,8 +15,8 @@ import android.net.Uri;
 import android.speech.RecognizerIntent;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
-import android.text.style.StyleSpan;
 import android.util.DisplayMetrics;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -190,7 +190,7 @@ public final class AiAssistantDialog {
         d.setContentView(R.layout.nat_dialog_ai_assistant);
 
         if (d.getWindow() != null) {
-            d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
             DisplayMetrics dm = a.getResources().getDisplayMetrics();
             int w, h;
             if (AppScale.isTouchMode(a)) {
@@ -228,9 +228,11 @@ public final class AiAssistantDialog {
         final TextView historyEmpty = d.findViewById(R.id.ai_history_empty);
         final RecyclerView historyList = d.findViewById(R.id.ai_history_list);
 
-        if (AppScale.isTouchMode(a) && historyDrawer != null) {
+        if (historyDrawer != null) {
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) historyDrawer.getLayoutParams();
-            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            DisplayMetrics dm = a.getResources().getDisplayMetrics();
+            lp.width = Math.min((int) (dm.widthPixels * 0.78f), Math.round(300 * dm.density));
+            lp.gravity = Gravity.START | Gravity.TOP;
             historyDrawer.setLayoutParams(lp);
         }
 
@@ -314,6 +316,7 @@ public final class AiAssistantDialog {
         final Sender sender = q -> {
             if (busy[0] || q == null || q.trim().isEmpty()) return;
             busy[0] = true;
+            chatList.postDelayed(() -> busy[0] = false, 35000);
             hideKeyboard.run();
 
             // حفظ السؤال في الجلسة النشطة أو إنشاء جلسة جديدة
@@ -387,9 +390,29 @@ public final class AiAssistantDialog {
         };
         btnSend.setOnClickListener(v -> sendTyped.run());
         input.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_SEND || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+            if (actionId == EditorInfo.IME_ACTION_SEND
+                    || actionId == EditorInfo.IME_ACTION_DONE
+                    || actionId == EditorInfo.IME_ACTION_GO
+                    || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN)) {
                 sendTyped.run();
                 return true;
+            }
+            return false;
+        });
+        // إغلاق سجل المحادثات إذا تم لمس قائمة الشات
+        chatList.setOnTouchListener((v, ev) -> {
+            if (historyDrawer != null && historyDrawer.getVisibility() == View.VISIBLE) {
+                historyDrawer.setVisibility(View.GONE);
+            }
+            return false;
+        });
+        // إغلاق سجل المحادثات بزر الرجوع دون إغلاق المساعد بالكامل
+        d.setOnKeyListener((di, keyCode, ev) -> {
+            if (keyCode == KeyEvent.KEYCODE_BACK && ev.getAction() == KeyEvent.ACTION_UP) {
+                if (historyDrawer != null && historyDrawer.getVisibility() == View.VISIBLE) {
+                    historyDrawer.setVisibility(View.GONE);
+                    return true;
+                }
             }
             return false;
         });
@@ -421,8 +444,11 @@ public final class AiAssistantDialog {
             }
         });
         d.show();
-        if (BaseActivity.isTvDevice(a)) chipMovie.requestFocus();
-        else input.requestFocus();
+        if (BaseActivity.isTvDevice(a)) {
+            chipMovie.requestFocus();
+        } else {
+            if (input != null) input.clearFocus();
+        }
     }
 
     private interface Sender {
@@ -456,12 +482,17 @@ public final class AiAssistantDialog {
                 reply = new Message(false, false, r.text, r.cards, r.sources);
             } catch (AiClient.AuthRequiredException e) {
                 reply = Message.bot("لتفعيل مساعد الميزو افتح المشغل من داخل موقع الميزو بعد تسجيل الدخول في الموقع، ثم أعد السؤال.");
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                android.util.Log.e("AiAssistantDialog", "AI ask error", e);
                 reply = Message.bot("عذراً، تعذر الوصول إلى المساعد الآن. تحقق من اتصال الإنترنت وحاول مجدداً.");
             }
             final Message finalReply = reply;
             a.runOnUiThread(() -> {
-                callback.onReply(finalReply);
+                try {
+                    callback.onReply(finalReply);
+                } catch (Throwable t) {
+                    android.util.Log.e("AiAssistantDialog", "Callback error", t);
+                }
                 if (a.isFinishing()) return;
                 int last = messages.size() - 1;
                 if (last >= 0 && messages.get(last).pending) {
@@ -552,23 +583,26 @@ public final class AiAssistantDialog {
         StringBuilder plain = new StringBuilder();
         for (String line : text.split("\n", -1)) {
             String l = line;
-            String t = l.trim();
-            if (t.startsWith("#")) l = "**" + t.replaceFirst("^#+\\s*", "") + "**";
-            else if (t.startsWith("* ") || t.startsWith("- ")) l = "• " + t.substring(2);
-            if (plain.length() > 0) plain.append('\n');
-            plain.append(l);
+            if (l.startsWith("### ")) l = l.substring(4);
+            else if (l.startsWith("## ")) l = l.substring(3);
+            else if (l.startsWith("# ")) l = l.substring(2);
+            if (l.startsWith("* ") || l.startsWith("- ")) l = "• " + l.substring(2);
+            plain.append(l).append('\n');
         }
-        SpannableStringBuilder sb = new SpannableStringBuilder();
-        Matcher m = BOLD.matcher(plain);
-        int last = 0;
+        if (plain.length() > 0 && plain.charAt(plain.length() - 1) == '\n') {
+            plain.setLength(plain.length() - 1);
+        }
+
+        SpannableStringBuilder sb = new SpannableStringBuilder(plain);
+        Matcher m = BOLD.matcher(sb);
         while (m.find()) {
-            sb.append(plain, last, m.start());
-            int s = sb.length();
-            sb.append(m.group(1));
-            sb.setSpan(new StyleSpan(Typeface.BOLD), s, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            last = m.end();
+            int start = m.start();
+            int end = m.end();
+            String inner = m.group(1);
+            sb.replace(start, end, inner);
+            sb.setSpan(new StyleSpan(Typeface.BOLD), start, start + inner.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            m = BOLD.matcher(sb);
         }
-        sb.append(plain, last, plain.length());
         return sb;
     }
 
@@ -707,7 +741,7 @@ public final class AiAssistantDialog {
         final TextView userText, botText;
         final LinearLayout cards, sources;
         final View loadingView, dot1, dot2, dot3;
-        private AnimatorSet animSet;
+        private final List<ObjectAnimator> runningAnimators = new ArrayList<>();
 
         MessageHolder(@NonNull View v) {
             super(v);
@@ -728,7 +762,6 @@ public final class AiAssistantDialog {
         void startAnimation() {
             stopAnimation();
             if (dot1 == null || dot2 == null || dot3 == null) return;
-            List<Animator> animators = new ArrayList<>();
             View[] dots = new View[]{dot1, dot2, dot3};
             for (int i = 0; i < dots.length; i++) {
                 View dot = dots[i];
@@ -751,20 +784,23 @@ public final class AiAssistantDialog {
                 alpha.setRepeatCount(ValueAnimator.INFINITE);
                 alpha.setStartDelay(i * 180);
 
-                animators.add(sx);
-                animators.add(sy);
-                animators.add(alpha);
+                runningAnimators.add(sx);
+                runningAnimators.add(sy);
+                runningAnimators.add(alpha);
+
+                sx.start();
+                sy.start();
+                alpha.start();
             }
-            animSet = new AnimatorSet();
-            animSet.playTogether(animators);
-            animSet.start();
         }
 
         void stopAnimation() {
-            if (animSet != null) {
-                animSet.cancel();
-                animSet = null;
+            for (ObjectAnimator a : runningAnimators) {
+                if (a != null) {
+                    try { a.cancel(); } catch (Exception ignored) {}
+                }
             }
+            runningAnimators.clear();
             if (dot1 != null) { dot1.setScaleX(1f); dot1.setScaleY(1f); dot1.setAlpha(1f); }
             if (dot2 != null) { dot2.setScaleX(1f); dot2.setScaleY(1f); dot2.setAlpha(1f); }
             if (dot3 != null) { dot3.setScaleX(1f); dot3.setScaleY(1f); dot3.setAlpha(1f); }

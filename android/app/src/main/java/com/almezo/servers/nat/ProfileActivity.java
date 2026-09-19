@@ -100,11 +100,9 @@ public class ProfileActivity extends BaseActivity {
 
         if (tvMaxConn != null) tvMaxConn.setText(u.optString("max_connections", "1"));
         if (tvActiveConn != null) {
-            int activeVal = 1;
-            try {
-                activeVal = Math.max(1, Integer.parseInt(u.optString("active_cons", "1")));
-            } catch (Exception ignored) {}
-            tvActiveConn.setText(String.valueOf(activeVal));
+            String act = u.optString("active_cons", "");
+            if (act.isEmpty()) act = u.optString("active_connections", "0");
+            tvActiveConn.setText(act.isEmpty() ? "0" : act);
         }
 
         if (tvCreatedAt != null) tvCreatedAt.setText(formatDate(u.optString("created_at", "")));

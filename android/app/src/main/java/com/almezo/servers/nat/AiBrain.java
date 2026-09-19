@@ -119,8 +119,7 @@ public final class AiBrain {
         payload.put("tools", new JSONArray().put(new JSONObject().put("googleSearch", new JSONObject())));
         payload.put("generationConfig", new JSONObject()
                 .put("temperature", 0.7)
-                .put("maxOutputTokens", 4096)
-                .put("thinkingConfig", new JSONObject().put("thinkingBudget", 1024)));
+                .put("maxOutputTokens", 1200));
 
         JSONObject result = client.generate(payload);
         String raw = result.optString("text", "").trim();
@@ -235,8 +234,7 @@ public final class AiBrain {
                             .put("temperature", 0)
                             .put("maxOutputTokens", 600)
                             .put("responseMimeType", "application/json")
-                            .put("responseSchema", schema)
-                            .put("thinkingConfig", new JSONObject().put("thinkingBudget", 0)));
+                            .put("responseSchema", schema));
             String text = client.generate(payload).optString("text", "").trim();
             int a = text.indexOf('{'), b = text.lastIndexOf('}');
             if (a >= 0 && b > a) return new JSONObject(text.substring(a, b + 1));

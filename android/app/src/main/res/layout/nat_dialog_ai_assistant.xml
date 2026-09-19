@@ -6,7 +6,9 @@
     android:layout_gravity="center"
     android:layout_margin="16dp"
     android:background="@drawable/nat_bg_dialog_card"
-    android:layoutDirection="rtl">
+    android:layoutDirection="rtl"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
 
     <!-- Main Chat Content -->
     <LinearLayout
