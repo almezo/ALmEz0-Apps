@@ -57,10 +57,27 @@ public class DashboardActivity extends BaseActivity {
         setupCard(cardMovies, Models.VOD, R.drawable.nat_card_movies, R.drawable.fa_r_circle_play, "الأفلام", "تصفح جميع الأفلام");
         setupCard(cardSeries, Models.SERIES, R.drawable.nat_card_series, R.drawable.fa_video, "المسلسلات", "تصفح المسلسلات والحلقات");
 
+        View aiBtn = findViewById(R.id.dash_btn_ai);
+        if (aiBtn != null) {
+            applyFocusScale(aiBtn, 1.08f);
+            aiBtn.setOnClickListener(v -> AiAssistantDialog.show(this));
+        }
+
         fitCardsWidth();
         setupFooter();
         cardLive.requestFocus();
         prefetchAll();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == AiAssistantDialog.REQ_CODE_SPEECH && resultCode == RESULT_OK && data != null) {
+            java.util.ArrayList<String> matches = data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+            if (matches != null && !matches.isEmpty()) {
+                AiAssistantDialog.handleSpeechResult(matches.get(0));
+            }
+        }
     }
 
     /** نفس .dash-cards-wrapper: عرض أقصى 1480 (+ الحشوات)، وإلا يملأ الشاشة. */
@@ -165,18 +182,28 @@ public class DashboardActivity extends BaseActivity {
     }
 
     private void confirmLogout() {
-        new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert)
-                .setTitle("تسجيل الخروج")
-                .setMessage("هل تريد تسجيل الخروج من الحساب الحالي؟")
-                .setPositiveButton("خروج", (d, w) -> {
-                    store.logout();
-                    Intent i = new Intent(this, AuthActivity.class);
-                    i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    startActivity(i);
-                    finish();
-                })
-                .setNegativeButton("إلغاء", null)
-                .show();
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.nat_dialog_logout);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        View confirm = dialog.findViewById(R.id.dialog_btn_confirm);
+        View cancel = dialog.findViewById(R.id.dialog_btn_cancel);
+        applyFocusScale(confirm, 1.08f);
+        applyFocusScale(cancel, 1.08f);
+        confirm.setOnClickListener(v -> {
+            dialog.dismiss();
+            store.logout();
+            Intent i = new Intent(this, AuthActivity.class);
+            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(i);
+            finish();
+        });
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
+        confirm.requestFocus();
     }
 
     @Override

@@ -24,27 +24,36 @@ public final class NavBar {
         }
     };
 
-    public final ImageButton home, accounts, profile, logout, back;
+    public final ImageButton home, accounts, device, profile, logout, back;
 
     public NavBar(Activity a) {
         clock = a.findViewById(R.id.nav_clock);
         date = a.findViewById(R.id.nav_date);
         home = a.findViewById(R.id.nav_btn_home);
         accounts = a.findViewById(R.id.nav_btn_accounts);
+        device = a.findViewById(R.id.nav_btn_device);
         profile = a.findViewById(R.id.nav_btn_profile);
         logout = a.findViewById(R.id.nav_btn_logout);
         back = a.findViewById(R.id.nav_btn_back);
-        for (View v : new View[]{home, accounts, profile, logout, back}) BaseActivity.applyFocusScale(v, 1.12f);
+        for (View v : new View[]{home, accounts, device, profile, logout, back}) {
+            if (v != null) BaseActivity.applyFocusScale(v, 1.12f);
+        }
+        if (device != null) {
+            device.setOnClickListener(v -> DeviceModeDialog.show(a));
+        }
     }
 
     /** وضع الشاشات الداخلية: زر رجوع واحد بدل أزرار لوحة التحكم، كما في ترويسة شاشة البث بالويب. */
     public NavBar backOnly(Activity a) {
-        home.setVisibility(View.GONE);
-        accounts.setVisibility(View.GONE);
-        profile.setVisibility(View.GONE);
-        logout.setVisibility(View.GONE);
-        back.setVisibility(View.VISIBLE);
-        back.setOnClickListener(v -> a.finish());
+        if (home != null) home.setVisibility(View.GONE);
+        if (accounts != null) accounts.setVisibility(View.GONE);
+        if (device != null) device.setVisibility(View.GONE);
+        if (profile != null) profile.setVisibility(View.GONE);
+        if (logout != null) logout.setVisibility(View.GONE);
+        if (back != null) {
+            back.setVisibility(View.VISIBLE);
+            back.setOnClickListener(v -> a.finish());
+        }
         return this;
     }
 

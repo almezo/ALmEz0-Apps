@@ -90,6 +90,14 @@
             app:tint="@color/nat_nav_accounts" />
 
         <ImageButton
+            android:id="@+id/nav_btn_device"
+            style="@style/NatNavButton"
+            android:background="@drawable/nat_nav_btn_device"
+            android:contentDescription="نمط الجهاز ونظام التحكم"
+            android:src="@drawable/fa_tv"
+            app:tint="#FF8B5CF6" />
+
+        <ImageButton
             android:id="@+id/nav_btn_profile"
             style="@style/NatNavButton"
             android:background="@drawable/nat_nav_btn_profile"

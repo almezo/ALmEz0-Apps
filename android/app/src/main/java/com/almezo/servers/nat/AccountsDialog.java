@@ -1,65 +1,167 @@
 package com.almezo.servers.nat;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Intent;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.widget.Button;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.ArrayList;
+import com.almezo.servers.R;
+
 import java.util.List;
 
-/** قوائم التشغيل وتبديل السيرفر (#playlistsModal): تفعيل حساب محفوظ، حذفه، أو إضافة سيرفر جديد. */
+/**
+ * نافذة قوائم التشغيل والسيرفرات المحفوظة (#playlistsModal):
+ * مطابقة 100% للتصميم السابق بشبكة البطاقات وشعارات السيرفرات الحقيقية وزر إضافة سيرفر جديد.
+ */
 public final class AccountsDialog {
 
     private AccountsDialog() { }
 
     public static void show(Activity a) {
+        if (a == null || a.isFinishing()) return;
         final Store store = new Store(a);
         final List<Models.Account> accounts = store.accounts();
         final Models.Account active = store.active();
 
-        List<String> labels = new ArrayList<>();
-        for (Models.Account acc : accounts) {
-            Servers.Server s = Servers.find(acc.serverCode);
-            String name = (s != null ? s.name : "سيرفر (" + acc.serverCode + ")") + " - " + acc.username;
-            if (active != null && active.id.equals(acc.id)) name = "✓ " + name + " (مفعّل حالياً)";
-            labels.add(name);
+        final Dialog d = new Dialog(a);
+        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        d.setContentView(R.layout.nat_dialog_playlists);
+        if (d.getWindow() != null) {
+            d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            d.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
-        labels.add("＋ إضافة سيرفر أو حساب جديد");
 
-        new AlertDialog.Builder(a, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert)
-                .setTitle("قوائم التشغيل وتبديل السيرفر")
-                .setItems(labels.toArray(new String[0]), (d, which) -> {
-                    if (which == accounts.size()) {
-                        Intent i = new Intent(a, AuthActivity.class);
-                        i.putExtra(AuthActivity.EXTRA_ADD_ACCOUNT, true);
-                        a.startActivity(i);
-                        return;
-                    }
-                    showAccountActions(a, store, accounts.get(which));
-                })
-                .setNegativeButton("إغلاق", null)
-                .show();
+        View close = d.findViewById(R.id.dialog_playlists_close);
+        Button btnAdd = d.findViewById(R.id.dialog_playlists_btn_add);
+        TextView countText = d.findViewById(R.id.dialog_playlists_count);
+        RecyclerView list = d.findViewById(R.id.dialog_playlists_list);
+
+        countText.setText(accounts.size() + " سيرفرات محفوظة");
+
+        if (a instanceof BaseActivity) {
+            BaseActivity ba = (BaseActivity) a;
+            ba.applyFocusScale(close, 1.1f);
+            ba.applyFocusScale(btnAdd, 1.05f);
+        }
+
+        close.setOnClickListener(v -> d.dismiss());
+
+        btnAdd.setOnClickListener(v -> {
+            d.dismiss();
+            Intent i = new Intent(a, AuthActivity.class);
+            i.putExtra(AuthActivity.EXTRA_ADD_ACCOUNT, true);
+            a.startActivity(i);
+        });
+
+        list.setLayoutManager(new LinearLayoutManager(a));
+        PlaylistAdapter adapter = new PlaylistAdapter(a, d, store, accounts, active);
+        list.setAdapter(adapter);
+
+        d.show();
+        btnAdd.requestFocus();
     }
 
-    private static void showAccountActions(Activity a, Store store, Models.Account acc) {
-        new AlertDialog.Builder(a, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert)
-                .setTitle(acc.username)
-                .setItems(new String[]{"تفعيل هذا الحساب", "حذف الحساب"}, (d, which) -> {
-                    if (which == 0) {
-                        store.activate(acc.id);
-                        a.recreate();
-                    } else {
-                        store.deleteAccount(acc.id);
-                        if (store.active() == null) {
-                            Intent i = new Intent(a, AuthActivity.class);
-                            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                            a.startActivity(i);
-                            a.finish();
-                        }
-                    }
-                })
-                .setNegativeButton("رجوع", null)
-                .show();
+    private static class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.VH> {
+        private final Activity activity;
+        private final Dialog dialog;
+        private final Store store;
+        private final List<Models.Account> list;
+        private final Models.Account active;
+
+        PlaylistAdapter(Activity a, Dialog d, Store s, List<Models.Account> l, Models.Account act) {
+            this.activity = a;
+            this.dialog = d;
+            this.store = s;
+            this.list = l;
+            this.active = act;
+        }
+
+        class VH extends RecyclerView.ViewHolder {
+            final ImageView logo;
+            final TextView name, user, activeBadge;
+            final Button btnActivate;
+            final ImageButton btnDelete;
+
+            VH(View v) {
+                super(v);
+                logo = v.findViewById(R.id.card_srv_logo);
+                name = v.findViewById(R.id.card_srv_name);
+                user = v.findViewById(R.id.card_srv_user);
+                activeBadge = v.findViewById(R.id.card_srv_active_badge);
+                btnActivate = v.findViewById(R.id.card_srv_btn_activate);
+                btnDelete = v.findViewById(R.id.card_srv_btn_delete);
+                if (activity instanceof BaseActivity) {
+                    BaseActivity ba = (BaseActivity) activity;
+                    ba.applyFocusScale(v, 1.03f);
+                    ba.applyFocusScale(btnActivate, 1.08f);
+                    ba.applyFocusScale(btnDelete, 1.12f);
+                }
+            }
+        }
+
+        @NonNull
+        @Override
+        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_playlist_card, parent, false);
+            return new VH(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull VH h, int position) {
+            Models.Account acc = list.get(position);
+            Servers.Server s = Servers.find(acc.serverCode);
+            String serverName = s != null ? s.name : "سيرفر (" + acc.serverCode + ")";
+            int logoRes = s != null ? s.logoRes : R.drawable.almezo_logo;
+
+            h.logo.setImageResource(logoRes);
+            h.name.setText(serverName);
+            h.user.setText("اسم المستخدم: " + (acc.username != null ? acc.username : "--"));
+
+            boolean isActive = active != null && active.id.equals(acc.id);
+            h.activeBadge.setVisibility(isActive ? View.VISIBLE : View.GONE);
+            h.btnActivate.setVisibility(isActive ? View.GONE : View.VISIBLE);
+
+            h.btnActivate.setOnClickListener(v -> {
+                store.activate(acc.id);
+                Toast.makeText(activity, "تم تفعيل " + serverName, Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+                activity.recreate();
+            });
+
+            h.btnDelete.setOnClickListener(v -> {
+                store.deleteAccount(acc.id);
+                list.remove(position);
+                notifyItemRemoved(position);
+                notifyItemRangeChanged(position, list.size());
+                TextView countTv = dialog.findViewById(R.id.dialog_playlists_count);
+                if (countTv != null) countTv.setText(list.size() + " سيرفرات محفوظة");
+                Toast.makeText(activity, "تم حذف الحساب", Toast.LENGTH_SHORT).show();
+
+                if (store.active() == null) {
+                    dialog.dismiss();
+                    Intent i = new Intent(activity, AuthActivity.class);
+                    i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    activity.startActivity(i);
+                    activity.finish();
+                }
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return list.size();
+        }
     }
 }

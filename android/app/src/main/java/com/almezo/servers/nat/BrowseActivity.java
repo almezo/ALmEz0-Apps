@@ -161,28 +161,15 @@ public class BrowseActivity extends BaseActivity {
     }
 
     private void showOptions() {
-        String[] items = {
-                "الترتيب الافتراضي",
-                "المضافة حديثاً",
-                "الاسم (أ - ي)",
-                "الاسم (ي - أ)",
-                hideNames ? "إظهار الأسماء" : "إخفاء الأسماء"
-        };
-        final String[] modes = {"default", "added", "asc", "desc"};
-        new AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert)
-                .setTitle("الترتيب والعرض")
-                .setItems(items, (d, which) -> {
-                    if (which < 4) {
-                        sortMode = modes[which];
-                        store.putString("sort_" + type, sortMode);
-                        applyFilter();
-                    } else {
-                        hideNames = !hideNames;
-                        store.putString("hide_names_" + type, hideNames ? "1" : "0");
-                        gridAdapter.notifyDataSetChanged();
-                    }
-                })
-                .show();
+        SortDialog.show(this, type, sortMode, hideNames, (newSort, newHide) -> {
+            sortMode = newSort;
+            store.putString("sort_" + type, sortMode);
+            boolean hideChanged = (hideNames != newHide);
+            hideNames = newHide;
+            store.putString("hide_names_" + type, hideNames ? "1" : "0");
+            if (hideChanged && gridAdapter != null) gridAdapter.notifyDataSetChanged();
+            applyFilter();
+        });
     }
 
     private void setupLists() {

@@ -14,6 +14,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.res.ResourcesCompat;
+import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -28,7 +29,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-/** تفاصيل المسلسل (#series-details-screen): المواسم والحلقات والتشغيل. */
+/**
+ * تفاصيل المسلسل (#series-details-screen):
+ * المواسم، الحلقات، التشغيل، التقييم، شريط مسلسلات رائجة أفقي، وزر الصعود للأعلى الدائري.
+ */
 public class SeriesDetailsActivity extends BaseActivity {
 
     private Store store;
@@ -40,6 +44,11 @@ public class SeriesDetailsActivity extends BaseActivity {
     private final List<JSONObject> episodes = new ArrayList<>();
     private String activeSeason;
     private EpisodeAdapter adapter;
+
+    private NestedScrollView mainScroll;
+    private View btnScrollTop;
+    private final List<Models.Item> popularItems = new ArrayList<>();
+    private PopularAdapter popularAdapter;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -59,8 +68,10 @@ public class SeriesDetailsActivity extends BaseActivity {
         Ui.loadImage(findViewById(R.id.det_poster), cover, Ui.logoPlaceholder());
         ((TextView) findViewById(R.id.det_btn_play_text)).setText("تشغيل الحلقة الأولى");
 
-        // في المسلسل: الحلقات تأخذ مساحة القصة، والقصة تظهر مختصرة في سطر البيانات
-        findViewById(R.id.det_scroll).setVisibility(View.GONE);
+        // في المسلسل: الحلقات تأخذ مساحة القصة
+        View storyBox = findViewById(R.id.det_story_box);
+        if (storyBox != null) storyBox.setVisibility(View.GONE);
+
         RecyclerView list = findViewById(R.id.det_episodes);
         list.setVisibility(View.VISIBLE);
         list.setLayoutManager(new LinearLayoutManager(this));
@@ -82,7 +93,47 @@ public class SeriesDetailsActivity extends BaseActivity {
             paintFav(fav);
         });
 
+        setupScrollAndRecommendations();
         load();
+        loadRecommendations();
+    }
+
+    private void setupScrollAndRecommendations() {
+        mainScroll = findViewById(R.id.det_main_scroll);
+        btnScrollTop = findViewById(R.id.det_btn_scroll_top);
+        applyFocusScale(btnScrollTop, 1.15f);
+
+        btnScrollTop.setOnClickListener(v -> {
+            if (mainScroll != null) mainScroll.smoothScrollTo(0, 0);
+            View play = findViewById(R.id.det_btn_play);
+            if (play != null) play.requestFocus();
+        });
+
+        if (mainScroll != null) {
+            mainScroll.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+                if (scrollY > 320) {
+                    if (btnScrollTop.getVisibility() != View.VISIBLE) btnScrollTop.setVisibility(View.VISIBLE);
+                } else {
+                    if (btnScrollTop.getVisibility() != View.GONE) btnScrollTop.setVisibility(View.GONE);
+                }
+            });
+        }
+
+        TextView popularTitle = findViewById(R.id.det_popular_title);
+        popularTitle.setText("مسلسلات رائجة للمشاهدة الآن");
+
+        TextView popularSubtitle = findViewById(R.id.det_popular_subtitle);
+        popularSubtitle.setText("المسلسلات الأكثر متابعة وتقييماً");
+
+        View viewAll = findViewById(R.id.det_popular_view_all);
+        applyFocusScale(viewAll, 1.06f);
+        viewAll.setOnClickListener(v -> finish());
+
+        RecyclerView popList = findViewById(R.id.det_popular_list);
+        popList.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        popList.setItemAnimator(null);
+        popularAdapter = new PopularAdapter();
+        popList.setAdapter(popularAdapter);
     }
 
     private void paintFav(ImageButton fav) {
@@ -99,6 +150,25 @@ public class SeriesDetailsActivity extends BaseActivity {
                 findViewById(R.id.det_progress).setVisibility(View.GONE);
                 if (r == null) { toast("تعذر تحميل حلقات المسلسل"); return; }
                 bind(r);
+            });
+        });
+    }
+
+    private void loadRecommendations() {
+        Xtream.IO.execute(() -> {
+            List<Models.Item> list = null;
+            try { list = api.streams(Models.SERIES, false); } catch (Exception ignored) { }
+            final List<Models.Item> fetched = list;
+            ui.post(() -> {
+                if (isFinishing() || fetched == null) return;
+                popularItems.clear();
+                for (Models.Item it : fetched) {
+                    if (it.id != null && !it.id.equals(seriesId)) {
+                        popularItems.add(it);
+                        if (popularItems.size() >= 20) break;
+                    }
+                }
+                if (popularAdapter != null) popularAdapter.notifyDataSetChanged();
             });
         });
     }
@@ -242,6 +312,48 @@ public class SeriesDetailsActivity extends BaseActivity {
         @Override
         public int getItemCount() {
             return episodes.size();
+        }
+    }
+
+    // ------------------------------------------------------------------ محول قائمة التوصيات
+    private class PopularAdapter extends RecyclerView.Adapter<PopularHolder> {
+        @NonNull
+        @Override
+        public PopularHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_popular_poster, parent, false);
+            applyFocusScale(v, 1.08f);
+            return new PopularHolder(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull PopularHolder holder, int position) {
+            Models.Item it = popularItems.get(position);
+            holder.title.setText(it.safeName());
+            Ui.loadImage(holder.img, it.icon, Ui.logoPlaceholder());
+            holder.itemView.setOnClickListener(v -> {
+                Intent i = new Intent(SeriesDetailsActivity.this, SeriesDetailsActivity.class);
+                i.putExtra("id", it.id);
+                i.putExtra("name", it.name);
+                i.putExtra("cover", it.icon);
+                startActivity(i);
+                finish();
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return popularItems.size();
+        }
+    }
+
+    private static class PopularHolder extends RecyclerView.ViewHolder {
+        final ImageView img;
+        final TextView title;
+
+        PopularHolder(@NonNull View itemView) {
+            super(itemView);
+            img = itemView.findViewById(R.id.pop_poster_img);
+            title = itemView.findViewById(R.id.pop_poster_title);
         }
     }
 

@@ -207,6 +207,71 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- الأزرار العلوية المستديرة لبطاقة الدخول (الهوم ، السيرفرات المحفوظة ، نمط الجهاز) -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="16dp"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/auth_btn_home"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/nat_nav_btn_home"
+                    android:contentDescription="الرجوع للرئيسية"
+                    android:focusable="true"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/fa_house"
+                    app:tint="@color/nat_nav_home" />
+
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="10dp">
+
+                    <ImageButton
+                        android:id="@+id/auth_btn_saved_accounts"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="@drawable/nat_nav_btn_accounts"
+                        android:contentDescription="قوائم التشغيل وسيرفراتي"
+                        android:focusable="true"
+                        android:padding="12dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/fa_layer_group"
+                        app:tint="@color/nat_nav_accounts" />
+
+                    <TextView
+                        android:id="@+id/auth_saved_badge"
+                        style="@style/NatText.ExtraBold"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="top|end"
+                        android:background="@drawable/bg_circle_purple"
+                        android:gravity="center"
+                        android:text="0"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <ImageButton
+                    android:id="@+id/auth_btn_device"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/nat_nav_btn_device"
+                    android:contentDescription="نمط الجهاز ونظام التحكم"
+                    android:focusable="true"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/fa_tv"
+                    app:tint="#FF8B5CF6" />
+            </LinearLayout>
+
             <!-- زر الرجوع الدائري (.btn-home-return) أعلى يمين البطاقة -->
             <ImageButton
                 android:id="@+id/auth_btn_back"
@@ -222,14 +287,61 @@
                 app:tint="@color/nat_nav_home" />
         </FrameLayout>
 
+        <!-- الفوتر الاجتماعي الكامل -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/auth_social_call"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="اتصال"
+                android:focusable="true"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_phone"
+                app:tint="#FF0284C7" />
+
+            <ImageButton
+                android:id="@+id/auth_social_fb"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="فيسبوك"
+                android:focusable="true"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_b_facebook_f"
+                app:tint="#FF1877F2" />
+
+            <ImageButton
+                android:id="@+id/auth_social_wa"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/nat_btn_social"
+                android:contentDescription="واتساب"
+                android:focusable="true"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_b_whatsapp"
+                app:tint="#FF25D366" />
+        </LinearLayout>
+
         <TextView
             style="@style/NatText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="26dp"
+            android:layout_marginTop="12dp"
             android:text="ALmEz0 - سيرفرات الميزو - جميع الحقوق محفوظة © 2026"
             android:textColor="@color/nat_soft"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
     </LinearLayout>
 
     <ProgressBar

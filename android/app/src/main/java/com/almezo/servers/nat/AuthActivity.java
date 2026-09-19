@@ -95,9 +95,41 @@ public class AuthActivity extends BaseActivity {
             return false;
         });
 
+        View btnHome = findViewById(R.id.auth_btn_home);
+        View btnSaved = findViewById(R.id.auth_btn_saved_accounts);
+        View btnDevice = findViewById(R.id.auth_btn_device);
+        TextView badge = findViewById(R.id.auth_saved_badge);
+        View sCall = findViewById(R.id.auth_social_call);
+        View sFb = findViewById(R.id.auth_social_fb);
+        View sWa = findViewById(R.id.auth_social_wa);
+
+        for (View v : new View[]{btnHome, btnSaved, btnDevice, sCall, sFb, sWa}) {
+            if (v != null) applyFocusScale(v, 1.12f);
+        }
+
+        if (btnHome != null) btnHome.setOnClickListener(v -> finish());
+        if (btnSaved != null) btnSaved.setOnClickListener(v -> AccountsDialog.show(this));
+        if (btnDevice != null) btnDevice.setOnClickListener(v -> DeviceModeDialog.show(this));
+
+        if (sCall != null) sCall.setOnClickListener(v -> openUrl("tel:0945772649"));
+        if (sFb != null) sFb.setOnClickListener(v -> openUrl("https://facebook.com/ALMEZ0SERVERS"));
+        if (sWa != null) sWa.setOnClickListener(v -> openUrl("https://wa.me/218945772649"));
+
+        int savedCount = store.accounts().size();
+        if (badge != null) {
+            badge.setText(String.valueOf(savedCount));
+            badge.setVisibility(savedCount > 0 ? View.VISIBLE : View.GONE);
+        }
+
         String lastCode = store.getString("last_server_code", "");
         if (!lastCode.isEmpty()) code.setText(lastCode);
         showCodeStep();
+    }
+
+    private void openUrl(String url) {
+        try {
+            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+        } catch (Exception ignored) { }
     }
 
     private static boolean isEnter(KeyEvent e) {

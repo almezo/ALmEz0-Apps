@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/nat_bg_device_card"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="16dp">
+
+    <!-- شعار السيرفر -->
+    <ImageView
+        android:id="@+id/card_srv_logo"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/nat_logo_frame"
+        android:padding="2dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/almezo_logo" />
+
+    <!-- بيانات السيرفر -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/card_srv_name"
+                style="@style/NatText.ExtraBold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="سيرفر مارفل"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/card_srv_active_badge"
+                style="@style/NatText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_pill_button"
+                android:paddingStart="8dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="2dp"
+                android:text="✓ الحساب النشط حالياً"
+                android:textColor="#FF22C55E"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/card_srv_user"
+            style="@style/NatText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="اسم المستخدم: user123"
+            android:textColor="@color/nat_soft"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- أزرار الإجراءات -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/card_srv_btn_activate"
+            style="@style/NatText.ExtraBold"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/nat_btn_gold"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="تفعيل الحساب"
+            android:textColor="#FF000000"
+            android:textSize="14sp" />
+
+        <ImageButton
+            android:id="@+id/card_srv_btn_delete"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/nat_btn_danger"
+            android:contentDescription="حذف"
+            android:focusable="true"
+            android:padding="10dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/fa_trash"
+            app:tint="#FFFFFFFF" />
+    </LinearLayout>
+</LinearLayout>

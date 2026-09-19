@@ -3,12 +3,18 @@ package com.almezo.servers.nat;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.widget.NestedScrollView;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.almezo.servers.PlayerActivity;
 import com.almezo.servers.R;
@@ -16,7 +22,13 @@ import com.almezo.servers.R;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** تفاصيل الفيلم (#movie-details-screen) مع التشغيل والمفضلة والإعلان. */
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * تفاصيل الفيلم (#movie-details-screen):
+ * الملصق، مشغل الفيديو، الإعلان، التقييم، القصة، شريط الأعمال الرائجة الأفقي، وزر الصعود للأعلى الدائري.
+ */
 public class MovieDetailsActivity extends BaseActivity {
 
     private Store store;
@@ -24,6 +36,11 @@ public class MovieDetailsActivity extends BaseActivity {
     private NavBar nav;
     private String id, name, cover, ext;
     private String trailerKey;
+
+    private NestedScrollView mainScroll;
+    private View btnScrollTop;
+    private final List<Models.Item> popularItems = new ArrayList<>();
+    private PopularAdapter popularAdapter;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -61,7 +78,44 @@ public class MovieDetailsActivity extends BaseActivity {
         applyFocusScale(trailer, 1.06f);
         trailer.setOnClickListener(v -> openTrailer());
 
+        setupScrollAndRecommendations();
         loadInfo();
+        loadRecommendations();
+    }
+
+    private void setupScrollAndRecommendations() {
+        mainScroll = findViewById(R.id.det_main_scroll);
+        btnScrollTop = findViewById(R.id.det_btn_scroll_top);
+        applyFocusScale(btnScrollTop, 1.15f);
+
+        btnScrollTop.setOnClickListener(v -> {
+            if (mainScroll != null) mainScroll.smoothScrollTo(0, 0);
+            View play = findViewById(R.id.det_btn_play);
+            if (play != null) play.requestFocus();
+        });
+
+        if (mainScroll != null) {
+            mainScroll.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+                if (scrollY > 320) {
+                    if (btnScrollTop.getVisibility() != View.VISIBLE) btnScrollTop.setVisibility(View.VISIBLE);
+                } else {
+                    if (btnScrollTop.getVisibility() != View.GONE) btnScrollTop.setVisibility(View.GONE);
+                }
+            });
+        }
+
+        TextView popularTitle = findViewById(R.id.det_popular_title);
+        popularTitle.setText("أفلام رائجة للمشاهدة الآن");
+
+        View viewAll = findViewById(R.id.det_popular_view_all);
+        applyFocusScale(viewAll, 1.06f);
+        viewAll.setOnClickListener(v -> finish());
+
+        RecyclerView popList = findViewById(R.id.det_popular_list);
+        popList.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        popList.setItemAnimator(null);
+        popularAdapter = new PopularAdapter();
+        popList.setAdapter(popularAdapter);
     }
 
     private void paintFav(ImageButton fav) {
@@ -77,6 +131,25 @@ public class MovieDetailsActivity extends BaseActivity {
                 if (isFinishing()) return;
                 findViewById(R.id.det_progress).setVisibility(View.GONE);
                 if (r != null) bind(r);
+            });
+        });
+    }
+
+    private void loadRecommendations() {
+        Xtream.IO.execute(() -> {
+            List<Models.Item> list = null;
+            try { list = api.streams(Models.VOD, false); } catch (Exception ignored) { }
+            final List<Models.Item> fetched = list;
+            ui.post(() -> {
+                if (isFinishing() || fetched == null) return;
+                popularItems.clear();
+                for (Models.Item it : fetched) {
+                    if (it.id != null && !it.id.equals(id)) {
+                        popularItems.add(it);
+                        if (popularItems.size() >= 20) break;
+                    }
+                }
+                if (popularAdapter != null) popularAdapter.notifyDataSetChanged();
             });
         });
     }
@@ -179,5 +252,48 @@ public class MovieDetailsActivity extends BaseActivity {
     protected void onPause() {
         super.onPause();
         if (nav != null) nav.stop();
+    }
+
+    // ------------------------------------------------------------------ محول قائمة التوصيات
+    private class PopularAdapter extends RecyclerView.Adapter<PopularHolder> {
+        @NonNull
+        @Override
+        public PopularHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.nat_item_popular_poster, parent, false);
+            applyFocusScale(v, 1.08f);
+            return new PopularHolder(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull PopularHolder holder, int position) {
+            Models.Item it = popularItems.get(position);
+            holder.title.setText(it.safeName());
+            Ui.loadImage(holder.img, it.icon, Ui.logoPlaceholder());
+            holder.itemView.setOnClickListener(v -> {
+                Intent i = new Intent(MovieDetailsActivity.this, MovieDetailsActivity.class);
+                i.putExtra("id", it.id);
+                i.putExtra("name", it.name);
+                i.putExtra("cover", it.icon);
+                i.putExtra("ext", it.extension);
+                startActivity(i);
+                finish();
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return popularItems.size();
+        }
+    }
+
+    private static class PopularHolder extends RecyclerView.ViewHolder {
+        final ImageView img;
+        final TextView title;
+
+        PopularHolder(@NonNull View itemView) {
+            super(itemView);
+            img = itemView.findViewById(R.id.pop_poster_img);
+            title = itemView.findViewById(R.id.pop_poster_title);
+        }
     }
 }

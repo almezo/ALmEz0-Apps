@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_gravity="center"
+    android:padding="24dp">
+
+    <LinearLayout
+        android:layout_width="860dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/nat_bg_dialog_card"
+        android:orientation="vertical"
+        android:paddingStart="32dp"
+        android:paddingTop="28dp"
+        android:paddingEnd="32dp"
+        android:paddingBottom="28dp">
+
+        <!-- الترويسة -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="14dp"
+                android:src="@drawable/fa_layer_group"
+                app:tint="@color/nat_gold" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/NatText.Black"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="قوائم التشغيل وسيرفراتي"
+                    android:textSize="22sp" />
+
+                <TextView
+                    style="@style/NatText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="إدارة وتبديل سيرفرات IPTV المحفوظة والتبديل بينها بنقرة واحدة بدون كتابة البيانات"
+                    android:textColor="@color/nat_muted"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/dialog_playlists_close"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/nat_btn_icon"
+                android:contentDescription="إغلاق"
+                android:focusable="true"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_xmark"
+                app:tint="#FFFFFFFF" />
+        </LinearLayout>
+
+        <!-- شريط الأدوات (زر الإضافة والعداد) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/dialog_playlists_btn_add"
+                style="@style/NatText.ExtraBold"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:background="@drawable/nat_btn_gold"
+                android:drawableStart="@drawable/fa_plus"
+                android:drawablePadding="8dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:text="إضافة سيرفر جديد"
+                android:textColor="#FF000000"
+                android:textSize="15sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/dialog_playlists_count"
+                style="@style/NatText.ExtraBold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 سيرفرات محفوظة"
+                android:textColor="@color/nat_gold"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <!-- قائمة السيرفرات -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/dialog_playlists_list"
+            android:layout_width="match_parent"
+            android:layout_height="320dp"
+            android:scrollbars="vertical" />
+    </LinearLayout>
+</FrameLayout>

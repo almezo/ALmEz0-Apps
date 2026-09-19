@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="140dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="14dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical">
+
+    <com.almezo.servers.nat.RatioFrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/nat_bg_poster"
+        android:duplicateParentState="true"
+        android:foreground="@drawable/nat_fg_poster_focus">
+
+        <ImageView
+            android:id="@+id/pop_poster_img"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+    </com.almezo.servers.nat.RatioFrameLayout>
+
+    <TextView
+        android:id="@+id/pop_poster_title"
+        style="@style/NatText.ExtraBold"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:textSize="14sp" />
+</LinearLayout>
