@@ -7497,93 +7497,112 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover,
     background: var(--accent-gold, #f59e0b) !important;
 }
 
-/* بطاقة القناة الكبيرة والفاخرة - مطابقة لحجم وشكل بطاقات الأفلام والمسلسلات */
+/* بطاقة القناة - مطابقة بالكامل لبطاقة الفيلم (.vod-card) في المقاسات والأبعاد */
 .live-channel-card {
-    background: rgba(18, 24, 36, 0.95) !important;
-    border: 2px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 18px !important;
-    overflow: hidden !important;
-    cursor: pointer !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
-    justify-content: space-between !important;
-    aspect-ratio: 1 / 1.05 !important;
-    min-height: 200px !important;
+    justify-content: flex-start !important;
+    cursor: pointer !important;
     position: relative !important;
-    transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
     outline: none !important;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
 }
 
 .live-channel-card:hover,
-.live-channel-card:focus,
+.live-channel-card:focus-visible,
 .live-channel-card.tv-focused {
-    -webkit-transform: scale(1.08) translateY(-4px) !important;
-    transform: scale(1.08) translateY(-4px) !important;
-    border-color: #22c55e !important;
-    box-shadow: 0 16px 36px rgba(34, 197, 94, 0.5), 0 0 24px rgba(34, 197, 94, 0.4) !important;
-    outline: 3.5px solid #22c55e !important;
-    outline-offset: 3px !important;
-    z-index: 20 !important;
-    background: rgba(26, 36, 52, 0.98) !important;
+    transform: scale(1.06) !important;
+    z-index: 5 !important;
 }
 
-.live-channel-card.active {
-    border-color: #22c55e !important;
-    box-shadow: 0 0 24px rgba(34, 197, 94, 0.65) !important;
-}
-
-.live-channel-card .live-card-thumb {
-    flex: 1 1 auto !important;
+.live-channel-card .live-card-thumb,
+.live-channel-card .vod-poster-box {
+    width: 100% !important;
+    aspect-ratio: 2 / 3 !important;
+    height: auto !important;
+    border-radius: 10px !important;
+    background: #141a29 !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 100% !important;
-    padding: 16px 14px 10px 14px !important;
-    box-sizing: border-box !important;
     overflow: hidden !important;
+    box-sizing: border-box !important;
+    padding: 14px !important;
+    margin-bottom: 2px !important;
+    transition: outline 0.2s ease, box-shadow 0.2s ease !important;
 }
 
-.live-channel-card .channel-icon {
-    /* شعار القناة كان يُحدّ بارتفاع ثابت صغير (105px) بغض النظر عن حجم البطاقة الفعلي،
-       فيبدو صغيراً وسط صندوق كبير؛ رفعناه ليملأ مساحة الصندوق فعلياً */
-    max-width: 92% !important;
-    max-height: 130px !important;
+.live-channel-card:hover .live-card-thumb,
+.live-channel-card:focus-visible .live-card-thumb,
+.live-channel-card.tv-focused .live-card-thumb,
+.live-channel-card:hover .vod-poster-box,
+.live-channel-card:focus-visible .vod-poster-box,
+.live-channel-card.tv-focused .vod-poster-box {
+    outline: 3.5px solid #22c55e !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.75) !important;
+}
+
+.live-channel-card.active .live-card-thumb,
+.live-channel-card.active .vod-poster-box {
+    outline: 3px solid #22c55e !important;
+    outline-offset: 2px !important;
+}
+
+.live-channel-card .channel-icon,
+.live-channel-card .vod-poster {
+    max-width: 82% !important;
+    max-height: 82% !important;
     width: auto !important;
     height: auto !important;
     object-fit: contain !important;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8)) !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7)) !important;
     transition: transform 0.2s ease !important;
 }
 
 .live-channel-card:hover .channel-icon,
-.live-channel-card:focus .channel-icon,
+.live-channel-card:focus-visible .channel-icon,
 .live-channel-card.tv-focused .channel-icon {
-    -webkit-transform: scale(1.08) !important;
     transform: scale(1.08) !important;
 }
 
+.live-channel-card .vod-info,
 .live-channel-card .live-card-title-bar {
     width: 100% !important;
-    background: rgba(8, 11, 16, 0.94) !important;
-    padding: 10px 12px !important;
+    padding: 0 2px !important;
+    background: transparent !important;
+    border: none !important;
     box-sizing: border-box !important;
     text-align: center !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
+.live-channel-card .vod-title,
 .live-channel-card .live-card-title {
-    display: block !important;
-    font-size: 16px !important;
+    font-size: 21px !important;
     font-weight: 800 !important;
+    line-height: 1.3 !important;
     color: #ffffff !important;
-    white-space: nowrap !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+    margin-top: 8px !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    letter-spacing: 0.3px !important;
 }
 
 /* =========================================================
@@ -7767,63 +7786,7 @@ html.has-active-player-session #dashboard-screen.hidden {
 html.has-active-player-session #dashboard-nav.hidden {
     display: flex !important;
 }
-/* =========================================================
-   إصلاحات أندرويد: تداخل بطاقات القنوات وصغر عناوين الأفلام
-   ---------------------------------------------------------
-   1) بطاقات القنوات كانت تجمع aspect-ratio مع min-height داخل شبكة Grid، فيُحسب ارتفاع
-      الصف من النسبة (أقصر) بينما تتمدد البطاقة لحدها الأدنى، فتتراكب الصفوف فوق بعضها
-      وتُقص أسماء القنوات. الآن: ارتفاع صريح ثابت لمنطقة الشعار، واسم يظهر كاملاً في سطرين.
-   2) في وضع النقال تُرسم الواجهة على كانفاس 750px ثم تُصغَّر لنحو النصف، فعنوان بحجم 15px
-      يظهر فعلياً بحجم ~8px. نكبّره داخل الكانفاس ليُقرأ بوضوح على الهاتف.
-   ========================================================= */
-body.platform-android #liveChannels,
-body.tv-device-mode #liveChannels,
-#liveChannels.channels-grid-mode {
-    grid-auto-rows: auto !important;
-    align-items: start !important;
-    gap: 20px 16px !important;
-}
 
-body.platform-android .live-channel-card,
-body.tv-device-mode .live-channel-card,
-#liveChannels.channels-grid-mode .live-channel-card {
-    aspect-ratio: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    justify-content: flex-start !important;
-}
-
-body.platform-android .live-channel-card .live-card-thumb,
-body.tv-device-mode .live-channel-card .live-card-thumb,
-#liveChannels.channels-grid-mode .live-channel-card .live-card-thumb {
-    flex: 0 0 auto !important;
-    height: 130px !important;
-    padding: 14px 12px 8px !important;
-}
-
-body.platform-android .live-channel-card .live-card-title-bar,
-body.tv-device-mode .live-channel-card .live-card-title-bar,
-#liveChannels.channels-grid-mode .live-channel-card .live-card-title-bar {
-    flex: 0 0 auto !important;
-    min-height: 62px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 8px 10px !important;
-}
-
-body.platform-android .live-channel-card .live-card-title,
-body.tv-device-mode .live-channel-card .live-card-title,
-#liveChannels.channels-grid-mode .live-channel-card .live-card-title {
-    font-size: 19px !important;
-    line-height: 1.3 !important;
-    white-space: normal !important;
-    display: -webkit-box !important;
-    -webkit-line-clamp: 2 !important;
-    -webkit-box-orient: vertical !important;
-    overflow: hidden !important;
-    word-break: break-word !important;
-}
 
 body.platform-android .vod-title,
 body.touch-device-mode .vod-title {
@@ -7843,14 +7806,7 @@ body.platform-android #vodGrid.vod-grid {
 }
 
 /* =========================================================
-   توحيد نهائي: بطاقات القنوات مطابقة هيكلياً لبطاقات الأفلام تماماً
-   ---------------------------------------------------------
-   الإصلاحات السابقة لبطاقة القناة تراكمت عبر عدة قواعد متفرقة (تعريف أساسي + تصحيحات لاحقة)
-   في نفس الملف، وبعضها بقي متعارضاً مع اختلاف الأولوية (specificity) بينها. هذه القاعدة
-   الأخيرة تستخدم محدداً أعلى أولوية من كل ما سبقها (يضم #liveChannels نفسه) لتحسم الشكل
-   نهائياً: نفس الشبكة (5 أعمدة)، نفس نسبة الصندوق، نفس المسافات، ونفس حجم العنوان
-   المستخدمة فعلياً في شبكة الأفلام، بدل قيم aspect-ratio/min-height المتضاربة سابقاً
-   التي كانت تجعل الصفوف تُحسب أقصر من ارتفاع البطاقة الفعلي فتتراكب البطاقات فوق بعضها.
+   توحيد نهائي: شبكة القنوات وبطاقاتها مطابقة لشبكة الأفلام بحذافيرها
    ========================================================= */
 body.platform-android #liveChannels,
 body.tv-device-mode #liveChannels,
@@ -7859,111 +7815,40 @@ body.tv-device-mode #liveChannels,
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     gap: 6px !important;
     row-gap: 18px !important;
-    grid-auto-rows: auto !important;
-    align-items: start !important;
-    justify-items: center !important;
-    padding: 16px 18px !important;
-}
-
-body.platform-android #liveChannels .live-channel-card,
-body.tv-device-mode #liveChannels .live-channel-card,
-#liveChannels.channels-grid-mode .live-channel-card {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
     width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    aspect-ratio: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-body.platform-android #liveChannels .live-channel-card .live-card-thumb,
-body.tv-device-mode #liveChannels .live-channel-card .live-card-thumb,
-#liveChannels.channels-grid-mode .live-channel-card .live-card-thumb {
-    flex: none !important;
-    width: 100% !important;
-    aspect-ratio: 2 / 3 !important;
-    height: auto !important;
-    padding: 0 !important;
-    border-radius: 10px !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    overflow: hidden !important;
     box-sizing: border-box !important;
+    justify-items: center !important;
+    align-items: start !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: 100% !important;
+    padding: 10px 14px !important;
+    scroll-behavior: smooth !important;
 }
 
-body.platform-android #liveChannels .live-channel-card .channel-icon,
-body.tv-device-mode #liveChannels .live-channel-card .channel-icon,
-#liveChannels.channels-grid-mode .live-channel-card .channel-icon {
-    max-width: 78% !important;
-    max-height: 78% !important;
-    width: auto !important;
-    height: auto !important;
-    object-fit: contain !important;
+body.platform-android #liveChannels::-webkit-scrollbar,
+body.tv-device-mode #liveChannels::-webkit-scrollbar,
+#liveChannels.channels-grid-mode::-webkit-scrollbar {
+    width: 8px !important;
+    display: block !important;
 }
 
-body.platform-android #liveChannels .live-channel-card .live-card-title-bar,
-body.tv-device-mode #liveChannels .live-channel-card .live-card-title-bar,
-#liveChannels.channels-grid-mode .live-channel-card .live-card-title-bar {
-    flex: none !important;
-    width: 100% !important;
-    min-height: 0 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
+body.platform-android #liveChannels::-webkit-scrollbar-track,
+body.tv-device-mode #liveChannels::-webkit-scrollbar-track,
+#liveChannels.channels-grid-mode::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 6px !important;
 }
 
-body.platform-android #liveChannels .live-channel-card .live-card-title,
-body.tv-device-mode #liveChannels .live-channel-card .live-card-title,
-#liveChannels.channels-grid-mode .live-channel-card .live-card-title {
-    display: -webkit-box !important;
-    -webkit-line-clamp: 2 !important;
-    -webkit-box-orient: vertical !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow: hidden !important;
-    text-align: center !important;
-    font-size: 21px !important;
-    font-weight: 800 !important;
-    line-height: 1.3 !important;
-    color: #ffffff !important;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
-    margin-top: 8px !important;
-    padding: 0 2px !important;
+body.platform-android #liveChannels::-webkit-scrollbar-thumb,
+body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb,
+#liveChannels.channels-grid-mode::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-radius: 6px !important;
 }
 
-body.platform-android #liveChannels .live-channel-card:hover,
-body.platform-android #liveChannels .live-channel-card:focus-visible,
-body.platform-android #liveChannels .live-channel-card.tv-focused,
-body.tv-device-mode #liveChannels .live-channel-card:hover,
-body.tv-device-mode #liveChannels .live-channel-card:focus-visible,
-body.tv-device-mode #liveChannels .live-channel-card.tv-focused {
-    transform: scale(1.06) !important;
-    z-index: 5 !important;
-}
-
-body.platform-android #liveChannels .live-channel-card:hover .live-card-thumb,
-body.platform-android #liveChannels .live-channel-card:focus-visible .live-card-thumb,
-body.platform-android #liveChannels .live-channel-card.tv-focused .live-card-thumb,
-body.tv-device-mode #liveChannels .live-channel-card:hover .live-card-thumb,
-body.tv-device-mode #liveChannels .live-channel-card:focus-visible .live-card-thumb,
-body.tv-device-mode #liveChannels .live-channel-card.tv-focused .live-card-thumb {
-    outline: 3.5px solid #22c55e !important;
-    outline-offset: 3px !important;
-    box-shadow: 0 0 20px rgba(34, 197, 94, 0.75) !important;
-}
-
-body.platform-android #liveChannels .live-channel-card.active .live-card-thumb,
-body.tv-device-mode #liveChannels .live-channel-card.active .live-card-thumb {
-    outline: 3px solid #22c55e !important;
-    outline-offset: 2px !important;
+body.platform-android #liveChannels::-webkit-scrollbar-thumb:hover,
+body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover,
+#liveChannels.channels-grid-mode::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-gold, #e5b935) !important;
 }

@@ -560,6 +560,57 @@ public class PlayerActivity extends AppCompatActivity {
                     resetControlsHideTimer();
                 }
             });
+
+            // تمكين التحكم بشريط التقدم عبر أسهم الريموت (يمين/يسار). كان شريط التقدم
+            // focusable فعلاً في XML لكن لا يوجد أي كود يربط تحريكه بالريموت بتشغيل الفيديو
+            // الفعلي؛ ضبط progress بالمفاتيح لا يُطلق onStartTrackingTouch/onStopTrackingTouch
+            // (خاصتان باللمس والسحب فقط)، فكان الشريط يتحرك بصرياً بلا أي تأثير حقيقي على التشغيل.
+            seekBar.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    return false;
+                }
+                if (isLiveStream || player == null) return true; // استهلاك المفتاح فقط دون تنفيذ أي شيء
+                long deltaMs = (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) ? 10000 : -10000;
+                seekRelativeDebounced(deltaMs);
+                showSeekFeedback(deltaMs > 0 ? "+10s" : "-10s");
+                resetControlsHideTimer();
+                return true;
+            });
+        }
+
+        setupFocusEffects();
+    }
+
+    // تأثير تركيز خفيف وموحّد لكل أزرار المشغل الدائرية بدل المربع الأخضر الافتراضي
+    // ---------------------------------------------------------
+    // بداية من Android O، يرسم النظام تلقائياً "توهيج تركيز افتراضي" (Default Focus Highlight)
+    // فوق أي View قابل للتركيز باستخدام لون الواجهة الأساسي (colorAccent الأخضر #4caf50 هنا)،
+    // وهو مستطيل شفاف يغطي حدود الـ View المستطيلة بالكامل بغض النظر عن شكلها الفعلي (دائري هنا)،
+    // فيظهر كمربع أخضر بشع فوق الأزرار المستديرة. نعطّله ونستبدله بتكبير خفيف جداً للزر نفسه
+    // (تحريك transform عبر RenderNode، مُسرَّع بالعتاد تماماً ودون أي تكلفة حسابية أو رسومية)
+    // مع الاعتماد على توهج bg_circle_button/bg_pill_button الدائري الموجود أصلاً لحالة التركيز.
+    private void setupFocusEffects() {
+        View[] focusTargets = new View[] {
+            btnBack, btnCast, btnLock, btnUnlockScreen, btnSettings, btnCloseSettings,
+            btnPlayPause, btnRewind10, btnForward10, btnAspect, btnSpeed, seekBar
+        };
+        for (View v : focusTargets) {
+            if (v == null) continue;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.setDefaultFocusHighlightEnabled(false);
+                }
+            } catch (Throwable ignored) { }
+
+            v.setOnFocusChangeListener((view, hasFocus) -> {
+                float scale = hasFocus ? 1.12f : 1.0f;
+                view.animate()
+                        .scaleX(scale)
+                        .scaleY(scale)
+                        .setDuration(120)
+                        .start();
+            });
         }
     }
 
@@ -721,13 +772,20 @@ public class PlayerActivity extends AppCompatActivity {
         } catch (Throwable ignored) { }
     }
 
+    // يتتبّع ما إذا كان المستخدم قد أوقف التشغيل يدوياً (بالضغط على زر التشغيل/الإيقاف)،
+    // للتفريق بينه وبين الإيقاف التلقائي المؤقت الذي يفرضه نظام أندرويد نفسه (onPause)
+    // عند فقد النافذة تركيزها لحظياً أثناء انتقال الشاشة، دون أن يطلب المستخدم ذلك فعلياً.
+    private boolean isUserPaused = false;
+
     private void togglePlayPause() {
         if (player != null) {
             try {
                 if (player.isPlaying()) {
                     player.pause();
+                    isUserPaused = true;
                 } else {
                     player.play();
+                    isUserPaused = false;
                 }
             } catch (Throwable t) {
                 Log.w(TAG, "togglePlayPause error", t);
@@ -746,6 +804,41 @@ public class PlayerActivity extends AppCompatActivity {
                 Log.w(TAG, "seekRelative error", t);
             }
         }
+    }
+
+    // تجميع (Debounce) طلبات التقديم/التأخير المتكررة من الريموت: الضغط المطوَّل على السهم
+    // يرسل عشرات ضغطات onKeyDown في الثانية، وكل استدعاء مباشر لـ player.seekTo() على جهاز
+    // ضعيف يفرض إعادة تموضع فك الترميز (قد يُجمِّد الصورة لحظياً)، فيتراكم التقطيع مع الاستمرار
+    // بالضغط. الآن تتجمّع كل الضغطات المتتالية في فرق زمني واحد، ويُنفَّذ seekTo() الفعلي مرة
+    // واحدة فقط بعد توقف قصير عن الضغط، مع تحديث فوري للنص وشريط التقدم كتغذية راجعة بصرية.
+    private long pendingSeekDeltaMs = 0;
+    private final Runnable seekDebounceRunnable = () -> {
+        long delta = pendingSeekDeltaMs;
+        pendingSeekDeltaMs = 0;
+        if (delta != 0) {
+            seekRelative(delta);
+        }
+    };
+
+    private void seekRelativeDebounced(long deltaMs) {
+        if (player == null) return;
+        pendingSeekDeltaMs += deltaMs;
+        handler.removeCallbacks(seekDebounceRunnable);
+        handler.postDelayed(seekDebounceRunnable, 220);
+
+        try {
+            long dur = player.getDuration();
+            long cur = player.getCurrentPosition();
+            long shown = Math.max(0, cur + pendingSeekDeltaMs);
+            if (dur > 0) {
+                shown = Math.min(dur, shown);
+                if (seekBar != null) {
+                    int progress = (int) Math.min(1000, Math.max(0, (shown * 1000) / dur));
+                    seekBar.setProgress(progress);
+                }
+            }
+            if (tvPosition != null) tvPosition.setText(formatTime(shown));
+        } catch (Throwable ignored) { }
     }
 
     private void lockControls() {
@@ -1028,7 +1121,7 @@ public class PlayerActivity extends AppCompatActivity {
                     break;
                 }
                 if (!isLiveStream) {
-                    seekRelative(-10000);
+                    seekRelativeDebounced(-10000);
                     showSeekFeedback("-10s");
                     showControls();
                     return true;
@@ -1045,7 +1138,7 @@ public class PlayerActivity extends AppCompatActivity {
                     break;
                 }
                 if (!isLiveStream) {
-                    seekRelative(10000);
+                    seekRelativeDebounced(10000);
                     showSeekFeedback("+10s");
                     showControls();
                     return true;
@@ -1376,6 +1469,21 @@ public class PlayerActivity extends AppCompatActivity {
         if (player != null) {
             try {
                 player.pause();
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    // إصلاح مهم: لم يكن هناك onResume() مقابل لـ onPause() إطلاقاً. بعض أجهزة أندرويد تي في
+    // تستدعي onPause() لحظياً فور فتح الشاشة (أثناء انتقال الواجهة أو تراكب مؤقت من النظام)
+    // دون أي تدخل من المستخدم، وبما أن onPause() كانت توقف المشغل دائماً بلا أي استئناف تلقائي
+    // لاحق، كانت قنوات البث المباشر تُفتح ثم تتجمد فوراً في وضع الإيقاف المؤقت، فيضطر المستخدم
+    // للضغط يدوياً على زر التشغيل رغم أن الكود الأصلي كان يطلب التشغيل التلقائي بالفعل.
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (player != null && !isUserPaused) {
+            try {
+                player.play();
             } catch (Throwable ignored) { }
         }
     }

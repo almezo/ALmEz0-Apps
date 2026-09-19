@@ -671,9 +671,26 @@ function showScreen(screenId, isBackNavigation = false) {
         }
     }
 
-    document.querySelectorAll('.app-screen-container').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.app-screen-container').forEach(el => {
+        if (el.id === screenId) {
+            el.classList.remove('hidden');
+            el.inert = false;
+            el.removeAttribute('aria-hidden');
+        } else {
+            el.classList.add('hidden');
+            el.inert = true;
+            el.setAttribute('aria-hidden', 'true');
+        }
+    });
     const targetScreen = document.getElementById(screenId);
-    if (targetScreen) targetScreen.classList.remove('hidden');
+    if (targetScreen) {
+        targetScreen.classList.remove('hidden');
+        targetScreen.inert = false;
+        targetScreen.removeAttribute('aria-hidden');
+    }
+    if (typeof syncModalInertState === 'function') {
+        syncModalInertState();
+    }
 
     // إخفاء زر الصعود للأعلى نهائياً عند الانتقال لأي شاشة
     const scrollTopBtn = document.getElementById('btnScrollTop');
@@ -4732,17 +4749,18 @@ function appendNextItemChunk(customSize) {
             const loadingAttr = isPriority ? 'eager' : 'lazy';
             const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
 
-            if (isAndroidAppPlatform) {
-                el.className = 'live-channel-card';
+            const isGridDisplay = isAndroidAppPlatform || (container && container.classList.contains('channels-grid-mode'));
+            if (isGridDisplay) {
+                el.className = 'live-channel-card vod-card';
                 if (isCurrentlyPlaying || isSavedMatch) {
                     el.classList.add('active');
                 }
                 el.innerHTML = `
-                    <div class="live-card-thumb">
-                        <img src="${iconSrc}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                    <div class="live-card-thumb vod-poster-box">
+                        <img src="${iconSrc}" class="channel-icon vod-poster" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
                     </div>
-                    <div class="live-card-title-bar">
-                        <span class="live-card-title" title="${item.name || ''}">${item.name || ''}</span>
+                    <div class="vod-info live-card-title-bar">
+                        <div class="vod-title live-card-title" title="${item.name || ''}">${item.name || ''}</div>
                     </div>
                 `;
             } else {
@@ -5151,11 +5169,50 @@ function initLivePlayerGestures() {
 }
 
 // =========================================================
-// ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE
+// عزل الشاشات الخلفية ومنع تسرب التركيز (Phantom Focus Prevention)
 // =========================================================
-// =========================================================
-// ANDROID TV & TV BOX D-PAD SPATIAL NAVIGATION ENGINE
-// =========================================================
+function syncModalInertState() {
+    try {
+        const activeModal = document.querySelector(
+            '#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)'
+        );
+        const isModalOpen = !!activeModal;
+        document.querySelectorAll('.app-screen-container').forEach(s => {
+            if (isModalOpen) {
+                s.inert = true;
+                s.setAttribute('aria-hidden', 'true');
+            } else {
+                const isCurrent = (s.id === currentScreenId && !s.classList.contains('hidden'));
+                s.inert = !isCurrent;
+                if (isCurrent) {
+                    s.removeAttribute('aria-hidden');
+                } else {
+                    s.setAttribute('aria-hidden', 'true');
+                }
+            }
+        });
+        const nav = document.getElementById('dashboard-nav');
+        if (nav) {
+            nav.inert = isModalOpen;
+            if (isModalOpen) nav.setAttribute('aria-hidden', 'true');
+            else nav.removeAttribute('aria-hidden');
+        }
+    } catch (e) { }
+}
+
+// مراقبة النوافذ المنبثقة تلقائياً لعزل الشاشات الخلفية فور فتح أي نافذة
+if (typeof MutationObserver !== 'undefined') {
+    const modalObserver = new MutationObserver(() => {
+        syncModalInertState();
+    });
+    window.addEventListener('DOMContentLoaded', () => {
+        syncModalInertState();
+        document.querySelectorAll('#playlistsModal, #deviceModeModal, #sortModal, #fullscreenVideoModal, #trailerModal, #almezoAiModal, .modal').forEach(m => {
+            modalObserver.observe(m, { attributes: true, attributeFilter: ['class', 'style'] });
+        });
+    });
+}
+
 // حارس تهيئة واحدة: كانت الدالة تُستدعى من مساعد الميزو مع كل رسالة جديدة، فتُضاف في كل مرة
 // مستمعات keydown/touchstart/mousedown/F11 جديدة فوق القديمة. بعد عشر رسائل تصبح كل ضغطة سهم
 // تنفَّذ عشر مرات (قفزات في التركيز وإطارات خضراء تظهر فجأة واستهلاك متزايد للمعالج).
@@ -5222,20 +5279,36 @@ function initTvNavigationEngine() {
         // فحص النوافذ المنبثقة النشطة لحصر التركيز داخلها ومنع تسرب الأسهم لخلفية الشاشة
         const activeModal = document.querySelector('#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
         let container = activeModal;
+        let includeNav = false;
+
         if (!container) {
-            // إذا كانت شاشة إدخال كود السيرفر أو تسجيل الدخول هي النشطة، نحصر التركيز بداخلها لمنع القفز للشاشات المخفية
-            if (currentScreenId === 'auth1-screen') {
-                container = document.getElementById('auth1-screen');
-            } else if (currentScreenId === 'auth2-screen') {
-                container = document.getElementById('auth2-screen');
-            } else {
-                container = document.body;
+            // حصر الحاوية حصرياً في الشاشة النشطة الحالية لمنع تسرب التركيز إلى الشاشات المفتوحة بالخلفية
+            container = document.getElementById(currentScreenId);
+            if (!container) {
+                container = document.querySelector('.app-screen-container:not(.hidden)') || document.body;
+            }
+            // تضمين أزرار النافبار العلوي النشط فقط إذا كانت الشاشة الحالية تدعم ظهوره ولم يكن معطلاً بـ inert
+            const nav = document.getElementById('dashboard-nav');
+            if (nav && !nav.classList.contains('hidden') && nav.offsetParent !== null && !nav.inert) {
+                includeNav = true;
             }
         }
 
-        const all = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR));
+        let all = [];
+        if (container) {
+            all = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR));
+        }
+        if (includeNav) {
+            const nav = document.getElementById('dashboard-nav');
+            if (nav) {
+                const navItems = Array.from(nav.querySelectorAll(FOCUSABLE_SELECTOR));
+                all = navItems.concat(all);
+            }
+        }
+
         return all.filter(el => {
             if (el.disabled) return false;
+            if (el.inert || el.closest('[inert]')) return false;
             if (el.classList.contains('hidden')) return false;
             if (el.closest('.hidden')) return false;
             const style = window.getComputedStyle(el);
