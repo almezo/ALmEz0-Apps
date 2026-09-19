@@ -201,6 +201,10 @@ public class PlayerActivity extends AppCompatActivity {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
             setContentView(R.layout.activity_player);
+            // تقليل إعادة الرسم (Overdraw): الثيم يرسم خلفية نافذة سوداء كاملة، ثم يرسم الـ layout
+            // الجذري (player_root) خلفية سوداء كاملة أخرى فوقها مباشرة في كل إطار. إزالة خلفية النافذة
+            // توفّر طبقة رسم كاملة بحجم الشاشة دون أي تغيير مرئي، لأن الجذر يغطي الشاشة بنفس اللون.
+            getWindow().setBackgroundDrawable(null);
 
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {

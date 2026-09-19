@@ -9,14 +9,21 @@
     android:focusable="true"
     android:focusableInTouchMode="true">
 
-    <!-- ExoPlayer Video Surface (TextureView for rock-solid stability) -->
+    <!-- ExoPlayer Video Surface
+         SurfaceView بدل TextureView: مع TextureView يُنسخ كل إطار مفكوك إلى نسيج (texture) في
+         كرت الشاشة ثم يُركَّب عبر خيط رسم التطبيق في كل إطار، وهي تكلفة إضافية مستمرة وسبب
+         معروف لسقوط الإطارات والتقطيع على صناديق التلفاز الضعيفة. SurfaceView يسمح لمفكك
+         الترميز العتادي بالكتابة مباشرة إلى طبقة عرض مستقلة (zero-copy) بلا نسخ ولا تركيب،
+         وهو الخيار الذي توصي به Media3 للأداء. آمن هنا لأن الـ PlayerView لا يُحرَّك ولا
+         يُطبَّق عليه أي تحجيم أو شفافية؛ أوضاع الأبعاد (Fit/Fill/Zoom) تغيّر حجم الإطار فقط.
+         للرجوع للسلوك السابق عند أي مشكلة: app:surface_type="texture_view" -->
     <androidx.media3.ui.PlayerView
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fitsSystemWindows="false"
         app:use_controller="false"
-        app:surface_type="texture_view"
+        app:surface_type="surface_view"
         app:resize_mode="fit" />
 
     <!-- Buffering Progress Indicator (Matching Black Background & Professional Spinner) -->

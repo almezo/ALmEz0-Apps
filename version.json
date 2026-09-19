@@ -1,10 +1,10 @@
 {
-  "version": "1.0.76",
-  "versionCode": 77,
+  "version": "1.0.77",
+  "versionCode": 78,
   "releaseDate": "2026-09-19",
-  "title": "إصلاح جذري لبطاقات القنوات وعزل الشاشات ومنع تسرب التركيز v1.0.76 🛡️",
-  "notes": "إصلاح جذري لمشكلة التمدد اللانهائي لبطاقات القنوات عبر حذف height:100% المتعارضة واستبدالها بـ flex:1+min-height:0 وإضافة align-content:start+align-self:start. حماية احتياطية بـ padding-bottom fallback لنسبة العرض/الارتفاع على الأجهزة القديمة التي لا تدعم aspect-ratio. عزل كامل للشاشات المخفية بإضافة visibility:hidden+position:absolute+width:0+height:0+tabindex:-1 ومسح التركيز تلقائياً من أي عنصر داخل الشاشة عند إخفائها. تحسين محرك البحث في الريموت لدعم بطاقات القنوات في وضع الشبكة.",
-  "minSupportedVersion": "1.0.0",
+  "title": "تشغيل فيديو عتادي مباشر وتقليل إعادة الرسم في المشغل v1.0.77 🎬",
+  "notes": "تحويل سطح عرض الفيديو من TextureView إلى SurfaceView ليكتب مفكك الترميز العتادي مباشرة إلى طبقة العرض دون نسخ كل إطار عبر كرت الشاشة، مما يقلل التقطيع وسقوط الإطارات على الأجهزة الضعيفة، مع إزالة طبقة رسم كاملة مكررة خلف الفيديو.",
+  "minSupportedVersion": "1.0.77",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
     "windows": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe"
