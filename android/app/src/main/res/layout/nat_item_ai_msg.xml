@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="start"
         android:background="@drawable/nat_bg_ai_user_msg"
-        android:maxWidth="520dp"
+        android:maxWidth="560dp"
         android:paddingStart="18dp"
         android:paddingTop="10dp"
         android:paddingEnd="18dp"
@@ -27,7 +27,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="#FFFFFFFF"
-            android:textSize="16sp" />
+            android:textSize="17sp" />
     </LinearLayout>
 
     <!-- رسالة المساعد الذكي -->
@@ -40,11 +40,12 @@
         android:visibility="gone">
 
         <ImageView
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginStart="8dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
             android:background="@drawable/nat_btn_ai"
-            android:padding="7dp"
+            android:importantForAccessibility="no"
+            android:padding="8dp"
             android:src="@drawable/fa_sparkles"
             app:tint="#FFFFFFFF" />
 
@@ -54,75 +55,57 @@
             android:layout_weight="1"
             android:background="@drawable/nat_bg_ai_bot_msg"
             android:orientation="vertical"
-            android:padding="14dp">
+            android:padding="16dp">
 
             <TextView
                 android:id="@+id/ai_msg_bot_text"
                 style="@style/NatText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:lineSpacingMultiplier="1.3"
+                android:lineSpacingMultiplier="1.15"
                 android:textColor="#FFFFFFFF"
-                android:textSize="16sp" />
+                android:textIsSelectable="false"
+                android:textSize="17sp" />
 
-            <!-- بطاقة التوصية المباشرة (تشغيل فوري للقناة أو الفيلم أو المسلسل) -->
+            <!-- بطاقات الأعمال والقنوات التي ذكرها المساعد من السيرفر (تفتح صفحة الفيلم/المسلسل أو تشغّل القناة) -->
             <LinearLayout
-                android:id="@+id/ai_msg_card"
+                android:id="@+id/ai_msg_cards"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone" />
+
+            <!-- مصادر بحث Google التي اعتمد عليها الرد -->
+            <LinearLayout
+                android:id="@+id/ai_msg_sources_box"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:background="@drawable/nat_bg_device_card"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:padding="10dp"
                 android:visibility="gone">
 
-                <ImageView
-                    android:id="@+id/ai_card_poster"
-                    android:layout_width="56dp"
-                    android:layout_height="76dp"
-                    android:background="@drawable/nat_bg_poster"
-                    android:scaleType="centerCrop" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_marginEnd="14dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/ai_card_title"
-                        style="@style/NatText.ExtraBold"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textSize="16sp" />
-
-                    <TextView
-                        android:id="@+id/ai_card_subtitle"
-                        style="@style/NatText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
-                        android:textColor="@color/nat_muted"
-                        android:textSize="13sp" />
-                </LinearLayout>
-
-                <Button
-                    android:id="@+id/ai_card_btn_play"
+                <TextView
                     style="@style/NatText.ExtraBold"
                     android:layout_width="wrap_content"
-                    android:layout_height="42dp"
-                    android:background="@drawable/nat_btn_watch"
-                    android:focusable="true"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:text="تشغيل الآن ▶"
-                    android:textColor="#FFFFFFFF"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text="المصادر:"
+                    android:textColor="@color/nat_muted"
                     android:textSize="14sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/ai_msg_sources"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

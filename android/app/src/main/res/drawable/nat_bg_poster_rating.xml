@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- شارة التقييم فوق ملصق الفيلم/المسلسل: خلفية داكنة شبه معتمة حتى يُقرأ الرقم الذهبي فوق أي صورة -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="9dp" />
+    <solid android:color="#D9000000" />
+    <stroke android:width="1dp" android:color="#99F59E0B" />
+</shape>

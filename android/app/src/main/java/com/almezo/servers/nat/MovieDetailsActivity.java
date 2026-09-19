@@ -1,7 +1,10 @@
 package com.almezo.servers.nat;
 
 import android.content.Intent;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,11 +25,6 @@ import com.almezo.servers.R;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,6 +40,7 @@ public class MovieDetailsActivity extends BaseActivity {
 
     private Store store;
     private Xtream api;
+    private Models.Account account;
     private NavBar nav;
     private String id, name, cover, ext;
     private String trailerKey;
@@ -57,6 +56,7 @@ public class MovieDetailsActivity extends BaseActivity {
         store = new Store(this);
         Models.Account acc = store.active();
         if (acc == null) { finish(); return; }
+        account = acc;
         api = new Xtream(this, acc);
         id = getIntent().getStringExtra("id");
         name = getIntent().getStringExtra("name");
@@ -89,7 +89,6 @@ public class MovieDetailsActivity extends BaseActivity {
 
         setupScrollAndRecommendations();
         loadInfo();
-        loadRecommendations();
     }
 
     private void setupScrollAndRecommendations() {
@@ -117,7 +116,9 @@ public class MovieDetailsActivity extends BaseActivity {
         popularTitle.setText("أفلام رائجة للمشاهدة الآن");
 
         TextView popularSubtitle = findViewById(R.id.det_popular_subtitle);
-        popularSubtitle.setText("الأفلام الأكثر متابعة وتقييماً");
+        popularSubtitle.setText("من نفس نوع الفيلم ولغته");
+        // يظهر الشريط بعد اختيار أفلام مطابقة فعلاً لتصنيف الفيلم وبلده
+        findViewById(R.id.det_popular_section).setVisibility(View.GONE);
 
         View viewAll = findViewById(R.id.det_popular_view_all);
         applyFocusScale(viewAll, 1.06f);
@@ -142,26 +143,29 @@ public class MovieDetailsActivity extends BaseActivity {
             ui.post(() -> {
                 if (isFinishing()) return;
                 findViewById(R.id.det_progress).setVisibility(View.GONE);
+                JSONObject info = r != null ? r.optJSONObject("info") : null;
                 if (r != null) bind(r);
+                else showBackdrop(this, findViewById(R.id.det_backdrop), null, cover);
+                loadRecommendations(info != null ? info.optString("genre", "") : "",
+                        info != null ? info.optString("country", "") : "");
             });
         });
     }
 
-    private void loadRecommendations() {
+    /** أفلام رائجة من نفس تصنيف الفيلم وبلده/لغته (انظر Related). */
+    private void loadRecommendations(String genre, String country) {
         Xtream.IO.execute(() -> {
-            List<Models.Item> list = null;
-            try { list = api.streams(Models.VOD, false); } catch (Exception ignored) { }
-            final List<Models.Item> fetched = list;
+            final List<Models.Item> found = Related.similar(this, api, account.id, Models.VOD, id, genre, country, 15);
             ui.post(() -> {
-                if (isFinishing() || fetched == null) return;
+                if (isFinishing()) return;
                 popularItems.clear();
-                for (Models.Item it : fetched) {
-                    if (it.id != null && !it.id.equals(id)) {
-                        popularItems.add(it);
-                        if (popularItems.size() >= 20) break;
-                    }
-                }
+                popularItems.addAll(found);
                 if (popularAdapter != null) popularAdapter.notifyDataSetChanged();
+                if (!genre.trim().isEmpty() && !"null".equals(genre)) {
+                    ((TextView) findViewById(R.id.det_popular_subtitle)).setText(
+                            "أفلام " + SeriesDetailsActivity.translateGenre(genre) + " من نفس لغة الفيلم وبلده");
+                }
+                findViewById(R.id.det_popular_section).setVisibility(found.isEmpty() ? View.GONE : View.VISIBLE);
             });
         });
     }
@@ -177,9 +181,7 @@ public class MovieDetailsActivity extends BaseActivity {
 
         String poster = firstNonEmpty(info.optString("movie_image"), info.optString("cover_big"), cover);
         Ui.loadImage(findViewById(R.id.det_poster), poster, Ui.logoPlaceholder());
-        String backdrop = firstBackdrop(info);
-        ImageView bd = findViewById(R.id.det_backdrop);
-        if (backdrop != null) Ui.loadImage(bd, backdrop, android.R.color.transparent);
+        showBackdrop(this, findViewById(R.id.det_backdrop), firstBackdrop(info), poster);
 
         StringBuilder meta = new StringBuilder();
         appendPart(meta, SeriesDetailsActivity.translateGenre(info.optString("genre")));
@@ -232,66 +234,50 @@ public class MovieDetailsActivity extends BaseActivity {
     }
 
     private void translatePlotToArabic(String rawPlot) {
+        showArabicPlot(this, findViewById(R.id.det_plot), rawPlot, "لا يوجد وصف متاح لهذا الفيلم.");
+    }
+
+    /**
+     * يعرض القصة بالعربية: إن كانت بلغة أخرى تُترجم في الخلفية (انظر Translate)، وتبقى بلغتها
+     * الأصلية فقط إن فشلت كل محاولات الترجمة.
+     */
+    static void showArabicPlot(BaseActivity a, TextView plotView, String rawPlot, String emptyText) {
+        if (plotView == null) return;
         if (rawPlot == null || rawPlot.trim().isEmpty() || "null".equals(rawPlot)) {
-            TextView plotView = findViewById(R.id.det_plot);
-            if (plotView != null) plotView.setText("لا يوجد وصف متاح لهذا الفيلم.");
+            plotView.setText(emptyText);
             return;
         }
-
-        boolean hasArabic = false;
-        for (int i = 0; i < rawPlot.length(); i++) {
-            char c = rawPlot.charAt(i);
-            if (c >= '\u0600' && c <= '\u06FF') {
-                hasArabic = true;
-                break;
-            }
-        }
-        if (hasArabic && rawPlot.length() > 20) {
-            TextView plotView = findViewById(R.id.det_plot);
-            if (plotView != null) plotView.setText(rawPlot);
+        final String plot = rawPlot.trim();
+        if (!Translate.needsArabic(plot)) {
+            plotView.setText(plot);
             return;
         }
-
-        TextView plotView = findViewById(R.id.det_plot);
-        if (plotView != null) plotView.setText("جاري ترجمة القصة...");
-
+        plotView.setText("جاري تعريب القصة...");
         Xtream.IO.execute(() -> {
-            String translated = null;
-            try {
-                String urlStr = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ar&dt=t&q="
-                        + URLEncoder.encode(rawPlot, "UTF-8");
-                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                if (conn.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) sb.append(line);
-                    reader.close();
-                    JSONArray outer = new JSONArray(sb.toString());
-                    if (outer.length() > 0) {
-                        JSONArray arr = outer.getJSONArray(0);
-                        StringBuilder transSb = new StringBuilder();
-                        for (int j = 0; j < arr.length(); j++) {
-                            JSONArray item = arr.optJSONArray(j);
-                            if (item != null && item.length() > 0) {
-                                transSb.append(item.optString(0, ""));
-                            }
-                        }
-                        if (transSb.length() > 0) translated = transSb.toString();
-                    }
-                }
-            } catch (Exception ignored) {}
-
-            final String result = (translated != null && !translated.isEmpty()) ? translated : rawPlot;
-            ui.post(() -> {
-                if (isFinishing()) return;
-                TextView pv = findViewById(R.id.det_plot);
-                if (pv != null) pv.setText(result);
+            String translated = Translate.toArabic(plot);
+            final String result = translated != null ? translated : plot;
+            a.ui.post(() -> {
+                if (!a.isFinishing()) plotView.setText(result);
             });
         });
+    }
+
+    /**
+     * خلفية الصفحة: صورة الخلفية الرسمية للعمل، وإن لم تتوفر فالملصق نفسه مموّهاً (أندرويد 12+)
+     * حتى تظهر صورة العمل دائماً خلف صندوق المعلومات الشفاف.
+     */
+    static void showBackdrop(BaseActivity a, ImageView bd, String backdrop, String poster) {
+        if (bd == null) return;
+        if (backdrop != null) {
+            Ui.loadImage(bd, backdrop, android.R.color.transparent);
+            return;
+        }
+        if (poster == null || poster.trim().isEmpty()) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            float r = 18f * a.getResources().getDisplayMetrics().density;
+            bd.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP));
+        }
+        Ui.loadImage(bd, poster, android.R.color.transparent);
     }
 
     static String firstNonEmpty(String... values) {
@@ -367,10 +353,7 @@ public class MovieDetailsActivity extends BaseActivity {
 
             if (holder.rating != null) {
                 if (it.rating > 0) {
-                    String rStr = (it.rating == (int) it.rating)
-                            ? String.valueOf((int) it.rating)
-                            : String.format(java.util.Locale.US, "%.1f", it.rating);
-                    holder.rating.setText("★ " + rStr);
+                    holder.rating.setText(Ui.ratingText(it.rating));
                     holder.rating.setVisibility(View.VISIBLE);
                 } else {
                     holder.rating.setVisibility(View.GONE);

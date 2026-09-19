@@ -579,6 +579,14 @@ let sessionCheckInterval = null; // فحص دوري لصلاحية الجلسة
 
 auth.onAuthStateChanged(async function (firebaseUser) {
     if (firebaseUser) {
+        // مساعد الميزو في مشغل أندرويد الأصلي يتصل بدالة الذكاء الاصطناعي بجلسة هذا الحساب نفسه
+        try {
+            if (firebaseUser.refreshToken && window.AndroidNativeBridge &&
+                typeof window.AndroidNativeBridge.setFirebaseSession === 'function') {
+                window.AndroidNativeBridge.setFirebaseSession(firebaseUser.refreshToken);
+            }
+        } catch (e) { }
+
         // تعيين فوري ومؤقت لبيانات المستخدم من الكاش لمنع وميض "تسجيل الدخول" أثناء جلب الملف من Firestore
         if (!currentAuthUser) {
             try {

@@ -8,6 +8,7 @@
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
+    android:layoutDirection="rtl"
     android:orientation="horizontal"
     android:padding="16dp">
 

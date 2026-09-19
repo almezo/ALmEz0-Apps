@@ -1,6 +1,7 @@
 package com.almezo.servers.nat;
 
 import android.content.Intent;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -14,6 +15,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.widget.NestedScrollView;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -23,11 +25,6 @@ import com.almezo.servers.R;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,14 +40,17 @@ import java.util.regex.Pattern;
  * - بطاقة سينمائية زجاجية عائمة (Hero Card) بزوايا دائرية، مع خلفية مائية للعمل.
  * - بوستر رأسي متناسق على اليمين بنسبة 2:3.
  * - بيانات وصفية كاملة: المفضلة، التصنيف العربي، التقييم الذهبي، الإعلان الترويجي، القصة المترجمة، المخرج والممثلين.
- * - عرض الحلقات كبطاقات مصغرة 16:9 أفقية مع عناوين صافية (الحلقة X) ومدة العرض مع أيقونة الساعة.
+ * - عرض الحلقات في شبكة من 4 أعمدة (من اليمين لليسار) ببطاقات 16:9 وعناوين صافية (الحلقة X) ومدة العرض.
  * - أزرار مواسم بشكل كبسولة حمراء مع أيقونة الطبقات وبادج عدد الحلقات.
- * - شريط مسلسلات رائجة للمشاهدة الآن مع أيقونة اللهب وبادجات التقييم الذهبية وحدود التركيز الحمراء.
+ * - شريط مسلسلات رائجة من نفس تصنيف المسلسل ولغته مع بادجات التقييم الذهبية وحدود التركيز الحمراء.
  */
 public class SeriesDetailsActivity extends BaseActivity {
 
+    private static final int EPISODE_COLUMNS = 4;
+
     private Store store;
     private Xtream api;
+    private Models.Account account;
     private NavBar nav;
     private String seriesId, name, cover;
     private String trailerKey;
@@ -104,6 +104,7 @@ public class SeriesDetailsActivity extends BaseActivity {
         store = new Store(this);
         Models.Account acc = store.active();
         if (acc == null) { finish(); return; }
+        account = acc;
         api = new Xtream(this, acc);
         seriesId = getIntent().getStringExtra("id");
         name = getIntent().getStringExtra("name");
@@ -130,16 +131,24 @@ public class SeriesDetailsActivity extends BaseActivity {
         applyFocusScale(trailerBtn, 1.06f);
         trailerBtn.setOnClickListener(v -> openTrailer());
 
-        // قائمة الحلقات الأفقية (Horizontal RecyclerView)
+        // شبكة الحلقات: 4 أعمدة من اليمين لليسار داخل صفحة التمرير (بدون تمرير داخلي)
         RecyclerView list = findViewById(R.id.det_episodes);
-        list.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        list.setLayoutManager(new GridLayoutManager(this, EPISODE_COLUMNS));
         list.setItemAnimator(null);
+        final int gap = Math.round(18 * getResources().getDisplayMetrics().density);
+        list.addItemDecoration(new RecyclerView.ItemDecoration() {
+            @Override
+            public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+                outRect.left = gap / 2;
+                outRect.right = gap / 2;
+                outRect.bottom = gap;
+            }
+        });
         adapter = new EpisodeAdapter();
         list.setAdapter(adapter);
 
         setupScrollAndRecommendations();
         load();
-        loadRecommendations();
     }
 
     private void setupScrollAndRecommendations() {
@@ -167,7 +176,9 @@ public class SeriesDetailsActivity extends BaseActivity {
         popularTitle.setText("مسلسلات رائجة للمشاهدة الآن");
 
         TextView popularSubtitle = findViewById(R.id.det_popular_subtitle);
-        popularSubtitle.setText("المسلسلات الأكثر متابعة وتقييماً");
+        popularSubtitle.setText("من نفس نوع المسلسل ولغته");
+        // يظهر الشريط بعد اختيار مسلسلات مطابقة فعلاً لتصنيف المسلسل ولغته
+        findViewById(R.id.det_popular_section).setVisibility(View.GONE);
 
         View viewAll = findViewById(R.id.det_popular_view_all);
         applyFocusScale(viewAll, 1.06f);
@@ -192,27 +203,32 @@ public class SeriesDetailsActivity extends BaseActivity {
             ui.post(() -> {
                 if (isFinishing()) return;
                 findViewById(R.id.det_progress).setVisibility(View.GONE);
-                if (r == null) { toast("تعذر تحميل حلقات المسلسل"); return; }
+                JSONObject info = r != null ? r.optJSONObject("info") : null;
+                loadRecommendations(info != null ? info.optString("genre", "") : "");
+                if (r == null) {
+                    MovieDetailsActivity.showBackdrop(this, findViewById(R.id.det_backdrop), null, cover);
+                    toast("تعذر تحميل حلقات المسلسل");
+                    return;
+                }
                 bind(r);
             });
         });
     }
 
-    private void loadRecommendations() {
+    /** مسلسلات رائجة من نفس تصنيف المسلسل ولغته (انظر Related). */
+    private void loadRecommendations(String genre) {
         Xtream.IO.execute(() -> {
-            List<Models.Item> list = null;
-            try { list = api.streams(Models.SERIES, false); } catch (Exception ignored) { }
-            final List<Models.Item> fetched = list;
+            final List<Models.Item> found = Related.similar(this, api, account.id, Models.SERIES, seriesId, genre, null, 15);
             ui.post(() -> {
-                if (isFinishing() || fetched == null) return;
+                if (isFinishing()) return;
                 popularItems.clear();
-                for (Models.Item it : fetched) {
-                    if (it.id != null && !it.id.equals(seriesId)) {
-                        popularItems.add(it);
-                        if (popularItems.size() >= 20) break;
-                    }
-                }
+                popularItems.addAll(found);
                 if (popularAdapter != null) popularAdapter.notifyDataSetChanged();
+                if (!genre.trim().isEmpty() && !"null".equals(genre)) {
+                    ((TextView) findViewById(R.id.det_popular_subtitle)).setText(
+                            "مسلسلات " + translateGenre(genre) + " من نفس لغة المسلسل");
+                }
+                findViewById(R.id.det_popular_section).setVisibility(found.isEmpty() ? View.GONE : View.VISIBLE);
             });
         });
     }
@@ -222,8 +238,7 @@ public class SeriesDetailsActivity extends BaseActivity {
         if (info != null) {
             String poster = MovieDetailsActivity.firstNonEmpty(info.optString("cover"), cover);
             Ui.loadImage(findViewById(R.id.det_poster), poster, Ui.logoPlaceholder());
-            String backdrop = MovieDetailsActivity.firstBackdrop(info);
-            if (backdrop != null) Ui.loadImage(findViewById(R.id.det_backdrop), backdrop, android.R.color.transparent);
+            MovieDetailsActivity.showBackdrop(this, findViewById(R.id.det_backdrop), MovieDetailsActivity.firstBackdrop(info), poster);
 
             // التصنيف العربي
             String rawGenre = info.optString("genre", "Series");
@@ -381,67 +396,13 @@ public class SeriesDetailsActivity extends BaseActivity {
     }
 
     private void translatePlotToArabic(String rawPlot) {
-        if (rawPlot == null || rawPlot.trim().isEmpty() || "null".equals(rawPlot)) {
-            TextView plotView = findViewById(R.id.det_plot);
-            if (plotView != null) plotView.setText("لا يوجد وصف متاح لهذا المسلسل.");
-            return;
-        }
+        MovieDetailsActivity.showArabicPlot(this, findViewById(R.id.det_plot), rawPlot, "لا يوجد وصف متاح لهذا المسلسل.");
+    }
 
-        // فحص ما إذا كان النص يحتوي على أحرف عربية بالفعل
-        boolean hasArabic = false;
-        for (int i = 0; i < rawPlot.length(); i++) {
-            char c = rawPlot.charAt(i);
-            if (c >= '\u0600' && c <= '\u06FF') {
-                hasArabic = true;
-                break;
-            }
-        }
-        if (hasArabic && rawPlot.length() > 20) {
-            TextView plotView = findViewById(R.id.det_plot);
-            if (plotView != null) plotView.setText(rawPlot);
-            return;
-        }
-
-        TextView plotView = findViewById(R.id.det_plot);
-        if (plotView != null) plotView.setText("جاري ترجمة القصة...");
-
-        Xtream.IO.execute(() -> {
-            String translated = null;
-            try {
-                String urlStr = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ar&dt=t&q="
-                        + URLEncoder.encode(rawPlot, "UTF-8");
-                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                if (conn.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) sb.append(line);
-                    reader.close();
-                    JSONArray outer = new JSONArray(sb.toString());
-                    if (outer.length() > 0) {
-                        JSONArray arr = outer.getJSONArray(0);
-                        StringBuilder transSb = new StringBuilder();
-                        for (int j = 0; j < arr.length(); j++) {
-                            JSONArray item = arr.optJSONArray(j);
-                            if (item != null && item.length() > 0) {
-                                transSb.append(item.optString(0, ""));
-                            }
-                        }
-                        if (transSb.length() > 0) translated = transSb.toString();
-                    }
-                }
-            } catch (Exception ignored) {}
-
-            final String result = (translated != null && !translated.isEmpty()) ? translated : rawPlot;
-            ui.post(() -> {
-                if (isFinishing()) return;
-                TextView pv = findViewById(R.id.det_plot);
-                if (pv != null) pv.setText(result);
-            });
-        });
+    /** مدة الحلقة كما في نسخة الكمبيوتر (00:39:16)، وإلا بصيغة عربية مختصرة. */
+    static String episodeDuration(String raw) {
+        if (raw != null && raw.trim().matches("\\d{1,2}:\\d{2}:\\d{2}")) return raw.trim();
+        return formatDuration(raw);
     }
 
     public static String translateGenre(String raw) {
@@ -545,19 +506,26 @@ public class SeriesDetailsActivity extends BaseActivity {
         return s;
     }
 
-    // ------------------------------------------------------------------ محول بطاقات الحلقات المصغرة 16:9
+    // ------------------------------------------------------------------ محول شبكة الحلقات 16:9
     private class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.VH> {
         class VH extends RecyclerView.ViewHolder {
             final ImageView thumb;
-            final TextView title, duration, badge;
+            final TextView title, duration;
 
             VH(View v) {
                 super(v);
                 thumb = v.findViewById(R.id.ep_thumb);
                 title = v.findViewById(R.id.ep_title);
                 duration = v.findViewById(R.id.ep_duration);
-                badge = v.findViewById(R.id.ep_badge);
-                applyFocusScale(v, 1.06f);
+                ((RatioFrameLayout) v.findViewById(R.id.ep_thumb_box)).setRatio(9f / 16f);
+                final View dim = v.findViewById(R.id.ep_dim);
+                final View play = v.findViewById(R.id.ep_play);
+                // زر التشغيل والتعتيم يظهران على البطاقة المُركَّز عليها فقط (قبل تأثير التكبير ليتسلسلا معاً)
+                v.setOnFocusChangeListener((view, hasFocus) -> {
+                    dim.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
+                    play.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
+                });
+                applyFocusScale(v, 1.04f);
             }
         }
 
@@ -573,22 +541,11 @@ public class SeriesDetailsActivity extends BaseActivity {
             JSONObject info = ep.optJSONObject("info");
 
             String epNum = ep.optString("episode_num", String.valueOf(position + 1));
-            String rawTitle = ep.optString("title", "");
-            String cleanTitle = cleanEpisodeTitle(rawTitle, epNum, position + 1);
-            h.title.setText(cleanTitle);
-
-            if (h.badge != null) {
-                h.badge.setText(epNum);
-            }
-
-            String dur = (info != null) ? info.optString("duration", "") : "";
-            String formattedDur = formatDuration(dur);
-            if (h.duration != null) {
-                h.duration.setText(formattedDur);
-            }
+            h.title.setText(cleanEpisodeTitle(ep.optString("title", ""), epNum, position + 1));
+            h.duration.setText(episodeDuration(info != null ? info.optString("duration", "") : ""));
 
             String img = (info != null) ? info.optString("movie_image", "") : "";
-            Ui.loadImage(h.thumb, (img != null && !img.isEmpty()) ? img : cover, Ui.logoPlaceholder());
+            Ui.loadImage(h.thumb, (img != null && !img.isEmpty() && !"null".equals(img)) ? img : cover, Ui.logoPlaceholder());
 
             h.itemView.setOnClickListener(v -> playEpisode(ep));
         }
@@ -617,10 +574,7 @@ public class SeriesDetailsActivity extends BaseActivity {
 
             if (holder.rating != null) {
                 if (it.rating > 0) {
-                    String rStr = (it.rating == (int) it.rating)
-                            ? String.valueOf((int) it.rating)
-                            : String.format(java.util.Locale.US, "%.1f", it.rating);
-                    holder.rating.setText("★ " + rStr);
+                    holder.rating.setText(Ui.ratingText(it.rating));
                     holder.rating.setVisibility(View.VISIBLE);
                 } else {
                     holder.rating.setVisibility(View.GONE);

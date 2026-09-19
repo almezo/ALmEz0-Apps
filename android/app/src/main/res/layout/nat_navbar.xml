@@ -19,13 +19,12 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
+        <!-- الإطار الأخضر جزء من صورة الشعار نفسها، فلا نرسم إطاراً ثانياً حولها -->
         <ImageView
             android:layout_width="80dp"
             android:layout_height="80dp"
-            android:background="@drawable/nat_logo_frame"
             android:contentDescription="ALmEz0"
-            android:padding="3dp"
-            android:scaleType="centerCrop"
+            android:scaleType="fitCenter"
             android:src="@drawable/almezo_logo" />
 
         <TextView

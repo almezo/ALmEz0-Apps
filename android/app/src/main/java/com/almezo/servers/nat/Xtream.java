@@ -250,6 +250,7 @@ public final class Xtream {
                         case "category_id": it.categoryId = loose(r); break;
                         case "container_extension": it.extension = loose(r); break;
                         case "rating": rating = loose(r); break;
+                        case "genre": it.genre = loose(r); break;
                         case "rating_5based": rating5 = loose(r); break;
                         case "added": added = loose(r); break;
                         case "last_modified": modified = loose(r); break;
@@ -258,7 +259,8 @@ public final class Xtream {
                 }
                 r.endObject();
                 if (it.id == null) continue;
-                it.rating = parseFloat(rating != null ? rating : rating5);
+                it.rating = parseFloat(rating);
+                if (it.rating <= 0) it.rating = parseFloat(rating5);
                 it.added = parseLong(added != null ? added : modified);
                 out.add(it);
             }

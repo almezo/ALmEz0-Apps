@@ -4,9 +4,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center"
+    android:layoutDirection="rtl"
     android:padding="24dp">
 
     <LinearLayout
+        android:id="@+id/dialog_logout_card"
         android:layout_width="480dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"

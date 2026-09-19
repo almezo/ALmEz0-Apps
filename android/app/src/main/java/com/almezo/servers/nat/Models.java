@@ -33,6 +33,8 @@ public final class Models {
         public String extension;
         public float rating;
         public long added;
+        /** التصنيف كما يرسله السيرفر (متوفر غالباً في قائمة المسلسلات، ونادراً في قائمة الأفلام) */
+        public String genre;
 
         public String safeName() {
             return name == null ? "" : name;

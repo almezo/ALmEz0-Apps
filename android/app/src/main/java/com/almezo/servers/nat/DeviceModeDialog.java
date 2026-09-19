@@ -21,7 +21,7 @@ public final class DeviceModeDialog {
     public static void show(Activity a) {
         if (a == null || a.isFinishing()) return;
         final Store store = new Store(a);
-        String currentMode = store.getString("device_mode", BaseActivity.isTvDevice(a) ? "tv" : "touch");
+        String currentMode = Store.deviceMode(a);
 
         final Dialog d = new Dialog(a);
         d.requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -30,6 +30,7 @@ public final class DeviceModeDialog {
             d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             d.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+        Ui.widenDialogCard(d, R.id.dialog_device_card, 760);
 
         View close = d.findViewById(R.id.dialog_device_close);
         View cardTouch = d.findViewById(R.id.card_mode_touch);
@@ -72,8 +73,16 @@ public final class DeviceModeDialog {
     }
 
     private static void select(Activity a, Dialog d, Store store, String mode, String msg) {
+        boolean changed = !mode.equals(Store.deviceMode(a));
         store.putString("device_mode", mode);
         Toast.makeText(a, msg, Toast.LENGTH_SHORT).show();
         d.dismiss();
+        // مقاسات الواجهة (الكانفاس والخطوط) تعتمد على النمط، فنعيد بناء الشاشة لتطبيقها فوراً
+        if (changed) a.recreate();
+    }
+
+    /** أيقونة زر نمط الجهاز تتبع النمط المفعّل: هاتف للمس، وشاشة للريموت. */
+    public static int iconFor(android.content.Context ctx) {
+        return AppScale.isTouchMode(ctx) ? R.drawable.fa_mobile_screen_button : R.drawable.fa_tv;
     }
 }

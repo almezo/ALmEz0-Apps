@@ -27,11 +27,29 @@
             android:importantForAccessibility="no"
             android:scaleType="centerCrop" />
 
+        <!-- تقييم الفيلم/المسلسل أعلى يسار الملصق -->
+        <TextView
+            android:id="@+id/poster_rating"
+            style="@style/NatText.ExtraBold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|left"
+            android:layout_margin="7dp"
+            android:background="@drawable/nat_bg_poster_rating"
+            android:paddingLeft="8dp"
+            android:paddingTop="3dp"
+            android:paddingRight="8dp"
+            android:paddingBottom="3dp"
+            android:textColor="@color/nat_gold"
+            android:textDirection="ltr"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/poster_fav"
             android:layout_width="28dp"
             android:layout_height="28dp"
-            android:layout_gravity="top|end"
+            android:layout_gravity="top|right"
             android:layout_margin="8dp"
             android:importantForAccessibility="no"
             android:src="@drawable/fa_star"

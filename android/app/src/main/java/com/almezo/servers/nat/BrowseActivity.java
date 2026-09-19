@@ -58,6 +58,7 @@ public class BrowseActivity extends BaseActivity {
     private final List<Models.Category> categories = new ArrayList<>();
     private final List<Models.Item> shown = new ArrayList<>();
     private final Set<String> favIds = new HashSet<>();
+    private final Set<String> prefetched = new HashSet<>();
     private String activeCatId = "all";
     private String sortMode = "default";
     private boolean hideNames = false;
@@ -93,7 +94,8 @@ public class BrowseActivity extends BaseActivity {
         searchInput = findViewById(R.id.browse_search);
         hideNames = "1".equals(store.getString("hide_names_" + type, "0"));
         sortMode = store.getString("sort_" + type, "default");
-        activeCatId = store.getString("last_cat_" + type, "all");
+        // الأفلام والمسلسلات تُفتح دائماً على "المضافة حديثاً"؛ البث المباشر يتذكر آخر قسم
+        activeCatId = Models.LIVE.equals(type) ? store.getString("last_cat_" + type, "all") : "recent";
 
         setupHeaderButtons();
         setupLists();
@@ -455,12 +457,13 @@ public class BrowseActivity extends BaseActivity {
     private class PosterAdapter extends RecyclerView.Adapter<PosterAdapter.VH> {
         class VH extends RecyclerView.ViewHolder {
             final ImageView img, fav;
-            final TextView name;
+            final TextView name, rating;
             VH(View v) {
                 super(v);
                 img = v.findViewById(R.id.poster_img);
                 fav = v.findViewById(R.id.poster_fav);
                 name = v.findViewById(R.id.poster_title);
+                rating = v.findViewById(R.id.poster_rating);
                 applyFocusScale(v, 1.06f);
             }
         }
@@ -484,6 +487,13 @@ public class BrowseActivity extends BaseActivity {
             h.name.setText(it.safeName());
             h.name.setVisibility(hideNames ? View.GONE : View.VISIBLE);
             h.fav.setVisibility(favIds.contains(it.id) ? View.VISIBLE : View.GONE);
+            if (!isLive && it.rating > 0) {
+                h.rating.setText(Ui.ratingText(it.rating));
+                h.rating.setVisibility(View.VISIBLE);
+            } else {
+                h.rating.setVisibility(View.GONE);
+            }
+            prefetchAhead(position);
             h.itemView.setOnClickListener(v -> open(it));
             h.itemView.setOnLongClickListener(v -> { toggleFavorite(it, h.getBindingAdapterPosition()); return true; });
             h.itemView.setOnKeyListener((v, keyCode, e) -> {
@@ -498,6 +508,15 @@ public class BrowseActivity extends BaseActivity {
         @Override
         public int getItemCount() {
             return shown.size();
+        }
+
+        /** تنزيل صور الصفوف الثلاثة التالية مسبقاً حتى تظهر فوراً عند التمرير إليها. */
+        private void prefetchAhead(int position) {
+            int end = Math.min(shown.size(), position + 1 + COLUMNS * 3);
+            for (int i = position + 1; i < end; i++) {
+                String icon = shown.get(i).icon;
+                if (icon != null && prefetched.add(icon)) Ui.prefetch(BrowseActivity.this, icon);
+            }
         }
     }
 }

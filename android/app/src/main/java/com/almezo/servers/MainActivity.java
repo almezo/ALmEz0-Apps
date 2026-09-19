@@ -235,6 +235,15 @@ public class MainActivity extends BridgeActivity {
         }
 
         /**
+         * جلسة Firebase لحساب الموقع (رمز التحديث)، يرسلها firebase-config.js عند معرفة المستخدم المسجّل،
+         * ليتصل بها مساعد الميزو في المشغل الأصلي بدالة الذكاء الاصطناعي الآمنة.
+         */
+        @JavascriptInterface
+        public void setFirebaseSession(String refreshToken) {
+            com.almezo.servers.nat.AiClient.saveRefreshToken(MainActivity.this, refreshToken);
+        }
+
+        /**
          * يفتح مشغل الميزو الأصلي بدل player.html داخل WebView.
          * @param migrationJson بيانات مشغل الويب (الحسابات، المفضلة، متابعة المشاهدة) لنقلها أول مرة
          */

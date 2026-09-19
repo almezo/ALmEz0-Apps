@@ -39,6 +39,7 @@ public final class NavBar {
             if (v != null) BaseActivity.applyFocusScale(v, 1.12f);
         }
         if (device != null) {
+            device.setImageResource(DeviceModeDialog.iconFor(a));
             device.setOnClickListener(v -> DeviceModeDialog.show(a));
         }
     }

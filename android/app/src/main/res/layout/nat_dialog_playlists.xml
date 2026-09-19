@@ -4,9 +4,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_gravity="center"
+    android:layoutDirection="rtl"
     android:padding="24dp">
 
     <LinearLayout
+        android:id="@+id/dialog_playlists_card"
         android:layout_width="860dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
@@ -109,7 +111,7 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/dialog_playlists_list"
             android:layout_width="match_parent"
-            android:layout_height="320dp"
+            android:layout_height="300dp"
             android:scrollbars="vertical" />
     </LinearLayout>
 </FrameLayout>

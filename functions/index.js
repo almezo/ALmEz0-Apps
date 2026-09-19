@@ -80,7 +80,20 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
             }
 
             const replyText = candidate.content.parts.map((p) => p.text || "").join("").trim();
-            return { text: replyText };
+
+            // مصادر بحث Google التي اعتمد عليها الرد (عند تفعيل أداة البحث)، ليعرضها التطبيق
+            // روابط حقيقية تحت الإجابة. حقل إضافي لا يؤثر على العملاء الذين يقرؤون text فقط.
+            const chunks = (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
+            const seen = new Set();
+            const sources = [];
+            for (const ch of chunks) {
+                const web = ch && ch.web;
+                if (!web || !web.uri || seen.has(web.uri)) continue;
+                seen.add(web.uri);
+                sources.push({ title: web.title || "", uri: web.uri });
+                if (sources.length >= 6) break;
+            }
+            return { text: replyText, sources };
         } catch (err) {
             lastError = err;
         }

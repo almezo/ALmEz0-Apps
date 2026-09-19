@@ -37,16 +37,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="مساعد الميزو الذكي ✨"
-                android:textSize="20sp" />
+                android:textSize="22sp" />
 
             <TextView
                 style="@style/NatText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="جاهز لمساعدتك في الترفيه والرياضة والبحث الفوري"
+                android:text="يعرف محتوى سيرفرك ويبحث لك في الإنترنت عن المباريات والمعلومات"
                 android:textColor="@color/nat_muted"
-                android:textSize="13sp" />
+                android:textSize="14sp" />
         </LinearLayout>
 
         <ImageButton
@@ -109,7 +109,7 @@
                 android:id="@+id/chip_matches"
                 style="@style/NatText.Bold"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/nat_bg_ai_chip"
                 android:clickable="true"
@@ -119,13 +119,13 @@
                 android:paddingEnd="14dp"
                 android:text="⚽ مباريات الليلة"
                 android:textColor="#FFFFFFFF"
-                android:textSize="13sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/chip_movie"
                 style="@style/NatText.Bold"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/nat_bg_ai_chip"
                 android:clickable="true"
@@ -135,13 +135,13 @@
                 android:paddingEnd="14dp"
                 android:text="🎬 فيلم سهرة"
                 android:textColor="#FFFFFFFF"
-                android:textSize="13sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/chip_series"
                 style="@style/NatText.Bold"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/nat_bg_ai_chip"
                 android:clickable="true"
@@ -151,13 +151,13 @@
                 android:paddingEnd="14dp"
                 android:text="📺 أحدث المسلسلات"
                 android:textColor="#FFFFFFFF"
-                android:textSize="13sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/chip_sports"
                 style="@style/NatText.Bold"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="42dp"
                 android:background="@drawable/nat_bg_ai_chip"
                 android:clickable="true"
                 android:focusable="true"
@@ -166,14 +166,14 @@
                 android:paddingEnd="14dp"
                 android:text="🏆 القنوات الرياضية"
                 android:textColor="#FFFFFFFF"
-                android:textSize="13sp" />
+                android:textSize="15sp" />
         </LinearLayout>
     </HorizontalScrollView>
 
     <!-- Input Bar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="52dp"
+        android:layout_height="58dp"
         android:background="@drawable/nat_bg_input"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -182,8 +182,8 @@
 
         <ImageButton
             android:id="@+id/ai_btn_mic"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
             android:background="@drawable/nat_btn_social"
             android:contentDescription="تحدث بالصوت"
             android:focusable="true"
@@ -206,12 +206,12 @@
             android:paddingEnd="12dp"
             android:textColor="#FFFFFFFF"
             android:textColorHint="@color/nat_muted"
-            android:textSize="15sp" />
+            android:textSize="17sp" />
 
         <ImageButton
             android:id="@+id/ai_btn_send"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
             android:background="@drawable/nat_btn_watch"
             android:contentDescription="إرسال"
             android:focusable="true"

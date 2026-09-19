@@ -80,7 +80,11 @@ public class DashboardActivity extends BaseActivity {
         }
     }
 
-    /** نفس .dash-cards-wrapper: عرض أقصى 1480 (+ الحشوات)، وإلا يملأ الشاشة. */
+    /**
+     * نفس .dash-cards-wrapper: عرض أقصى 1480 (+ الحشوات)، وإلا يملأ الشاشة.
+     * البطاقات تملأ الارتفاع المتاح بين الترويسة والتذييل (مهم في نمط الهاتف المكبّر)،
+     * ولا تتجاوز ارتفاعها الأصلي 445 على الشاشات الكبيرة.
+     */
     private void fitCardsWidth() {
         DisplayMetrics dm = getResources().getDisplayMetrics();
         float canvasWidth = dm.widthPixels / dm.density;
@@ -88,6 +92,16 @@ public class DashboardActivity extends BaseActivity {
         ViewGroup.LayoutParams lp = wrapper.getLayoutParams();
         lp.width = canvasWidth > 1540 ? Math.round(1540 * dm.density) : ViewGroup.LayoutParams.MATCH_PARENT;
         wrapper.setLayoutParams(lp);
+        wrapper.post(() -> {
+            View area = (View) wrapper.getParent();
+            int maxCard = Math.round(445 * dm.density);
+            int pads = wrapper.getPaddingTop() + wrapper.getPaddingBottom();
+            if (area.getHeight() - pads > maxCard) {
+                ViewGroup.LayoutParams p = wrapper.getLayoutParams();
+                p.height = maxCard + pads;
+                wrapper.setLayoutParams(p);
+            }
+        });
     }
 
     private void setupCard(View card, String type, int bg, int icon, String title, String subtitle) {
@@ -189,6 +203,7 @@ public class DashboardActivity extends BaseActivity {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             dialog.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+        Ui.widenDialogCard(dialog, R.id.dialog_logout_card, 600);
         View confirm = dialog.findViewById(R.id.dialog_btn_confirm);
         View cancel = dialog.findViewById(R.id.dialog_btn_cancel);
         applyFocusScale(confirm, 1.08f);

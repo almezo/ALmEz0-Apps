@@ -109,6 +109,7 @@ public class AuthActivity extends BaseActivity {
 
         if (btnHome != null) btnHome.setOnClickListener(v -> finish());
         if (btnSaved != null) btnSaved.setOnClickListener(v -> AccountsDialog.show(this));
+        if (btnDevice instanceof ImageButton) ((ImageButton) btnDevice).setImageResource(DeviceModeDialog.iconFor(this));
         if (btnDevice != null) btnDevice.setOnClickListener(v -> DeviceModeDialog.show(this));
 
         if (sCall != null) sCall.setOnClickListener(v -> openUrl("tel:0945772649"));

@@ -159,6 +159,19 @@ public final class Store {
         sp.edit().putLong(scoped("updated", type), ts).apply();
     }
 
+    /**
+     * نمط الجهاز ("touch" أو "tv"). يُقرأ من السياق المُمرَّر مباشرة (وليس من سياق التطبيق)
+     * لأنه يُستدعى داخل attachBaseContext قبل اكتمال تهيئة الشاشة.
+     */
+    public static String deviceMode(Context ctx) {
+        String def = BaseActivity.isTvDevice(ctx) ? "tv" : "touch";
+        try {
+            return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("device_mode", def);
+        } catch (Throwable t) {
+            return def;
+        }
+    }
+
     public String getString(String key, String def) {
         return sp.getString(key, def);
     }

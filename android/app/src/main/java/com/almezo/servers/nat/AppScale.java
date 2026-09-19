@@ -14,7 +14,7 @@ import android.view.WindowManager;
  * (مثل ارتفاع البطاقة 430px أو الزر 60px) كما هي إلى dp دون أي تحويل، وتبقى النِّسب متطابقة
  * على الهاتف والتابلت وصندوق التلفاز والشاشة الكبيرة.
  *
- * نفس معادلة applyAutoScaling في splayer.js: عرض الكانفاس = 750 × نسبة الشاشة
+ * نفس معادلة applyAutoScaling في splayer.js: عرض الكانفاس = ارتفاع الكانفاس × نسبة الشاشة
  * (محصورة بين 1.33 و 2.45)، ثم يُصغَّر الكانفاس ليتسع داخل الشاشة.
  *
  * مهم: الكثافة تُطبَّق عبر إعدادات خاصة بكل شاشة أصلية (createConfigurationContext) وليس
@@ -24,9 +24,22 @@ public final class AppScale {
 
     public static final float CANVAS_HEIGHT = 700f;
 
+    /**
+     * نمط الهاتف/اللمس: كانفاس أقصر (580 بدل 700) فيكبر كل شيء بنحو 20%، ومعه تكبير إضافي للخطوط.
+     * كانفاس 700 مناسب للتلفاز من مسافة المشاهدة، لكنه على شاشة هاتف بعرض 7 سم كان يجعل النصوص
+     * والنوافذ صغيرة جداً (نص 16 كان يظهر بحجم 9dp حقيقي فقط).
+     */
+    public static final float TOUCH_CANVAS_HEIGHT = 580f;
+    public static final float TOUCH_FONT_SCALE = 1.18f;
+
     private AppScale() { }
 
-    public static float computeDensity(Context ctx) {
+    /** نمط الجهاز المختار من نافذة "نمط الجهاز" (لمس للهاتف والتابلت، أو ريموت للتلفاز). */
+    public static boolean isTouchMode(Context ctx) {
+        return !"tv".equals(Store.deviceMode(ctx));
+    }
+
+    private static float computeDensity(Context ctx, float canvasHeight) {
         DisplayMetrics real = new DisplayMetrics();
         WindowManager wm = (WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE);
         if (wm != null) {
@@ -40,17 +53,18 @@ public final class AppScale {
 
         float aspect = longSide / shortSide;
         float clampedAspect = Math.max(1.33f, Math.min(2.45f, aspect));
-        float canvasWidth = CANVAS_HEIGHT * clampedAspect;
-        return Math.min(shortSide / CANVAS_HEIGHT, longSide / canvasWidth);
+        float canvasWidth = canvasHeight * clampedAspect;
+        return Math.min(shortSide / canvasHeight, longSide / canvasWidth);
     }
 
     /** سياق جديد بكثافة الكانفاس ومقياس خط ثابت (1.0)، لاستخدامه في attachBaseContext. */
     public static Context wrap(Context base) {
-        float density = computeDensity(base);
+        boolean touch = isTouchMode(base);
+        float density = computeDensity(base, touch ? TOUCH_CANVAS_HEIGHT : CANVAS_HEIGHT);
         Configuration cfg = new Configuration(base.getResources().getConfiguration());
         cfg.densityDpi = Math.max(1, Math.round(density * 160f));
         // حجم الخط لا يتأثر بإعداد "حجم الخط" في النظام، تماماً كالمشغل على الويب
-        cfg.fontScale = 1f;
+        cfg.fontScale = touch ? TOUCH_FONT_SCALE : 1f;
         DisplayMetrics real = new DisplayMetrics();
         WindowManager wm = (WindowManager) base.getSystemService(Context.WINDOW_SERVICE);
         if (wm != null) {

@@ -42,6 +42,7 @@ public final class AccountsDialog {
             d.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             d.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+        Ui.widenDialogCard(d, R.id.dialog_playlists_card, 1020);
 
         View close = d.findViewById(R.id.dialog_playlists_close);
         Button btnAdd = d.findViewById(R.id.dialog_playlists_btn_add);

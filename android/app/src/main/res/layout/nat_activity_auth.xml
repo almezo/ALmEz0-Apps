@@ -7,10 +7,23 @@
     android:background="@drawable/nat_bg_app"
     android:layoutDirection="rtl">
 
+    <!-- قابلة للتمرير: في نمط الهاتف المكبّر قد تتجاوز البطاقة ارتفاع الشاشة -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
         android:gravity="center_horizontal"
         android:orientation="vertical">
 
@@ -343,6 +356,8 @@
             android:textColor="@color/nat_soft"
             android:textSize="15sp" />
     </LinearLayout>
+    </FrameLayout>
+    </ScrollView>
 
     <ProgressBar
         android:id="@+id/auth_progress"

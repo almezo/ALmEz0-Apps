@@ -1,13 +1,21 @@
 package com.almezo.servers.nat;
 
 import android.app.ActivityManager;
+import android.app.Dialog;
 import android.content.Context;
+import android.util.DisplayMetrics;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import com.almezo.servers.R;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.GlideBuilder;
+import com.bumptech.glide.Priority;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.load.engine.cache.InternalCacheDiskCacheFactory;
+import com.bumptech.glide.load.engine.executor.GlideExecutor;
 import com.bumptech.glide.request.RequestOptions;
 
 import java.util.Calendar;
@@ -79,24 +87,98 @@ public final class Ui {
         return low;
     }
 
+    private static volatile boolean imageLoaderReady = false;
+
     /**
-     * تحميل صورة بصيغة موفّرة: تُصغَّر لحجم العنصر الفعلي (downsampling)، وتُخزَّن على القرص،
-     * وتُفك بصيغة 16-بت على الأجهزة الضعيفة (نصف ذاكرة الصورة تقريباً دون فرق ملحوظ في البوسترات).
+     * إعداد محمّل الصور مرة واحدة قبل أول استخدام. الإعداد الافتراضي لـ Glide يحمّل 4 صور فقط في
+     * نفس الوقت (أو أقل على الأجهزة الضعيفة)، وشعارات القنوات تأتي من عشرات السيرفرات المختلفة،
+     * بعضها بطيء أو متوقف، فكانت تحجز الخيوط الأربعة وتتأخر بقية الشعارات الحقيقية طويلاً
+     * وتبقى البطاقات على الشعار الافتراضي. هنا نسمح بتحميل متوازٍ أوسع وكاش قرص أكبر.
+     */
+    public static void initImageLoader(Context ctx) {
+        if (imageLoaderReady) return;
+        synchronized (Ui.class) {
+            if (imageLoaderReady) return;
+            imageLoaderReady = true;
+            try {
+                Context app = ctx.getApplicationContext();
+                int threads = isLowEnd(app) ? 8 : 12;
+                GlideBuilder builder = new GlideBuilder()
+                        .setSourceExecutor(GlideExecutor.newSourceBuilder().setThreadCount(threads).build())
+                        .setDiskCache(new InternalCacheDiskCacheFactory(app, 400L * 1024 * 1024));
+                Glide.init(app, builder);
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    /** مهلة أطول من الافتراضي (2.5 ثانية) لأن سيرفرات الشعارات البطيئة كانت تفشل وتبقى على الشعار الافتراضي. */
+    private static final int IMAGE_TIMEOUT_MS = 10000;
+
+    private static String cleanUrl(String url) {
+        if (url == null) return null;
+        String u = url.trim();
+        if (u.length() < 5 || "null".equals(u)) return null;
+        return u.replace(" ", "%20");
+    }
+
+    /**
+     * تحميل صورة بصيغة موفّرة: تُصغَّر لحجم العنصر الفعلي (downsampling)، وتُفك بصيغة 16-بت على
+     * الأجهزة الضعيفة (نصف ذاكرة الصورة تقريباً دون فرق ملحوظ في البوسترات).
+     * يُحفظ على القرص الأصل والنسخة المصغّرة معاً (ALL): فتح الصورة لاحقاً بأي حجم لا يعيد تنزيلها،
+     * والتحميل المسبق (prefetch) للصفوف القادمة يُستفاد منه مباشرة. وعند الفشل تُعاد المحاولة مرة واحدة.
      */
     public static void loadImage(ImageView view, String url, int placeholderRes) {
         Context ctx = view.getContext();
-        RequestOptions opts = new RequestOptions()
-                .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-                .format(isLowEnd(ctx) ? DecodeFormat.PREFER_RGB_565 : DecodeFormat.PREFER_ARGB_8888)
-                .placeholder(placeholderRes)
-                .error(placeholderRes)
-                .dontAnimate();
-        if (url == null || url.trim().length() < 5 || "null".equals(url)) {
+        String u = cleanUrl(url);
+        if (u == null) {
             Glide.with(ctx).clear(view);
             view.setImageResource(placeholderRes);
             return;
         }
-        Glide.with(ctx).load(url.trim().replace(" ", "%20")).apply(opts).into(view);
+        RequestOptions opts = new RequestOptions()
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .format(isLowEnd(ctx) ? DecodeFormat.PREFER_RGB_565 : DecodeFormat.PREFER_ARGB_8888)
+                .timeout(IMAGE_TIMEOUT_MS)
+                .priority(Priority.HIGH)
+                .placeholder(placeholderRes)
+                .error(placeholderRes)
+                .dontAnimate();
+        Glide.with(ctx).load(u).apply(opts)
+                .error(Glide.with(ctx).load(u).apply(opts))
+                .into(view);
+    }
+
+    /** تنزيل صورة مسبقاً إلى كاش القرص بأولوية منخفضة، حتى تظهر فوراً عند الوصول إليها بالتمرير. */
+    public static void prefetch(Context ctx, String url) {
+        String u = cleanUrl(url);
+        if (u == null) return;
+        try {
+            Glide.with(ctx.getApplicationContext()).downloadOnly().load(u)
+                    .apply(new RequestOptions().timeout(IMAGE_TIMEOUT_MS).priority(Priority.LOW))
+                    .submit();
+        } catch (Throwable ignored) { }
+    }
+
+    /** "★ 7.5" أو "★ 8" من تقييم العمل. */
+    public static String ratingText(float rating) {
+        String r = (rating == (int) rating)
+                ? String.valueOf((int) rating)
+                : String.format(Locale.US, "%.1f", rating);
+        return "★ " + r;
+    }
+
+    /**
+     * في نمط الهاتف تُعرض النوافذ المنبثقة (تسجيل الخروج، نمط الجهاز، السيرفرات) بعرض أكبر من
+     * عرضها على التلفاز، حتى لا تبدو صغيرة وسط شاشة الهاتف. لا تتجاوز عرض الشاشة أبداً.
+     */
+    public static void widenDialogCard(Dialog d, int cardId, int touchWidthDp) {
+        View card = d.findViewById(cardId);
+        if (card == null || !AppScale.isTouchMode(card.getContext())) return;
+        DisplayMetrics dm = card.getResources().getDisplayMetrics();
+        int max = dm.widthPixels - Math.round(64 * dm.density);
+        ViewGroup.LayoutParams lp = card.getLayoutParams();
+        lp.width = Math.min(max, Math.round(touchWidthDp * dm.density));
+        card.setLayoutParams(lp);
     }
 
     public static int logoPlaceholder() {
