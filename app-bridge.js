@@ -542,8 +542,16 @@
             return bestCandidate;
         }
 
+        function isAlMeZ0PlayerEnv() {
+            return !!document.getElementById('app-scaler') ||
+                   !!document.getElementById('dashboard-screen') ||
+                   !!document.getElementById('auth1-screen') ||
+                   window.location.pathname.toLowerCase().includes('player') ||
+                   window.location.href.toLowerCase().includes('player');
+        }
+
         function handleSitePageDpadNavigation(e) {
-            if (window.location.pathname.toLowerCase().includes('player.html')) {
+            if (isAlMeZ0PlayerEnv()) {
                 return;
             }
 
@@ -680,8 +688,7 @@
                 return true;
             }
 
-            var currentPath = window.location.pathname.toLowerCase();
-            if (currentPath.includes('player.html')) {
+            if (isAlMeZ0PlayerEnv()) {
                 if (e && typeof e.preventDefault === 'function') e.preventDefault();
                 var activeScreen = (typeof currentScreenId !== 'undefined') ? currentScreenId : sessionStorage.getItem('sp_current_screen');
 
@@ -801,7 +808,7 @@
             // كل محرك يضع تركيزه (.tv-focused) على عنصر مختلف دون إزالة تركيز المحرك الآخر،
             // وهو السبب الحقيقي لظهور إطارين أخضرين معاً ولتأخر/تعارض استجابة الاتجاهات.
             // الحل: نترك مشغل الميزو بالكامل لمحركه الخاص ولا نتدخل هنا إطلاقاً.
-            var isPlayer = window.location.pathname.toLowerCase().includes('player.html');
+            var isPlayer = isAlMeZ0PlayerEnv();
 
             if (!isPlayer) {
                 // 3. إذا كان هناك نافذة منبثقة مفتوحة (حصر الحركة بداخلها تماماً)
@@ -836,7 +843,7 @@
     // =========================================================================
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
-    const CURRENT_APP_VERSION = '1.0.74';
+    const CURRENT_APP_VERSION = '1.0.75';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

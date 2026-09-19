@@ -369,6 +369,11 @@
                     <span dir="rtl">جميع الحقوق محفوظة &copy; 2026</span>
                 </div>
             </div>
+            <!-- زر عائم لمساعد الميزو الذكي للوصول السريع (يظهر في شاشة الداشبورد الرئيسية للمشغل) -->
+            <button id="aiFloatingTrigger" class="ai-floating-trigger" onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" title="مساعد الميزو الذكي" tabindex="0">
+                <span class="ai-floating-icon"><i class="fas fa-sparkles"></i></span>
+                <span class="ai-floating-label">مساعد الميزو</span>
+            </button>
         </div>
         <!-- MAIN APP: PROFILE SCREEN -->
         <div class="app-screen-container app-screen hidden auto-style-13" id="profile-screen">
@@ -858,12 +863,6 @@
             </script>
 
         </div> <!-- END #app-scaler -->
-
-        <!-- زر عائم لمساعد الميزو الذكي للوصول السريع (يظهر فقط في شاشة الداشبورد الرئيسية للمشغل) -->
-        <button id="aiFloatingTrigger" class="ai-floating-trigger hidden" onclick="if (window.AlMeZ0AI) window.AlMeZ0AI.openModal();" title="مساعد الميزو الذكي">
-            <span class="ai-floating-icon"><i class="fas fa-sparkles"></i></span>
-            <span class="ai-floating-label">مساعد الميزو</span>
-        </button>
 
         <!-- DEDICATED FULLSCREEN VIDEO PLAYER MODAL -->
         <div id="fullscreenVideoModal" class="fullscreen-video-modal hidden">
