@@ -7474,6 +7474,13 @@ body.platform-android #liveChannels,
 body.tv-device-mode #liveChannels {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    /* السبب الجذري لتراكب بطاقات القنوات (مُثبت بقياس فعلي في المتصفح):
+       هذه الحاوية ارتفاعها محدد (750px داخل الكانفاس) وهي نفسها التي تتمرر، وصفوفها كانت auto.
+       مع min-height:0 على البطاقات يصبح الحد الأدنى لكل صف صفراً، فيوزّع المتصفح ارتفاع الحاوية
+       بالتساوي على الصفوف (3 صفوف × 231px) بينما البطاقة 351px، فتفيض كل بطاقة فوق الصف التالي.
+       شبكة الأفلام لا تتأثر لأن حاويتها بلا ارتفاع محدد (يتمرر عنصر أب حولها).
+       max-content يجعل كل صف بارتفاع بطاقته الفعلي دائماً، ولا يُضغط أبداً لملء الحاوية. */
+    grid-auto-rows: max-content !important;
     gap: 6px !important;
     row-gap: 18px !important;
     width: 100% !important;
@@ -7518,109 +7525,120 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     background: var(--accent-gold, #e5b935) !important;
 }
 
-/* بطاقة القناة مطابقة تماماً لبطاقة الفيلم (.vod-card) مع حماية قصوى ضد التمدد */
-.vod-card.live-card {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    cursor: pointer !important;
+/* =========================================================
+   بطاقة قناة البث المباشر — إعادة بناء كاملة
+   ---------------------------------------------------------
+   سبب التراكب الذي استمر رغم كل الإصلاحات السابقة:
+   ملصق الفيلم عنصر <img> يحمل ارتفاعه الذاتي، فيحسب الـ Grid ارتفاع الصف صحيحاً دائماً.
+   أما صندوق شعار القناة فكان <div> فارغاً لا ارتفاع له إلا عبر aspect-ratio، أو عبر
+   padding-bottom:150% كبديل عندما لا يدعم WebView خاصية aspect-ratio (شائع جداً في صناديق
+   التلفاز القديمة التي لا يُحدَّث فيها WebView). داخل Grid تُعامَل الحشوة النسبية كصفر أثناء
+   حساب ارتفاع الصفوف ثم تُطبَّق بعدها، فيُحسب الصف أقصر من البطاقة وتتراكب الصفوف.
+   الحل: نفس تقنية ملصق الفيلم تماماً — صورة شفافة مقاسها الذاتي 2×3 تحدد الارتفاع
+   (تعمل على كل إصدارات WebView بلا استثناء)، والشعار فوقها في المنتصف بتموضع مطلق.
+   ========================================================= */
+#liveChannels .live-card {
+    display: block !important;
     position: relative !important;
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
+    /* لا min-height:0 هنا إطلاقاً: الصفر يسمح للمتصفح بضغط صف الشبكة أقصر من البطاقة */
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     outline: none !important;
-    overflow: visible !important;
-    border-radius: 10px !important;
-    /* منع التمدد العمودي اللانهائي: الارتفاع يحسبه المتصفح تلقائياً من المحتوى */
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
+    cursor: pointer !important;
     align-self: start !important;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
+    transform: none;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-.vod-card.live-card:hover,
-.vod-card.live-card:focus-visible,
-.vod-card.live-card.tv-focused {
-    transform: scale(1.06) !important;
-    z-index: 5 !important;
+#liveChannels .live-card::after,
+#liveChannels .live-card::before {
+    display: none !important;
+    content: none !important;
 }
 
-/* صندوق الشعار يماثل ملصق الفيلم بنسبة 2:3 مع توسيط أنيق للشعار
-   تم إضافة padding-bottom كبديل احتياطي لنسبة العرض/الارتفاع aspect-ratio
-   في حال كان WebView قديماً ولا يدعمها (Android 5-9 مثلاً) */
-.vod-poster.channel-poster-box {
+#liveChannels .live-card .channel-poster-box {
+    display: block !important;
+    position: relative !important;
     width: 100% !important;
-    aspect-ratio: 2 / 3 !important;
     height: auto !important;
-    max-height: none !important;
     min-height: 0 !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    padding: 0 !important;
+    margin: 0 0 2px 0 !important;
     border-radius: 10px !important;
     background: #141a29 !important;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
-    padding: 12px !important;
-    margin-bottom: 2px !important;
-    transition: outline 0.2s ease, box-shadow 0.2s ease !important;
-    /* حماية احتياطية: لو لم يعمل aspect-ratio, نعطي ارتفاع نسبي */
-    position: relative !important;
-    flex-shrink: 0 !important;
 }
 
-/* padding-bottom trick للأجهزة التي لا تدعم aspect-ratio */
-@supports not (aspect-ratio: 2 / 3) {
-    .vod-poster.channel-poster-box {
-        aspect-ratio: unset !important;
-        height: 0 !important;
-        padding-bottom: 150% !important; /* 3/2 = 1.5 = 150% */
-    }
-    .vod-poster.channel-poster-box .channel-poster-img {
-        position: absolute !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-    }
+/* الصورة الشفافة 2×3 هي ما يعطي الصندوق ارتفاعه الحقيقي (1.5 × العرض) */
+#liveChannels .live-card .channel-poster-spacer {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
-.vod-card.live-card:hover .channel-poster-box,
-.vod-card.live-card:focus-visible .channel-poster-box,
-.vod-card.live-card.tv-focused .channel-poster-box {
+#liveChannels .live-card .channel-poster-img {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: 78% !important;
+    max-height: 78% !important;
+    margin: 0 !important;
+    transform: translate(-50%, -50%) !important;
+    object-fit: contain !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+#liveChannels .live-card .vod-info {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+}
+
+#liveChannels .live-card:hover,
+#liveChannels .live-card:focus-visible,
+#liveChannels .live-card.tv-focused {
+    transform: scale(1.06) !important;
+    z-index: 5 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#liveChannels .live-card:hover .channel-poster-box,
+#liveChannels .live-card:focus-visible .channel-poster-box,
+#liveChannels .live-card.tv-focused .channel-poster-box {
     outline: 3.5px solid #22c55e !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.75) !important;
 }
 
-.vod-card.live-card.active .channel-poster-box {
+#liveChannels .live-card.active .channel-poster-box {
     outline: 3px solid #22c55e !important;
     outline-offset: 2px !important;
-}
-
-.channel-poster-img {
-    max-width: 78% !important;
-    max-height: 78% !important;
-    width: auto !important;
-    height: auto !important;
-    object-fit: contain !important;
-    background: transparent !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7)) !important;
-    transition: transform 0.2s ease !important;
-}
-
-.vod-card.live-card:hover .channel-poster-img,
-.vod-card.live-card:focus-visible .channel-poster-img,
-.vod-card.live-card.tv-focused .channel-poster-img {
-    transform: scale(1.08) !important;
 }
 
 /* =========================================================

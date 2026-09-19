@@ -4598,6 +4598,11 @@ function applySort() {
 // ضعيفة الرام دون المخاطرة بحذف عناصر DOM فعلياً (وهو ما قد يكسر التمرير للخلف).
 // ==========================================
 const OFFSCREEN_IMG_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7';
+
+// صورة SVG شفافة مقاسها الذاتي 2×3 تُستخدم لإعطاء صندوق شعار القناة نفس نسبة ملصق الفيلم.
+// الصور ذات المقاس الذاتي تُحسب في ارتفاع صفوف الـ Grid على كل إصدارات WebView، بعكس
+// aspect-ratio أو padding-bottom النسبية.
+const CHANNEL_POSTER_SPACER_SRC = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='3' viewBox='0 0 2 3'%3E%3C/svg%3E";
 const offscreenImageObservers = new WeakMap();
 
 function getOffscreenImageObserver(rootEl) {
@@ -4761,8 +4766,12 @@ function appendNextItemChunk(customSize) {
                 if (isCurrentlyPlaying || isSavedMatch) {
                     el.classList.add('active');
                 }
+                // صندوق الشعار: صورة شفافة بمقاس ذاتي 2×3 تحدد ارتفاعه (مثل ملصق الفيلم تماماً)،
+                // بدل div فارغ يعتمد على aspect-ratio التي لا تدعمها WebView القديمة في صناديق التلفاز.
+                // أُزيلت فئة vod-poster من الصندوق حتى لا تتسرب إليه قواعد الملصق (aspect-ratio/object-fit).
                 el.innerHTML = `
-                    <div class="vod-poster channel-poster-box">
+                    <div class="channel-poster-box">
+                        <img class="channel-poster-spacer" src="${CHANNEL_POSTER_SPACER_SRC}" alt="" aria-hidden="true">
                         <img src="${iconSrc}" class="channel-poster-img" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
                     </div>
                     <div class="vod-info">
@@ -4780,7 +4789,9 @@ function appendNextItemChunk(customSize) {
                 `;
             }
 
-            const elImg = el.querySelector('img');
+            // نستهدف صورة الشعار تحديداً وليس أول صورة في البطاقة: أول صورة الآن هي صورة المقاس
+            // الشفافة، ولو فُرِّغت واستُبدلت بصورة 1×1 لتغيّر ارتفاع البطاقة أثناء التمرير
+            const elImg = el.querySelector('.channel-poster-img, .channel-icon');
             if (elImg) watchImageForOffscreenUnload(elImg, unloadRootEl);
 
             el.onclick = () => {
