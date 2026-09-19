@@ -676,10 +676,16 @@ function showScreen(screenId, isBackNavigation = false) {
             el.classList.remove('hidden');
             el.inert = false;
             el.removeAttribute('aria-hidden');
+            el.removeAttribute('tabindex');
         } else {
             el.classList.add('hidden');
             el.inert = true;
             el.setAttribute('aria-hidden', 'true');
+            el.setAttribute('tabindex', '-1');
+            // إزالة التركيز من أي عنصر داخل الشاشة المخفية لمنع تسرب أحداث لوحة المفاتيح
+            if (document.activeElement && el.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
         }
     });
     const targetScreen = document.getElementById(screenId);
@@ -5467,7 +5473,7 @@ function initTvNavigationEngine() {
                     document.activeElement.blur();
                 }
                 // الانتقال المباشر لأول بطاقة في النتائج (أفلام، مسلسلات، قنوات)
-                const firstResult = document.querySelector('#vodGrid .vod-card:not(.hidden), #liveChannels .list-item:not(.hidden), .channel-item:not(.hidden)');
+                const firstResult = document.querySelector('#vodGrid .vod-card:not(.hidden), #liveChannels .vod-card:not(.hidden), #liveChannels .live-card:not(.hidden), #liveChannels .list-item:not(.hidden), .channel-item:not(.hidden)');
                 if (firstResult) {
                     setFocus(firstResult);
                     return;

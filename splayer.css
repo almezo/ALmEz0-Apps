@@ -42,6 +42,18 @@ body {
     display: none !important;
 }
 
+/* عزل الشاشات المخفية تماماً: منع أي تفاعل أو رسم أو استقبال أحداث */
+.app-screen-container.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
+}
+
 /* =========================================================
    GLOBAL SLIM MODERN SCROLLBARS (VERTICAL & HORIZONTAL)
    ========================================================= */
@@ -986,6 +998,7 @@ body.touch-device-mode .dash-card p {
 .list-container {
     flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .list-item {
@@ -7464,10 +7477,14 @@ body.tv-device-mode #liveChannels {
     gap: 6px !important;
     row-gap: 18px !important;
     width: 100% !important;
-    height: 100% !important;
+    /* flex: 1 يعطي الارتفاع الصحيح داخل col-list (flexbox عمودي);
+       height: 100% كانت تتعارض مع flex وتسبب تمدد لانهائي على بعض الأجهزة */
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
     box-sizing: border-box !important;
     justify-items: center !important;
     align-items: start !important;
+    align-content: start !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 10px 14px !important;
@@ -7501,7 +7518,7 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     background: var(--accent-gold, #e5b935) !important;
 }
 
-/* بطاقة القناة مطابقة تماماً لبطاقة الفيلم (.vod-card) */
+/* بطاقة القناة مطابقة تماماً لبطاقة الفيلم (.vod-card) مع حماية قصوى ضد التمدد */
 .vod-card.live-card {
     display: flex !important;
     flex-direction: column !important;
@@ -7517,6 +7534,13 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     border: none !important;
     box-shadow: none !important;
     outline: none !important;
+    overflow: visible !important;
+    border-radius: 10px !important;
+    /* منع التمدد العمودي اللانهائي: الارتفاع يحسبه المتصفح تلقائياً من المحتوى */
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    align-self: start !important;
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
 }
 
@@ -7527,11 +7551,15 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     z-index: 5 !important;
 }
 
-/* صندوق الشعار يماثل ملصق الفيلم بنسبة 2:3 مع توسيط أنيق للشعار */
+/* صندوق الشعار يماثل ملصق الفيلم بنسبة 2:3 مع توسيط أنيق للشعار
+   تم إضافة padding-bottom كبديل احتياطي لنسبة العرض/الارتفاع aspect-ratio
+   في حال كان WebView قديماً ولا يدعمها (Android 5-9 مثلاً) */
 .vod-poster.channel-poster-box {
     width: 100% !important;
     aspect-ratio: 2 / 3 !important;
     height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
     border-radius: 10px !important;
     background: #141a29 !important;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55) !important;
@@ -7543,6 +7571,24 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     padding: 12px !important;
     margin-bottom: 2px !important;
     transition: outline 0.2s ease, box-shadow 0.2s ease !important;
+    /* حماية احتياطية: لو لم يعمل aspect-ratio, نعطي ارتفاع نسبي */
+    position: relative !important;
+    flex-shrink: 0 !important;
+}
+
+/* padding-bottom trick للأجهزة التي لا تدعم aspect-ratio */
+@supports not (aspect-ratio: 2 / 3) {
+    .vod-poster.channel-poster-box {
+        aspect-ratio: unset !important;
+        height: 0 !important;
+        padding-bottom: 150% !important; /* 3/2 = 1.5 = 150% */
+    }
+    .vod-poster.channel-poster-box .channel-poster-img {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+    }
 }
 
 .vod-card.live-card:hover .channel-poster-box,
