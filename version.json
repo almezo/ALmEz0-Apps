@@ -1,10 +1,10 @@
 {
-  "version": "1.0.78",
-  "versionCode": 79,
+  "version": "1.0.79",
+  "versionCode": 80,
   "releaseDate": "2026-09-19",
-  "title": "إصلاح تراكب بطاقات قنوات البث المباشر من جذوره v1.0.78 📺",
-  "notes": "اكتشاف السبب الحقيقي لتراكب بطاقات القنوات بالقياس الفعلي في المتصفح: حاوية القنوات بارتفاع محدد مع min-height:0 على البطاقات كان يجعل المتصفح يضغط الصفوف لتقسيم ارتفاع الحاوية بالتساوي (231px للصف مقابل 351px للبطاقة). الآن كل صف بارتفاع بطاقته الفعلي، وأُعيد بناء بطاقة القناة لتطابق ملصق الفيلم هيكلياً.",
-  "minSupportedVersion": "1.0.77",
+  "title": "إطلاق مشغل الميزو الأصلي بالكامل للأندرويد v1.0.79 🚀",
+  "notes": "تحويل مشغل الميزو في أندرويد بالكامل إلى تطبيق أصلي فائق السرعة (Pure Native Java & XML): استبدال الويب فيو بـ RecyclerView و Glide للقضاء الجذري على مشاكل تراكب البطاقات واستهلاك الذاكرة، ودعم هندسي كامل للريموت كنترول وشاشات Android TV، مع نقل تلقائي للحسابات والمفضلة وسجل المشاهدة.",
+  "minSupportedVersion": "1.0.79",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
     "windows": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.exe"

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- تعتيم خلفية التفاصيل حتى يبقى النص مقروءاً فوق صورة الخلفية -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:angle="0" android:startColor="#E606080D" android:centerColor="#F206080D" android:endColor="#FA06080D"/></shape>

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- شاشة التصفح (#live-screen / #vod-screen): الأقسام يميناً (360) والشبكة يساراً (5 أعمدة) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/nat_bg_app"
+    android:layoutDirection="rtl"
+    android:orientation="vertical">
+
+    <include layout="@layout/nat_navbar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <!-- الشريط الجانبي للأقسام -->
+        <LinearLayout
+            android:id="@+id/browse_sidebar"
+            android:layout_width="360dp"
+            android:layout_height="match_parent"
+            android:background="@drawable/nat_bg_sidebar"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="76dp"
+                android:paddingStart="22dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|center_vertical"
+                    android:text="الأقسام"
+                    android:textSize="24sp" />
+
+                <LinearLayout
+                    android:id="@+id/sidebar_actions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end|center_vertical"
+                    android:orientation="horizontal" />
+            </FrameLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/browse_categories"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="20dp"
+                android:scrollbars="vertical" />
+        </LinearLayout>
+
+        <!-- منطقة الشبكة -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="76dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp">
+
+                <TextView
+                    android:id="@+id/browse_title"
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:maxLines="1"
+                    android:textSize="22sp" />
+
+                <LinearLayout
+                    android:id="@+id/grid_actions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end|center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/browse_btn_search"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="@drawable/nat_btn_icon"
+                        android:contentDescription="بحث"
+                        android:padding="13dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/fa_magnifying_glass"
+                        app:tint="#FFE2E8F0" />
+
+                    <ImageButton
+                        android:id="@+id/browse_btn_menu"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="10dp"
+                        android:background="@drawable/nat_btn_icon"
+                        android:contentDescription="خيارات"
+                        android:padding="13dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/fa_ellipsis_vertical"
+                        app:tint="#FFE2E8F0" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- صندوق البحث (يظهر عند الضغط على زر البحث) -->
+            <FrameLayout
+                android:id="@+id/browse_search_box"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="10dp"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/browse_search"
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/nat_bg_input"
+                    android:imeOptions="actionSearch|flagNoExtractUi|flagNoFullscreen"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:paddingStart="56dp"
+                    android:paddingTop="14dp"
+                    android:paddingEnd="60dp"
+                    android:paddingBottom="14dp"
+                    android:textAlignment="viewStart"
+                    android:textSize="19sp" />
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginStart="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/fa_magnifying_glass"
+                    app:tint="@color/nat_muted" />
+
+                <ImageButton
+                    android:id="@+id/browse_search_clear"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:layout_marginEnd="12dp"
+                    android:background="@drawable/nat_btn_social"
+                    android:contentDescription="مسح البحث"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/fa_xmark"
+                    app:tint="#FFCBD5E1" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/browse_grid"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="24dp"
+                    android:scrollbars="vertical" />
+
+                <ProgressBar
+                    android:id="@+id/browse_progress"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="@color/nat_gold" />
+
+                <TextView
+                    android:id="@+id/browse_empty"
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:textColor="@color/nat_muted"
+                    android:textSize="20sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

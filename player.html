@@ -106,6 +106,29 @@
             }
         })();
     </script>
+    <!-- Android: مشغل الميزو أصلي بالكامل. أي فتح لـ player.html داخل تطبيق أندرويد يُحوَّل للمشغل
+         الأصلي (بعد التحقق من تسجيل الدخول للموقع أعلاه)، مع نقل الحسابات والمفضلة المحفوظة -->
+    <script>
+        (function redirectToNativeAndroidPlayer() {
+            try {
+                var bridge = window.AndroidNativeBridge;
+                if (!bridge || typeof bridge.openNativePlayer !== 'function') return;
+                var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
+                if (!cached) return; // لم يسجل الدخول للموقع: التحويل أعلاه يتولى الأمر
+                function arr(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { return []; } }
+                var data = {
+                    accounts: arr('sp_accounts').length ? arr('sp_accounts') : arr('sp_saved_accounts'),
+                    activeId: localStorage.getItem('sp_active_acc_id') || '',
+                    loggedOut: localStorage.getItem('sp_logged_out') === 'true',
+                    favs: { live: arr('sp_favs_live'), vod: arr('sp_favs_vod'), series: arr('sp_favs_series') },
+                    cont: { live: arr('sp_continue_live'), vod: arr('sp_continue_vod'), series: arr('sp_continue_series') }
+                };
+                document.documentElement.style.visibility = 'hidden';
+                bridge.openNativePlayer(JSON.stringify(data));
+                window.location.replace('index.html');
+            } catch (e) { }
+        })();
+    </script>
     <!-- Instant Session Pre-Check: Prevent FOUC / Flashing of Server Code Screen on Startup -->
     <script>
         (function checkInitialPlayerSession() {

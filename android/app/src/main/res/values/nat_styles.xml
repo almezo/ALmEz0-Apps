@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- هوية مشغل الميزو الأصلي: نفس ألوان وخطوط splayer.css (Tajawal، أبيض، رمادي #94a3b8، ذهبي #f59e0b) -->
+<resources>
+    <color name="nat_white">#FFFFFFFF</color>
+    <color name="nat_muted">#FF94A3B8</color>
+    <color name="nat_soft">#FFCBD5E1</color>
+    <color name="nat_card_sub">#D9FFFFFF</color>
+    <color name="nat_gold">#FFF59E0B</color>
+    <color name="nat_green">#FF22C55E</color>
+    <color name="nat_red">#FFE50914</color>
+    <color name="nat_nav_home">#FF4CAF50</color>
+    <color name="nat_nav_accounts">#FFF4C242</color>
+    <color name="nat_nav_profile">#FF2196F3</color>
+    <color name="nat_nav_logout">#FFE53935</color>
+    <color name="nat_bg_main">#FF06080D</color>
+
+    <style name="NatTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@color/nat_bg_main</item>
+        <item name="android:colorBackground">@color/nat_bg_main</item>
+        <item name="colorAccent">@color/nat_gold</item>
+        <item name="android:textColorHint">@color/nat_muted</item>
+        <item name="fontFamily">@font/tajawal_bold</item>
+        <item name="android:fontFamily">@font/tajawal_bold</item>
+    </style>
+
+    <style name="NatText">
+        <item name="android:textColor">@color/nat_white</item>
+        <item name="android:fontFamily">@font/tajawal_bold</item>
+        <item name="fontFamily">@font/tajawal_bold</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="NatText.Black">
+        <item name="android:fontFamily">@font/tajawal_black</item>
+        <item name="fontFamily">@font/tajawal_black</item>
+    </style>
+
+    <style name="NatText.ExtraBold">
+        <item name="android:fontFamily">@font/tajawal_extrabold</item>
+        <item name="fontFamily">@font/tajawal_extrabold</item>
+    </style>
+
+    <style name="NatText.Muted">
+        <item name="android:textColor">@color/nat_muted</item>
+    </style>
+
+    <style name="NatNavButton">
+        <item name="android:layout_width">60dp</item>
+        <item name="android:layout_height">60dp</item>
+        <item name="android:layout_marginStart">16dp</item>
+        <item name="android:padding">18dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:focusable">true</item>
+        <item name="android:clickable">true</item>
+    </style>
+</resources>

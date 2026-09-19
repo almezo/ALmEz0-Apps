@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:state_focused="true"><shape xmlns:android="http://schemas.android.com/apk/res/android"><corners android:radius="14dp"/><solid android:color="#4D000000"/><stroke android:width="2dp" android:color="#FFF59E0B"/></shape></item>
+  <item android:state_pressed="true"><shape xmlns:android="http://schemas.android.com/apk/res/android"><corners android:radius="14dp"/><solid android:color="#4D000000"/><stroke android:width="2dp" android:color="#FFF59E0B"/></shape></item>
+  <item><shape xmlns:android="http://schemas.android.com/apk/res/android"><corners android:radius="14dp"/><solid android:color="#4D000000"/><stroke android:width="1.5dp" android:color="#26FFFFFF"/></shape></item>
+</selector>

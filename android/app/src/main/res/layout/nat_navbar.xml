@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ترويسة المشغل (.navbar): الارتفاع والحشوات والأحجام بوحدات كانفاس الويب (1dp = 1px من الكانفاس) -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nat_navbar"
+    android:layout_width="match_parent"
+    android:layout_height="120dp"
+    android:background="@drawable/nat_bg_navbar"
+    android:layoutDirection="rtl"
+    android:paddingStart="40dp"
+    android:paddingEnd="40dp">
+
+    <!-- اليمين: الشعار واسم المشغل -->
+    <LinearLayout
+        android:id="@+id/nav_brand"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="@drawable/nat_logo_frame"
+            android:contentDescription="ALmEz0"
+            android:padding="3dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/almezo_logo" />
+
+        <TextView
+            style="@style/NatText.ExtraBold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:maxLines="1"
+            android:text="سيرفرات الميزو - ALmEz0"
+            android:textSize="27sp" />
+    </LinearLayout>
+
+    <!-- المنتصف: الساعة والتاريخ -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/nav_clock"
+            style="@style/NatText.Black"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="34sp" />
+
+        <TextView
+            android:id="@+id/nav_date"
+            style="@style/NatText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/nat_soft"
+            android:textSize="17sp" />
+    </LinearLayout>
+
+    <!-- اليسار: الأزرار الدائرية بنفس ترتيب الويب -->
+    <LinearLayout
+        android:id="@+id/nav_actions"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/nav_btn_home"
+            style="@style/NatNavButton"
+            android:layout_marginStart="0dp"
+            android:background="@drawable/nat_nav_btn_home"
+            android:contentDescription="الرجوع للرئيسية"
+            android:src="@drawable/fa_house"
+            app:tint="@color/nat_nav_home" />
+
+        <ImageButton
+            android:id="@+id/nav_btn_accounts"
+            style="@style/NatNavButton"
+            android:background="@drawable/nat_nav_btn_accounts"
+            android:contentDescription="قوائم التشغيل وتبديل السيرفر"
+            android:src="@drawable/fa_layer_group"
+            app:tint="@color/nat_nav_accounts" />
+
+        <ImageButton
+            android:id="@+id/nav_btn_profile"
+            style="@style/NatNavButton"
+            android:background="@drawable/nat_nav_btn_profile"
+            android:contentDescription="الملف الشخصي"
+            android:src="@drawable/fa_r_circle_user"
+            app:tint="@color/nat_nav_profile" />
+
+        <ImageButton
+            android:id="@+id/nav_btn_logout"
+            style="@style/NatNavButton"
+            android:background="@drawable/nat_nav_btn_logout"
+            android:contentDescription="تسجيل الخروج"
+            android:src="@drawable/fa_right_from_bracket"
+            app:tint="@color/nat_nav_logout" />
+
+        <!-- زر الرجوع (يظهر في شاشات البث/الأفلام/التفاصيل بدل الأزرار الأخرى) -->
+        <ImageButton
+            android:id="@+id/nav_btn_back"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/nat_nav_btn_home"
+            android:contentDescription="رجوع"
+            android:focusable="true"
+            android:padding="17dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/fa_arrow_left"
+            android:visibility="gone"
+            app:tint="@color/nat_nav_home" />
+    </LinearLayout>
+</FrameLayout>

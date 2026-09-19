@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- بطاقة لوحة التحكم (.dash-card) بقياسات وضع النقال: ارتفاع 430، أيقونة 62 أعلى اليسار، عنوان 37 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="0dp"
+    android:layout_height="430dp"
+    android:layout_weight="1"
+    android:clickable="true"
+    android:focusable="true"
+    android:layoutDirection="rtl">
+
+    <ImageView
+        android:id="@+id/card_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="62dp"
+        android:layout_gravity="top|left"
+        android:layout_marginLeft="34dp"
+        android:layout_marginTop="34dp"
+        android:adjustViewBounds="true"
+        android:importantForAccessibility="no"
+        app:tint="#F2FFFFFF" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        android:paddingBottom="26dp">
+
+        <TextView
+            android:id="@+id/card_title"
+            style="@style/NatText.Black"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:maxLines="1"
+            android:shadowColor="#80000000"
+            android:shadowDy="2"
+            android:shadowRadius="10"
+            android:textSize="37sp" />
+
+        <TextView
+            android:id="@+id/card_subtitle"
+            style="@style/NatText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="18dp"
+            android:maxLines="1"
+            android:textColor="@color/nat_card_sub"
+            android:textSize="17sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/card_status"
+                style="@style/NatText.ExtraBold"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:textSize="15sp" />
+
+            <ImageButton
+                android:id="@+id/card_refresh"
+                android:layout_width="44dp"
+                android:layout_height="32dp"
+                android:background="@drawable/nat_btn_refresh"
+                android:contentDescription="تحديث"
+                android:focusable="true"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/fa_arrows_rotate"
+                app:tint="#FFFFFFFF" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- طبقة التحديث (.card-update-overlay) -->
+    <FrameLayout
+        android:id="@+id/card_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#C2080C14"
+        android:clickable="true"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/nat_gold" />
+    </FrameLayout>
+</FrameLayout>

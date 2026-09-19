@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- .btn-watch-movie: أحمر (accent-red) مع حالة تركيز بإطار أبيض -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true"><shape><corners android:radius="14dp"/><solid android:color="#FFFF2A2A"/><stroke android:width="3dp" android:color="#FFFFFFFF"/></shape></item>
+    <item android:state_pressed="true"><shape><corners android:radius="14dp"/><solid android:color="#FFFF2A2A"/></shape></item>
+    <item><shape><corners android:radius="14dp"/><solid android:color="#FFE50914"/></shape></item>
+</selector>

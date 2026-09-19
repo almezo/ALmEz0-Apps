@@ -234,6 +234,23 @@ public class MainActivity extends BridgeActivity {
             });
         }
 
+        /**
+         * يفتح مشغل الميزو الأصلي بدل player.html داخل WebView.
+         * @param migrationJson بيانات مشغل الويب (الحسابات، المفضلة، متابعة المشاهدة) لنقلها أول مرة
+         */
+        @JavascriptInterface
+        public void openNativePlayer(String migrationJson) {
+            runOnUiThread(() -> {
+                try {
+                    com.almezo.servers.nat.Migration.importFromWeb(MainActivity.this, migrationJson);
+                    Intent intent = new Intent(MainActivity.this, com.almezo.servers.nat.AuthActivity.class);
+                    startActivity(intent);
+                } catch (Throwable t) {
+                    android.util.Log.e("MainActivity", "Failed to open native player", t);
+                }
+            });
+        }
+
         @JavascriptInterface
         public void showNotification(String title, String message, String actionUrl) {
             runOnUiThread(() -> {
