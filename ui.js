@@ -1977,7 +1977,7 @@ function injectModals() {
     var checkoutHTML = [
         '<div id="checkoutModal" class="modal">',
         '  <div class="modal-content">',
-        '    <span class="close-btn" id="closeCheckoutBtn">&times;</span>',
+        '    <span class="close-btn" id="closeCheckoutBtn" tabindex="0" role="button" aria-label="إغلاق">&times;</span>',
         '    <h2><i class="fas fa-shopping-cart"></i> إتمام الطلب</h2>',
         '    <div class="order-summary">',
         '      <p>📦 المنتج: <strong id="modalProductName"></strong></p>',
@@ -2003,7 +2003,7 @@ function injectModals() {
     var authHTML = [
         '<div id="loginModal" class="modal">',
         '  <div class="modal-content">',
-        '    <span class="close-btn" id="closeLoginBtn">&times;</span>',
+        '    <span class="close-btn" id="closeLoginBtn" tabindex="0" role="button" aria-label="إغلاق">&times;</span>',
         '    <div class="auth-tabs">',
         '      <button type="button" class="auth-tab-btn active" id="tabLoginBtn">',
         '        <i class="fas fa-sign-in-alt"></i> تسجيل الدخول',
@@ -2108,7 +2108,7 @@ function injectModals() {
         '  <div class="modal-content logout-modal-content">',
         '    <!-- 1. واجهة إدارة الحساب الرئيسية -->',
         '    <div id="accountMainView" class="account-view">',
-        '      <span class="close-btn" id="closeLogoutBtn">&times;</span>',
+        '      <span class="close-btn" id="closeLogoutBtn" tabindex="0" role="button" aria-label="إغلاق">&times;</span>',
         '      <div class="account-avatar-box">',
         '        <i class="fas fa-user-shield"></i>',
         '      </div>',
@@ -2145,7 +2145,7 @@ function injectModals() {
         '      <button type="button" class="account-back-btn" id="backToAccountMainBtn" title="رجوع للخيارات">',
         '        <i class="fas fa-arrow-right"></i>',
         '      </button>',
-        '      <span class="close-btn" id="closeChangePassBtn">&times;</span>',
+        '      <span class="close-btn" id="closeChangePassBtn" tabindex="0" role="button" aria-label="إغلاق">&times;</span>',
         '      <div class="account-key-icon-box">',
         '        <i class="fas fa-lock"></i>',
         '      </div>',
@@ -2322,10 +2322,26 @@ function switchAccountView(view) {
         mainView.style.display = 'none';
         changePassView.style.display = 'block';
         var currInput = document.getElementById('currentPasswordInput');
-        if (currInput) setTimeout(function () { currInput.focus(); }, 50);
+        if (currInput) {
+            setTimeout(function () {
+                var oldTv = document.querySelectorAll('.tv-focused');
+                oldTv.forEach(function (el) { el.classList.remove('tv-focused'); });
+                currInput.focus();
+                currInput.classList.add('tv-focused');
+            }, 50);
+        }
     } else {
         changePassView.style.display = 'none';
         mainView.style.display = 'block';
+        var passBtn = document.getElementById('openChangePassBtn');
+        if (passBtn) {
+            setTimeout(function () {
+                var oldTv = document.querySelectorAll('.tv-focused');
+                oldTv.forEach(function (el) { el.classList.remove('tv-focused'); });
+                passBtn.focus();
+                passBtn.classList.add('tv-focused');
+            }, 50);
+        }
     }
 }
 
@@ -2376,7 +2392,18 @@ function openLogoutModal() {
     switchAccountView('main');
 
     var modal = document.getElementById('logoutModal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        modal.style.display = 'flex';
+        var openPassBtn = document.getElementById('openChangePassBtn');
+        if (openPassBtn) {
+            setTimeout(function () {
+                var oldTv = document.querySelectorAll('.tv-focused');
+                oldTv.forEach(function (el) { el.classList.remove('tv-focused'); });
+                openPassBtn.focus();
+                openPassBtn.classList.add('tv-focused');
+            }, 50);
+        }
+    }
 }
 
 function closeLogoutModal() {
@@ -2586,10 +2613,16 @@ window.showConfirm = function (message) {
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
-        // Animations
+        // Animations & initial TV focus
         requestAnimationFrame(() => {
             overlay.classList.add('visible');
             box.classList.add('visible');
+            setTimeout(() => {
+                var oldTv = document.querySelectorAll('.tv-focused');
+                oldTv.forEach(function (el) { el.classList.remove('tv-focused'); });
+                btnConfirm.focus();
+                btnConfirm.classList.add('tv-focused');
+            }, 50);
         });
 
         function close(result) {
@@ -2677,7 +2710,12 @@ window.showAlert = function (message, type, title) {
         requestAnimationFrame(() => {
             overlay.classList.add('visible');
             box.classList.add('visible');
-            btnOk.focus();
+            setTimeout(() => {
+                var oldTv = document.querySelectorAll('.tv-focused');
+                oldTv.forEach(function (el) { el.classList.remove('tv-focused'); });
+                btnOk.focus();
+                btnOk.classList.add('tv-focused');
+            }, 50);
         });
 
         let isClosed = false;

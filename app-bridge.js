@@ -293,137 +293,257 @@
         }, true);
 
         // =========================================================================
-        // محرك التحكم بالريموت وحصر التركيز داخل النوافذ (TV Remote & Focus Trap Engine)
+        // محرك التحكم بالريموت وحصر التركيز داخل النوافذ (Universal TV Remote & Focus Trap Engine)
         // =========================================================================
+        var NON_MODAL_TAGS = ['BUTTON', 'A', 'INPUT', 'TEXTAREA', 'SELECT', 'IMG', 'I', 'SPAN', 'H1', 'H2', 'H3', 'P', 'LABEL'];
+
+        var modalStack = [];
+        var lockedBackgroundSiblings = [];
+        var lockedFallbackElements = [];
+        var activeTrappedModal = null;
+
+        function isModalElementVisible(el) {
+            if (!el || !(el instanceof HTMLElement)) return false;
+            if (el.classList.contains('hidden')) return false;
+            if (el.id === 'app-scaler' || el.id === 'livePlayerWrapper') return false;
+            if (NON_MODAL_TAGS.indexOf(el.tagName) !== -1) return false;
+
+            var style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+
+            var isOverlay = (style.position === 'fixed' || style.position === 'absolute') || el.classList.contains('modal') || el.classList.contains('swal2-container');
+            if (!isOverlay) return false;
+
+            if (el.offsetParent === null && style.position !== 'fixed') return false;
+
+            var rect = el.getBoundingClientRect();
+            return (rect.width >= 30 && rect.height >= 30);
+        }
+
         function getOpenModal() {
-            var modalSelectors = [
+            var prioritySelectors = [
+                '.custom-confirm-overlay.visible',
+                '.custom-alert-overlay.visible',
+                '.custom-prompt-overlay.visible',
+                '.swal2-container',
+                '#almezo-inapp-update-overlay',
+                '#logoutModal',
                 '#loginModal',
-                '#purchaseModal',
+                '#checkoutModal',
+                '#usersIntelModalOverlay',
+                '#staffManagementModal',
+                '#sortModal',
                 '#playlistsModal',
                 '#deviceModeModal',
-                '#sortModal',
                 '#trailerModal',
                 '#fullscreenVideoModal',
                 '.modal.active',
                 '.modal.show',
-                '.custom-logout-modal',
-                '.swal2-container',
-                '#player-exclusive-overlay.active',
-                '.pwa-fallback-overlay.active',
                 '.modal',
-                '[id*="modal"]',
-                '[id*="Modal"]'
+                '[role="dialog"]',
+                '.custom-logout-modal',
+                '#player-exclusive-overlay.active',
+                '.pwa-fallback-overlay.active'
             ];
 
-            // عناصر لا يمكن أن تكون "نافذة منبثقة" مهما كان اسمها (أزرار وحقول وروابط).
-            // سبب هذا الشرط: كانت المحددات الفضفاضة [id*="Modal"] تلتقط أزراراً عادية مثل
-            // btnDownloadFromPlayerModal و btnClosePlayerExclusiveModal داخل طبقات مخفية،
-            // فيُعتبر الزر نافذة مفتوحة ويُحصر تنقل الريموت داخله (وهو فارغ) فيتوقف التنقل
-            // في الصفحة الرئيسية تماماً ولا تصل الأسهم لبطاقات الخدمات ولا للأزرار الجانبية.
-            var NON_MODAL_TAGS = ['BUTTON', 'A', 'INPUT', 'TEXTAREA', 'SELECT', 'IMG', 'I', 'SPAN', 'H1', 'H2', 'H3', 'P', 'LABEL'];
-
-            for (var i = 0; i < modalSelectors.length; i++) {
-                var list = Array.from(document.querySelectorAll(modalSelectors[i]));
+            var foundCandidates = [];
+            for (var i = 0; i < prioritySelectors.length; i++) {
+                var list = Array.from(document.querySelectorAll(prioritySelectors[i]));
                 for (var j = 0; j < list.length; j++) {
                     var el = list[j];
-                    if (el.classList.contains('hidden')) continue;
-                    if (el.id === 'app-scaler' || el.id === 'livePlayerWrapper') continue;
-                    if (NON_MODAL_TAGS.indexOf(el.tagName) !== -1) continue;
-
-                    // فحص حقيقي للظهور: offsetParent يساوي null إذا كان العنصر أو أي أب له مخفي،
-                    // وهو أدق بكثير من فحص خصائص العنصر نفسه فقط (التي تبقى كما هي داخل أب مخفي)
-                    if (el.offsetParent === null && window.getComputedStyle(el).position !== 'fixed') continue;
-                    var rect = el.getBoundingClientRect();
-                    if (rect.width < 40 || rect.height < 40) continue;
-
-                    var style = window.getComputedStyle(el);
-                    if (style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
-                        var isOverlay = (style.position === 'fixed' || style.position === 'absolute') || el.classList.contains('modal');
-                        if (isOverlay) {
-                            return el;
-                        }
+                    if (isModalElementVisible(el) && foundCandidates.indexOf(el) === -1) {
+                        foundCandidates.push(el);
                     }
                 }
             }
-            return null;
-        }
 
-        var lockedBackgroundElements = [];
-        var isModalFocusTrapped = false;
-        var lastActiveTriggerElement = null;
+            if (!foundCandidates.length) return null;
+            if (foundCandidates.length === 1) return foundCandidates[0];
 
-        function lockBackgroundForModal(modalEl) {
-            if (isModalFocusTrapped) return;
-            isModalFocusTrapped = true;
-            lastActiveTriggerElement = document.activeElement;
+            foundCandidates.sort(function (a, b) {
+                var za = parseInt(window.getComputedStyle(a).zIndex, 10) || 0;
+                var zb = parseInt(window.getComputedStyle(b).zIndex, 10) || 0;
+                if (za !== zb) return zb - za;
+                return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+            });
 
-            lockedBackgroundElements = [];
-            var allFocusables = Array.from(document.querySelectorAll('a, button, input, select, textarea, [tabindex]'));
-            for (var i = 0; i < allFocusables.length; i++) {
-                var el = allFocusables[i];
-                if (modalEl.contains(el)) continue;
-
-                var orig = el.getAttribute('tabindex');
-                el.setAttribute('data-tv-orig-tabindex', orig !== null ? orig : '');
-                el.setAttribute('tabindex', '-1');
-                el.setAttribute('aria-hidden', 'true');
-                lockedBackgroundElements.push(el);
-            }
-
-            setTimeout(function () {
-                var modalFocusables = getModalFocusables(modalEl);
-                if (modalFocusables.length > 0) {
-                    var firstInput = modalFocusables.find(function (e) {
-                        return e.tagName === 'INPUT' && e.type !== 'hidden';
-                    }) || modalFocusables[0];
-                    if (firstInput && typeof firstInput.focus === 'function') {
-                        firstInput.focus();
-                        firstInput.classList.add('tv-focused');
-                    }
-                }
-            }, 60);
-        }
-
-        function unlockBackgroundFromModal() {
-            if (!isModalFocusTrapped) return;
-            isModalFocusTrapped = false;
-
-            for (var i = 0; i < lockedBackgroundElements.length; i++) {
-                var el = lockedBackgroundElements[i];
-                var orig = el.getAttribute('data-tv-orig-tabindex');
-                if (orig !== null && orig !== '') {
-                    el.setAttribute('tabindex', orig);
-                } else {
-                    el.removeAttribute('tabindex');
-                }
-                el.removeAttribute('data-tv-orig-tabindex');
-                el.removeAttribute('aria-hidden');
-            }
-            lockedBackgroundElements = [];
-
-            if (lastActiveTriggerElement && typeof lastActiveTriggerElement.focus === 'function') {
-                try {
-                    lastActiveTriggerElement.focus();
-                    lastActiveTriggerElement.classList.add('tv-focused');
-                } catch (e) { }
-            }
+            return foundCandidates[0];
         }
 
         function getModalFocusables(modalEl) {
-            var selector = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], .close-btn, .btn, .confirm-btn, [tabindex="0"]';
+            if (!modalEl) return [];
+
+            var closeAndClickables = modalEl.querySelectorAll('.close-btn, .modal-close, .account-back-btn, [onclick*="close"], .btn-sort-close, .account-btn, .toggle-password-btn');
+            for (var c = 0; c < closeAndClickables.length; c++) {
+                var item = closeAndClickables[c];
+                if (!item.hasAttribute('tabindex') || item.getAttribute('tabindex') === '-1') {
+                    item.setAttribute('tabindex', '0');
+                }
+                if (!item.hasAttribute('role')) {
+                    item.setAttribute('role', 'button');
+                }
+            }
+
+            var selector = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], .close-btn, .modal-close, .account-back-btn, .account-btn, .btn, .confirm-btn, .btn-confirm-yes, .btn-confirm-no, .btn-alert-ok, .btn-prompt-ok, .btn-prompt-cancel, [tabindex="0"]';
             var all = Array.from(modalEl.querySelectorAll(selector));
+
             return all.filter(function (el) {
+                if (el.disabled) return false;
                 if (el.closest('.hidden')) return false;
+
+                var parentView = el.closest('.account-view, .auth-view');
+                if (parentView) {
+                    var pStyle = window.getComputedStyle(parentView);
+                    if (pStyle.display === 'none' || pStyle.visibility === 'hidden') return false;
+                }
+
                 var style = window.getComputedStyle(el);
-                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
                 var r = el.getBoundingClientRect();
                 return r.width > 0 && r.height > 0;
             });
         }
 
-        function handleModalDpadNavigation(modalEl, e) {
+        function focusInitialModalElement(modalEl) {
             var focusables = getModalFocusables(modalEl);
             if (!focusables.length) return;
+
+            if (document.activeElement && modalEl.contains(document.activeElement) && focusables.indexOf(document.activeElement) !== -1) {
+                document.activeElement.classList.add('tv-focused');
+                return;
+            }
+
+            var oldTvFocused = document.querySelectorAll('.tv-focused');
+            oldTvFocused.forEach(function (el) {
+                if (!modalEl.contains(el)) el.classList.remove('tv-focused');
+            });
+
+            var targetEl = null;
+            var isChangePassOpen = modalEl.querySelector('#accountChangePassView:not([style*="display: none"]):not([style*="display:none"])');
+            var isAccountMainOpen = modalEl.querySelector('#accountMainView:not([style*="display: none"]):not([style*="display:none"])');
+
+            if (isAccountMainOpen) {
+                var changePassBtn = focusables.find(function (el) {
+                    return el.id === 'openChangePassBtn';
+                });
+                targetEl = changePassBtn || focusables[0];
+            } else if (isChangePassOpen) {
+                var firstInput = focusables.find(function (el) {
+                    return (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.type !== 'hidden';
+                });
+                targetEl = firstInput || focusables[0];
+            } else {
+                var primaryAction = focusables.find(function (el) {
+                    return el.classList.contains('confirm-btn') || el.classList.contains('btn-confirm-yes') || el.classList.contains('btn-alert-ok') || (el.tagName === 'INPUT' && el.type !== 'hidden');
+                });
+                targetEl = primaryAction || focusables[0];
+            }
+
+            if (targetEl) {
+                try {
+                    targetEl.focus();
+                    targetEl.classList.add('tv-focused');
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch (e) { }
+            }
+        }
+
+        function lockBackgroundForModal(modalEl) {
+            if (!modalEl) return;
+            if (activeTrappedModal === modalEl) return;
+
+            var currentActive = document.activeElement;
+            var triggerEl = (currentActive && currentActive !== document.body && !modalEl.contains(currentActive)) ? currentActive : null;
+
+            modalStack.push({
+                modal: modalEl,
+                trigger: triggerEl
+            });
+            activeTrappedModal = modalEl;
+
+            // 1. العزل النواة التام عبر خاصية inert على كافة عناصر الصفحة خارج النافذة
+            var bodyChildren = Array.from(document.body.children);
+            for (var i = 0; i < bodyChildren.length; i++) {
+                var child = bodyChildren[i];
+                if (child === modalEl || child.contains(modalEl) || child.tagName === 'SCRIPT' || child.tagName === 'STYLE') continue;
+
+                if (!child.hasAttribute('data-tv-inert-applied')) {
+                    if (child.inert !== undefined) {
+                        child.inert = true;
+                    }
+                    child.setAttribute('data-tv-inert-applied', 'true');
+                    child.setAttribute('aria-hidden', 'true');
+                    lockedBackgroundSiblings.push(child);
+                }
+            }
+
+            // 2. طبقة حماية إضافية (Fallback لمتصفحات قديمة): سحب الـ TabIndex من عناصر الخلفية
+            var allFocusables = Array.from(document.querySelectorAll('a, button, input, select, textarea, [tabindex]'));
+            for (var j = 0; j < allFocusables.length; j++) {
+                var fEl = allFocusables[j];
+                if (modalEl.contains(fEl)) continue;
+                if (!fEl.hasAttribute('data-tv-orig-tabindex')) {
+                    var orig = fEl.getAttribute('tabindex');
+                    fEl.setAttribute('data-tv-orig-tabindex', orig !== null ? orig : '');
+                    fEl.setAttribute('tabindex', '-1');
+                    lockedFallbackElements.push(fEl);
+                }
+            }
+
+            // 3. توجيه التركيز فورياً داخل النافذة وتحديده بوضوح
+            focusInitialModalElement(modalEl);
+        }
+
+        function unlockBackgroundFromModal() {
+            for (var i = 0; i < lockedBackgroundSiblings.length; i++) {
+                var child = lockedBackgroundSiblings[i];
+                if (child.inert !== undefined) {
+                    child.inert = false;
+                }
+                child.removeAttribute('data-tv-inert-applied');
+                child.removeAttribute('aria-hidden');
+            }
+            lockedBackgroundSiblings = [];
+
+            for (var j = 0; j < lockedFallbackElements.length; j++) {
+                var fEl = lockedFallbackElements[j];
+                var orig = fEl.getAttribute('data-tv-orig-tabindex');
+                if (orig !== null && orig !== '') {
+                    fEl.setAttribute('tabindex', orig);
+                } else {
+                    fEl.removeAttribute('tabindex');
+                }
+                fEl.removeAttribute('data-tv-orig-tabindex');
+            }
+            lockedFallbackElements = [];
+
+            var lastTrigger = null;
+            if (modalStack.length > 0) {
+                var lastEntry = modalStack.pop();
+                lastTrigger = lastEntry ? lastEntry.trigger : null;
+            }
+            modalStack = [];
+            activeTrappedModal = null;
+
+            var modalTvFocused = document.querySelectorAll('.modal .tv-focused, .custom-confirm-overlay .tv-focused, .custom-alert-overlay .tv-focused');
+            modalTvFocused.forEach(function (el) { el.classList.remove('tv-focused'); });
+
+            if (lastTrigger && typeof lastTrigger.focus === 'function' && document.body.contains(lastTrigger)) {
+                try {
+                    lastTrigger.focus();
+                    lastTrigger.classList.add('tv-focused');
+                    lastTrigger.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch (e) { }
+            }
+        }
+
+        function handleModalDpadNavigation(modalEl, e) {
+            var focusables = getModalFocusables(modalEl);
+            if (!focusables.length) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
 
             var currentEl = document.activeElement && modalEl.contains(document.activeElement) ? document.activeElement : null;
             var nextEl = null;
@@ -432,9 +552,6 @@
             if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
                 return;
             }
-            // مفتاح Tab الحقيقي لا يُرسله ريموت التلفاز إطلاقاً (يرسل أسهم فقط)، فأي ضغطة Tab فعلية
-            // تعني حتماً لوحة مفاتيح كمبيوتر حقيقية؛ نترك سلوكها الافتراضي بين حقول الإدخال بدل
-            // اعتراضها بالتنقل المكاني المخصص للريموت، حتى يعمل الانتقال بين الحقول عبر Tab بشكل طبيعي
             if (isInput && e.key === 'Tab') {
                 return;
             }
@@ -442,7 +559,7 @@
             e.preventDefault();
             e.stopPropagation();
 
-            if (!currentEl) {
+            if (!currentEl || focusables.indexOf(currentEl) === -1) {
                 nextEl = focusables[0];
             } else {
                 var curIndex = focusables.indexOf(currentEl);
@@ -452,26 +569,32 @@
                 var isRight = (e.key === 'ArrowRight' || e.keyCode === 39);
 
                 if (isDown) {
-                    if (curIndex !== -1 && curIndex < focusables.length - 1) {
+                    if (curIndex < focusables.length - 1) {
                         nextEl = focusables[curIndex + 1];
                     } else {
                         nextEl = focusables[0];
                     }
                 } else if (isUp) {
-                    if (curIndex !== -1 && curIndex > 0) {
+                    if (curIndex > 0) {
                         nextEl = focusables[curIndex - 1];
                     } else {
                         nextEl = focusables[focusables.length - 1];
                     }
                 } else if (isLeft || isRight) {
-                    nextEl = find2DSpatialNeighbor(currentEl, focusables, isLeft ? 'left' : 'right') ||
-                             (isLeft ? (focusables[curIndex + 1] || focusables[0]) : (focusables[curIndex - 1] || focusables[focusables.length - 1]));
+                    var spatialNeighbor = find2DSpatialNeighbor(currentEl, focusables, isLeft ? 'left' : 'right');
+                    if (spatialNeighbor) {
+                        nextEl = spatialNeighbor;
+                    } else {
+                        nextEl = currentEl;
+                    }
                 }
             }
 
             if (nextEl) {
-                if (currentEl) currentEl.classList.remove('tv-focused');
-                nextEl.focus();
+                if (currentEl && currentEl !== nextEl) currentEl.classList.remove('tv-focused');
+                try {
+                    nextEl.focus();
+                } catch (err) { }
                 nextEl.classList.add('tv-focused');
                 try {
                     nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -614,28 +737,59 @@
             }
         }
 
-        // مزامنة حالة النوافذ المنبثقة خفيفة جداً وفورية عند التفاعل بدون مراقب DOM دائم يستهلك المعالج
-        var lastObservedModal = null;
+        // مزامنة حالة النوافذ المنبثقة فوري عند التفاعل وعبر مراقب DOM دقيق
         function syncModalState() {
             var currentModal = getOpenModal();
-            if (currentModal && currentModal !== lastObservedModal) {
-                lastObservedModal = currentModal;
+            if (currentModal && currentModal !== activeTrappedModal) {
                 lockBackgroundForModal(currentModal);
-            } else if (!currentModal && lastObservedModal) {
-                lastObservedModal = null;
+            } else if (!currentModal && activeTrappedModal) {
                 unlockBackgroundFromModal();
             }
             return currentModal;
         }
 
+        // مراقب DOM فوري لرصد فتح أو إغلاق أي نافذة تلقائياً وعزل الخلفية فوراً
+        var modalObserver = null;
+        try {
+            modalObserver = new MutationObserver(function () {
+                syncModalState();
+            });
+            modalObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style', 'class', 'hidden']
+            });
+        } catch (obsErr) { }
+
         window.addEventListener('click', syncModalState, true);
+
+        // حارس أمني دائم: منع تسرب التركيز إلى خارج النافذة نهائياً
+        document.addEventListener('focusin', function (e) {
+            if (activeTrappedModal && document.body.contains(activeTrappedModal)) {
+                if (!activeTrappedModal.contains(e.target)) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    focusInitialModalElement(activeTrappedModal);
+                }
+            }
+        }, true);
 
         // إدارة زر الرجوع الموحد (Universal Back Handler)
         var lastBackPress = 0;
         function handleUniversalBackButton(e) {
             if (document.getElementById('almezo-inapp-update-overlay')) {
-                if (e && typeof e.preventDefault === 'function') e.preventDefault();
-                return true;
+                var vData = window._almezoVersionData;
+                if (vData && vData.isMandatory) {
+                    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                    return true;
+                }
+                var btnLater = document.getElementById('btnInAppLater');
+                if (btnLater && !btnLater.classList.contains('hidden') && btnLater.offsetParent !== null) {
+                    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                    btnLater.click();
+                    return true;
+                }
             }
 
             if (typeof Swal !== 'undefined' && typeof Swal.isVisible === 'function' && Swal.isVisible()) {
@@ -658,33 +812,76 @@
                 if (e && typeof e.preventDefault === 'function') e.preventDefault();
                 if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
 
+                // 1. التعامل الهرمي مع نافذة إدارة الحساب وتغيير كلمة السر
+                if (openModal.id === 'logoutModal') {
+                    var changePassView = document.getElementById('accountChangePassView');
+                    if (changePassView && window.getComputedStyle(changePassView).display !== 'none') {
+                        if (typeof switchAccountView === 'function') {
+                            switchAccountView('main');
+                            focusInitialModalElement(openModal);
+                            return true;
+                        }
+                    }
+                    if (typeof closeLogoutModal === 'function') {
+                        closeLogoutModal();
+                        syncModalState();
+                        return true;
+                    }
+                }
+
+                // 2. حوارات التأكيد والتنبيه المنبثقة
+                if (openModal.classList.contains('custom-confirm-overlay')) {
+                    var btnCancel = openModal.querySelector('.btn-confirm-no');
+                    if (btnCancel) { btnCancel.click(); return true; }
+                }
+                if (openModal.classList.contains('custom-alert-overlay')) {
+                    var btnAlertOk = openModal.querySelector('.btn-alert-ok');
+                    if (btnAlertOk) { btnAlertOk.click(); return true; }
+                }
+                if (openModal.classList.contains('custom-prompt-overlay')) {
+                    var btnPromptCancel = openModal.querySelector('.btn-prompt-cancel');
+                    if (btnPromptCancel) { btnPromptCancel.click(); return true; }
+                }
+
                 if (openModal.id === 'loginModal' && typeof closeLoginModal === 'function') {
                     closeLoginModal();
+                    syncModalState();
+                    return true;
+                }
+                if (openModal.id === 'checkoutModal' && typeof closeModal === 'function') {
+                    closeModal();
+                    syncModalState();
                     return true;
                 }
                 if (openModal.id === 'sortModal') {
                     openModal.classList.add('hidden');
+                    syncModalState();
                     return true;
                 }
                 if (openModal.id === 'playlistsModal' && typeof closePlaylistsModal === 'function') {
                     closePlaylistsModal();
+                    syncModalState();
                     return true;
                 }
                 if (openModal.id === 'deviceModeModal' && typeof closeDeviceModeModal === 'function') {
                     closeDeviceModeModal();
+                    syncModalState();
                     return true;
                 }
                 if (openModal.id === 'trailerModal' && typeof closeTrailerModal === 'function') {
                     closeTrailerModal();
+                    syncModalState();
                     return true;
                 }
                 var closeBtn = openModal.querySelector('.close-btn, .modal-close, button[onclick*="close"], .btn-sort-close, #btnClosePlayerExclusiveModal');
                 if (closeBtn) {
                     closeBtn.click();
+                    syncModalState();
                     return true;
                 }
                 openModal.style.display = 'none';
-                openModal.classList.remove('active', 'show');
+                openModal.classList.remove('active', 'show', 'visible');
+                syncModalState();
                 return true;
             }
 
@@ -800,14 +997,6 @@
                 document.documentElement.setAttribute('data-input-mode', 'remote');
             }
 
-            // إصلاح مهم: مشغل الميزو (player.html) يملك محركه الخاص لتنقل الريموت
-            // (initTvNavigationEngine في splayer.js) بمنطق مكاني حقيقي ووعي كامل بشبكات
-            // الأفلام والقنوات ونافذة المساعد الذكي. كان هذا المستمع هنا (مسجَّل في مرحلة
-            // capture فيسبق محرك splayer.js) يعالج نفس ضغطة السهم أيضاً بخوارزمية مختلفة
-            // تماماً (تنقل خطي بسيط)، فيتحرك التركيز بمحركين مستقلين لا يعرف أحدهما عن الآخر:
-            // كل محرك يضع تركيزه (.tv-focused) على عنصر مختلف دون إزالة تركيز المحرك الآخر،
-            // وهو السبب الحقيقي لظهور إطارين أخضرين معاً ولتأخر/تعارض استجابة الاتجاهات.
-            // الحل: نترك مشغل الميزو بالكامل لمحركه الخاص ولا نتدخل هنا إطلاقاً.
             var isPlayer = isAlMeZ0PlayerEnv();
 
             if (!isPlayer) {
@@ -844,7 +1033,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.0.82';
+    const CURRENT_APP_VERSION = '1.0.83';
 
     function compareVersions(v1, v2) {
         if (!v1 || !v2) return 0;

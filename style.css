@@ -1089,11 +1089,47 @@ footer {
     cursor: pointer;
     transition: var(--transition);
     line-height: 1;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    outline: none;
+    border: none;
+    background: transparent;
+    z-index: 10;
 }
 
 .close-btn:hover {
     color: var(--red-accent);
     transform: rotate(90deg);
+}
+
+.close-btn:focus-visible,
+.close-btn.tv-focused {
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.85), 0 0 8px #ffffff !important;
+    background: rgba(34, 197, 94, 0.18) !important;
+    color: #ffffff !important;
+    transform: scale(1.15) !important;
+}
+
+.account-back-btn:focus-visible,
+.account-back-btn.tv-focused {
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.85) !important;
+    border-color: #22c55e !important;
+    background: rgba(34, 197, 94, 0.2) !important;
+    color: #ffffff !important;
+    transform: scale(1.15) !important;
+}
+
+.account-btn.tv-focused {
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 8px rgba(255, 255, 255, 0.4) !important;
+    transform: scale(1.03) translateZ(0) !important;
+    border-color: #22c55e !important;
 }
 
 .order-summary {

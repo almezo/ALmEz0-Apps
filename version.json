@@ -1,9 +1,9 @@
 {
-  "version": "1.0.82",
-  "versionCode": 83,
+  "version": "1.0.83",
+  "versionCode": 84,
   "releaseDate": "2026-09-19",
-  "title": "مشغل الميزو الأصلي للأندرويد v1.0.82 - تحسينات التوافقية الشاملة ⚡",
-  "notes": "تحسينات في توافقية التنسيقات وتحديثات مستمرة لضمان أعلى أداء واستقرار للمشغل عبر كافة المنصات.",
+  "title": "مشغل وتطبيق الميزو v1.0.83 - نظام حصر وعزل التركيز بالريموت ⚡",
+  "notes": "حل جذري وشامل لمنع تسرب التركيز إلى الخلفية (DPAD Strict Focus Trap) في كافة النوافذ المنبثقة والحوارية مع تحسين التنقل لأجهزة التلفاز.",
   "minSupportedVersion": "1.0.79",
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",
