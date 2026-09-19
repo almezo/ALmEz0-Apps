@@ -7745,47 +7745,7 @@ body.platform-electron {
 
 /* الافتتاحية تظهر الآن في تطبيقي أندرويد والكمبيوتر أيضاً (كانت مخفية فيهما بالكامل عبر
    .platform-native) لتوحيد هوية الميزو بين الموقع والتطبيقات.
-   على الأجهزة الضعيفة والشاشات لا نُلغيها بل نُخفّف تكلفتها فقط (انظر النسخة المخففة أدناه). */
-
-/* نسخة مخففة من الافتتاحية للأجهزة الضعيفة وصناديق التلفاز:
-   نفس الشعار ونفس ظهور الاسم والتلاشي، لكن بدون الطبقات الثقيلة على كرت الشاشة
-   (توهج ضبابي كبير، حلقات رادار متحركة، شعاع لمعان، وميض عدسة) التي تسبب التقطيع */
-[data-is-tv="true"] .splash-ambient-glow,
-body.tv-device-mode .splash-ambient-glow,
-body.tv-mode .splash-ambient-glow,
-body.low-spec-mode .splash-ambient-glow,
-[data-is-tv="true"] .splash-lens-flare,
-body.tv-device-mode .splash-lens-flare,
-body.tv-mode .splash-lens-flare,
-body.low-spec-mode .splash-lens-flare,
-[data-is-tv="true"] .splash-sonar-ring,
-body.tv-device-mode .splash-sonar-ring,
-body.tv-mode .splash-sonar-ring,
-body.low-spec-mode .splash-sonar-ring,
-[data-is-tv="true"] .splash-shimmer-ray,
-body.tv-device-mode .splash-shimmer-ray,
-body.tv-mode .splash-shimmer-ray,
-body.low-spec-mode .splash-shimmer-ray {
-    display: none !important;
-}
-
-[data-is-tv="true"] .app-launch-splash,
-body.tv-device-mode .app-launch-splash,
-body.tv-mode .app-launch-splash,
-body.low-spec-mode .app-launch-splash {
-    background: radial-gradient(circle at 50% 45%, #0d1527 0%, #060911 60%, #020306 100%) !important;
-    perspective: none !important;
-}
-
-[data-is-tv="true"] .app-launch-splash *,
-body.tv-device-mode .app-launch-splash *,
-body.tv-mode .app-launch-splash *,
-body.low-spec-mode .app-launch-splash * {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-    filter: none !important;
-    box-shadow: none !important;
-}
+   وتظهر بكامل مؤثراتها على كل الأجهزة بلا تفرقة. */
 
 .app-launch-splash.splash-dismiss {
     opacity: 0 !important;
@@ -8912,28 +8872,6 @@ body.low-spec-mode .app-launch-splash * {
         font-size: 0.65rem !important;
         border-radius: 5px !important;
     }
-}
-
-/* =========================================================
-   ULTRA-PERFORMANCE ENGINE FOR LOW-SPEC HARDWARE & TV BOXES (تسريع الموقع للأجهزة الضعيفة)
-   ========================================================= */
-body.tv-device-mode,
-body.low-spec-mode {
-    --glass-bg: rgba(12, 16, 26, 0.98);
-    --glass-border: rgba(255, 255, 255, 0.12);
-}
-
-body.tv-device-mode *,
-body.low-spec-mode * {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-}
-
-body.tv-device-mode .ambient-light,
-body.low-spec-mode .ambient-light,
-body.tv-device-mode .lens-flare,
-body.low-spec-mode .lens-flare {
-    display: none !important;
 }
 
 /* =========================================================

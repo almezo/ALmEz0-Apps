@@ -229,64 +229,15 @@ function initDeviceMode() {
         if (!mode) mode = isTv ? 'tv' : 'touch';
     }
 
-    // فحص مواصفات الجهاز الضعيفة
-    // ملاحظة أداء: كنا نشترط ضعف المعالج (cores) وضعف الرام معاً (AND)، لكن navigator.deviceMemory
-    // غير مدعومة أصلاً على iOS وكثير من WebView الأندرويد القديمة، فكانت تُرجع undefined دائماً على
-    // أغلب الأجهزة الضعيفة الفعلية ويفشل الشرط بالكامل ويبقى وضع الأداء المنخفض معطلاً رغم ضعف الجهاز.
-    // الآن: أي إشارة ضعف منفردة (نواة قليلة، أو رام قليلة عند توفرها) كافية لتفعيل وضع الأداء المنخفض،
-    // بالإضافة لقياس فعلي لسلاسة الإطارات (frame pacing) كحل احتياطي عندما لا تتوفر أي من الإشارتين.
-    try {
-        const cores = navigator.hardwareConcurrency;
-        const ram = navigator.deviceMemory;
-        const lowCores = typeof cores === 'number' && cores > 0 && cores <= 4;
-        const lowRam = typeof ram === 'number' && ram > 0 && ram <= 3;
-        if (isTv || lowCores || lowRam) {
-            document.body.classList.add('low-spec-mode');
-        } else if (typeof cores !== 'number' && typeof ram !== 'number') {
-            // لا توجد أي معلومات عن العتاد (شائع على WebView قديمة): قِس سلاسة الإطارات فعلياً بدل التخمين
-            benchmarkFramePacingAndFlagLowSpec();
-        }
-    } catch (e) { }
 
     applyDeviceMode(mode, false);
-}
-
-// قياس خفيف وغير حاجب لسلاسة الإطارات (frame pacing) لاكتشاف الأجهزة الضعيفة فعلياً
-// عندما لا تتوفر أي معلومات عتاد من المتصفح (navigator.hardwareConcurrency / deviceMemory).
-// يعمل بعد أول رسم للصفحة حتى لا يؤخر ظهور الواجهة، ويفعّل وضع الأداء المنخفض إن كان متوسط
-// زمن الإطار أعلى من حد يعادل أقل من ~40 إطار/ثانية (مؤشر قوي على معالج رسوميات ضعيف).
-function benchmarkFramePacingAndFlagLowSpec() {
-    try {
-        const SAMPLE_FRAMES = 20;
-        const SLOW_FRAME_MS = 25; // أبطأ من ~40fps
-        let samples = [];
-        let lastTs = null;
-
-        function sample(ts) {
-            if (lastTs !== null) {
-                samples.push(ts - lastTs);
-            }
-            lastTs = ts;
-            if (samples.length < SAMPLE_FRAMES) {
-                requestAnimationFrame(sample);
-                return;
-            }
-            const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
-            if (avg > SLOW_FRAME_MS) {
-                document.body.classList.add('low-spec-mode');
-            }
-        }
-
-        // نبدأ بعد إطارين لتفادي قياس تكلفة التحميل الأولي نفسها
-        requestAnimationFrame(() => requestAnimationFrame(sample));
-    } catch (e) { }
 }
 
 function applyDeviceMode(mode, showToast = false) {
     document.body.classList.remove('tv-device-mode', 'desktop-device-mode', 'touch-device-mode');
     document.body.classList.add(mode + '-device-mode');
     if (mode === 'tv') {
-        document.body.classList.add('low-spec-mode', 'tv-mode');
+        document.body.classList.add('tv-mode');
     } else {
         document.body.classList.remove('tv-mode');
     }
@@ -1791,16 +1742,15 @@ function playStream(id, type, extension, name, icon) {
                                  document.querySelector(`#${containerSelector} video`) ||
                                  document.getElementById(containerSelector);
 
-                const isLowEnd = document.body.classList.contains('tv-device-mode') || document.body.classList.contains('low-spec-mode');
                 window.hlsInstance = new Hls({
                     enableWorker: true,
                     lowLatencyMode: false, // تعطيل نمط lowLatency لمنع تسريع/تبطيء الفيديو والتشويش البصري على سيرفرات IPTV
                     backBufferLength: 15,
-                    maxBufferLength: isLowEnd ? 20 : 30, // تخزين مسبق مستقر (20-30 ثانية) لمنع أي تقطيع لحظي
-                    maxMaxBufferLength: isLowEnd ? 40 : 60,
-                    maxBufferSize: isLowEnd ? (25 * 1000 * 1000) : (60 * 1000 * 1000),
-                    liveSyncDurationCount: isLowEnd ? 4 : 3, // التزامن مع 3 إلى 4 قطع بث لتفادي فجوات البث والتقطيع
-                    liveMaxLatencyDurationCount: isLowEnd ? 8 : 6,
+                    maxBufferLength: 30, // تخزين مسبق مستقر (20-30 ثانية) لمنع أي تقطيع لحظي
+                    maxMaxBufferLength: 60,
+                    maxBufferSize: 60 * 1000 * 1000,
+                    liveSyncDurationCount: 3, // التزامن مع 3 إلى 4 قطع بث لتفادي فجوات البث والتقطيع
+                    liveMaxLatencyDurationCount: 6,
                     startFragPrefetch: true,
                     maxLoadingDelay: 4,
                     highBufferWatchdogPeriod: 2,
@@ -5448,7 +5398,7 @@ function initTvNavigationEngine() {
     // تفحص كل عناصر الشاشة (قد تكون آلاف البطاقات). على الأجهزة الضعيفة تتراكم هذه الأعمال
     // فيتأخر التركيز ثم يقفز فجأة. نسمح بحركة واحدة كل فترة قصيرة جداً لا يلاحظها المستخدم.
     let lastArrowMoveTime = 0;
-    const ARROW_MOVE_MIN_INTERVAL_MS = document.body.classList.contains('low-spec-mode') ? 110 : 70;
+    const ARROW_MOVE_MIN_INTERVAL_MS = 70;
 
     window.addEventListener('keydown', (e) => {
         const isArrowKey = (e.keyCode >= 37 && e.keyCode <= 40) || /^Arrow/.test(e.key || '');

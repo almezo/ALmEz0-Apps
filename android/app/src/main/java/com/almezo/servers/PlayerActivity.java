@@ -49,7 +49,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
-import android.app.ActivityManager;
 
 import com.almezo.servers.nat.Fx;
 import com.almezo.servers.nat.Models;
@@ -125,7 +124,6 @@ public class PlayerActivity extends AppCompatActivity {
     private boolean isUserSeeking = false;
     private boolean isRetried = false;
     private boolean isTvDevice = false;
-    private boolean isLowEndDevice = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private GestureDetector gestureDetector;
@@ -287,7 +285,6 @@ public class PlayerActivity extends AppCompatActivity {
             }
 
             isTvDevice = checkIsTvDevice();
-            isLowEndDevice = checkIsLowEndDevice();
 
             enableImmersiveFullscreen();
             optimizeDisplayRefreshRate();
@@ -328,33 +325,8 @@ public class PlayerActivity extends AppCompatActivity {
         return false;
     }
 
-    // فحص مواصفات الجهاز الفعلية (عدد الأنوية والرام) لتقييد جودة فك الترميز على الأجهزة الضعيفة
-    // بدل ترك ExoPlayer يحاول تشغيل أعلى دقة/بت ريت متاحة من السيرفر بلا حدود، وهو السبب الأكثر
-    // شيوعاً للتقطيع على صناديق التلفاز والهواتف الاقتصادية حتى لو كانت سرعة الإنترنت كافية،
-    // لأن عنق الزجاجة هنا هو المعالج/فك الترميز وليس الشبكة.
-    private boolean checkIsLowEndDevice() {
-        try {
-            if (isTvDevice) return true; // نفترض ضعف صناديق وشاشات التلفاز الرخيصة بشكل افتراضي وآمن
-
-            int cores = Runtime.getRuntime().availableProcessors();
-            if (cores > 0 && cores <= 4) return true;
-
-            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-            if (am != null) {
-                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
-                am.getMemoryInfo(mi);
-                long totalRamGb = mi.totalMem / (1024L * 1024L * 1024L);
-                if (totalRamGb > 0 && totalRamGb <= 3) return true;
-                if (am.isLowRamDevice()) return true;
-            }
-        } catch (Throwable ignored) { }
-        return false;
-    }
-
+    /** أعلى معدل تحديث متاح للشاشة، لكل الأجهزة بلا تفرقة. */
     private void optimizeDisplayRefreshRate() {
-        // على الأجهزة الضعيفة لا نجبر أعلى معدل تحديث متاح (قد يصل 120Hz): مطالبة معالج/GPU
-        // ضعيف بتغذية واجهة وفيديو بمعدل أعلى من قدرته الفعلية يسبب تقطيعاً وحرارة أعلى بدل تحسين السلاسة.
-        if (isLowEndDevice) return;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.view.Display display = getDisplay();
@@ -1337,12 +1309,11 @@ public class PlayerActivity extends AppCompatActivity {
             DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(httpDataSourceFactory);
 
-            // مخزن مؤقت أصغر على الأجهزة الضعيفة: مخزن كبير (50 ثانية) يحجز ذاكرة كبيرة لا يحتاجها
-            // جهاز برام محدودة، ويزيد وقت الانتظار الأولي دون فائدة فعلية على معالج بطيء أصلاً
+            // مخزن مؤقت واحد لكل الأجهزة بلا تفرقة بين ضعيف وقوي
             DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
-                        isLiveStream ? 8000 : (isLowEndDevice ? 10000 : 15000),
-                        isLiveStream ? (isLowEndDevice ? 18000 : 25000) : (isLowEndDevice ? 30000 : 50000),
+                        isLiveStream ? 8000 : 15000,
+                        isLiveStream ? 25000 : 50000,
                         1000,
                         2500
                     )
@@ -1372,22 +1343,7 @@ public class PlayerActivity extends AppCompatActivity {
                     .setSeekBackIncrementMs(10000)
                     .build();
 
-            // تقييد أقصى دقة/بت ريت لفك الترميز على الأجهزة الضعيفة: بدون هذا القيد يحاول ExoPlayer
-            // تشغيل أعلى جودة يوفرها السيرفر (قد تصل 4K) حتى لو كان معالج الجهاز غير قادر على فكها
-            // بسلاسة، فيظهر التقطيع رغم أن سرعة الإنترنت كافية تماماً (عنق الزجاجة هو المعالج لا الشبكة)
-            if (isLowEndDevice) {
-                try {
-                    TrackSelectionParameters lowEndParams = player.getTrackSelectionParameters()
-                            .buildUpon()
-                            .setMaxVideoSize(1280, 720)
-                            .setMaxVideoBitrate(4_000_000)
-                            .build();
-                    player.setTrackSelectionParameters(lowEndParams);
-                } catch (Throwable t) {
-                    Log.w(TAG, "low-end track constraint error", t);
-                }
-            }
-
+            // بلا أي سقف للدقة أو البت ريت: كل جهاز يشغّل أعلى جودة يوفرها السيرفر
             if (playerView != null) {
                 playerView.setPlayer(player);
             }

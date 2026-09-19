@@ -5725,13 +5725,6 @@ body.tv-mode {
 /* =========================================================
    TV MODE HIGH PERFORMANCE & D-PAD FOCUS ENGINE (.tv-device-mode)
    ========================================================= */
-/* Disable expensive blur filters on low-end TV boxes & TV mode */
-body.tv-device-mode *,
-body.tv-mode *,
-body.low-spec-mode * {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-}
 
 /* تسريع عتادي فائق عبر كرت الشاشة (Hardware Compositing) لكافة البطاقات والقوائم */
 .dash-card,
@@ -6204,72 +6197,6 @@ body.tv-device-mode .live-slider {
     visibility: hidden !important;
 }
 
-/* =========================================================
-   ULTRA-PERFORMANCE ENGINE FOR TV BOX & LOW-SPEC DEVICES (تسريع فائق للأجهزة الضعيفة)
-   ========================================================= */
-body.tv-device-mode,
-body.low-spec-mode {
-    --glass-bg: rgba(12, 16, 26, 0.98);
-    --glass-border: rgba(255, 255, 255, 0.12);
-}
-
-body.tv-device-mode *,
-body.low-spec-mode * {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-}
-
-body.tv-device-mode .col-sidebar,
-body.low-spec-mode .col-sidebar {
-    background: #0a0e16 !important;
-}
-
-body.tv-device-mode .col-list,
-body.low-spec-mode .col-list {
-    background: #0c101a !important;
-}
-
-body.tv-device-mode .col-player,
-body.low-spec-mode .col-player {
-    background: #080b12 !important;
-}
-
-/* عزل طبقات القوائم والشبكات لتسريع التمرير بالكرت الرسومي */
-body.tv-device-mode #liveChannels,
-body.tv-device-mode #vodGrid,
-body.tv-device-mode .list-container,
-body.low-spec-mode #liveChannels,
-body.low-spec-mode #vodGrid,
-body.low-spec-mode .list-container {
-    contain: content !important;
-    transform: translateZ(0) !important;
-    will-change: scroll-position !important;
-}
-
-body.tv-device-mode .vod-card::after,
-body.low-spec-mode .vod-card::after,
-body.tv-device-mode .episode-card::after,
-body.low-spec-mode .episode-card::after {
-    display: none !important;
-}
-
-/* تحريك box-shadow يفرض إعادة رسم (repaint) مكلفة على كل إطار، بعكس transform المسرّع بالعتاد؛
-   على الأجهزة الضعيفة نكتفي بتأثير الحركة (transform) دون توهج الظل المتحرك */
-body.tv-device-mode .vod-card,
-body.low-spec-mode .vod-card,
-body.tv-device-mode .episode-card,
-body.low-spec-mode .episode-card,
-body.tv-device-mode .list-item,
-body.low-spec-mode .list-item {
-    transition: transform 0.2s ease !important;
-}
-
-body.tv-device-mode .vod-card:hover,
-body.low-spec-mode .vod-card:hover,
-body.tv-device-mode .episode-card:hover,
-body.low-spec-mode .episode-card:hover {
-    box-shadow: none !important;
-}
 
 /* =========================================================================
    التحكم حسب طريقة الإدخال الفعلية (لمس / ريموت / ماوس) - data-input-mode
@@ -6333,15 +6260,6 @@ video,
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     image-rendering: -webkit-optimize-contrast;
-}
-
-/* إيقاف التأثيرات الثقيلة نهائياً في وضع الأجهزة الضعيفة لمنع أي تقطيع */
-body.low-spec-mode .custom-player-alert,
-body.low-spec-mode .device-mode-modal,
-body.low-spec-mode .settings-modal,
-body.low-spec-mode .playlists-modal {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
 }
 
 /* =========================================================================

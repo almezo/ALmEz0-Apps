@@ -1,6 +1,5 @@
 package com.almezo.servers.nat;
 
-import android.app.ActivityManager;
 import android.app.Dialog;
 import android.content.Context;
 import android.util.DisplayMetrics;
@@ -23,7 +22,7 @@ import com.bumptech.glide.request.RequestOptions;
 import java.util.Calendar;
 import java.util.Locale;
 
-/** أدوات واجهة مشتركة: نصوص الوقت بنفس صياغة الويب، وتحميل الصور بكفاءة للأجهزة الضعيفة. */
+/** أدوات واجهة مشتركة: نصوص الوقت بنفس صياغة الويب، وتحميل الصور. */
 public final class Ui {
 
     private Ui() { }
@@ -69,31 +68,11 @@ public final class Ui {
         return "قبل " + days + " يوماً";
     }
 
-    private static Boolean lowRam = null;
-
-    /** نفس شروط الجهاز الضعيف في المشغل: 4 أنوية أو أقل، أو 3GB رام أو أقل، أو isLowRamDevice. */
-    public static boolean isLowEnd(Context ctx) {
-        if (lowRam != null) return lowRam;
-        boolean low = false;
-        try {
-            if (Runtime.getRuntime().availableProcessors() <= 4) low = true;
-            ActivityManager am = (ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
-            if (am != null) {
-                if (am.isLowRamDevice()) low = true;
-                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
-                am.getMemoryInfo(mi);
-                if (mi.totalMem > 0 && mi.totalMem <= 3L * 1024 * 1024 * 1024) low = true;
-            }
-        } catch (Throwable ignored) { }
-        lowRam = low;
-        return low;
-    }
-
     private static volatile boolean imageLoaderReady = false;
 
     /**
      * إعداد محمّل الصور مرة واحدة قبل أول استخدام. الإعداد الافتراضي لـ Glide يحمّل 4 صور فقط في
-     * نفس الوقت (أو أقل على الأجهزة الضعيفة)، وشعارات القنوات تأتي من عشرات السيرفرات المختلفة،
+     * نفس الوقت، وشعارات القنوات تأتي من عشرات السيرفرات المختلفة،
      * بعضها بطيء أو متوقف، فكانت تحجز الخيوط الأربعة وتتأخر بقية الشعارات الحقيقية طويلاً
      * وتبقى البطاقات على الشعار الافتراضي. هنا نسمح بتحميل متوازٍ أوسع وكاش قرص أكبر.
      */
@@ -104,7 +83,7 @@ public final class Ui {
             imageLoaderReady = true;
             try {
                 Context app = ctx.getApplicationContext();
-                int threads = isLowEnd(app) ? 8 : 12;
+                int threads = 12;
                 GlideBuilder builder = new GlideBuilder()
                         .setSourceExecutor(GlideExecutor.newSourceBuilder().setThreadCount(threads).build())
                         .setDiskCache(new InternalCacheDiskCacheFactory(app, 400L * 1024 * 1024));
@@ -153,7 +132,7 @@ public final class Ui {
         }
         RequestOptions opts = new RequestOptions()
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .format(isLowEnd(ctx) ? DecodeFormat.PREFER_RGB_565 : DecodeFormat.PREFER_ARGB_8888)
+                .format(DecodeFormat.PREFER_ARGB_8888)
                 .timeout(IMAGE_TIMEOUT_MS)
                 .priority(Priority.HIGH)
                 .placeholder(placeholderRes)
