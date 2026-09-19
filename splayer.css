@@ -7544,7 +7544,7 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     max-width: 100% !important;
     height: auto !important;
     /* لا min-height:0 هنا إطلاقاً: الصفر يسمح للمتصفح بضغط صف الشبكة أقصر من البطاقة */
-    min-height: auto !important;
+    min-height: initial !important;
     max-height: none !important;
     overflow: visible !important;
     margin: 0 !important;
