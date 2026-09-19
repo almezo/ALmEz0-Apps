@@ -15,6 +15,7 @@ import android.net.Uri;
 import android.speech.RecognizerIntent;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.StyleSpan;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.KeyEvent;
