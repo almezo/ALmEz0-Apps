@@ -32,6 +32,14 @@ public final class AiClient {
         AuthRequiredException() { super("auth"); }
     }
 
+    /**
+     * نفدت حصة الطلبات لدى مزوّد الذكاء الاصطناعي (429 / RESOURCE_EXHAUSTED). نميّزها عن أعطال
+     * الشبكة حتى لا نقول للعميل "تحقق من اتصال الإنترنت" وهو متصل والخلل ليس عنده.
+     */
+    public static final class QuotaException extends Exception {
+        QuotaException(String msg) { super(msg == null || msg.isEmpty() ? "quota" : msg); }
+    }
+
     private final SharedPreferences sp;
 
     public AiClient(Context ctx) {
@@ -76,8 +84,13 @@ public final class AiClient {
             int code = c.getResponseCode();
             String resp = read(code >= 400 ? c.getErrorStream() : c.getInputStream());
             JSONObject root = resp.isEmpty() ? new JSONObject() : new JSONObject(resp);
-            if (code == 401 || "UNAUTHENTICATED".equals(root.optJSONObject("error") != null ? root.optJSONObject("error").optString("status") : "")) {
+            JSONObject err = root.optJSONObject("error");
+            String status = err != null ? err.optString("status", "") : "";
+            if (code == 401 || "UNAUTHENTICATED".equals(status)) {
                 throw new AuthRequiredException();
+            }
+            if (code == 429 || "RESOURCE_EXHAUSTED".equals(status)) {
+                throw new QuotaException(err != null ? err.optString("message", "") : "");
             }
             if (code != 200 || root.has("error")) {
                 throw new Exception("AI error " + code);

@@ -101,5 +101,12 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
 
     // التفاصيل التقنية تُسجَّل في سجلات الخادم فقط، ولا تُرسل للمستخدم أبداً
     logger.error("خطأ في توليد رد مساعد الميزو الذكي:", lastError);
+
+    // نفاد حصة Gemini (429) كان يصل للعميل كخطأ عام فيظهر له "تحقق من اتصال الإنترنت" وهو متصل.
+    // نميّزه بكود قياسي ليعرض التطبيق والموقع رسالة صحيحة: الخدمة وصلت حدها، أعد المحاولة لاحقاً.
+    const lastMsg = String((lastError && lastError.message) || "");
+    if (/quota|rate limit|resource[_ ]?exhausted|too many requests|\b429\b/i.test(lastMsg)) {
+        throw new HttpsError("resource-exhausted", "وصل المساعد للحد المسموح من الطلبات حالياً. أعد المحاولة بعد قليل.");
+    }
     throw new HttpsError("internal", "عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً.");
 });

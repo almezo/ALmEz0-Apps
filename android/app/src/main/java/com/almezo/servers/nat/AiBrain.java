@@ -124,7 +124,15 @@ public final class AiBrain {
         }
         contents.put(userTurn(context + "\n\nسؤال العميل: " + question));
         payload.put("contents", contents);
-        payload.put("tools", new JSONArray().put(new JSONObject().put("googleSearch", new JSONObject())));
+
+        // بحث جوجل له حصة مجانية صغيرة (500 طلب يومياً مشتركة بين النماذج)، وكان يُفعَّل مع كل
+        // سؤال مهما كان، فتنفد الحصة سريعاً ويصل العميل خطأ في كل الأسئلة بقية اليوم. أسئلة
+        // الترشيح والقنوات والتوفر تُجاب من كتالوج السيرفر نفسه ولا تستفيد من البحث، فنقصره
+        // على ما يحتاج معلومة حيّة فعلاً: المباريات وأخبارها، والمعلومات عن الأعمال والممثلين.
+        String intentName = intent.optString("intent", "chat");
+        if ("sports".equals(intentName) || "info".equals(intentName)) {
+            payload.put("tools", new JSONArray().put(new JSONObject().put("googleSearch", new JSONObject())));
+        }
         // gemini-2.5-flash نموذج تفكير: رموز التفكير تُحسب من maxOutputTokens. بحدّ 1200 وبلا
         // ضبط للتفكير كان النموذج يستهلك الحدّ كله في التفكير ويعود بنص فارغ، فتظهر للعميل
         // رسالة "تعذر الوصول إلى المساعد" في كل سؤال. نضبط ميزانية التفكير ونترك مساحة للرد.

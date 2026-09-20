@@ -1196,7 +1196,6 @@ footer {
     transform: rotate(90deg);
 }
 
-.close-btn:focus-visible,
 .close-btn.tv-focused {
     outline: 3px solid #22c55e !important;
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.85), 0 0 8px #ffffff !important;
@@ -1205,8 +1204,24 @@ footer {
     transform: scale(1.15) !important;
 }
 
-.account-back-btn:focus-visible,
+.close-btn:focus-visible {
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.85), 0 0 8px #ffffff !important;
+    background: rgba(34, 197, 94, 0.18) !important;
+    color: #ffffff !important;
+    transform: scale(1.15) !important;
+}
+
 .account-back-btn.tv-focused {
+    outline: 3px solid #22c55e !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.85) !important;
+    border-color: #22c55e !important;
+    background: rgba(34, 197, 94, 0.2) !important;
+    color: #ffffff !important;
+    transform: scale(1.15) !important;
+}
+
+.account-back-btn:focus-visible {
     outline: 3px solid #22c55e !important;
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.85) !important;
     border-color: #22c55e !important;
@@ -9041,10 +9056,23 @@ html body main #homeCategoriesGrid .main-category-card.web-player {
    عبر الريموت أو لوحة المفاتيح. لهذا كانت تظهر إطارات خضراء تلقائية حول صندوق الكتابة بمجرد
    النقر فيه، وحول أزرار الاقتراحات بمجرد الضغط عليها باللمس. :focus-visible يقتصر على
    التركيز الناتج فعلاً عن تنقل بالكيبورد/الريموت، ولا يُفعَّل عند النقر أو اللمس العادي. */
+
+/* ملاحظة توافق مهمة: WebView القديم في صناديق التلفاز (TX9 Pro وأمثالها) لا يعرف
+   :focus-visible، وقاعدة CSS تقضي بإلغاء السطر كله إذا كان فيه محدد واحد غير مفهوم.
+   لهذا كانت القاعدة تسقط بالكامل ومعها .tv-focused فلا يظهر الإطار الأبيض على الصندوق.
+   الحل: قاعدتان منفصلتان بنفس التنسيق — واحدة للمتصفحات الحديثة وأخرى تعمل في كل مكان. */
+.tv-focused {
+    outline: 3px solid #22c55e !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 8px #ffffff !important;
+    transform: scale(1.05) translateZ(0) !important;
+    transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), outline 0.15s ease, box-shadow 0.22s ease !important;
+    z-index: 9999 !important;
+}
+
 [data-input-mode="remote"] :focus-visible,
 [data-is-tv="true"] :focus-visible,
-body.tv-nav-active :focus-visible,
-.tv-focused {
+body.tv-nav-active :focus-visible {
     outline: 3px solid #22c55e !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 25px rgba(34, 197, 94, 0.75), 0 0 8px #ffffff !important;
@@ -9102,10 +9130,14 @@ body.tv-nav-active :focus-visible,
    - الضغط: الزر ينكمش قليلاً ويضيء. نستخدم خاصية scale المستقلة (وليس transform) حتى لا
      تتأثر الأزرار التي تعتمد على transform في تموضعها.
    ===================================================================== */
+.tv-focused {
+    outline: none !important;
+    box-shadow: 0 0 0 3px #ffffff, 0 0 28px rgba(255, 255, 255, 0.45) !important;
+}
+
 [data-input-mode="remote"] :focus-visible,
 [data-is-tv="true"] :focus-visible,
-body.tv-nav-active :focus-visible,
-.tv-focused {
+body.tv-nav-active :focus-visible {
     outline: none !important;
     box-shadow: 0 0 0 3px #ffffff, 0 0 28px rgba(255, 255, 255, 0.45) !important;
 }
@@ -9148,8 +9180,18 @@ body.tv-nav-active :focus-visible,
       أخضر/أصفر خافت بدل الأبيض مع تكبير 1.025 لا يكاد يُرى على التلفاز.
       القواعد التالية أعلى أولوية (0,3,1) فتفوز، بنفس شكل تركيز المشغل الأصلي. */
 body.tv-nav-active .main-category-card.tv-focused,
+html[data-input-mode="remote"] .main-category-card.tv-focused {
+    outline: none !important;
+    border-color: #ffffff !important;
+    box-shadow:
+        0 0 0 3px #ffffff,
+        0 0 0 11px rgba(255, 255, 255, 0.18),
+        0 18px 45px rgba(0, 0, 0, 0.55) !important;
+    transform: translateY(-8px) scale(1.06) !important;
+    z-index: 10 !important;
+}
+
 body.tv-nav-active .main-category-card:focus-visible,
-html[data-input-mode="remote"] .main-category-card.tv-focused,
 html[data-input-mode="remote"] .main-category-card:focus-visible {
     outline: none !important;
     border-color: #ffffff !important;

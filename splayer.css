@@ -4865,7 +4865,15 @@ input[type="number"] {
 /* =========================================================
    ANDROID TV & TV BOX FOCUS ENGINE STYLES (طلب المستخدم رقم 4)
    ========================================================= */
-.tv-focused,
+.tv-focused {
+    outline: 3.5px solid #f4c242 !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 20px rgba(244, 194, 66, 0.8), inset 0 0 10px rgba(244, 194, 66, 0.25) !important;
+    transform: scale(1.04) !important;
+    transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.18s ease, outline 0.18s ease !important;
+    z-index: 1000 !important;
+}
+
 body.tv-mode *:focus-visible {
     outline: 3.5px solid #f4c242 !important;
     outline-offset: 3px !important;
@@ -7538,7 +7546,6 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
 }
 
 #liveChannels .live-card:hover,
-#liveChannels .live-card:focus-visible,
 #liveChannels .live-card.tv-focused {
     transform: scale(1.06) !important;
     z-index: 5 !important;
@@ -7546,9 +7553,21 @@ body.tv-device-mode #liveChannels::-webkit-scrollbar-thumb:hover {
     box-shadow: none !important;
 }
 
+#liveChannels .live-card:focus-visible {
+    transform: scale(1.06) !important;
+    z-index: 5 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
 #liveChannels .live-card:hover .channel-poster-box,
-#liveChannels .live-card:focus-visible .channel-poster-box,
 #liveChannels .live-card.tv-focused .channel-poster-box {
+    outline: 3.5px solid #22c55e !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.75) !important;
+}
+
+#liveChannels .live-card:focus-visible .channel-poster-box {
     outline: 3.5px solid #22c55e !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.75) !important;
