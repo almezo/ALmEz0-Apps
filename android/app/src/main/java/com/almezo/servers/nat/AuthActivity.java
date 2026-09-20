@@ -43,7 +43,8 @@ public class AuthActivity extends BaseActivity {
 
         boolean addingAccount = getIntent().getBooleanExtra(EXTRA_ADD_ACCOUNT, false);
         if (!addingAccount && store.active() != null) {
-            openDashboard();
+            // حساب محفوظ ونشط: فتح عادي، لا تبديل، فلا نفرض تحديثاً إن كانت الباقات حديثة
+            openDashboard(false);
             return;
         }
 
@@ -209,7 +210,7 @@ public class AuthActivity extends BaseActivity {
                 acc.userInfoJson = finalInfo.toString();
                 acc.savedAt = System.currentTimeMillis();
                 store.saveAndActivate(acc);
-                openDashboard();
+                openDashboard(true);
             });
         });
     }
@@ -220,12 +221,14 @@ public class AuthActivity extends BaseActivity {
         findViewById(R.id.auth_btn_connect).setEnabled(!busy);
     }
 
-    private void openDashboard() {
+    private void openDashboard(boolean accountChanged) {
         Intent i = new Intent(this, DashboardActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        // الدخول بحساب سيرفر يعني محتوى مختلف تماماً، فالباقات الثلاث تُحدَّث إجبارياً دائماً.
-        // كان العلم يُمرَّر كما وصل، فلا يحدث تحديث عند إضافة حساب جديد من داخل المشغل.
-        i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, true);
+        // الدخول بحساب جديد = محتوى مختلف كلياً: تحديث إجباري دائماً.
+        // أما الفتح بحساب محفوظ فيُمرَّر كفتح عادي، ولوحة التحكم تقرر حسب عمر الكاش.
+        if (accountChanged) i.putExtra(DashboardActivity.EXTRA_ACCOUNT_CHANGED, true);
+        i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN,
+                getIntent().getBooleanExtra(DashboardActivity.EXTRA_FRESH_OPEN, false));
         startActivity(i);
         finish();
     }

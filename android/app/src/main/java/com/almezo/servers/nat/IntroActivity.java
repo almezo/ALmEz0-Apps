@@ -30,7 +30,7 @@ public class IntroActivity extends BaseActivity {
     /** نفس الافتتاحية بنص "سيرفرات الميزو": عند فتح التطبيق وعند الخروج من المشغل. */
     public static void showHome(android.app.Activity a) {
         if (a == null || a.isFinishing()) return;
-        Intent i = new Intent(a, IntroActivity.class);
+        Intent i = new Intent(a, HomeIntroActivity.class);
         i.putExtra(EXTRA_MODE, MODE_HOME);
         a.startActivity(i);
         a.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
@@ -40,12 +40,6 @@ public class IntroActivity extends BaseActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         toHome = MODE_HOME.equals(getIntent().getStringExtra(EXTRA_MODE));
-
-        // المشغل أفقي، أما الشاشة الرئيسية فطولية على الهواتف، فافتتاحيتها تتبعها في التوجيه.
-        // شاشات التلفاز تبقى أفقية دائماً فلا نفرض عليها الطولي.
-        if (toHome && !isTvDevice(this)) {
-            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        }
 
         setContentView(R.layout.nat_activity_intro);
         if (toHome) {

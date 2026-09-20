@@ -684,7 +684,8 @@ public class PlayerActivity extends AppCompatActivity {
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
-                if (isScreenLocked) return true;
+                // أثناء القفل: اللمسة تعيد إظهار زر فتح القفل مؤقتاً ولا تفعل شيئاً آخر
+                if (isScreenLocked) { showUnlockButton(); return true; }
                 if (settingsDrawerOverlay != null && settingsDrawerOverlay.getVisibility() == View.VISIBLE) {
                     closeSettingsDrawer();
                     return true;
@@ -907,17 +908,35 @@ public class PlayerActivity extends AppCompatActivity {
         } catch (Throwable ignored) { }
     }
 
+    /** إخفاء زر فتح القفل بعد ثوانٍ، فلا يبقى معلّقاً فوق الفيديو طوال المشاهدة. */
+    private final Runnable hideUnlockRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (btnUnlockScreen != null && isScreenLocked) btnUnlockScreen.setVisibility(View.GONE);
+        }
+    };
+
     private void lockControls() {
         isScreenLocked = true;
         hideControls();
-        if (btnUnlockScreen != null) {
-            btnUnlockScreen.setVisibility(View.VISIBLE);
-        }
+        showUnlockButton();
         Toast.makeText(this, "تم قفل الشاشة", Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * إظهار زر فتح القفل مؤقتاً (3 ثوانٍ). كان يظهر عند القفل ويبقى إلى الأبد فوق الفيديو،
+     * وهو ما يناقض الغرض من القفل أصلاً. أي لمسة على الشاشة أثناء القفل تعيده للظهور.
+     */
+    private void showUnlockButton() {
+        if (btnUnlockScreen == null) return;
+        btnUnlockScreen.setVisibility(View.VISIBLE);
+        handler.removeCallbacks(hideUnlockRunnable);
+        handler.postDelayed(hideUnlockRunnable, 3000);
     }
 
     private void unlockControls() {
         isScreenLocked = false;
+        handler.removeCallbacks(hideUnlockRunnable);
         if (btnUnlockScreen != null) {
             btnUnlockScreen.setVisibility(View.GONE);
         }

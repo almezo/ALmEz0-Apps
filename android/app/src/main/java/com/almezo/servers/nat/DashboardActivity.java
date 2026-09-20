@@ -21,8 +21,13 @@ public class DashboardActivity extends BaseActivity {
 
     /** المشغل فُتح للتو من البرنامج (وليس رجوعاً من شاشة داخلية): تحديث إجباري للباقات. */
     public static final String EXTRA_FRESH_OPEN = "fresh_open";
+    /** دخول حساب جديد أو تبديل حساب: تحديث إجباري دائماً مهما كان عمر الكاش. */
+    public static final String EXTRA_ACCOUNT_CHANGED = "account_changed";
+    /** فتح عادي للمشغل: لا نرهق السيرفر بتحديث إجباري إن كانت الباقات حديثة. */
+    private static final long OPEN_REFRESH_AFTER_MS = 2L * 60 * 60 * 1000;
     /** خيوط مستقلة لتحديث الفتح حتى لا تنتظر شاشات التصفح انتهاءه */
-    private static final java.util.concurrent.ExecutorService OPEN_REFRESH = java.util.concurrent.Executors.newFixedThreadPool(2);
+    /** خيط واحد: الباقات الثلاث تُحدَّث واحدة تلو الأخرى، فلا نرهق لوحة السيرفر بطلبات متوازية. */
+    private static final java.util.concurrent.ExecutorService OPEN_REFRESH = java.util.concurrent.Executors.newSingleThreadExecutor();
 
     private Store store;
     private Models.Account account;
@@ -74,8 +79,9 @@ public class DashboardActivity extends BaseActivity {
         setupFooter();
         cardLive.requestFocus();
         Fx.enter(cardLive, cardMovies, cardSeries, aiBtn);
+        boolean accountChanged = savedInstanceState == null && getIntent().getBooleanExtra(EXTRA_ACCOUNT_CHANGED, false);
         boolean freshOpen = savedInstanceState == null && getIntent().getBooleanExtra(EXTRA_FRESH_OPEN, false);
-        if (freshOpen) refreshAllOnOpen();
+        if (accountChanged || (freshOpen && packagesStale())) refreshAllOnOpen();
         else prefetchAll();
     }
 
@@ -180,7 +186,7 @@ public class DashboardActivity extends BaseActivity {
             icon.animate().rotationBy(360f * 40).setDuration(40_000).setInterpolator(new android.view.animation.LinearInterpolator()).start();
         }
         final Xtream api = new Xtream(this, account);
-        Xtream.IO.execute(() -> {
+        OPEN_REFRESH.execute(() -> {
             int count = -1;
             try {
                 api.categories(type, true);
@@ -212,6 +218,16 @@ public class DashboardActivity extends BaseActivity {
      * عند فتح المشغل من البرنامج: تحديث فعلي للباقات الثلاث بحجب البطاقات وطبقة التحميل الداكنة،
      * وإظهار تنبيه اكتمال التحديث مع عدد المحتويات لكل باقة بالضبط كما في التحديث اليدوي.
      */
+    /** هل مرّت ساعتان على آخر تحديث لإحدى الباقات؟ (وإلا نكتفي بالكاش عند الفتح العادي) */
+    private boolean packagesStale() {
+        long now = System.currentTimeMillis();
+        for (String t : new String[]{Models.LIVE, Models.VOD, Models.SERIES}) {
+            long last = store.lastUpdated(t);
+            if (last <= 0 || now - last > OPEN_REFRESH_AFTER_MS) return true;
+        }
+        return false;
+    }
+
     private void refreshAllOnOpen() {
         for (String t : new String[]{Models.LIVE, Models.VOD, Models.SERIES}) {
             View card = cardFor(t);

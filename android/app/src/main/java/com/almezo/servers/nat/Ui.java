@@ -83,7 +83,9 @@ public final class Ui {
             imageLoaderReady = true;
             try {
                 Context app = ctx.getApplicationContext();
-                int threads = 12;
+                // 4 اتصالات فقط: لوحات Xtream تعتبر أكثر من ذلك من نفس الـIP هجوماً
+                // وتحظره، وشعارات القنوات تأتي غالباً من سيرفر العميل نفسه.
+                int threads = 4;
                 GlideBuilder builder = new GlideBuilder()
                         .setSourceExecutor(GlideExecutor.newSourceBuilder().setThreadCount(threads).build())
                         .setDiskCache(new InternalCacheDiskCacheFactory(app, 400L * 1024 * 1024));

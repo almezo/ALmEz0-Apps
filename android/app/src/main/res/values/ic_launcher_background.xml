@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0a0d12</color>
+    <!-- شفافة: الأيقونة هي اللوقو المربع بحوافه الناعمة وإطاره الأخضر، بلا شكل حوله -->
+    <color name="ic_launcher_background">#00000000</color>
 </resources>

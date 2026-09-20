@@ -64,9 +64,9 @@ public class ProfileActivity extends BaseActivity {
 
     /**
      * عدد الاتصالات النشطة يتغيّر لحظياً حين يفتح جهاز آخر نفس الحساب، فنعيد سؤال السيرفر كل
-     * 10 ثوانٍ ما دامت الشاشة ظاهرة، بدل قراءة واحدة تبقى ثابتة حتى إغلاق الشاشة وفتحها.
+     * دقيقة ما دامت الشاشة ظاهرة. كانت كل 10 ثوانٍ، وهي 6 طلبات في الدقيقة قد تُحسب إساءة.
      */
-    private static final long REFRESH_MS = 10_000L;
+    private static final long REFRESH_MS = 60_000L;
 
     private final Runnable refreshLoop = new Runnable() {
         @Override

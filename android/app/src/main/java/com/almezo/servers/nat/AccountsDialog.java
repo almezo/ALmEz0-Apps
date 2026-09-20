@@ -140,7 +140,7 @@ public final class AccountsDialog {
                 // كان يكتفي بـrecreate() فتبقى الباقات على كاش الحساب القديم حتى انتهاء صلاحيته.
                 Intent i = new Intent(activity, DashboardActivity.class);
                 i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, true);
+                i.putExtra(DashboardActivity.EXTRA_ACCOUNT_CHANGED, true);
                 activity.startActivity(i);
             });
 

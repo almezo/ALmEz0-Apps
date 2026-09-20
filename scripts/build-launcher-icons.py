@@ -10,9 +10,9 @@
   ic_launcher_round.png      النسخة الدائرية للمشغّلات التي تطلبها
   ic_launcher_foreground.png طبقة الأيقونة التكيفية (أندرويد 26+)
 
-ملاحظة مهمة في الأيقونة التكيفية: النظام يقص الطبقة بقناع دائري أو مربع مستدير، ولا
-يضمن ظهور إلا المربع الأوسط (72dp من 108dp). لذلك يُرسم الإطار الأخضر داخل هذه المنطقة
-الآمنة كحلقة، فيبقى ظاهراً كاملاً مهما كان شكل القناع في مشغّل الجهاز.
+ملاحظة مهمة في الأيقونة التكيفية: النظام يقص الطبقة بقناع (مربع ناعم في سامسونج، أو دائرة
+في مشغّلات أخرى)، ولا يضمن ظهور إلا المربع الأوسط 72dp من 108dp. لذلك يوضع اللوقو المربع
+بهذا المقاس بالضبط وخلفيته شفافة، فيظهر كما هو بإطاره الأخضر بلا أي شكل آخر حوله.
 
 التشغيل: python scripts/build-launcher-icons.py   (يحتاج Pillow)
 """
@@ -60,27 +60,22 @@ def round_icon(logo, size):
 
 
 def foreground(logo, size):
-    """طبقة تكيفية: حلقة خضراء ومحتوى اللوقو داخل المنطقة الآمنة (72dp من 108dp)."""
+    """
+    طبقة تكيفية: اللوقو المربع بحوافه الناعمة كما هو، داخل المساحة المضمونة الظهور.
+
+    الخلفية شفافة (ic_launcher_background)، فالأيقونة تظهر كمربع ناعم الحواف بإطاره الأخضر
+    بلا أي شكل آخر حوله. النسخة السابقة كانت حلقة دائرية داخل دائرة، فبدت شكلاً داخل شكل
+    ولا تشبه هوية اللوقو.
+
+    المربع بمقاس 72dp من 108dp: هذا أقصى ما تضمن كل المشغّلات ظهوره، ويطابق تقريباً قناع
+    سامسونج المربع الناعم، فيملأ الأيقونة بلا قص.
+    """
     n = size * SS
     img = Image.new('RGBA', (n, n), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    safe = int(n * 66.0 / 108.0)          # قطر المنطقة المضمونة الظهور
-    off = (n - safe) // 2
-    stroke = max(SS, int(safe * 0.055))
-
-    d.ellipse([off, off, off + safe - 1, off + safe - 1], fill=DARK)
-
-    inner = content(logo)
-    box = int(safe * 0.78)
-    inner = inner.resize((box, box), Image.LANCZOS)
-    mask = Image.new('L', (box, box), 0)
-    ImageDraw.Draw(mask).ellipse([0, 0, box - 1, box - 1], fill=255)
-    io_ = (n - box) // 2
-    img.paste(inner, (io_, io_), mask)
-
-    d.ellipse([off + stroke // 2, off + stroke // 2,
-               off + safe - 1 - stroke // 2, off + safe - 1 - stroke // 2],
-              outline=GREEN, width=stroke)
+    box = int(n * 72.0 / 108.0)
+    logo_img = logo.resize((box, box), Image.LANCZOS)
+    off = (n - box) // 2
+    img.paste(logo_img, (off, off), logo_img)
     return img.resize((size, size), Image.LANCZOS)
 
 

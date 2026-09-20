@@ -35,7 +35,11 @@ import java.util.concurrent.Executors;
  */
 public final class Xtream {
 
-    public static final ExecutorService IO = Executors.newFixedThreadPool(3);
+    /**
+     * خيطان فقط للطلبات: ثلاثة طلبات ثقيلة متوازية على نفس اللوحة (قوائم قد تتجاوز 20 ألف
+     * عنصر) تجعل بعض السيرفرات الحسّاسة تحظر الـIP بعد فتحتين أو ثلاث.
+     */
+    public static final ExecutorService IO = Executors.newFixedThreadPool(2);
     /**
      * هوية المتصفح التي تقبلها سيرفرات Xtream. تُستعمل أيضاً عند تحميل الشعارات والملصقات بـ Glide،
      * لأن هويته الافتراضية (Dalvik/…) ترفضها كثير من سيرفرات الصور فتعيد 403 ويبقى الشعار الافتراضي.
