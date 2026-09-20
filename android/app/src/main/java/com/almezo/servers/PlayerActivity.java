@@ -736,7 +736,12 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
                     if (isScreenLocked || isTvDevice) {
-                        return gestureDetector.onTouchEvent(event);
+                        // نستهلك الحدث دائماً: onTouchEvent تُرجع false عند ACTION_DOWN
+                        // (onDown في SimpleOnGestureListener)، فيتوقف النظام عن تسليم بقية
+                        // اللمسة لهذا العرض ولا تصل onSingleTapConfirmed أبداً — وكان أثره
+                        // أن زر فتح القفل لا يعود للظهور عند لمس الشاشة بعد اختفائه.
+                        gestureDetector.onTouchEvent(event);
+                        return true;
                     }
 
                     if (gestureDetector.onTouchEvent(event)) {

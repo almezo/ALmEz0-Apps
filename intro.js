@@ -124,19 +124,11 @@
      * تماماً كـDashboardActivity.exitToHome في أندرويد التي تعرضها في كل خروج.
      */
     function showOnLaunch() {
-        var requested = null;
         try {
-            requested = sessionStorage.getItem('mizo_intro_pending');
-            if (requested) sessionStorage.removeItem('mizo_intro_pending');
+            if (sessionStorage.getItem('mizo_launch_intro') === '1') { dismissBootOverlay(); return; }
+            sessionStorage.setItem('mizo_launch_intro', '1');
         } catch (e) { }
-
-        if (!requested) {
-            try {
-                if (sessionStorage.getItem('mizo_launch_intro') === '1') { dismissBootOverlay(); return; }
-                sessionStorage.setItem('mizo_launch_intro', '1');
-            } catch (e) { }
-        }
-        show(requested === 'player' ? 'player' : 'home');
+        show('home');
     }
 
     /** الانتقال لصفحة أخرى بعد عرض الافتتاحية المناسبة. */
@@ -145,11 +137,33 @@
      * لجزء من الثانية بين نهاية الافتتاحية وبداية تحميل الصفحة الجديدة.
      */
     function navigate(mode, url, opts) {
-        // الصفحة الهدف تعرض افتتاحيتها فوق غطاء إقلاعها، فلا تنقطع السلسلة بينهما
-        try { sessionStorage.setItem('mizo_intro_pending', mode); } catch (e) { }
         show(mode, null, opts, function (overlay) {
             window.location.href = url;
         });
+    }
+
+    /**
+     * الانتقال أولاً ثم عرض الافتتاحية في الصفحة الهدف، بلا أي وميض بينهما لأن
+     * غطاء الإقلاع مرسوم في الصفحتين.
+     *
+     * يُستعمل للدخول إلى المشغل: نافذة إلكترون تدخل وضع ملء الشاشة عند انتهاء تحميل
+     * player.html لا قبله، فلو عُرضت الافتتاحية في الصفحة السابقة لظهرت خارج ملء الشاشة.
+     */
+    function goDeferred(mode, url) {
+        try { sessionStorage.setItem('mizo_intro_pending', mode); } catch (e) { }
+        window.location.href = url;
+    }
+
+    /** تعرض الصفحة الحالية الافتتاحية المطلوبة إن وُجدت، وتُرجع true حينها. */
+    function showPending() {
+        var mode = null;
+        try {
+            mode = sessionStorage.getItem('mizo_intro_pending');
+            if (mode) sessionStorage.removeItem('mizo_intro_pending');
+        } catch (e) { }
+        if (!mode) return false;
+        show(mode);
+        return true;
     }
 
     /** شاشة اتصال بشعار السيرفر عند الدخول إليه أو التبديل له. */
@@ -162,6 +176,8 @@
         dismissBootOverlay: dismissBootOverlay,
         showOnLaunch: showOnLaunch,
         navigate: navigate,
+        goDeferred: goDeferred,
+        showPending: showPending,
         showServer: showServer,
         isDesktopApp: isDesktopApp
     };

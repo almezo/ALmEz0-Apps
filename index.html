@@ -376,7 +376,8 @@
                 }
                 // افتتاحية "مشغل الميزو" قبل فتح المشغل، كما في تطبيق أندرويد
                 if (window.MizoIntro && window.MizoIntro.isDesktopApp()) {
-                    window.MizoIntro.navigate('player', 'player.html');
+                    // الافتتاحية تُعرض داخل صفحة المشغل بعد دخولها ملء الشاشة، لا هنا
+                    window.MizoIntro.goDeferred('player', 'player.html');
                 } else {
                     window.location.href = 'player.html';
                 }

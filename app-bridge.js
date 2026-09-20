@@ -370,12 +370,34 @@
             return foundCandidates[0];
         }
 
+        /**
+         * الطبقة الشفافة خلف بطاقة النافذة (backdrop): وظيفتها الإغلاق عند الضغط خارج
+         * البطاقة فقط، ويجب ألا تُعامَل أبداً كعنصر قابل للتركيز.
+         *
+         * كانت تُلتقط بمحدّد [onclick*="close"] أدناه لأن onclick فيها هو
+         * closePlaylistsModal()، فيُفرض عليها tabindex="0" وتصير أول عنصر في النافذة،
+         * ثم يضع عليها محرّك التركيز صنف tv-focused الذي يفرض z-index:999 !important —
+         * فتقفز الطبقة فوق البطاقة كلها. نتيجته أن كل ضغطة داخل النافذة تقع على الطبقة
+         * فتُغلقها، ولوحة المفاتيح تبقى حبيسة عليها، وقبل نقل التعتيم كانت تُعتِم البطاقة
+         * كاملة ولا يزول التعتيم إلا بنقل التركيز عنها بسهم أو بضغطة فأرة.
+         */
+        function isModalBackdrop(el) {
+            return !!(el && el.className && typeof el.className === 'string'
+                && /(^|[\s-])backdrop([\s-]|$)/.test(el.className));
+        }
+
         function getModalFocusables(modalEl) {
             if (!modalEl) return [];
 
             var closeAndClickables = modalEl.querySelectorAll('.close-btn, .modal-close, .account-back-btn, [onclick*="close"], .btn-sort-close, .account-btn, .toggle-password-btn');
             for (var c = 0; c < closeAndClickables.length; c++) {
                 var item = closeAndClickables[c];
+                if (isModalBackdrop(item)) {
+                    item.setAttribute('tabindex', '-1');
+                    item.removeAttribute('role');
+                    item.classList.remove('tv-focused');
+                    continue;
+                }
                 if (!item.hasAttribute('tabindex') || item.getAttribute('tabindex') === '-1') {
                     item.setAttribute('tabindex', '0');
                 }
@@ -389,6 +411,7 @@
 
             return all.filter(function (el) {
                 if (el.disabled) return false;
+                if (isModalBackdrop(el)) return false;
                 if (el.closest('.hidden')) return false;
 
                 var parentView = el.closest('.account-view, .auth-view');
@@ -795,20 +818,42 @@
         /**
          * أزرار "الرجوع للرئيسية" الظاهرة في المشغل روابط <a href="index.html"> عادية،
          * فكانت تتجاوز goHomeWithIntro وتنتقل بلا افتتاحية بعكس تطبيق أندرويد.
-         * نعترضها هنا مرة واحدة بدل تعديل كل زر: المستمع في مرحلة الصعود، فالـonclick
-         * المكتوب داخل الرابط (إلغاء ملء الشاشة) ينفَّذ قبله كما هو.
+         * نعترضها هنا مرة واحدة بدل تعديل كل زر. المستمع في مرحلة الالتقاط ليقرأ الشاشة
+         * المعروضة قبل أن يغيّرها معالج الزر نفسه (goBack)، وإلا رجعنا شاشتين بضغطة.
+         * في حالة الخروج لا نوقف الحدث، فينفَّذ onclick المكتوب داخل الرابط (إلغاء ملء
+         * الشاشة) أثناء الافتتاحية كما كان.
          */
         (function interceptHomeLinks() {
             if (!/player\.html$/i.test(location.pathname)) return;
             document.addEventListener('click', function (e) {
-                if (!window.MizoIntro || !window.MizoIntro.isDesktopApp()) return;
                 var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
                 if (!a) return;
                 var href = a.getAttribute('href') || '';
-                if (!/^index\.html(\?|#|$)/i.test(href)) return;
+                var isHomeLink = /^index\.html(\?|#|$)/i.test(href) || a.id === 'navReturnBtn';
+                if (!isHomeLink) return;
                 e.preventDefault();
-                window.MizoIntro.navigate('home', href);
-            });
+
+                // داخل شاشة (البث أو الأفلام أو المسلسلات أو الملف الشخصي) يرجع الزر
+                // شاشةً واحدة لا خارج المشغل كلياً. كان يخرج إلى الموقع من أي شاشة لأن
+                // الرابط يذهب إلى index.html بغضّ النظر عن الشاشة المعروضة.
+                var screen = null;
+                try { screen = sessionStorage.getItem('sp_current_screen'); } catch (err) { }
+                if (typeof currentScreenId !== 'undefined' && currentScreenId) screen = currentScreenId;
+                var inner = ['live-screen', 'vod-screen', 'series-screen', 'profile-screen',
+                             'movie-details-screen', 'series-details-screen', 'vod-details-screen'];
+                if (inner.indexOf(screen) !== -1) {
+                    e.stopPropagation();
+                    if (typeof goBack === 'function') goBack();
+                    else if (typeof showScreen === 'function') showScreen('dashboard-screen');
+                    return;
+                }
+
+                if (window.MizoIntro && window.MizoIntro.isDesktopApp()) {
+                    window.MizoIntro.navigate('home', href);
+                } else {
+                    window.location.href = /^index\.html/i.test(href) ? href : 'index.html';
+                }
+            }, true);
         })();
 
         function handleUniversalBackButton(e, fromNative) {
@@ -1082,7 +1127,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.1.5';
+    const CURRENT_APP_VERSION = '1.1.6';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {

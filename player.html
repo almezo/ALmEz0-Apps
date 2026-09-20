@@ -177,18 +177,20 @@
             // أندرويد: لا غطاء ولا افتتاحية ويب فوق الافتتاحية الأصلية
             if (isAndroidApp && b.parentNode) { b.parentNode.removeChild(b); return; }
 
-            // الافتتاحية عُرضت كاملة في الصفحة السابقة قبل الانتقال: نستهلك العَلَم هنا
-            // وإلا بقي معلّقاً فعُرضت افتتاحية "مشغل الميزو" على الشاشة الرئيسية لاحقاً.
-            try { sessionStorage.removeItem('mizo_intro_pending'); } catch (e) { }
-
-            // يكفي هنا إخفاء الغطاء بعد جهوزية المشغل
             var hide = function () {
                 if (!b || !b.parentNode) return;
                 b.style.transition = 'opacity .25s ease';
                 b.style.opacity = '0';
                 setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 280);
             };
-            window.addEventListener('load', function () { setTimeout(hide, 120); });
+            // الافتتاحية تُعرض هنا لا في الصفحة السابقة: إلكترون يدخل ملء الشاشة عند
+            // انتهاء تحميل هذه الصفحة، فهذا أول وقت تظهر فيه الافتتاحية ملء الشاشة.
+            window.addEventListener('load', function () {
+                setTimeout(function () {
+                    if (window.MizoIntro && window.MizoIntro.showPending()) return;
+                    hide();
+                }, 120);
+            });
             // أمان: لا يبقى الغطاء أبداً مهما تأخّر التحميل
             setTimeout(hide, 4000);
         })();
