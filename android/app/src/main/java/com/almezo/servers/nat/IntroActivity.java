@@ -39,8 +39,15 @@ public class IntroActivity extends BaseActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.nat_activity_intro);
         toHome = MODE_HOME.equals(getIntent().getStringExtra(EXTRA_MODE));
+
+        // المشغل أفقي، أما الشاشة الرئيسية فطولية على الهواتف، فافتتاحيتها تتبعها في التوجيه.
+        // شاشات التلفاز تبقى أفقية دائماً فلا نفرض عليها الطولي.
+        if (toHome && !isTvDevice(this)) {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
+
+        setContentView(R.layout.nat_activity_intro);
         if (toHome) {
             ((android.widget.TextView) findViewById(R.id.intro_title)).setText("سيرفرات الميزو");
             ((android.widget.TextView) findViewById(R.id.intro_sub)).setText("ALmEz0 SERVERS");
