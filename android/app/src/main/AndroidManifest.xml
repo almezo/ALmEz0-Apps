@@ -36,6 +36,13 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/NatTheme" />
         <!-- الافتتاحية الرئيسية: بلا توجيه مفروض فتتبع وضع الجهاز بلا دوران مرئي -->
+        <!-- افتتاحية السيرفر: أفقية من أول إطار لأن ما بعدها (لوحة التحكم والمشغل) أفقي -->
+        <activity
+            android:name=".nat.ServerIntroActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/NatTheme" />
         <activity
             android:name=".nat.HomeIntroActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"

@@ -36,7 +36,7 @@ public class IntroActivity extends BaseActivity {
      */
     public static void showServer(android.app.Activity a, String serverCode) {
         if (a == null || a.isFinishing()) return;
-        Intent i = new Intent(a, HomeIntroActivity.class);
+        Intent i = new Intent(a, ServerIntroActivity.class);
         i.putExtra(EXTRA_MODE, MODE_SERVER);
         i.putExtra(EXTRA_SERVER_CODE, serverCode);
         a.startActivity(i);
@@ -57,11 +57,6 @@ public class IntroActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         String mode = getIntent().getStringExtra(EXTRA_MODE);
         toHome = MODE_HOME.equals(mode) || MODE_SERVER.equals(mode);
-
-        // افتتاحية السيرفر تسبق المشغل مباشرة، والمشغل أفقي دائماً، فتُفتح أفقية مثله
-        if (MODE_SERVER.equals(mode)) {
-            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
-        }
 
         setContentView(R.layout.nat_activity_intro);
         if (MODE_SERVER.equals(mode)) {

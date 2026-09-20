@@ -792,6 +792,25 @@
             }
         }
 
+        /**
+         * أزرار "الرجوع للرئيسية" الظاهرة في المشغل روابط <a href="index.html"> عادية،
+         * فكانت تتجاوز goHomeWithIntro وتنتقل بلا افتتاحية بعكس تطبيق أندرويد.
+         * نعترضها هنا مرة واحدة بدل تعديل كل زر: المستمع في مرحلة الصعود، فالـonclick
+         * المكتوب داخل الرابط (إلغاء ملء الشاشة) ينفَّذ قبله كما هو.
+         */
+        (function interceptHomeLinks() {
+            if (!/player\.html$/i.test(location.pathname)) return;
+            document.addEventListener('click', function (e) {
+                if (!window.MizoIntro || !window.MizoIntro.isDesktopApp()) return;
+                var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+                if (!a) return;
+                var href = a.getAttribute('href') || '';
+                if (!/^index\.html(\?|#|$)/i.test(href)) return;
+                e.preventDefault();
+                window.MizoIntro.navigate('home', href);
+            });
+        })();
+
         function handleUniversalBackButton(e, fromNative) {
             if (document.getElementById('almezo-inapp-update-overlay')) {
                 var vData = window._almezoVersionData;
@@ -1063,7 +1082,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.1.4';
+    const CURRENT_APP_VERSION = '1.1.5';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {

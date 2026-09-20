@@ -74,6 +74,27 @@
 </head>
 
 <body>
+    <!-- غطاء الإقلاع: يُرسم مع أول بكسل قبل أي محتوى، فلا تومض الصفحة قبل الافتتاحية.
+         تتولاه intro.js ثم يزول. الموقع وبرنامج الكمبيوتر فقط — أندرويد له افتتاحيته الأصلية. -->
+    <div id="mizo-boot-overlay" style="position:fixed;inset:0;z-index:2147483600;background:#05070b"></div>
+    <script>
+        (function () {
+            var b = document.getElementById('mizo-boot-overlay');
+            if (!b) return;
+            var isAndroidApp = !!window.AndroidNativeBridge
+                || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+                      && window.Capacitor.isNativePlatform() && !(window.electronAPI && window.electronAPI.isElectron));
+            // أندرويد: لا غطاء ولا افتتاحية ويب فوق الافتتاحية الأصلية
+            if (isAndroidApp && b.parentNode) { b.parentNode.removeChild(b); return; }
+
+            // أمان: إن تعذّر تحميل intro.js لا يبقى الغطاء أسود إلى الأبد
+            setTimeout(function () {
+                var el = document.getElementById('mizo-boot-overlay');
+                if (el && el.parentNode) el.parentNode.removeChild(el);
+            }, 4000);
+        })();
+    </script>
+
 
     <!-- Dazzling Animated App Launch Splash Screen (Plays Once Per Session) -->
     <div id="app-launch-splash" class="app-launch-splash">

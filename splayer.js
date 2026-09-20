@@ -1442,16 +1442,8 @@ async function handleLogin() {
         if (data && data.user_info && data.user_info.auth === 1) {
             // دخول بحساب جديد: تحديث إجباري للباقات مثل تطبيق أندرويد
             try { sessionStorage.setItem('sp_account_changed', '1'); } catch (e) { }
-            if (window.MizoIntro && typeof window.MizoIntro.showServer === 'function') {
-                const si = serverMap[currentCode] || {};
-                window.MizoIntro.showServer(si.logo || 'photo/logo.ico', si.name || 'سيرفر');
-            }
-            state.userInfo = data.user_info;
-            state.username = user;
-            state.password = pass;
-            state.host = host;
-            state.hostUrls = [host];
-
+            // تعريف السيرفر قبل أي استخدام: كانت هذه الثوابت مُعرَّفة تحت نداء الافتتاحية،
+            // فكان كل دخول ناجح يرمي ReferenceError ويظهر للمستخدم كـ"تعذر الاتصال بالسيرفر".
             const currentCode = state.serverCode || sessionStorage.getItem('sp_server_code') || localStorage.getItem('sp_server_code') || '001';
             const serverMap = {
                 '001': { name: 'سيرفر اكس', logo: 'photo/x.jpeg' },
@@ -1463,6 +1455,16 @@ async function handleLogin() {
                 '007': { name: 'سيرفر MH', logo: 'photo/mh.png' }
             };
             const sInfo = serverMap[currentCode] || { name: `سيرفر (${currentCode})`, logo: 'photo/logo.ico' };
+
+            if (window.MizoIntro && typeof window.MizoIntro.showServer === 'function') {
+                window.MizoIntro.showServer(sInfo.logo || 'photo/logo.ico', sInfo.name || 'سيرفر');
+            }
+            state.userInfo = data.user_info;
+            state.username = user;
+            state.password = pass;
+            state.host = host;
+            state.hostUrls = [host];
+
             const expDateText = typeof formatSubscriptionDate === 'function' ? formatSubscriptionDate(data.user_info.exp_date) : (data.user_info.exp_date || 'غير متوفر');
 
             const accountId = 'acc_' + currentCode + '_' + user.toLowerCase();

@@ -66,7 +66,7 @@
      * @param {string} mode  'home' أو 'player' أو 'server'
      * @param {object} [opts] للسيرفر: { logo, name }
      */
-    function show(mode, onDone, opts) {
+    function show(mode, onDone, opts, onStay) {
         var done = typeof onDone === 'function' ? onDone : function () { };
         opts = opts || {};
 
@@ -76,8 +76,16 @@
         var logoSrc = isServer && opts.logo ? opts.logo : 'photo/logo.ico';
         var titleText = isServer ? (opts.name || 'جارٍ الاتصال') : (isHome ? 'سيرفرات الميزو' : 'مشغل الميزو');
         var subText = isServer ? 'جارٍ الاتصال بالسيرفر' : (isHome ? 'ALmEz0 SERVERS' : 'ALmEz0 PLAYER');
-        var overlay = document.createElement('div');
-        overlay.className = 'mizo-intro';
+        // غطاء الإقلاع المرسوم في HTML يظهر مع أول بكسل، فنستعمله بدل إنشاء غطاء
+        // بعد رسم الصفحة — وإلا ومضت البطاقات لجزء من الثانية قبل الافتتاحية.
+        var overlay = document.getElementById('mizo-boot-overlay');
+        if (overlay) {
+            overlay.removeAttribute('id');
+            overlay.className = 'mizo-intro';
+        } else {
+            overlay = document.createElement('div');
+            overlay.className = 'mizo-intro';
+        }
         overlay.innerHTML =
             '<div class="mizo-intro-content">' +
             '  <div class="mizo-intro-logo-box">' +
@@ -89,9 +97,10 @@
             '  <div class="mizo-intro-sub">' + subText + '</div>' +
             '  <div class="mizo-intro-track"><span class="mizo-intro-bar"></span></div>' +
             '</div>';
-        document.body.appendChild(overlay);
+        if (!overlay.parentNode) document.body.appendChild(overlay);
 
         setTimeout(function () {
+            if (typeof onStay === 'function') { onStay(overlay); return; }
             overlay.classList.add('mizo-intro-out');
             setTimeout(function () {
                 if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -100,18 +109,47 @@
         }, DURATION);
     }
 
-    /** افتتاحية فتح البرنامج: مرة واحدة في الجلسة، كما في أندرويد. */
+    /** إزالة غطاء الإقلاع فوراً حين لا نعرض افتتاحية، وإلا بقيت الشاشة سوداء. */
+    function dismissBootOverlay() {
+        var el = document.getElementById('mizo-boot-overlay');
+        if (!el || !el.parentNode) return;
+        el.style.transition = 'opacity .2s ease';
+        el.style.opacity = '0';
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+    }
+
+    /**
+     * افتتاحية فتح البرنامج: مرة واحدة في الجلسة كما في أندرويد.
+     * إلا إذا وصلنا عبر navigate() — كالعودة من المشغل — فتطلب الافتتاحية صراحةً،
+     * تماماً كـDashboardActivity.exitToHome في أندرويد التي تعرضها في كل خروج.
+     */
     function showOnLaunch() {
+        var requested = null;
         try {
-            if (sessionStorage.getItem('mizo_launch_intro') === '1') return;
-            sessionStorage.setItem('mizo_launch_intro', '1');
+            requested = sessionStorage.getItem('mizo_intro_pending');
+            if (requested) sessionStorage.removeItem('mizo_intro_pending');
         } catch (e) { }
-        show('home');
+
+        if (!requested) {
+            try {
+                if (sessionStorage.getItem('mizo_launch_intro') === '1') { dismissBootOverlay(); return; }
+                sessionStorage.setItem('mizo_launch_intro', '1');
+            } catch (e) { }
+        }
+        show(requested === 'player' ? 'player' : 'home');
     }
 
     /** الانتقال لصفحة أخرى بعد عرض الافتتاحية المناسبة. */
+    /**
+     * الانتقال لصفحة أخرى: لا نُخفي الغطاء قبل الانتقال، وإلا ظهرت الصفحة الحالية
+     * لجزء من الثانية بين نهاية الافتتاحية وبداية تحميل الصفحة الجديدة.
+     */
     function navigate(mode, url, opts) {
-        show(mode, function () { window.location.href = url; }, opts);
+        // الصفحة الهدف تعرض افتتاحيتها فوق غطاء إقلاعها، فلا تنقطع السلسلة بينهما
+        try { sessionStorage.setItem('mizo_intro_pending', mode); } catch (e) { }
+        show(mode, null, opts, function (overlay) {
+            window.location.href = url;
+        });
     }
 
     /** شاشة اتصال بشعار السيرفر عند الدخول إليه أو التبديل له. */
@@ -121,6 +159,7 @@
 
     window.MizoIntro = {
         show: show,
+        dismissBootOverlay: dismissBootOverlay,
         showOnLaunch: showOnLaunch,
         navigate: navigate,
         showServer: showServer,

@@ -164,6 +164,36 @@
 </head>
 
 <body class="screen-is-dashboard">
+    <!-- غطاء الإقلاع: يُرسم مع أول بكسل قبل أي محتوى، فلا تومض الصفحة قبل الافتتاحية.
+         تتولاه intro.js ثم يزول. الموقع وبرنامج الكمبيوتر فقط — أندرويد له افتتاحيته الأصلية. -->
+    <div id="mizo-boot-overlay" style="position:fixed;inset:0;z-index:2147483600;background:#05070b"></div>
+    <script>
+        (function () {
+            var b = document.getElementById('mizo-boot-overlay');
+            if (!b) return;
+            var isAndroidApp = !!window.AndroidNativeBridge
+                || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+                      && window.Capacitor.isNativePlatform() && !(window.electronAPI && window.electronAPI.isElectron));
+            // أندرويد: لا غطاء ولا افتتاحية ويب فوق الافتتاحية الأصلية
+            if (isAndroidApp && b.parentNode) { b.parentNode.removeChild(b); return; }
+
+            // الافتتاحية عُرضت كاملة في الصفحة السابقة قبل الانتقال: نستهلك العَلَم هنا
+            // وإلا بقي معلّقاً فعُرضت افتتاحية "مشغل الميزو" على الشاشة الرئيسية لاحقاً.
+            try { sessionStorage.removeItem('mizo_intro_pending'); } catch (e) { }
+
+            // يكفي هنا إخفاء الغطاء بعد جهوزية المشغل
+            var hide = function () {
+                if (!b || !b.parentNode) return;
+                b.style.transition = 'opacity .25s ease';
+                b.style.opacity = '0';
+                setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 280);
+            };
+            window.addEventListener('load', function () { setTimeout(hide, 120); });
+            // أمان: لا يبقى الغطاء أبداً مهما تأخّر التحميل
+            setTimeout(hide, 4000);
+        })();
+    </script>
+
     <!-- Force Landscape Overlay -->
     <div id="rotate-prompt" class="rotate-prompt" dir="rtl">
         <i class="fas fa-mobile-alt rotate-icon"></i>
