@@ -347,15 +347,68 @@
                 app:tint="#FFFFFFFF" />
         </LinearLayout>
 
-        <TextView
-            style="@style/NatText"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:layout_marginTop="12dp"
-            android:textDirection="ltr"
-            android:text="ALmEz0 - سيرفرات الميزو - جميع الحقوق محفوظة © 2026"
-            android:textColor="@color/nat_soft"
-            android:textSize="15sp" />
+            android:gravity="center_vertical">
+
+            <!--
+                 سطر حقوق النشر يجب أن يبقى دائماً "ALmEz0 - سيرفرات الميزو - جميع الحقوق
+                 محفوظة © 2026" من اليسار لليمين، كما في الموقع وبرنامج الكمبيوتر.
+                 نص واحد بترتيب ثنائي الاتجاه (bidi) لا يكفي هنا: عبارتان عربيتان
+                 مفصولتان بشرطة داخل TextView واحد تُدمجان في كتلة RTL واحدة، فتُعكَس
+                 الكتلة داخلياً وتظهر إحداهما قبل الأخرى بعكس المطلوب — تحقّقتُ من هذا
+                 بالتشغيل الفعلي على المحاكي، لا بالقراءة فقط. الحل: كل عبارة عربية
+                 وحيدة في TextView خاص بها بلا شرطة مدمجة (فقرة عربية صافية تُعرَض
+                 صحيحة داخلياً دائماً)، والشرطات الفاصلة عناصر مستقلة منفصلة — بهذا
+                 العزل يرتّب المُعلَن العناصر بترتيبها الطبيعي فعلاً بلا أي مفاجآت.
+            -->
+            <TextView
+                style="@style/NatText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ALmEz0"
+                android:textColor="@color/nat_soft"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:text="-"
+                android:textColor="@color/nat_soft"
+                android:textSize="15sp" />
+
+            <TextView
+                style="@style/NatText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textDirection="ltr"
+                android:text="سيرفرات الميزو"
+                android:textColor="@color/nat_soft"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:text="-"
+                android:textColor="@color/nat_soft"
+                android:textSize="15sp" />
+
+            <TextView
+                style="@style/NatText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textDirection="ltr"
+                android:text="جميع الحقوق محفوظة © 2026"
+                android:textColor="@color/nat_soft"
+                android:textSize="15sp" />
+        </LinearLayout>
     </LinearLayout>
     </FrameLayout>
     </ScrollView>
