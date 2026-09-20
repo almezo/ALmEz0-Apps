@@ -117,14 +117,16 @@ public class ProfileActivity extends BaseActivity {
 
         if (tvMaxConn != null) tvMaxConn.setText(u.optString("max_connections", "1"));
         if (tvActiveConn != null) {
-            // نفس قاعدة الويب في splayer.js: الجهاز الحالي نفسه اتصال، فالحد الأدنى 1 وليس 0.
+            // الرقم الحقيقي من السيرفر بلا حدّ أدنى مصطنع: 0 حين لا يشغّل أحد شيئاً، ويصير 1
+            // عند فتح بث على جهاز، و2 عند جهازين، وهكذا — فيكشف مشاركة الحساب بين الأجهزة.
+            // كان يُفرض الحد الأدنى 1 فيظهر 1 دائماً ولا يفرّق بين جهاز وجهازين.
             String act = u.optString("active_cons", "");
             if (act.isEmpty()) act = u.optString("active_connections", "");
             int activeVal;
             try {
-                activeVal = Math.max(1, Integer.parseInt(act.trim()));
+                activeVal = Math.max(0, Integer.parseInt(act.trim()));
             } catch (Exception e) {
-                activeVal = 1;
+                activeVal = 0;
             }
             tvActiveConn.setText(String.valueOf(activeVal));
         }

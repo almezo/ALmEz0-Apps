@@ -91,7 +91,54 @@ public final class Xtream {
 
     // ---------------------------------------------------------------- شبكة
 
+    /**
+     * بوابة واحدة لكل طلبات لوحة السيرفر مهما كانت الشاشة التي تطلبها.
+     *
+     * لوحات Xtream تحظر الـIP عند رشقات الطلبات، وكانت في التطبيق ثلاثة مصادر رشق:
+     * صفحة تفاصيل الفيلم تطلب حتى 64 معلومة دفعة واحدة على 4 خيوط (Related.fetchMissing)،
+     * والضغط المطوّل على زر تبديل القناة يفتح بثاً جديداً عشرات المرات في الثانية،
+     * والتحميل المسبق للصور يصطف بمئات الطلبات.
+     *
+     * الحد هنا: اتصالان متزامنان كحد أقصى، وربع ثانية على الأقل بين بداية طلب وآخر
+     * (أي أربعة طلبات في الثانية كحد أقصى للتطبيق كله). هذا سقف لا يمكن تجاوزه من أي شاشة.
+     */
+    private static final java.util.concurrent.Semaphore PANEL_GATE = new java.util.concurrent.Semaphore(2, true);
+    private static final Object PACE_LOCK = new Object();
+    private static final long MIN_REQUEST_GAP_MS = 250;
+    private static long lastRequestAt = 0;
+
+    private static void pace() throws IOException {
+        synchronized (PACE_LOCK) {
+            long now = android.os.SystemClock.elapsedRealtime();
+            long wait = lastRequestAt + MIN_REQUEST_GAP_MS - now;
+            if (wait > 0) {
+                try {
+                    Thread.sleep(wait);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted");
+                }
+            }
+            lastRequestAt = android.os.SystemClock.elapsedRealtime();
+        }
+    }
+
     public static byte[] httpGet(String url) throws IOException {
+        pace();
+        try {
+            PANEL_GATE.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted");
+        }
+        try {
+            return request(url);
+        } finally {
+            PANEL_GATE.release();
+        }
+    }
+
+    private static byte[] request(String url) throws IOException {
         String current = url;
         for (int redirects = 0; redirects < 6; redirects++) {
             HttpURLConnection c = (HttpURLConnection) new URL(current).openConnection();

@@ -825,7 +825,7 @@
                             }
                             if (document.getElementById('profileActiveConn')) {
                                 let activeVal = user.active_cons !== undefined ? user.active_cons : (user.active_connections || 0);
-                                document.getElementById('profileActiveConn').innerText = Math.max(1, Number(activeVal) || 1);
+                                document.getElementById('profileActiveConn').innerText = Math.max(0, Number(activeVal) || 0);
                             }
 
                             const rawCreated = (user.created_at !== undefined && user.created_at !== null) ? user.created_at :

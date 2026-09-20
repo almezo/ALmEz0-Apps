@@ -563,7 +563,8 @@ public class BrowseActivity extends BaseActivity {
 
         /** تنزيل صور الصفوف الثلاثة التالية مسبقاً حتى تظهر فوراً عند التمرير إليها. */
         private void prefetchAhead(int position) {
-            int end = Math.min(shown.size(), position + 1 + COLUMNS * 3);
+            // صف واحد فقط: ثلاثة صفوف كانت تصطف بمئات طلبات الصور على سيرفر العميل
+            int end = Math.min(shown.size(), position + 1 + COLUMNS);
             boolean isLive = Models.LIVE.equals(type);
             for (int i = position + 1; i < end; i++) {
                 Models.Item ahead = shown.get(i);

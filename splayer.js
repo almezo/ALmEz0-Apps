@@ -2639,11 +2639,12 @@ function renderProfileFields(user) {
         maxConnEl.innerText = user.max_connections || user.max_cons || '1';
     }
 
-    // Active connections (تبدأ من 1 كحد أدنى)
+    // Active connections (الرقم الحقيقي من السيرفر: 0 حين لا يشغّل أحد شيئاً)
     const activeConnEl = document.getElementById('profileActiveConn');
     if (activeConnEl) {
         let activeVal = user.active_cons !== undefined ? user.active_cons : (user.active_connections || 0);
-        activeConnEl.innerText = Math.max(1, Number(activeVal) || 1);
+        // الرقم الحقيقي من السيرفر: 0 بلا بث، ويزيد بعدد الأجهزة التي تشغّل بثاً
+        activeConnEl.innerText = Math.max(0, Number(activeVal) || 0);
     }
 
     // Created At (تاريخ بدء الاشتراك)

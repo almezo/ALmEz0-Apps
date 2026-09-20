@@ -36,7 +36,8 @@ import java.util.concurrent.TimeUnit;
  */
 public final class Related {
 
-    private static final ExecutorService META_IO = Executors.newFixedThreadPool(4);
+    /** خيطان: البوابة المركزية في Xtream تكبح المعدل أصلاً، وهذا يقلّل الطلبات المعلّقة. */
+    private static final ExecutorService META_IO = Executors.newFixedThreadPool(2);
     private static final int BATCH = 16;
     private static final Map<String, Map<String, String[]>> META = new HashMap<>();
 

@@ -1620,7 +1620,19 @@ public class PlayerActivity extends AppCompatActivity {
         playIndex(PlayQueue.index() + 1);
     }
 
+    private long lastZapAt = 0;
+
+    /**
+     * تبديل القناة مع كبح التكرار السريع.
+     *
+     * الضغط المطوّل على سهم التبديل في الريموت يرسل عشرات الضغطات في الثانية، وكل واحدة كانت
+     * تفتح بثاً جديداً على السيرفر — وهذا وحده كافٍ ليحظر الـIP خلال ثوانٍ، عدا أنه يربك المشغل.
+     * نسمح بتبديل واحد كل 700 مللي ثانية.
+     */
     private void zap(int delta) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastZapAt < 700) return;
+        lastZapAt = now;
         playIndex(PlayQueue.index() + delta);
     }
 
