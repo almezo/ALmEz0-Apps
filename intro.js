@@ -62,12 +62,20 @@
      * عرض الافتتاحية ثم تنفيذ onDone بعد انتهائها.
      * @param {string} mode  'home' أو 'player'
      */
-    function show(mode, onDone) {
+    /**
+     * @param {string} mode  'home' أو 'player' أو 'server'
+     * @param {object} [opts] للسيرفر: { logo, name }
+     */
+    function show(mode, onDone, opts) {
         var done = typeof onDone === 'function' ? onDone : function () { };
-        if (!isDesktopApp()) { done(); return; }
+        opts = opts || {};
 
         injectStyles();
+        var isServer = mode === 'server';
         var isHome = mode !== 'player';
+        var logoSrc = isServer && opts.logo ? opts.logo : 'photo/logo.ico';
+        var titleText = isServer ? (opts.name || 'جارٍ الاتصال') : (isHome ? 'سيرفرات الميزو' : 'مشغل الميزو');
+        var subText = isServer ? 'جارٍ الاتصال بالسيرفر' : (isHome ? 'ALmEz0 SERVERS' : 'ALmEz0 PLAYER');
         var overlay = document.createElement('div');
         overlay.className = 'mizo-intro';
         overlay.innerHTML =
@@ -75,10 +83,10 @@
             '  <div class="mizo-intro-logo-box">' +
             '    <span class="mizo-intro-ring r1"></span>' +
             '    <span class="mizo-intro-ring r2"></span>' +
-            '    <img class="mizo-intro-logo" src="photo/logo.ico" alt="ALmEz0">' +
+            '    <img class="mizo-intro-logo" src="' + logoSrc + '" alt="ALmEz0">' +
             '  </div>' +
-            '  <div class="mizo-intro-title">' + (isHome ? 'سيرفرات الميزو' : 'مشغل الميزو') + '</div>' +
-            '  <div class="mizo-intro-sub">' + (isHome ? 'ALmEz0 SERVERS' : 'ALmEz0 PLAYER') + '</div>' +
+            '  <div class="mizo-intro-title">' + titleText + '</div>' +
+            '  <div class="mizo-intro-sub">' + subText + '</div>' +
             '  <div class="mizo-intro-track"><span class="mizo-intro-bar"></span></div>' +
             '</div>';
         document.body.appendChild(overlay);
@@ -94,7 +102,6 @@
 
     /** افتتاحية فتح البرنامج: مرة واحدة في الجلسة، كما في أندرويد. */
     function showOnLaunch() {
-        if (!isDesktopApp()) return;
         try {
             if (sessionStorage.getItem('mizo_launch_intro') === '1') return;
             sessionStorage.setItem('mizo_launch_intro', '1');
@@ -103,15 +110,20 @@
     }
 
     /** الانتقال لصفحة أخرى بعد عرض الافتتاحية المناسبة. */
-    function navigate(mode, url) {
-        if (!isDesktopApp()) { window.location.href = url; return; }
-        show(mode, function () { window.location.href = url; });
+    function navigate(mode, url, opts) {
+        show(mode, function () { window.location.href = url; }, opts);
+    }
+
+    /** شاشة اتصال بشعار السيرفر عند الدخول إليه أو التبديل له. */
+    function showServer(logo, name, onDone) {
+        show('server', onDone, { logo: logo, name: name });
     }
 
     window.MizoIntro = {
         show: show,
         showOnLaunch: showOnLaunch,
         navigate: navigate,
+        showServer: showServer,
         isDesktopApp: isDesktopApp
     };
 })();

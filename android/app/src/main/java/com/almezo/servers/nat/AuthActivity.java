@@ -211,6 +211,8 @@ public class AuthActivity extends BaseActivity {
                 acc.savedAt = System.currentTimeMillis();
                 store.saveAndActivate(acc);
                 openDashboard(true);
+                // نفس شاشة الاتصال بشعار السيرفر بعد نجاح تسجيل الدخول
+                IntroActivity.showServer(this, s.code);
             });
         });
     }

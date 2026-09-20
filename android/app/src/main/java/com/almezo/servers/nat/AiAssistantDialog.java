@@ -212,6 +212,24 @@ public final class AiAssistantDialog {
         final LinearLayoutManager llm = new LinearLayoutManager(a);
         llm.setStackFromEnd(true);
         chatList.setLayoutManager(llm);
+
+        /*
+         * التنقل بالريموت داخل المحادثة: فقاعات الردّ ليست عناصر قابلة للتركيز، فلم يكن
+         * هناك ما يمرّر القائمة، ويبقى الرد الطويل غير مقروء. نجعل القائمة نفسها قابلة
+         * للتركيز، والأسهم تمرّرها بمقدار ثلث الشاشة في كل ضغطة.
+         */
+        chatList.setFocusable(true);
+        chatList.setFocusableInTouchMode(false);
+        chatList.setOnKeyListener((v, keyCode, e) -> {
+            if (e.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int step = Math.max(120, chatList.getHeight() / 3);
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (chatList.canScrollVertically(1)) { chatList.smoothScrollBy(0, step); return true; }
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                if (chatList.canScrollVertically(-1)) { chatList.smoothScrollBy(0, -step); return true; }
+            }
+            return false;
+        });
         chatList.setItemAnimator(null);
         final MessageAdapter adapter = new MessageAdapter(a, messages, api, d);
         chatList.setAdapter(adapter);

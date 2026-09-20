@@ -123,6 +123,9 @@ public class PlayerActivity extends AppCompatActivity {
     private boolean isScreenLocked = false;
     private boolean isUserSeeking = false;
     private boolean isRetried = false;
+    /** امتدادات الأفلام والحلقات التي نجرّبها بالترتيب عند فشل التشغيل. */
+    private static final String[] VOD_EXTENSIONS = {"mkv", "mp4", "avi", "ts"};
+    private int vodExtTried = 0;
     private boolean isTvDevice = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -1231,11 +1234,12 @@ public class PlayerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_DPAD_UP:
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (controlsOverlay != null && controlsOverlay.getVisibility() != View.VISIBLE) {
-                    // البث المباشر: الأعلى/الأسفل للتنقل بين قنوات القسم مثل مشغلات IPTV العالمية
-                    if (isLiveStream && queue != null && queue.size() > 1) {
-                        zap(keyCode == KeyEvent.KEYCODE_DPAD_UP ? 1 : -1);
-                        return true;
-                    }
+                    /*
+                     * كان الأعلى/الأسفل في البث المباشر يبدّل القناة دائماً، فلا يصل المستخدم إلى
+                     * أزرار التحكم إلا بإيقاف البث. الآن أول ضغطة تُظهر التحكم ويظهر مؤشر التركيز،
+                     * والتبديل بين القنوات صار عبر زرّي القناة السابقة والتالية في الشريط، وأزرار
+                     * القنوات في الريموت (CHANNEL_UP/DOWN و MEDIA_NEXT/PREVIOUS) كما هي.
+                     */
                     showControls();
                     return true;
                 }
@@ -1432,6 +1436,33 @@ public class PlayerActivity extends AppCompatActivity {
                     try {
                         if (pbBuffering != null) pbBuffering.setVisibility(View.GONE);
                         Log.e(TAG, "ExoPlayer error: " + error.getMessage(), error);
+
+                        /*
+                         * الأفلام والحلقات: لوحات Xtream ترسل container_extension أحياناً ناقصاً أو
+                         * خاطئاً، فيُبنى الرابط بامتداد mp4 افتراضاً ويفشل من أول مرة، ثم ينجح في
+                         * المحاولة الثانية بعد وصول بيانات الفيلم. لم تكن هناك أي إعادة محاولة لغير
+                         * البث المباشر، فنجرّب بقية الامتدادات المعروفة بصمت قبل إظهار أي خطأ.
+                         */
+                        if (!isLiveStream && videoUrl != null && vodExtTried < VOD_EXTENSIONS.length) {
+                            int dot = videoUrl.lastIndexOf('.');
+                            int slash = videoUrl.lastIndexOf('/');
+                            if (dot > slash && slash > 0) {
+                                String current = videoUrl.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
+                                String next = null;
+                                while (vodExtTried < VOD_EXTENSIONS.length) {
+                                    String cand = VOD_EXTENSIONS[vodExtTried++];
+                                    if (!cand.equals(current)) { next = cand; break; }
+                                }
+                                if (next != null) {
+                                    videoUrl = videoUrl.substring(0, dot + 1) + next;
+                                    Log.w(TAG, "VOD retry with ." + next);
+                                    player.setMediaItem(new MediaItem.Builder().setUri(Uri.parse(videoUrl)).build());
+                                    player.prepare();
+                                    player.setPlayWhenReady(true);
+                                    return;
+                                }
+                            }
+                        }
 
                         // Automatic fallback for IPTV live streams: if .m3u8 fails, retry with .ts and vice-versa
                         if (isLiveStream && videoUrl != null && !isRetried) {

@@ -10,7 +10,9 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization,SmoothScrolling');
-app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top');
+// enable-hardware-overlays مُزال عمداً: مع بعض كروت العرض في ويندوز يُبقي النافذة
+// على سطح قديم لا يُعاد رسمه عند العودة للبرنامج، فتبدو الصفحة متجمّدة. ولا يؤثر
+// حذفه على فك ترميز الفيديو، فتسريع الترميز والرسم أدناه باقٍ كما هو.
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
 
 // Ensure single instance of the application
@@ -165,6 +167,8 @@ if (!gotTheLock) {
             try {
                 mainWindow.webContents.invalidate();
                 mainWindow.webContents.focus();
+                // نبضة للصفحة نفسها: invalidate وحده لا يكفي حين يتوقف المُركِّب
+                mainWindow.webContents.send('mizo-wake');
             } catch (e) { }
         };
         mainWindow.on('focus', wakeUpWindow);

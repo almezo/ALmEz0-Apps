@@ -437,17 +437,18 @@ function mizoInstallQueueButtons() {
     const make = (dir, title, icon, order) => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'vjs-control vjs-button mizo-queue-btn mizo-queue-' + dir;
+        b.className = 'vjs-control mizo-queue-btn mizo-queue-' + dir;
         b.title = title;
         b.setAttribute('aria-label', title);
         b.style.order = order;
-        b.innerHTML = '<span class="mizo-queue-icon"><i class="fas ' + icon + '"></i></span>';
+        // زر مكتوب بالنص مثل btn_next_item في أندرويد، لا أيقونة تختلط بأزرار التقديم
+        b.innerHTML = '<i class="fas ' + icon + '"></i><span class="mizo-queue-text">' + title + '</span>';
         b.onclick = () => mizoPlayAdjacent(dir === 'next' ? 1 : -1);
         return b;
     };
-    // ترتيب 2 و3 يضعهما بين زر التشغيل وأزرار التقديم مباشرة
-    bar.appendChild(make('prev', labels.prev, 'fa-backward-step', 2));
-    bar.appendChild(make('next', labels.next, 'fa-forward-step', 3));
+    // ترتيب 6 و7: بعد أزرار التقديم والصوت والوقت، فلا تختلط بها
+    bar.appendChild(make('prev', labels.prev, 'fa-backward-step', 6));
+    bar.appendChild(make('next', labels.next, 'fa-forward-step', 7));
 }
 
 function playCurrentLiveNative() {
@@ -1057,6 +1058,11 @@ function activateAccount(accId) {
     const target = accounts.find(a => a.id === accId);
     if (!target) return;
 
+    // شاشة اتصال قصيرة بشعار السيرفر الجديد، مثل IntroActivity.showServer في أندرويد
+    if (window.MizoIntro && typeof window.MizoIntro.showServer === 'function') {
+        window.MizoIntro.showServer(target.serverLogo || 'photo/logo.ico', target.serverName || 'سيرفر');
+    }
+
     if (typeof closeLivePlayer === 'function') closeLivePlayer();
     if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
 
@@ -1435,6 +1441,10 @@ async function handleLogin() {
         if (data && data.user_info && data.user_info.auth === 1) {
             // دخول بحساب جديد: تحديث إجباري للباقات مثل تطبيق أندرويد
             try { sessionStorage.setItem('sp_account_changed', '1'); } catch (e) { }
+            if (window.MizoIntro && typeof window.MizoIntro.showServer === 'function') {
+                const si = serverMap[currentCode] || {};
+                window.MizoIntro.showServer(si.logo || 'photo/logo.ico', si.name || 'سيرفر');
+            }
             state.userInfo = data.user_info;
             state.username = user;
             state.password = pass;
@@ -1544,6 +1554,9 @@ function playStream(id, type, extension, name, icon) {
     if (type === 'live' && Array.isArray(currentItemsArray) && currentItemsArray.length > 1) {
         const qi = currentItemsArray.findIndex(it => String(it.stream_id) === String(id));
         if (qi >= 0) mizoSetQueue('live', currentItemsArray, qi);
+    } else if (type === 'vod') {
+        // الفيلم عمل مستقل: لا معنى لزرّي التالي والسابق فيه
+        window.mizoQueue = null;
     }
     if (type === 'live') {
         sessionStorage.setItem('sp_last_live_stream', JSON.stringify({ id, type, extension, name, icon }));
@@ -1625,16 +1638,20 @@ function playStream(id, type, extension, name, icon) {
     } else if (type === 'vod') {
         // تشغيل الفيلم داخل المشغل: الصيغة الفعلية للسيرفر أولاً، ثم mp4، ثم مباشر بدون امتداد
         urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.${ext}`);
-        if (ext !== 'mp4') {
-            urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.mp4`);
-        }
+        // اللوحة ترسل container_extension ناقصاً أحياناً فيفشل التشغيل من أول مرة
+        // وينجح في الثانية. نجرّب بقية الصيغ المعروفة بصمت قبل إظهار أي خطأ.
+        ['mkv', 'mp4', 'avi', 'ts'].forEach(function (alt) {
+            if (alt !== ext) urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}.${alt}`);
+        });
         urlQueue.push(`${hostUrl}/movie/${user}/${pass}/${id}`);
     } else if (type === 'series') {
         // تشغيل الحلقة داخل المشغل: الصيغة الفعلية للسيرفر أولاً، ثم mp4، ثم مباشر بدون امتداد
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.${ext}`);
-        if (ext !== 'mp4') {
-            urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.mp4`);
-        }
+        // اللوحة ترسل container_extension ناقصاً أحياناً فيفشل التشغيل من أول مرة
+        // وينجح في الثانية. نجرّب بقية الصيغ المعروفة بصمت قبل إظهار أي خطأ.
+        ['mkv', 'mp4', 'avi', 'ts'].forEach(function (alt) {
+            if (alt !== ext) urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}.${alt}`);
+        });
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}`);
     }
 
@@ -2907,9 +2924,9 @@ async function runSequentialAutoSync() {
     }
 
     const categories = [
-        { type: 'live', action: 'get_live_categories', name: 'البث المباشر' },
-        { type: 'vod', action: 'get_vod_categories', name: 'الأفلام' },
-        { type: 'series', action: 'get_series_categories', name: 'المسلسلات' }
+        { type: 'live', action: 'get_live_categories', streams: 'get_live_streams', name: 'البث المباشر' },
+        { type: 'vod', action: 'get_vod_categories', streams: 'get_vod_streams', name: 'الأفلام' },
+        { type: 'series', action: 'get_series_categories', streams: 'get_series', name: 'المسلسلات' }
     ];
 
     // المرحلة الأولى: وضع الأولى في جاري التحديث، والأخريين في الانتظار (مطابق لصورة مارفل)
@@ -2934,6 +2951,11 @@ async function runSequentialAutoSync() {
         try {
             const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${cat.action}`;
             await proxyFetch(url, false);
+            // كان يجلب الأقسام فقط ويكتفي بمسح الكاش، فتبقى قوائم الأفلام والقنوات قديمة.
+            // نجلب المحتوى نفسه أيضاً حتى يرى المستخدم الجديد فعلاً كما في أندرويد.
+            if (cat.streams && typeof getAllStreamsForType === 'function') {
+                try { await getAllStreamsForType(cat.type, cat.streams); } catch (e) { }
+            }
             const now = Date.now();
             localStorage.setItem('sp_last_updated_' + cat.type, String(now));
             setCardSyncState(cat.type, 'idle', now);

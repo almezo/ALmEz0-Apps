@@ -196,6 +196,35 @@ public final class Fx {
      */
     public static View spatialNext(View root, View from, int direction) {
         if (root == null || from == null) return null;
+        // أولاً: هدف داخل نفس القائمة أو الشبكة. الضغط للأسفل في القائمة الجانبية كان
+        // يقفز إلى بطاقة قناة في الشبكة لأن الصف التالي لم يُرسم بعد، بدل تمرير القائمة.
+        View container = scrollParentOf(from);
+        if (container != null) {
+            View inside = searchIn(container, from, direction);
+            if (inside != null) return inside;
+            // لا شيء داخلها في هذا الاتجاه: نترك النظام يمرّرها بدل الخروج منها فجأة
+            if (canScroll(container, direction)) return null;
+        }
+        return searchIn(root, from, direction);
+    }
+
+    /** أقرب حاوية قابلة للتمرير تحتوي العنصر. */
+    private static View scrollParentOf(View v) {
+        android.view.ViewParent p = v.getParent();
+        for (int i = 0; i < 6 && p instanceof View; i++) {
+            if (isContainer((View) p)) return (View) p;
+            p = p.getParent();
+        }
+        return null;
+    }
+
+    private static boolean canScroll(View container, int direction) {
+        int d = (direction == View.FOCUS_UP || direction == View.FOCUS_LEFT) ? -1 : 1;
+        boolean vertical = direction == View.FOCUS_UP || direction == View.FOCUS_DOWN;
+        return vertical ? container.canScrollVertically(d) : container.canScrollHorizontally(d);
+    }
+
+    private static View searchIn(View root, View from, int direction) {
         ArrayList<View> all = new ArrayList<>();
         root.addFocusables(all, direction, View.FOCUSABLES_ALL);
         if (all.isEmpty()) return null;
@@ -211,7 +240,9 @@ public final class Fx {
             if (v == from || !v.isShown() || !v.isEnabled()) continue;
             Rect r = boundsOf(v);
             if (r == null || r.width() < 2 || r.height() < 2) continue;
-            if (Rect.intersects(r, src) && (r.contains(src) || src.contains(r))) continue;
+            // العنصر الذي يحتوي المصدر (حاوية أكبر) ليس هدفاً، أما العنصر الداخلي
+            // (زر التحديث داخل بطاقة الباقة مثلاً) فهدف مشروع ويجب الوصول إليه.
+            if (r.contains(src)) continue;
 
             float along, across;
             boolean overlaps;

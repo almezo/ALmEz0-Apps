@@ -1,3 +1,8 @@
+// هذا السطر حُذف سهواً في v1.0.89 فانهار ملف التمهيد كله عند كل إقلاع، واختفى
+// window.electronAPI تماماً: لا ملء شاشة، ولا فتح روابط خارجية، ولا تنزيل تحديث،
+// ولا حتى معرفة أننا داخل برنامج الكمبيوتر (platform-electron).
+const { contextBridge, ipcRenderer } = require('electron');
+
 let appVersion = '1.0.88';
 try {
     appVersion = require('../package.json').version || '1.0.88';
@@ -26,4 +31,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeAllListeners('update-download-error');
         ipcRenderer.on('update-download-error', (event, data) => callback(data));
     }
+});
+
+/**
+ * إيقاظ الصفحة عند العودة للبرنامج.
+ *
+ * حين تكون الواجهة ساكنة (بلا فيديو) يتوقف مُركِّب كروميوم عن إنتاج الإطارات، فتعود النافذة
+ * أحياناً بصورة قديمة لا تستجيب حتى يصل حدث إدخال — ولهذا كانت نافذة قوائم التشغيل تبدو
+ * سوداء حتى الضغط على سهم. هنا نجبر إطاراً جديداً بتغيير شفافية غير مرئي.
+ */
+ipcRenderer.on('mizo-wake', function () {
+    try {
+        var b = document.body;
+        if (!b) return;
+        b.style.opacity = '0.999';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () { b.style.opacity = ''; });
+        });
+    } catch (e) { }
 });

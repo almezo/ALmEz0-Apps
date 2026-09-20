@@ -142,6 +142,8 @@ public final class AccountsDialog {
                 i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 i.putExtra(DashboardActivity.EXTRA_ACCOUNT_CHANGED, true);
                 activity.startActivity(i);
+                // شاشة اتصال قصيرة بشعار السيرفر الجديد فوق لوحة التحكم
+                IntroActivity.showServer(activity, acc.serverCode);
             });
 
             h.btnDelete.setOnClickListener(v -> {

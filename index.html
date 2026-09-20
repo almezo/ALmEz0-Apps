@@ -95,42 +95,24 @@
     </div>
     <script>
         (function () {
+            // الافتتاحية الموحّدة (intro.js): نفس تصميم تطبيق أندرويد في كل مكان — الموقع
+            // على المتصفح وبرنامج الكمبيوتر. أما تطبيق أندرويد فله افتتاحيته الأصلية
+            // (IntroActivity) فلا نعرض ثانية فوقها.
             var splash = document.getElementById('app-launch-splash');
-            if (!splash) return;
+            if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
 
-            // داخل تطبيق أندرويد تظهر افتتاحية "سيرفرات الميزو" الأصلية (IntroActivity)
-            // بنفس تصميم افتتاحية المشغل، فنزيل افتتاحية الويب هنا حتى لا تتكرر مقدمتان.
-            // الموقع في المتصفح يبقى بافتتاحيته كما هو.
-            var inNativeApp = (typeof isNativeEarly !== 'undefined' && isNativeEarly)
-                || !!window.AndroidNativeBridge
-                || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-            if (inNativeApp) {
-                if (splash.parentNode) splash.parentNode.removeChild(splash);
-                // برنامج الكمبيوتر: افتتاحية "سيرفرات الميزو" الموحّدة مع أندرويد
-                if (window.MizoIntro) window.MizoIntro.showOnLaunch();
-                return;
+            var isAndroidApp = !!window.AndroidNativeBridge
+                || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+                      && window.Capacitor.isNativePlatform() && !(window.electronAPI && window.electronAPI.isElectron));
+            if (isAndroidApp) return;
+
+            if (window.MizoIntro) {
+                window.MizoIntro.showOnLaunch();
+            } else {
+                document.addEventListener('DOMContentLoaded', function () {
+                    if (window.MizoIntro) window.MizoIntro.showOnLaunch();
+                });
             }
-
-            // Only show splash once per session (first app launch only, never on returning home)
-            if (sessionStorage.getItem('almezo_app_splash_played') === 'true') {
-                splash.style.display = 'none';
-                if (splash.parentNode) splash.parentNode.removeChild(splash);
-                return;
-            }
-            sessionStorage.setItem('almezo_app_splash_played', 'true');
-
-            function dismissSplash() {
-                if (!splash || splash.classList.contains('splash-dismiss')) return;
-                splash.classList.add('splash-dismiss');
-                setTimeout(function () {
-                    if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
-                }, 600);
-            }
-
-            window.addEventListener('load', function () {
-                setTimeout(dismissSplash, 1500);
-            });
-            setTimeout(dismissSplash, 2500);
         })();
     </script>
 

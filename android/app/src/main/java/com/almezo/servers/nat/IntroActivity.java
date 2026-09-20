@@ -21,11 +21,27 @@ public class IntroActivity extends BaseActivity {
     /** نمط الافتتاحية: الافتراضي مقدمة المشغل، و MODE_HOME مقدمة العودة للشاشة الرئيسية. */
     public static final String EXTRA_MODE = "intro_mode";
     public static final String MODE_HOME = "home";
+    /** نمط الاتصال بسيرفر: شعار السيرفر الداخل عليه مع "جارٍ الاتصال". */
+    public static final String MODE_SERVER = "server";
+    public static final String EXTRA_SERVER_CODE = "server_code";
 
     private static final long DURATION = 1900;
     private boolean leaving = false;
     private boolean started = false;
     private boolean toHome = false;
+
+    /**
+     * شاشة اتصال قصيرة بشعار السيرفر عند الدخول إليه أو التبديل له، ثم لوحة التحكم.
+     * تعطي المستخدم إحساس "جارٍ تسجيل الدخول" بدل قفزة مفاجئة بين محتويين مختلفين.
+     */
+    public static void showServer(android.app.Activity a, String serverCode) {
+        if (a == null || a.isFinishing()) return;
+        Intent i = new Intent(a, HomeIntroActivity.class);
+        i.putExtra(EXTRA_MODE, MODE_SERVER);
+        i.putExtra(EXTRA_SERVER_CODE, serverCode);
+        a.startActivity(i);
+        a.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+    }
 
     /** نفس الافتتاحية بنص "سيرفرات الميزو": عند فتح التطبيق وعند الخروج من المشغل. */
     public static void showHome(android.app.Activity a) {
@@ -39,10 +55,18 @@ public class IntroActivity extends BaseActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        toHome = MODE_HOME.equals(getIntent().getStringExtra(EXTRA_MODE));
+        String mode = getIntent().getStringExtra(EXTRA_MODE);
+        toHome = MODE_HOME.equals(mode) || MODE_SERVER.equals(mode);
 
         setContentView(R.layout.nat_activity_intro);
-        if (toHome) {
+        if (MODE_SERVER.equals(mode)) {
+            Servers.Server srv = Servers.find(getIntent().getStringExtra(EXTRA_SERVER_CODE));
+            if (srv != null) {
+                ((android.widget.ImageView) findViewById(R.id.intro_logo)).setImageResource(srv.logoRes);
+                ((android.widget.TextView) findViewById(R.id.intro_title)).setText(srv.name);
+            }
+            ((android.widget.TextView) findViewById(R.id.intro_sub)).setText("جارٍ الاتصال بالسيرفر");
+        } else if (toHome) {
             ((android.widget.TextView) findViewById(R.id.intro_title)).setText("سيرفرات الميزو");
             ((android.widget.TextView) findViewById(R.id.intro_sub)).setText("ALmEz0 SERVERS");
         }
