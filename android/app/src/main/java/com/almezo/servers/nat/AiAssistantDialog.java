@@ -217,6 +217,7 @@ public final class AiAssistantDialog {
         chatList.setAdapter(adapter);
 
         final EditText input = d.findViewById(R.id.ai_input_text);
+        Ui.keyboardOnPressOnly(input);
         activeInput = input;
         final ImageButton btnSend = d.findViewById(R.id.ai_btn_send);
         final ImageButton btnMic = d.findViewById(R.id.ai_btn_mic);
@@ -696,7 +697,10 @@ public final class AiAssistantDialog {
             TextView action = card.findViewById(R.id.ai_card_action);
             boolean isLive = "channel".equals(c.type);
             poster.setScaleType(isLive ? ImageView.ScaleType.FIT_CENTER : ImageView.ScaleType.CENTER_CROP);
-            Ui.loadImage(poster, it.icon, Ui.logoPlaceholder());
+            String cardIcon = it.icon;
+            // بطاقة قناة بلا شعار من السيرفر: نكمله من الفهرس المدمج مثل شبكة القنوات
+            if (cardIcon == null || cardIcon.trim().isEmpty()) cardIcon = ChannelLogos.logoFor(it.safeName());
+            Ui.loadImage(poster, cardIcon, Ui.logoPlaceholder());
             title.setText(it.safeName());
             String kind = isLive ? "قناة مباشرة" : "series".equals(c.type) ? "مسلسل" : "فيلم";
             subtitle.setText(it.rating > 0 && !isLive ? kind + "  •  " + Ui.ratingText(it.rating) : kind);

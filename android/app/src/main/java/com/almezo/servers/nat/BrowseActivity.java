@@ -92,6 +92,7 @@ public class BrowseActivity extends BaseActivity {
         empty = findViewById(R.id.browse_empty);
         searchBox = findViewById(R.id.browse_search_box);
         searchInput = findViewById(R.id.browse_search);
+        Ui.keyboardOnPressOnly(searchInput); // زر البحث يفتحها عمداً، ومرور التركيز لا يفتحها
         hideNames = "1".equals(store.getString("hide_names_" + type, "0"));
         sortMode = store.getString("sort_" + type, "default");
         // الأفلام والمسلسلات تُفتح دائماً على "المضافة حديثاً"؛ البث المباشر يتذكر آخر قسم
@@ -209,6 +210,8 @@ public class BrowseActivity extends BaseActivity {
     // ------------------------------------------------------------------ البيانات
 
     private void load(boolean force) {
+        // فهرس شعارات القنوات يُحمَّل عند الحاجة فقط (البث المباشر) وفي الخلفية
+        if (Models.LIVE.equals(type)) ChannelLogos.preload(this);
         progress.setVisibility(View.VISIBLE);
         empty.setVisibility(View.GONE);
         Xtream.IO.execute(() -> {
@@ -360,7 +363,9 @@ public class BrowseActivity extends BaseActivity {
             for (int n = 0; n < shown.size(); n++) {
                 Models.Item c = shown.get(n);
                 if (c == it) index = n;
-                list.add(new PlayQueue.Entry(api.streamUrl(Models.LIVE, c.id, "m3u8"), c.safeName(), c.icon,
+                String entryIcon = c.icon;
+                if (entryIcon == null || entryIcon.trim().isEmpty()) entryIcon = ChannelLogos.logoFor(c.safeName());
+                list.add(new PlayQueue.Entry(api.streamUrl(Models.LIVE, c.id, "m3u8"), c.safeName(), entryIcon,
                         "live:" + c.id, c.id, Models.LIVE));
             }
             PlayQueue.set(list, index);
@@ -510,7 +515,10 @@ public class BrowseActivity extends BaseActivity {
             int pad = isLive ? Math.round(h.itemView.getResources().getDisplayMetrics().density * 22) : 0;
             h.img.setPadding(pad, pad, pad, pad);
             if (isLive) {
-                Ui.loadChannelLogo(h.img, it.icon, Ui.logoPlaceholder());
+                // أغلب السيرفرات لا ترسل شعار القناة، فنكمله من الفهرس المدمج باسم القناة
+                String logo = it.icon;
+                if (logo == null || logo.trim().isEmpty()) logo = ChannelLogos.logoFor(it.safeName());
+                Ui.loadChannelLogo(h.img, logo, Ui.logoPlaceholder());
             } else {
                 Ui.loadImage(h.img, it.icon, Ui.logoPlaceholder());
             }
@@ -558,7 +566,9 @@ public class BrowseActivity extends BaseActivity {
             int end = Math.min(shown.size(), position + 1 + COLUMNS * 3);
             boolean isLive = Models.LIVE.equals(type);
             for (int i = position + 1; i < end; i++) {
-                String icon = shown.get(i).icon;
+                Models.Item ahead = shown.get(i);
+                String icon = ahead.icon;
+                if (isLive && (icon == null || icon.trim().isEmpty())) icon = ChannelLogos.logoFor(ahead.safeName());
                 if (icon != null && prefetched.add(icon)) {
                     if (isLive) Ui.prefetchChannelLogo(BrowseActivity.this, icon);
                     else Ui.prefetch(BrowseActivity.this, icon);

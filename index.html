@@ -98,6 +98,17 @@
             var splash = document.getElementById('app-launch-splash');
             if (!splash) return;
 
+            // داخل تطبيق أندرويد تظهر افتتاحية "سيرفرات الميزو" الأصلية (IntroActivity)
+            // بنفس تصميم افتتاحية المشغل، فنزيل افتتاحية الويب هنا حتى لا تتكرر مقدمتان.
+            // الموقع في المتصفح يبقى بافتتاحيته كما هو.
+            var inNativeApp = (typeof isNativeEarly !== 'undefined' && isNativeEarly)
+                || !!window.AndroidNativeBridge
+                || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+            if (inNativeApp) {
+                if (splash.parentNode) splash.parentNode.removeChild(splash);
+                return;
+            }
+
             // Only show splash once per session (first app launch only, never on returning home)
             if (sessionStorage.getItem('almezo_app_splash_played') === 'true') {
                 splash.style.display = 'none';

@@ -3,6 +3,7 @@ package com.almezo.servers.nat;
 import android.animation.TimeInterpolator;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
+import android.graphics.Rect;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.RectF;
@@ -12,6 +13,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -29,6 +31,8 @@ import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.almezo.servers.R;
+
+import java.util.ArrayList;
 
 /**
  * مؤثرات الواجهة الموحّدة لكل شاشات المشغل (بأسلوب نتفلكس وشاهد):
@@ -176,6 +180,85 @@ public final class Fx {
     /** العنصر يرسم تركيزه في عنصر داخلي (مثل إطار الملصق دون العنوان)، فلا يُرسم إطار حوله كله. */
     public static void noRing(View v) {
         if (v != null) v.setTag(R.id.fx_no_ring, Boolean.TRUE);
+    }
+
+    // ------------------------------------------------------------ تنقل الريموت
+
+    /**
+     * تنقل هندسي حقيقي بالريموت عبر الشاشة كلها.
+     *
+     * خوارزمية أندرويد الافتراضية تبحث داخل الحاوية أولاً، فالضغط يساراً في أول عنصر من صف
+     * في الشبكة كان يلتف لآخر الصف السابق بدل الخروج إلى القائمة الجانبية المجاورة، والانتقال
+     * بين الشريط العلوي والمحتوى والتذييل غير مضمون. هنا نختار أقرب عنصر في اتجاه الضغط
+     * بالمسافة الفعلية على الشاشة، فيصل المستخدم إلى الزر الذي يراه أمامه مباشرة.
+     *
+     * @return العنصر التالي، أو null فنترك السلوك الافتراضي (يتكفّل بتمرير القوائم الطويلة)
+     */
+    public static View spatialNext(View root, View from, int direction) {
+        if (root == null || from == null) return null;
+        ArrayList<View> all = new ArrayList<>();
+        root.addFocusables(all, direction, View.FOCUSABLES_ALL);
+        if (all.isEmpty()) return null;
+
+        Rect src = boundsOf(from);
+        if (src == null) return null;
+        float sx = src.exactCenterX(), sy = src.exactCenterY();
+
+        View best = null;
+        float bestScore = Float.MAX_VALUE;
+        for (int i = 0; i < all.size(); i++) {
+            View v = all.get(i);
+            if (v == from || !v.isShown() || !v.isEnabled()) continue;
+            Rect r = boundsOf(v);
+            if (r == null || r.width() < 2 || r.height() < 2) continue;
+            if (Rect.intersects(r, src) && (r.contains(src) || src.contains(r))) continue;
+
+            float along, across;
+            boolean overlaps;
+            switch (direction) {
+                case View.FOCUS_LEFT:
+                    along = src.left - r.right; across = Math.abs(r.exactCenterY() - sy);
+                    overlaps = r.bottom > src.top && r.top < src.bottom;
+                    break;
+                case View.FOCUS_RIGHT:
+                    along = r.left - src.right; across = Math.abs(r.exactCenterY() - sy);
+                    overlaps = r.bottom > src.top && r.top < src.bottom;
+                    break;
+                case View.FOCUS_UP:
+                    along = src.top - r.bottom; across = Math.abs(r.exactCenterX() - sx);
+                    overlaps = r.right > src.left && r.left < src.right;
+                    break;
+                default: // FOCUS_DOWN
+                    along = r.top - src.bottom; across = Math.abs(r.exactCenterX() - sx);
+                    overlaps = r.right > src.left && r.left < src.right;
+                    break;
+            }
+            if (along < -2) continue; // ليس في الاتجاه المطلوب
+
+            // العنصر المتقابل مع مصدر التركيز (في نفس الصف أو العمود) يُفضَّل بوضوح على البعيد جانبياً
+            float score = Math.max(along, 0) + across * (overlaps ? 0.25f : 2.5f);
+            if (score < bestScore) { bestScore = score; best = v; }
+        }
+        return best;
+    }
+
+    private static Rect boundsOf(View v) {
+        v.getLocationOnScreen(LOC);
+        int w = Math.round(v.getWidth() * v.getScaleX());
+        int h = Math.round(v.getHeight() * v.getScaleY());
+        if (w <= 0 || h <= 0) return null;
+        return new Rect(LOC[0], LOC[1], LOC[0] + w, LOC[1] + h);
+    }
+
+    /** يحوّل زر الريموت إلى اتجاه تركيز، أو 0 إن لم يكن زر اتجاه. */
+    public static int directionOf(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_LEFT: return View.FOCUS_LEFT;
+            case KeyEvent.KEYCODE_DPAD_RIGHT: return View.FOCUS_RIGHT;
+            case KeyEvent.KEYCODE_DPAD_UP: return View.FOCUS_UP;
+            case KeyEvent.KEYCODE_DPAD_DOWN: return View.FOCUS_DOWN;
+            default: return 0;
+        }
     }
 
     // ------------------------------------------------------------------ اللمس

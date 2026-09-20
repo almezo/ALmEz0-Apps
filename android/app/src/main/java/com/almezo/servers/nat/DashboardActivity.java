@@ -52,7 +52,7 @@ public class DashboardActivity extends BaseActivity {
         setContentView(R.layout.nat_activity_dashboard);
 
         nav = new NavBar(this);
-        nav.home.setOnClickListener(v -> finish());
+        nav.home.setOnClickListener(v -> exitToHome());
         nav.accounts.setOnClickListener(v -> AccountsDialog.show(this));
         nav.profile.setOnClickListener(v -> startActivity(new Intent(this, ProfileActivity.class)));
         nav.logout.setOnClickListener(v -> confirmLogout());
@@ -276,6 +276,20 @@ public class DashboardActivity extends BaseActivity {
         cancel.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
         confirm.requestFocus();
+    }
+
+    /**
+     * الخروج من المشغل إلى الشاشة الرئيسية يمرّ بافتتاحية "سيرفرات الميزو"، بنفس تصميم
+     * افتتاحية دخول المشغل، فيبقى الانتقال بين العالمين واضحاً ومتناسقاً.
+     */
+    private void exitToHome() {
+        IntroActivity.showHome(this);
+        finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        exitToHome();
     }
 
     @Override

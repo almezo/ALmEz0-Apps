@@ -101,6 +101,30 @@ public final class Ui {
      */
     private static final int CHANNEL_LOGO_TIMEOUT_MS = 10000;
 
+    /**
+     * صندوق نص لا يفتح لوحة المفاتيح بمجرد مرور تركيز الريموت عليه، بل عند ضغط المستخدم عليه
+     * فقط (لمساً أو بزر OK). كانت اللوحة تقفز تلقائياً وتغطي الشاشة أثناء التنقل بالريموت.
+     * لا يمنع فتحها يدوياً من الكود (زر البحث مثلاً يفتحها عمداً).
+     */
+    public static void keyboardOnPressOnly(final android.widget.EditText field) {
+        if (field == null) return;
+        try {
+            field.setShowSoftInputOnFocus(false);
+        } catch (Throwable ignored) { }
+        field.setOnClickListener(v -> showKeyboard(field));
+    }
+
+    /** فتح لوحة المفاتيح على صندوق نص بطلب صريح من المستخدم. */
+    public static void showKeyboard(android.widget.EditText field) {
+        if (field == null) return;
+        field.requestFocus();
+        try {
+            android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager)
+                    field.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(field, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        } catch (Throwable ignored) { }
+    }
+
     private static String cleanUrl(String url) {
         if (url == null) return null;
         String u = url.trim();

@@ -313,38 +313,38 @@
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:layout_marginEnd="14dp"
-                android:background="@drawable/nat_btn_social"
+                android:background="@drawable/nat_btn_social_call"
                 android:contentDescription="اتصال"
                 android:focusable="true"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/fa_phone"
-                app:tint="#FF0284C7" />
+                app:tint="#FFFFFFFF" />
 
             <ImageButton
                 android:id="@+id/auth_social_fb"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:layout_marginEnd="14dp"
-                android:background="@drawable/nat_btn_social"
+                android:background="@drawable/nat_btn_social_fb"
                 android:contentDescription="فيسبوك"
                 android:focusable="true"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/fa_b_facebook_f"
-                app:tint="#FF1877F2" />
+                app:tint="#FFFFFFFF" />
 
             <ImageButton
                 android:id="@+id/auth_social_wa"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:background="@drawable/nat_btn_social"
+                android:background="@drawable/nat_btn_social_wa"
                 android:contentDescription="واتساب"
                 android:focusable="true"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/fa_b_whatsapp"
-                app:tint="#FF25D366" />
+                app:tint="#FFFFFFFF" />
         </LinearLayout>
 
         <TextView

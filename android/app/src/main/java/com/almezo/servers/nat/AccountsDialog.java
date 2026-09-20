@@ -136,7 +136,12 @@ public final class AccountsDialog {
                 store.activate(acc.id);
                 Ui.toast(activity, "تم تفعيل " + serverName);
                 dialog.dismiss();
-                activity.recreate();
+                // التبديل يغيّر المحتوى كلياً: نعود للوحة التحكم مع تحديث إجباري للباقات الثلاث.
+                // كان يكتفي بـrecreate() فتبقى الباقات على كاش الحساب القديم حتى انتهاء صلاحيته.
+                Intent i = new Intent(activity, DashboardActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, true);
+                activity.startActivity(i);
             });
 
             h.btnDelete.setOnClickListener(v -> {

@@ -1051,7 +1051,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.0.96';
+    const CURRENT_APP_VERSION = '1.0.97';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {

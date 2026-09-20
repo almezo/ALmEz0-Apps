@@ -53,6 +53,10 @@ public class AuthActivity extends BaseActivity {
         code = findViewById(R.id.auth_code);
         user = findViewById(R.id.auth_user);
         pass = findViewById(R.id.auth_pass);
+        // لوحة المفاتيح لا تُفتح بمرور تركيز الريموت على الحقول، بل بضغط المستخدم عليها
+        Ui.keyboardOnPressOnly(code);
+        Ui.keyboardOnPressOnly(user);
+        Ui.keyboardOnPressOnly(pass);
         logo = findViewById(R.id.auth_logo);
         title = findViewById(R.id.auth_title);
         progress = findViewById(R.id.auth_progress);
@@ -71,7 +75,7 @@ public class AuthActivity extends BaseActivity {
         login.setOnClickListener(v -> handleLogin());
         back.setOnClickListener(v -> {
             if (stepLogin.getVisibility() == View.VISIBLE) showCodeStep();
-            else finish();
+            else exitToHome();
         });
         toggle.setOnClickListener(v -> {
             passVisible = !passVisible;
@@ -107,7 +111,7 @@ public class AuthActivity extends BaseActivity {
             if (v != null) applyFocusScale(v, 1.12f);
         }
 
-        if (btnHome != null) btnHome.setOnClickListener(v -> finish());
+        if (btnHome != null) btnHome.setOnClickListener(v -> exitToHome());
         if (btnSaved != null) btnSaved.setOnClickListener(v -> AccountsDialog.show(this));
         if (btnDevice instanceof ImageButton) ((ImageButton) btnDevice).setImageResource(DeviceModeDialog.iconFor(this));
         if (btnDevice != null) btnDevice.setOnClickListener(v -> DeviceModeDialog.show(this));
@@ -125,6 +129,12 @@ public class AuthActivity extends BaseActivity {
         String lastCode = store.getString("last_server_code", "");
         if (!lastCode.isEmpty()) code.setText(lastCode);
         showCodeStep();
+    }
+
+    /** الخروج للشاشة الرئيسية يمرّ بافتتاحية "سيرفرات الميزو" مثل الخروج من لوحة التحكم. */
+    private void exitToHome() {
+        IntroActivity.showHome(this);
+        finish();
     }
 
     private void openUrl(String url) {
@@ -151,7 +161,8 @@ public class AuthActivity extends BaseActivity {
         stepLogin.setVisibility(View.VISIBLE);
         logo.setImageResource(server.logoRes);
         title.setText(server.name);
-        user.requestFocus();
+        // التركيز على زر الدخول لا على حقل الاسم، فلا تقفز لوحة المفاتيح فور ظهور الشاشة
+        findViewById(R.id.auth_btn_login).requestFocus();
     }
 
     private void handleServerCode() {
@@ -212,8 +223,9 @@ public class AuthActivity extends BaseActivity {
     private void openDashboard() {
         Intent i = new Intent(this, DashboardActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        // فتح المشغل من البرنامج: تحديث إجباري للباقات الثلاث مرة واحدة في لوحة التحكم
-        i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, getIntent().getBooleanExtra(DashboardActivity.EXTRA_FRESH_OPEN, false));
+        // الدخول بحساب سيرفر يعني محتوى مختلف تماماً، فالباقات الثلاث تُحدَّث إجبارياً دائماً.
+        // كان العلم يُمرَّر كما وصل، فلا يحدث تحديث عند إضافة حساب جديد من داخل المشغل.
+        i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, true);
         startActivity(i);
         finish();
     }

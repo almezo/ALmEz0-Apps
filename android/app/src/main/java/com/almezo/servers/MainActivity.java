@@ -18,10 +18,21 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private boolean isImmersive = false;
 
+    /**
+     * افتتاحية "سيرفرات الميزو" الأصلية تظهر مرة واحدة في الجلسة عند فتح التطبيق، بديلاً عن
+     * افتتاحية HTML القديمة. المتغيّر ثابت (static) فيصفّر تلقائياً عند إغلاق التطبيق كلياً.
+     */
+    private static boolean launchIntroShown = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         optimizeDisplayRefreshRate();
+
+        if (!launchIntroShown) {
+            launchIntroShown = true;
+            com.almezo.servers.nat.IntroActivity.showHome(this);
+        }
 
         // Inject Native Bridge to enable immersive fullscreen and ExoPlayer playback
         if (bridge != null && bridge.getWebView() != null) {

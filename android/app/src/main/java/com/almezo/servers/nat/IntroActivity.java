@@ -18,14 +18,33 @@ import com.almezo.servers.R;
  */
 public class IntroActivity extends BaseActivity {
 
+    /** نمط الافتتاحية: الافتراضي مقدمة المشغل، و MODE_HOME مقدمة العودة للشاشة الرئيسية. */
+    public static final String EXTRA_MODE = "intro_mode";
+    public static final String MODE_HOME = "home";
+
     private static final long DURATION = 1900;
     private boolean leaving = false;
     private boolean started = false;
+    private boolean toHome = false;
+
+    /** نفس الافتتاحية بنص "سيرفرات الميزو": عند فتح التطبيق وعند الخروج من المشغل. */
+    public static void showHome(android.app.Activity a) {
+        if (a == null || a.isFinishing()) return;
+        Intent i = new Intent(a, IntroActivity.class);
+        i.putExtra(EXTRA_MODE, MODE_HOME);
+        a.startActivity(i);
+        a.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.nat_activity_intro);
+        toHome = MODE_HOME.equals(getIntent().getStringExtra(EXTRA_MODE));
+        if (toHome) {
+            ((android.widget.TextView) findViewById(R.id.intro_title)).setText("سيرفرات الميزو");
+            ((android.widget.TextView) findViewById(R.id.intro_sub)).setText("ALmEz0 SERVERS");
+        }
         // احتياط إن لم تصل إشارة ظهور النافذة
         ui.postDelayed(this::startIntro, 1500);
     }
@@ -72,7 +91,7 @@ public class IntroActivity extends BaseActivity {
         bar.animate().scaleX(1f).setStartDelay(300).setDuration(DURATION - 450)
                 .setInterpolator(new AccelerateInterpolator(0.6f)).start();
 
-        ui.postDelayed(this::openPlayer, DURATION);
+        ui.postDelayed(this::leave, DURATION);
     }
 
     private void pulse(View ring, long delay) {
@@ -83,14 +102,17 @@ public class IntroActivity extends BaseActivity {
                 .setInterpolator(new LinearInterpolator()).start();
     }
 
-    private void openPlayer() {
+    private void leave() {
         if (leaving || isFinishing()) return;
         leaving = true;
         findViewById(R.id.intro_content).animate().alpha(0f).scaleX(1.06f).scaleY(1.06f).setDuration(220)
                 .withEndAction(() -> {
-                    Intent i = new Intent(this, AuthActivity.class);
-                    i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, true);
-                    startActivity(i);
+                    // نمط الشاشة الرئيسية: نغلق فقط، فالشاشة الرئيسية تنتظر تحتنا في المكدس
+                    if (!toHome) {
+                        Intent i = new Intent(this, AuthActivity.class);
+                        i.putExtra(DashboardActivity.EXTRA_FRESH_OPEN, true);
+                        startActivity(i);
+                    }
                     overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
                     finish();
                 }).start();

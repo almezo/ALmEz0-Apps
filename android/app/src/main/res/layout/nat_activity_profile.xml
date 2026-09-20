@@ -262,38 +262,38 @@
                     android:layout_width="46dp"
                     android:layout_height="46dp"
                     android:layout_marginEnd="16dp"
-                    android:background="@drawable/nat_btn_social"
+                    android:background="@drawable/nat_btn_social_call"
                     android:contentDescription="اتصال"
                     android:focusable="true"
                     android:padding="12dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/fa_phone"
-                    app:tint="#FF0284C7" />
+                    app:tint="#FFFFFFFF" />
 
                 <ImageButton
                     android:id="@+id/prof_social_fb"
                     android:layout_width="46dp"
                     android:layout_height="46dp"
                     android:layout_marginEnd="16dp"
-                    android:background="@drawable/nat_btn_social"
+                    android:background="@drawable/nat_btn_social_fb"
                     android:contentDescription="فيسبوك"
                     android:focusable="true"
                     android:padding="12dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/fa_b_facebook_f"
-                    app:tint="#FF1877F2" />
+                    app:tint="#FFFFFFFF" />
 
                 <ImageButton
                     android:id="@+id/prof_social_wa"
                     android:layout_width="46dp"
                     android:layout_height="46dp"
-                    android:background="@drawable/nat_btn_social"
+                    android:background="@drawable/nat_btn_social_wa"
                     android:contentDescription="واتساب"
                     android:focusable="true"
                     android:padding="12dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/fa_b_whatsapp"
-                    app:tint="#FF25D366" />
+                    app:tint="#FFFFFFFF" />
             </LinearLayout>
 
             <TextView
