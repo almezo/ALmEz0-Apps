@@ -125,6 +125,7 @@
                 style="@style/NatText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:textDirection="ltr"
                 android:text="ALmEz0 - سيرفرات الميزو - جميع الحقوق محفوظة © 2026"
                 android:textColor="@color/nat_soft"
                 android:textSize="16sp" />

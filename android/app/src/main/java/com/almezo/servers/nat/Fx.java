@@ -235,6 +235,9 @@ public final class Fx {
 
         View best = null;
         float bestScore = Float.MAX_VALUE;
+        // أفضل مرشّح واقع داخل حدود المصدر؛ له الأولوية المطلقة (انظر آخر الدالة)
+        View bestNested = null;
+        float bestNestedScore = Float.MAX_VALUE;
         for (int i = 0; i < all.size(); i++) {
             View v = all.get(i);
             if (v == from || !v.isShown() || !v.isEnabled()) continue;
@@ -243,6 +246,29 @@ public final class Fx {
             // العنصر الذي يحتوي المصدر (حاوية أكبر) ليس هدفاً، أما العنصر الداخلي
             // (زر التحديث داخل بطاقة الباقة مثلاً) فهدف مشروع ويجب الوصول إليه.
             if (r.contains(src)) continue;
+
+            /*
+             * مرشّح يقع داخل حدود المصدر: زر التحديث داخل بطاقة الباقة، وأزرار السجل
+             * والإغلاق داخل جذر نافذة مساعد الميزو القابل للتركيز.
+             *
+             * لا تفصل هذه الأزرارَ عن المصدر حافةٌ في أي اتجاه، فالحساب بالحواف يعطي
+             * along سالباً دائماً ويُرفض المرشّح — فتصير هذه الأزرار غير قابلة للوصول
+             * بالريموت إطلاقاً مهما ضغط المستخدم. هنا نحتكم إلى موقع المركز لا الحافة.
+             */
+            if (src.contains(r)) {
+                float dx = r.exactCenterX() - sx, dy = r.exactCenterY() - sy;
+                float nAlong, nAcross;
+                switch (direction) {
+                    case View.FOCUS_LEFT:  nAlong = -dx; nAcross = Math.abs(dy); break;
+                    case View.FOCUS_RIGHT: nAlong = dx;  nAcross = Math.abs(dy); break;
+                    case View.FOCUS_UP:    nAlong = -dy; nAcross = Math.abs(dx); break;
+                    default:               nAlong = dy;  nAcross = Math.abs(dx); break;
+                }
+                if (nAlong <= 2) continue;
+                float nestedScore = nAlong + nAcross * 0.5f;
+                if (nestedScore < bestNestedScore) { bestNestedScore = nestedScore; bestNested = v; }
+                continue;
+            }
 
             float along, across;
             boolean overlaps;
@@ -270,6 +296,11 @@ public final class Fx {
             float score = Math.max(along, 0) + across * (overlaps ? 0.25f : 2.5f);
             if (score < bestScore) { bestScore = score; best = v; }
         }
+
+        // ما دام التركيز على حاوية، فأزرارها الداخلية أولى من أي عنصر خارجها مهما قرُب:
+        // بلا هذه الأولوية يفوز زر التذييل على زر التحديث داخل البطاقة فيبقى بعيد المنال.
+        // ولا حصار هنا: الزر الداخلي ورقة بلا أبناء، فالضغطة التالية تخرج منه طبيعياً.
+        if (bestNested != null) return bestNested;
         return best;
     }
 

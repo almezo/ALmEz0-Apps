@@ -3886,9 +3886,20 @@ function closeFullscreenPlayer(isFromPopState = false) {
     if (container) container.innerHTML = '';
 
     const modal = document.getElementById('fullscreenVideoModal');
+    const wasOpen = !!(modal && !modal.classList.contains('hidden'));
     if (modal) modal.classList.add('hidden');
 
-    if (!isFromPopState) {
+    /*
+     * الرجوع في التاريخ يُلغي حالة {modal:'fullscreen'} التي دفعناها عند فتح المشغل
+     * بملء الشاشة — فقط إن كنا قد دفعناها فعلاً.
+     *
+     * كان history.back() يُنفَّذ بلا شرط، وتُستدعى هذه الدالة احتياطاً لإيقاف أي فيديو
+     * من تسجيل الخروج ومن تبديل السيرفر والمشغل مغلق أصلاً، فيرجع المتصفح خطوة إلى
+     * index.html ويخرج المستخدم من المشغل كلياً بدل أن تُفتح شاشة كود السيرفر أو
+     * لوحة السيرفر الجديد.
+     */
+    const onFullscreenEntry = !!(history.state && history.state.modal === 'fullscreen');
+    if (!isFromPopState && wasOpen && onFullscreenEntry) {
         history.back();
     }
 }
