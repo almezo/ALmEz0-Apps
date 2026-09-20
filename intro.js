@@ -47,7 +47,7 @@
             '@keyframes mizoIntroRise{to{opacity:1;transform:translateY(0)}}',
             '.mizo-intro-track{margin-top:30px;width:280px;height:5px;border-radius:4px;',
             'background:rgba(255,255,255,.12);overflow:hidden}',
-            '.mizo-intro-bar{width:100%;height:100%;border-radius:4px;transform-origin:right center;',
+            '.mizo-intro-bar{display:block;width:100%;height:100%;border-radius:4px;transform-origin:right center;',
             'transform:scaleX(0);background:linear-gradient(90deg,#16a34a,#22c55e);',
             'animation:mizoIntroBar 1.45s .3s cubic-bezier(.4,0,.6,1) forwards}',
             '@keyframes mizoIntroBar{to{transform:scaleX(1)}}'

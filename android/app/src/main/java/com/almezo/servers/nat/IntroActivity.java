@@ -58,6 +58,11 @@ public class IntroActivity extends BaseActivity {
         String mode = getIntent().getStringExtra(EXTRA_MODE);
         toHome = MODE_HOME.equals(mode) || MODE_SERVER.equals(mode);
 
+        // افتتاحية السيرفر تسبق المشغل مباشرة، والمشغل أفقي دائماً، فتُفتح أفقية مثله
+        if (MODE_SERVER.equals(mode)) {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        }
+
         setContentView(R.layout.nat_activity_intro);
         if (MODE_SERVER.equals(mode)) {
             Servers.Server srv = Servers.find(getIntent().getStringExtra(EXTRA_SERVER_CODE));

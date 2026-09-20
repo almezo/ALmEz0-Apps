@@ -130,9 +130,10 @@ public final class AccountsDialog {
 
             boolean isActive = active != null && active.id.equals(acc.id);
             h.activeBadge.setVisibility(isActive ? View.VISIBLE : View.GONE);
-            h.btnActivate.setVisibility(isActive ? View.GONE : View.VISIBLE);
+            h.btnActivate.setVisibility(View.GONE);
 
-            h.btnActivate.setOnClickListener(v -> {
+            // الضغط على بطاقة السيرفر نفسها يفعّله — لا حاجة لزر منفصل داخلها
+            View.OnClickListener activate = v -> {
                 store.activate(acc.id);
                 Ui.toast(activity, "تم تفعيل " + serverName);
                 dialog.dismiss();
@@ -144,7 +145,9 @@ public final class AccountsDialog {
                 activity.startActivity(i);
                 // شاشة اتصال قصيرة بشعار السيرفر الجديد فوق لوحة التحكم
                 IntroActivity.showServer(activity, acc.serverCode);
-            });
+            };
+            h.itemView.setOnClickListener(isActive ? null : activate);
+            h.itemView.setClickable(!isActive);
 
             h.btnDelete.setOnClickListener(v -> {
                 store.deleteAccount(acc.id);

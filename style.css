@@ -1059,7 +1059,7 @@ footer {
 }
 
 .social-icons a {
-    color: var(--text-secondary);
+    color: #ffffff;
     font-size: 1.2rem;
     transition: var(--transition);
     width: 40px;
@@ -1068,28 +1068,39 @@ footer {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
     background: var(--bg-surface);
 }
 
+/* ألوان التواصل الرسمية دائمة والأيقونة بيضاء — نفس ما اعتُمد في تطبيق أندرويد،
+   وهذا الملف تستعمله ثلاث واجهات: الموقع، وشاشة البطاقات في أندرويد، وفي الكمبيوتر. */
+.social-icons a[title="Facebook"] {
+    background: #1877F2;
+}
+
+.social-icons a[title="WhatsApp"] {
+    background: #25D366;
+}
+
+.social-icons a[title="Call"] {
+    background: #F59E0B;
+}
+
 .social-icons a:hover {
-    color: #fff;
+    color: #ffffff;
     transform: translateY(-3px);
 }
 
 .social-icons a[title="Facebook"]:hover {
-    background: #1877f2;
-    box-shadow: 0 5px 15px rgba(24, 119, 242, 0.3);
+    box-shadow: 0 5px 15px rgba(24, 119, 242, 0.45);
 }
 
 .social-icons a[title="WhatsApp"]:hover {
-    background: #25d366;
-    box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);
+    box-shadow: 0 5px 15px rgba(37, 211, 102, 0.45);
 }
 
 .social-icons a[title="Call"]:hover {
-    background: #ffc107;
-    color: #141820;
-    box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
+    box-shadow: 0 5px 15px rgba(245, 158, 11, 0.45);
 }
 
 /* النوافذ المنبثقة بتأثير الزجاج */

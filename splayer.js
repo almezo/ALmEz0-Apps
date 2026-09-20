@@ -446,9 +446,10 @@ function mizoInstallQueueButtons() {
         b.onclick = () => mizoPlayAdjacent(dir === 'next' ? 1 : -1);
         return b;
     };
-    // ترتيب 6 و7: بعد أزرار التقديم والصوت والوقت، فلا تختلط بها
-    bar.appendChild(make('prev', labels.prev, 'fa-backward-step', 6));
-    bar.appendChild(make('next', labels.next, 'fa-forward-step', 7));
+    // ترتيب 8 و9: الوقت الحالي 5 والفاصل 6 والمدة 7، فكان 6 و7 يضعان الزرّين بين
+    // عدّادي الوقت. الآن يأتيان بعد المدة مباشرة وقبل بقية الأزرار.
+    bar.appendChild(make('prev', labels.prev, 'fa-backward-step', 8));
+    bar.appendChild(make('next', labels.next, 'fa-forward-step', 9));
 }
 
 function playCurrentLiveNative() {
@@ -1909,6 +1910,24 @@ function playStream(id, type, extension, name, icon) {
                 const player = this;
                 try { mizoInstallQueueButtons(); } catch (e) { }
 
+                /*
+                 * بعض مضيفات الملفات ترسل مقطعاً بديلاً مدته ثوانٍ فيه رسالة حظر (مثل رسالة
+                 * Cloudflare) بدل الفيلم نفسه، وهو فيديو صالح فلا يلتقطه معالج الأخطاء.
+                 * فيلم أو حلقة مدتها أقل من 20 ثانية ليست محتوى حقيقياً: نجرّب الرابط التالي.
+                 */
+                player.one('loadedmetadata', function () {
+                    try {
+                        const t = currentStreamInfo && currentStreamInfo.type;
+                        if (t !== 'live') {
+                            const d = player.duration();
+                            if (d > 0 && d < 20 && currentTryIndex < urlQueue.length - 1) {
+                                console.warn('مقطع قصير غير حقيقي (' + d + 'ث): تجربة الرابط التالي');
+                                triggerFallback();
+                            }
+                        }
+                    } catch (e) { }
+                });
+
                 // رصد عمليات التقديم والتأخير (Seeking) لمنع الانهيار وإخفاء علامة البوز
                 player.on('seeking', function () {
                     isSeeking = true;
@@ -2464,21 +2483,9 @@ function logout() {
         if (typeof closeLivePlayer === 'function') closeLivePlayer();
         if (typeof closeFullscreenPlayer === 'function') closeFullscreenPlayer();
 
-        // 2. حذف السيرفر الحالي من سجل الحسابات المحفوظة (sp_accounts) حتى لا يبقى محفوظاً بعد تسجيل الخروج
-        try {
-            const activeAccId = localStorage.getItem('sp_active_acc_id');
-            const currentUser = state.username || localStorage.getItem('sp_user');
-            const currentCode = state.serverCode || localStorage.getItem('sp_server_code');
-            const accounts = getSavedAccounts();
-            const filteredAccounts = accounts.filter(a => {
-                if (activeAccId && a.id === activeAccId) return false;
-                if (currentUser && a.username && a.username.toLowerCase() === currentUser.toLowerCase() && (!currentCode || a.serverCode === currentCode)) return false;
-                return true;
-            });
-            localStorage.setItem('sp_accounts', JSON.stringify(filteredAccounts));
-        } catch (err) {
-            console.error('Error removing account on logout:', err);
-        }
+        // 2. الحساب يبقى محفوظاً في قوائم التشغيل بعد الخروج — نفس سلوك أندرويد
+        //    (Store.logout يضع علامة خروج فقط ولا يحذف شيئاً). كان الخروج يمسح السيرفر
+        //    من sp_accounts نهائياً فيفقد المستخدم بياناته ويعيد إدخالها من جديد.
 
         // مسح بيانات سيرفر المشغل النشط
         localStorage.removeItem('sp_user');
@@ -3706,6 +3713,15 @@ function openNativeFullscreen(el) {
 }
 
 function exitNativeFullscreen() {
+    // ملء الشاشة عندنا ثلاث طبقات: صنف الصفحة، وملء شاشة المتصفح، ونافذة إلكترون.
+    // كان يُلغى الأول فقط فيبقى البرنامج ملء الشاشة بعد إغلاق الفيديو.
+    try {
+        const liveWrap = document.getElementById('livePlayerWrapper');
+        if (liveWrap && liveWrap.classList.contains('live-fullscreen-mode')
+            && typeof toggleLivePlayerFullscreen === 'function') {
+            toggleLivePlayerFullscreen(false);
+        }
+    } catch (e) { }
     try {
         if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullScreenElement) {
             if (document.exitFullscreen) {
@@ -3791,9 +3807,18 @@ document.addEventListener('fullscreenchange', () => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         const liveWrap = document.getElementById('livePlayerWrapper');
-        if (liveWrap && liveWrap.classList.contains('live-fullscreen-mode')) {
+        const inLiveFs = liveWrap && liveWrap.classList.contains('live-fullscreen-mode');
+        const inVideoFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        if (inLiveFs) {
             toggleLivePlayerFullscreen(false);
+            e.preventDefault();
+            e.stopPropagation();
+        } else if (inVideoFs) {
+            exitNativeFullscreen();
+            e.preventDefault();
+            e.stopPropagation();
         }
+        // خارج ملء الشاشة: يكمل Escape طريقه المعتاد (الرجوع للشاشة السابقة)
     } else if ((e.key === 'f' || e.key === 'F') && !e.target.matches('input, textarea, select')) {
         const liveWrap = document.getElementById('livePlayerWrapper');
         if (liveWrap && currentStreamInfo && currentStreamInfo.type === 'live') {

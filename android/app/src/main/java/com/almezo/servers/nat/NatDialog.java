@@ -31,6 +31,27 @@ public class NatDialog extends android.app.Dialog {
         Fx.install(getWindow());
     }
 
+    /**
+     * نفس محرك التنقل الهندسي المستعمل في الشاشات. النوافذ المنبثقة لها نافذة مستقلة لا
+     * تمرّ بـBaseActivity، فكان التنقل فيها يتبع خوارزمية أندرويد وحدها: الضغط يساراً على
+     * بطاقة سيرفر لا يحرّك شيئاً، ولا يمكن الوصول لزر الحذف داخلها إلا بدورة طويلة.
+     */
+    @Override
+    public boolean dispatchKeyEvent(@NonNull android.view.KeyEvent event) {
+        if (event.getAction() == android.view.KeyEvent.ACTION_DOWN && getWindow() != null) {
+            int dir = Fx.directionOf(event.getKeyCode());
+            android.view.View focused = getCurrentFocus();
+            if (dir != 0 && focused != null && !(focused instanceof android.widget.EditText)) {
+                android.view.View next = Fx.spatialNext(getWindow().getDecorView(), focused, dir);
+                if (next != null && next != focused) {
+                    next.requestFocus();
+                    return true;
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override
     public boolean dispatchTouchEvent(@NonNull MotionEvent ev) {
         if (getWindow() != null) Fx.onTouch(getWindow().getDecorView(), ev);

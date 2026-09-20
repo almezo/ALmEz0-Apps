@@ -169,6 +169,17 @@ if (!gotTheLock) {
                 mainWindow.webContents.focus();
                 // نبضة للصفحة نفسها: invalidate وحده لا يكفي حين يتوقف المُركِّب
                 mainWindow.webContents.send('mizo-wake');
+
+                /*
+                 * نبضة على مستوى النافذة: تغيير شفافية غير مرئي يجبر ويندوز على إعادة
+                 * تركيب النافذة كلها. الدليل على أن العطل في التركيب لا في الصفحة أن
+                 * ضغطة Escape كانت تُعيدها للعمل فوراً — أي أن الصفحة حيّة وتستجيب.
+                 * لا يغيّر الحجم ولا الوضع، فيصلح مع النافذة المكبّرة وملء الشاشة أيضاً.
+                 */
+                mainWindow.setOpacity(0.996);
+                setTimeout(() => {
+                    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setOpacity(1);
+                }, 16);
             } catch (e) { }
         };
         mainWindow.on('focus', wakeUpWindow);
