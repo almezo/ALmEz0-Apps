@@ -49,6 +49,9 @@ if (!gotTheLock) {
                 contextIsolation: true,
                 preload: path.join(__dirname, 'preload.js'),
                 spellcheck: false,
+                // بلا خنق للخلفية: عند الانتقال لبرنامج آخر كان كروميوم يجمّد المؤقتات
+                // والرسم، فيعود البرنامج أحياناً بشاشة متجمّدة لا تستجيب حتى إعادة تشغيله.
+                backgroundThrottling: false,
                 sandbox: false,
                 webSecurity: false,
                 allowRunningInsecureContent: true
@@ -151,6 +154,22 @@ if (!gotTheLock) {
                 }
             } catch (e) { }
         });
+
+        /**
+         * عند العودة للبرنامج من برنامج آخر: نجبر إعادة رسم وتركيز لوحة المحتوى.
+         * تسريع العتاد وطبقات العرض في ويندوز قد يترك النافذة بصورة قديمة لا تستجيب،
+         * وكان يظهر ذلك خصوصاً في شاشة كتابة كود السيرفر.
+         */
+        const wakeUpWindow = () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            try {
+                mainWindow.webContents.invalidate();
+                mainWindow.webContents.focus();
+            } catch (e) { }
+        };
+        mainWindow.on('focus', wakeUpWindow);
+        mainWindow.on('restore', wakeUpWindow);
+        mainWindow.on('show', wakeUpWindow);
 
         mainWindow.on('closed', () => {
             mainWindow = null;

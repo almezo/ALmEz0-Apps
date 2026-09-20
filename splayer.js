@@ -382,6 +382,74 @@ function showTvLiveOsd(name, icon) {
     }, 3500);
 }
 
+/**
+ * قائمة التشغيل الجارية (قنوات القسم أو حلقات الموسم) وأزرار التالي/السابق في شريط المشغل،
+ * مثل btn_next_item و btn_prev_item في مشغل أندرويد.
+ */
+window.mizoQueue = null;
+
+function mizoSetQueue(kind, items, index) {
+    if (!items || items.length < 2 || index < 0) { window.mizoQueue = null; return; }
+    window.mizoQueue = { kind: kind, items: items.slice(), index: index };
+}
+
+function mizoPlayAdjacent(delta) {
+    const q = window.mizoQueue;
+    if (!q) return;
+    let i = q.index + delta;
+    if (q.kind === 'live') {
+        // القنوات تدور: بعد الأخيرة نعود للأولى
+        if (i < 0) i = q.items.length - 1;
+        if (i >= q.items.length) i = 0;
+    } else if (i < 0 || i >= q.items.length) {
+        if (typeof showToast === 'function') {
+            showToast(delta > 0 ? 'هذه آخر حلقة في الموسم' : 'هذه أول حلقة في الموسم', 'info');
+        }
+        return;
+    }
+    q.index = i;
+    const it = q.items[i];
+    if (q.kind === 'live') {
+        playStream(it.stream_id, 'live', 'm3u8', it.name, it.stream_icon);
+        if (typeof showTvLiveOsd === 'function') showTvLiveOsd(it.name, it.stream_icon);
+    } else {
+        playStream(it.id, 'series', it.ext || 'mp4', it.title, it.cover);
+    }
+}
+
+/** حقن زرّي السابق والتالي في شريط تحكم المشغل بعد جهوزيته. */
+function mizoInstallQueueButtons() {
+    const bar = document.querySelector('.video-js .vjs-control-bar');
+    if (!bar) return;
+    const q = window.mizoQueue;
+    const existing = bar.querySelectorAll('.mizo-queue-btn');
+    if (!q) { existing.forEach(b => b.remove()); return; }
+    const isLive = q.kind === 'live';
+    const labels = isLive
+        ? { prev: 'القناة السابقة', next: 'القناة التالية' }
+        : { prev: 'الحلقة السابقة', next: 'الحلقة التالية' };
+    if (existing.length === 2) {
+        existing[0].title = labels.prev;
+        existing[1].title = labels.next;
+        return;
+    }
+    existing.forEach(b => b.remove());
+    const make = (dir, title, icon, order) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vjs-control vjs-button mizo-queue-btn mizo-queue-' + dir;
+        b.title = title;
+        b.setAttribute('aria-label', title);
+        b.style.order = order;
+        b.innerHTML = '<span class="mizo-queue-icon"><i class="fas ' + icon + '"></i></span>';
+        b.onclick = () => mizoPlayAdjacent(dir === 'next' ? 1 : -1);
+        return b;
+    };
+    // ترتيب 2 و3 يضعهما بين زر التشغيل وأزرار التقديم مباشرة
+    bar.appendChild(make('prev', labels.prev, 'fa-backward-step', 2));
+    bar.appendChild(make('next', labels.next, 'fa-forward-step', 3));
+}
+
 function playCurrentLiveNative() {
     if (!currentStreamInfo || currentStreamInfo.type !== 'live') return;
     const host = getBestHost();
@@ -667,7 +735,8 @@ function showScreen(screenId, isBackNavigation = false) {
 
     // تفعيل التركيز التلقائي للريموت في وضع التلفزيون عند الانتقال لأي شاشة
     const isTvMode = document.body.classList.contains('tv-device-mode');
-    if (isTvMode && typeof setFocus === 'function') {
+    // التركيز التلقائي للريموت لا يعمل ما دام المستخدم يستعمل الماوس، وإلا ظهر الإطار بلا سبب
+    if (isTvMode && window.__mizoKeyboardNav && typeof setFocus === 'function') {
         setTimeout(() => {
             if (screenId === 'dashboard-screen') {
                 const liveCard = document.getElementById('cardLive');
@@ -982,6 +1051,8 @@ function deleteAccount(accId) {
 }
 
 function activateAccount(accId) {
+    // تبديل الحساب = محتوى مختلف كلياً: نفرض تحديث الباقات الثلاث مهما كان عمر الكاش
+    try { sessionStorage.setItem('sp_account_changed', '1'); } catch (e) { }
     const accounts = getSavedAccounts();
     const target = accounts.find(a => a.id === accId);
     if (!target) return;
@@ -1358,10 +1429,12 @@ async function handleLogin() {
     const proxyUrl = getProxyUrl(apiUrl);
 
     try {
-        const res = await fetch(proxyUrl);
+        const res = await panelFetch(proxyUrl);
         const data = await res.json();
 
         if (data && data.user_info && data.user_info.auth === 1) {
+            // دخول بحساب جديد: تحديث إجباري للباقات مثل تطبيق أندرويد
+            try { sessionStorage.setItem('sp_account_changed', '1'); } catch (e) { }
             state.userInfo = data.user_info;
             state.username = user;
             state.password = pass;
@@ -1467,6 +1540,11 @@ function playStream(id, type, extension, name, icon) {
     }
 
     currentStreamInfo = { id, type, extension, name, icon, mediaDetails: window.currentMediaDetails || null };
+    // قائمة تشغيل القنوات: كل قنوات القسم المعروض حالياً
+    if (type === 'live' && Array.isArray(currentItemsArray) && currentItemsArray.length > 1) {
+        const qi = currentItemsArray.findIndex(it => String(it.stream_id) === String(id));
+        if (qi >= 0) mizoSetQueue('live', currentItemsArray, qi);
+    }
     if (type === 'live') {
         sessionStorage.setItem('sp_last_live_stream', JSON.stringify({ id, type, extension, name, icon }));
     }
@@ -1812,6 +1890,7 @@ function playStream(id, type, extension, name, icon) {
 
             window.vjsPlayer.ready(function () {
                 const player = this;
+                try { mizoInstallQueueButtons(); } catch (e) { }
 
                 // رصد عمليات التقديم والتأخير (Seeking) لمنع الانهيار وإخفاء علامة البوز
                 player.on('seeking', function () {
@@ -2482,6 +2561,7 @@ function switchTab(tabId, element) {
     if (tabId === 'dashboard') {
         showScreen('dashboard-screen');
     } else if (tabId === 'live') {
+        if (typeof mizoLoadLogoIndex === 'function') mizoLoadLogoIndex();
         showScreen('live-screen');
         loadCategories('get_live_categories', 'live');
     } else if (tabId === 'movies') {
@@ -2596,13 +2676,25 @@ function renderProfileFields(user) {
         uNameEl.innerText = user.username || state.username || 'المستخدم';
     }
 
+    // اسم السيرفر النشط — صف موجود في شاشة حساب أندرويد وكان ناقصاً هنا
+    const serverEl = document.getElementById('profileServer');
+    if (serverEl) {
+        let srvName = '';
+        try {
+            const info = JSON.parse(localStorage.getItem('sp_server_info') || '{}');
+            srvName = info && info.name ? info.name : '';
+        } catch (e) { }
+        serverEl.innerText = srvName || localStorage.getItem('sp_server_code') || '--';
+    }
+
     // Status & Type
     const statusEl = document.getElementById('profileStatus');
     const typeEl = document.getElementById('profileType');
     const isTrial = String(user.is_trial) === '1';
 
     let statusText = 'متصل';
-    let typeText = isTrial ? 'حساب تجريبي' : 'حساب نشط';
+    // نفس نص أندرويد حرفياً
+    let typeText = isTrial ? 'حساب تجريبي' : 'حساب نشط ✓';
 
     if (user.status) {
         const sLower = String(user.status).toLowerCase();
@@ -2775,8 +2867,31 @@ setInterval(updateCardTimestamps, 15000);
 let isSequentialSyncRunning = false;
 
 // 💡 نظام التحديث التلقائي المتسلسل الإجباري عند كل دخول للمشغل (بشكل منفرد ونمط مارفل تماماً)
+/** هل مرّت ساعتان على آخر تحديث لإحدى الباقات؟ (نفس قاعدة أندرويد: OPEN_REFRESH_AFTER_MS) */
+const PACKAGES_STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+function packagesStale() {
+    const types = ['live', 'vod', 'series'];
+    for (const t of types) {
+        const last = parseInt(localStorage.getItem('sp_last_updated_' + t) || '0', 10);
+        if (!last || Date.now() - last > PACKAGES_STALE_AFTER_MS) return true;
+    }
+    return false;
+}
+
 async function runSequentialAutoSync() {
     if (isSequentialSyncRunning) return;
+
+    // التحديث الإجباري في كل فتح كان يُغرق لوحة السيرفر بستة طلبات ثقيلة فيُحظر الـIP.
+    // القاعدة الآن كأندرويد: إجباري عند دخول أو تبديل حساب فقط، أو إن تجاوز الكاش ساعتين.
+    let accountChanged = false;
+    try {
+        accountChanged = sessionStorage.getItem('sp_account_changed') === '1';
+        if (accountChanged) sessionStorage.removeItem('sp_account_changed');
+    } catch (e) { }
+    if (!accountChanged && !packagesStale()) {
+        if (typeof updateCardTimestamps === 'function') updateCardTimestamps();
+        return;
+    }
 
     const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
     if (!host || !state.username || !state.password) {
@@ -2944,6 +3059,55 @@ function forceRefreshData() {
     }
 }
 
+/**
+ * بوابة واحدة لكل طلبات لوحة السيرفر — نفس القاعدة المطبّقة في تطبيق أندرويد.
+ *
+ * لوحات Xtream تحظر الـIP عند رشقات الطلبات، وقد تأكّد ذلك عملياً: حين يقع الحظر يفشل
+ * المتصفح أيضاً على نفس الشبكة، ويزول بتغيير الإنترنت. برنامج الكمبيوتر كان يتصل باللوحة
+ * مباشرة بلا أي تنظيم، ويطلق طلبين ثقيلين معاً عند التحديث.
+ *
+ * الحد هنا: اتصالان متزامنان كحد أقصى، وربع ثانية على الأقل بين بداية طلب وآخر
+ * (أربعة طلبات في الثانية سقفاً للبرنامج كله). سقف لا يمكن تجاوزه من أي شاشة.
+ */
+var PANEL_MAX_CONCURRENT = 2;
+var PANEL_MIN_GAP_MS = 250;
+var panelActiveCount = 0;
+var panelLastStartedAt = 0;
+var panelWaitQueue = [];
+
+function panelGatePump() {
+    if (!panelWaitQueue.length || panelActiveCount >= PANEL_MAX_CONCURRENT) return;
+    var wait = panelLastStartedAt + PANEL_MIN_GAP_MS - Date.now();
+    if (wait > 0) {
+        setTimeout(panelGatePump, wait);
+        return;
+    }
+    panelLastStartedAt = Date.now();
+    panelActiveCount++;
+    var run = panelWaitQueue.shift();
+    run();
+}
+
+/** نفس fetch لكن عبر البوابة. يُستعمل لكل ما يذهب إلى لوحة السيرفر دون استثناء. */
+function panelFetch(url, options) {
+    return new Promise(function (resolve, reject) {
+        panelWaitQueue.push(function () {
+            var done = function () {
+                panelActiveCount--;
+                panelGatePump();
+            };
+            fetch(url, options).then(function (res) {
+                done();
+                resolve(res);
+            }, function (err) {
+                done();
+                reject(err);
+            });
+        });
+        panelGatePump();
+    });
+}
+
 async function proxyFetch(apiUrl, useCache = true) {
     if (useCache && fetchCache[apiUrl]) {
         const cacheEntry = fetchCache[apiUrl];
@@ -2960,7 +3124,7 @@ async function proxyFetch(apiUrl, useCache = true) {
     const targetUrl = getProxyUrl(apiUrl);
     const burstUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
 
-    const fetchPromise = fetch(burstUrl, { cache: 'no-store' }).then(async res => {
+    const fetchPromise = panelFetch(burstUrl, { cache: 'no-store' }).then(async res => {
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             throw new Error(errData.message || `HTTP ${res.status}`);
@@ -3108,8 +3272,9 @@ async function loadCategories(action, type) {
         const savedCatId = sessionStorage.getItem('sp_active_cat_' + type);
         let defaultClicked = false;
 
-        // اختيار قسم محفوظ إن وُجد (ما عدا recent لتسريع الفتح) أو أول قسم حقيقي يحتوي على محتوى
-        if (savedCatId && savedCatId !== 'recent') {
+        // فتح الأفلام والمسلسلات يبدأ دائماً من "المضافة حديثاً" (القسم المحفوظ يُضبط إلى
+        // recent عند الضغط على البطاقة). كان recent مستثنى هنا فيُفتح أول قسم عادي بدلاً منه.
+        if (savedCatId) {
             const savedCatEl = Array.from(container.querySelectorAll('.list-item')).find(el => {
                 const countSpan = el.querySelector('.cat-count');
                 return countSpan && countSpan.getAttribute('data-cat-id') === String(savedCatId);
@@ -4182,7 +4347,7 @@ async function showSeriesDetails(seriesId, name, cover) {
                 return;
             }
 
-            seasonData.forEach(ep => {
+            seasonData.forEach((ep, epIndex) => {
                 const epCard = document.createElement('div');
                 epCard.className = 'episode-card';
 
@@ -4228,6 +4393,22 @@ async function showSeriesDetails(seriesId, name, cover) {
                             epNum,
                             time: Date.now()
                         }));
+                    } catch (e) { }
+                    // قائمة تشغيل الحلقات: كل حلقات الموسم المعروض، لأزرار السابق والتالي
+                    try {
+                        const qItems = seasonData.map((e, i) => {
+                            let t = e.title || (e.episode_num ? ('الحلقة ' + e.episode_num) : ('حلقة ' + (i + 1)));
+                            const m = String(t).match(/E(\d+)/i);
+                            if (m && m[1] && /S\d+[\.\s]?E\d+/i.test(t)) t = 'الحلقة ' + parseInt(m[1]);
+                            return {
+                                id: e.id || e.stream_id || e.episode_id,
+                                ext: e.container_extension || 'mp4',
+                                title: name + ' - ' + t,
+                                cover: (e.info && e.info.movie_image) ? e.info.movie_image : cover
+                            };
+                        }).filter(e => e.id);
+                        const qi = qItems.findIndex(e => String(e.id) === String(epId));
+                        mizoSetQueue('series', qItems, qi);
                     } catch (e) { }
                     playStream(epId, 'series', ep.container_extension || 'mp4', `${name} - ${epTitle}`, epCover);
                 };
@@ -4371,31 +4552,31 @@ function renderPopularShelf(type, currentId, targetCategoryId, genreText) {
 }
 
 // نافذة عرض الإعلان الترويجي (Trailer Modal)
+/**
+ * فتح الإعلان الترويجي في المتصفح الخارجي — نفس سلوك تطبيق أندرويد
+ * (MovieDetailsActivity.openTrailer يستدعي Intent.ACTION_VIEW).
+ *
+ * التضمين داخل نافذة كان يفشل بالخطأ 153 من يوتيوب، ومعناه أن صاحب الفيديو منع التضمين،
+ * وهو شائع جداً في إعلانات الأفلام الرسمية. فتحه خارجياً يعمل دائماً بلا أخطاء.
+ */
 function openTrailerModal(trailerKey, title) {
-    const modal = document.getElementById('trailerModal');
-    const titleEl = document.getElementById('trailerModalTitle');
-    const videoWrap = document.getElementById('trailerVideoWrapper');
-    if (!modal || !videoWrap) return;
-
-    if (titleEl) {
-        titleEl.innerHTML = `<i class="fab fa-youtube" style="color:#ff2a2a; margin-left:8px;"></i> إعلان: ${title || 'الإعلان الترويجي'}`;
-    }
-
-    let embedUrl = '';
-    if (trailerKey && typeof trailerKey === 'string' && trailerKey.trim() !== '') {
+    let url = '';
+    if (trailerKey && typeof trailerKey === 'string' && trailerKey.trim() !== '' && trailerKey.trim() !== 'null') {
         const key = trailerKey.trim();
-        if (key.includes('youtube.com') || key.includes('youtu.be')) {
-            const videoIdMatch = key.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-            const id = videoIdMatch ? videoIdMatch[1] : '';
-            embedUrl = id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0` : key;
-        } else {
-            embedUrl = `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0`;
-        }
+        url = key.startsWith('http') ? key : ('https://www.youtube.com/watch?v=' + key);
     } else {
-        const query = encodeURIComponent((title || '') + ' official trailer');
-        embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${query}&autoplay=1`;
+        url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent((title || '') + ' trailer اعلان');
     }
 
+    if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
+        window.AlMeZ0App.openExternal(url);
+    } else {
+        window.open(url, '_blank');
+    }
+}
+
+/** النسخة القديمة بالتضمين — محفوظة للرجوع إليها إن لزم، ولا يناديها أحد. */
+function openTrailerModalEmbedded(trailerKey, title) {
     videoWrap.innerHTML = `<iframe src="${embedUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
     modal.classList.remove('hidden');
 }
@@ -4600,6 +4781,73 @@ let activeRenderOffset = 0;
 const RENDER_CHUNK_SIZE = 25;
 let isAppendingChunk = false;
 
+/**
+ * شعارات القنوات من الفهرس المدمج — نفس نظام ChannelLogos في تطبيق أندرويد.
+ *
+ * أغلب لوحات Xtream لا ترسل stream_icon للقنوات، فتظهر كلها بالشعار الافتراضي. الفهرس
+ * (channel_logos.json) يربط اسم القناة المُطبَّع برابط شعارها من قاعدة iptv-org المفتوحة،
+ * ويُبنى بـ scripts/build-channel-logos.js. يُحمَّل مرة واحدة وعند الحاجة فقط.
+ *
+ * في برنامج الكمبيوتر الملف مدمج محلياً فلا يُنزَّل شيء. وفي المتصفح لا نحمّله إطلاقاً
+ * حتى لا نُحمّل زوار الموقع ملفين ميجا بلا داعٍ.
+ */
+var mizoLogoIndex = null;
+var mizoLogoIndexKeys = null;
+var mizoLogoLoading = false;
+
+function mizoLoadLogoIndex() {
+    if (mizoLogoIndex || mizoLogoLoading) return;
+    var native = !!(window.electronAPI && window.electronAPI.isElectron)
+        || document.body.classList.contains('platform-electron');
+    if (!native) return;
+    mizoLogoLoading = true;
+    fetch('channel_logos.json').then(function (r) {
+        return r.ok ? r.json() : null;
+    }).then(function (data) {
+        if (data) {
+            mizoLogoIndex = data;
+            mizoLogoIndexKeys = Object.keys(data).sort();
+        }
+        mizoLogoLoading = false;
+    }).catch(function () { mizoLogoLoading = false; });
+}
+
+/** نفس تطبيع الأسماء في أندرويد: بلا بادئة دولة ولا لواحق جودة ولا تشكيل. */
+function mizoNormalizeChannel(name) {
+    if (!name) return '';
+    var s = String(name).toLowerCase();
+    s = s.replace(/^[a-z]{2,3}\s*[|:\-]\s*/i, '');
+    s = s.replace(/^\[[^\]]*\]\s*/, '');
+    s = s.replace(/[ـً-ْ]/g, '');
+    s = s.replace(/[آأإ]/g, 'ا');
+    s = s.replace(/ة/g, 'ه');
+    s = s.replace(/ى/g, 'ي');
+    s = s.replace(/[^\p{L}\p{N}\s]/gu, ' ');
+    s = s.replace(/(hd|fhd|uhd|sd|4k|8k|1080p?|720p?|h265|hevc|raw|backup|multi|vip|plus)/g, ' ');
+    return s.replace(/\s+/g, ' ').trim();
+}
+
+/** رابط شعار القناة من الفهرس، أو '' إن لم تُعرف. */
+function mizoChannelLogo(name) {
+    if (!mizoLogoIndex) return '';
+    var q = mizoNormalizeChannel(name);
+    if (q.length < 3) return '';
+    if (mizoLogoIndex[q]) return mizoLogoIndex[q];
+    // أطول مفتاح يبدأ به الاسم: "bein sports 1 premium" -> "bein sports 1"
+    var keys = mizoLogoIndexKeys;
+    if (!keys) return '';
+    var lo = 0, hi = keys.length - 1, best = -1;
+    while (lo <= hi) {
+        var mid = (lo + hi) >> 1;
+        if (keys[mid] <= q) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    if (best >= 0) {
+        var k = keys[best];
+        if (k.length >= 5 && q.indexOf(k) === 0) return mizoLogoIndex[k];
+    }
+    return '';
+}
+
 function cleanImageUrl(url) {
     if (!url || typeof url !== 'string') return 'photo/logo.ico';
     url = url.trim();
@@ -4706,7 +4954,8 @@ function appendNextItemChunk(customSize) {
             const isCurrentlyPlaying = currentStreamInfo && String(currentStreamInfo.id) === String(item.stream_id);
             const isSavedMatch = !currentStreamInfo && savedLiveObj && String(savedLiveObj.id) === String(item.stream_id);
 
-            const iconSrc = cleanImageUrl(item.stream_icon);
+            // لا شعار من السيرفر: نكمله من الفهرس المدمج باسم القناة
+            const iconSrc = cleanImageUrl(item.stream_icon || mizoChannelLogo(item.name));
             const isPriority = (activeRenderOffset + index) < 15;
             const loadingAttr = isPriority ? 'eager' : 'lazy';
             const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
@@ -5294,8 +5543,26 @@ function initTvNavigationEngine() {
         });
     }
 
+    /**
+     * وضع الإدخال الحالي. الإطار الأخضر يخص التنقل بلوحة المفاتيح والريموت فقط؛ كان يظهر
+     * لمستخدم الماوس أيضاً لأن البرنامج يضع التركيز تلقائياً عند كل تغيير شاشة.
+     */
+    window.__mizoKeyboardNav = false;
+    function markKeyboardNav() {
+        window.__mizoKeyboardNav = true;
+        document.body.classList.add('kbd-nav');
+    }
+    function markPointerNav() {
+        window.__mizoKeyboardNav = false;
+        document.body.classList.remove('kbd-nav');
+        clearTvFocus();
+    }
+    window.addEventListener('mousedown', markPointerNav, { passive: true });
+
     function setFocus(el) {
         if (!el) return;
+        // لا إطار ولا تركيز قسري ما دام المستخدم يعمل بالماوس
+        if (!window.__mizoKeyboardNav) return;
         if (currentFocusedEl && currentFocusedEl !== el) {
             currentFocusedEl.classList.remove('tv-focused');
         }
@@ -5402,6 +5669,10 @@ function initTvNavigationEngine() {
     const ARROW_MOVE_MIN_INTERVAL_MS = 70;
 
     window.addEventListener('keydown', (e) => {
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Enter'].includes(e.key)
+            || (e.keyCode >= 37 && e.keyCode <= 40) || e.keyCode === 9 || e.keyCode === 13) {
+            markKeyboardNav();
+        }
         const isArrowKey = (e.keyCode >= 37 && e.keyCode <= 40) || /^Arrow/.test(e.key || '');
         if (isArrowKey && e.repeat) {
             const nowTs = Date.now();

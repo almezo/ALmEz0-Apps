@@ -106,6 +106,8 @@
                 || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
             if (inNativeApp) {
                 if (splash.parentNode) splash.parentNode.removeChild(splash);
+                // برنامج الكمبيوتر: افتتاحية "سيرفرات الميزو" الموحّدة مع أندرويد
+                if (window.MizoIntro) window.MizoIntro.showOnLaunch();
                 return;
             }
 
@@ -236,6 +238,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
     <!-- سكربتات الموقع -->
     <script src="screen-adapter.js?v=4070.0"></script>
+    <script src="intro.js?v=1"></script>
     <script src="app-bridge.js?v=4070.0"></script>
     <script src="firebase-config.js?v=4070.0"></script>
     <script src="validation.js?v=4070.0"></script>
@@ -368,7 +371,12 @@
                 if (window.AlMeZ0App && typeof window.AlMeZ0App.lockLandscape === 'function') {
                     window.AlMeZ0App.lockLandscape();
                 }
-                window.location.href = 'player.html';
+                // افتتاحية "مشغل الميزو" قبل فتح المشغل، كما في تطبيق أندرويد
+                if (window.MizoIntro && window.MizoIntro.isDesktopApp()) {
+                    window.MizoIntro.navigate('player', 'player.html');
+                } else {
+                    window.location.href = 'player.html';
+                }
                 return false;
             }
 

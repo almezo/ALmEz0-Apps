@@ -3307,14 +3307,18 @@ input.search-input[placeholder*="المسلسلات"] {
     margin-right: 12px !important;
 }
 
+/* الارتفاع 95px مثل بقية أزرار الشريط: أيقونات فيديوجيه تُوسَّط بـline-height: 95px
+   (انظر .vjs-button > .vjs-icon-placeholder:before)، فكان ارتفاع 44px الثابت يدفع
+   أيقونتي التقديم والتأخير للأسفل فتبدوان غير مصطفّتين مع الزر التشغيل والصوت. */
 .video-js .vjs-skip-backward-10,
 .video-js .vjs-skip-forward-10 {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    align-self: center !important;
     cursor: pointer !important;
-    width: 44px !important;
-    height: 44px !important;
+    width: 52px !important;
+    height: 95px !important;
     border-radius: 8px !important;
     transition: all 0.2s ease !important;
 }
@@ -4485,7 +4489,8 @@ input[type="number"] {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.85);
+    /* 0.72 نفس setDimAmount في NatDialog بأندرويد — 0.85 كانت تُعتم الشاشة كلها فتبدو سوداء */
+    background: rgba(0, 0, 0, 0.72);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
@@ -4495,8 +4500,9 @@ input[type="number"] {
     width: 100%;
     max-width: min(94vw, 860px);
     max-height: min(92vh, 640px);
-    background: linear-gradient(145deg, #121722, #0a0d14);
-    border: 1.5px solid rgba(244, 194, 66, 0.35);
+    /* نفس nat_bg_dialog_card في أندرويد: لون مصمت وحد أبيض شفاف بدل التدرّج شديد القتامة */
+    background: #161B22;
+    border: 1.5px solid rgba(255, 255, 255, 0.18);
     border-radius: var(--screen-card-radius, 24px);
     padding: clamp(14px, 2.2vw, 26px) clamp(16px, 2.5vw, 30px);
     display: flex;
@@ -6458,7 +6464,7 @@ body:not(.screen-is-dashboard) #aiFloatingTrigger {
 .ai-floating-trigger {
     position: fixed;
     bottom: 24px;
-    left: 24px;
+    right: 24px;
     z-index: 99999;
     pointer-events: auto !important;
     display: inline-flex;
@@ -7767,4 +7773,72 @@ body.touch-device-mode .vod-title {
 
 body.platform-android #vodGrid.vod-grid {
     row-gap: 18px !important;
+}
+
+/* ==========================================================================
+   مطابقة برنامج الكمبيوتر لتطبيق أندرويد
+   ========================================================================== */
+
+/* 1. أزرار التواصل بألوانها الرسمية دائماً (لا عند التحويم فقط)، والأيقونة بيضاء —
+      نفس ما اعتُمد في شاشات مشغل أندرويد. */
+.footer-social-btn.btn-facebook {
+    background: #1877F2 !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+}
+
+.footer-social-btn.btn-whatsapp {
+    background: #25D366 !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+}
+
+.footer-social-btn.btn-call {
+    background: #F59E0B !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+}
+
+.footer-social-btn.btn-facebook:hover,
+.footer-social-btn.btn-whatsapp:hover,
+.footer-social-btn.btn-call:hover {
+    color: #ffffff !important;
+}
+
+/* 2. زر نمط الجهاز لا معنى له في برنامج الكمبيوتر (لا لمس ولا ريموت)، فنخفيه هناك فقط
+      ويبقى في الموقع على المتصفح حيث يحتاجه مستخدمو الهواتف وشاشات التلفاز. */
+body.platform-electron #navDeviceModeBtn,
+body.platform-electron #btnDeviceModeAuth {
+    display: none !important;
+}
+
+/* 3. وفي شاشة كود السيرفر يظهر زر قوائم التشغيل مكانه دائماً في برنامج الكمبيوتر. */
+body.platform-electron #btnSavedAccountsAuth.hidden {
+    display: flex !important;
+}
+
+/* أزرار القناة/الحلقة السابقة والتالية في شريط المشغل (mizoInstallQueueButtons) */
+.video-js .mizo-queue-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: center !important;
+    width: 52px !important;
+    height: 95px !important;
+    border: none !important;
+    background: transparent !important;
+    color: #ffffff !important;
+    cursor: pointer !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+}
+
+.video-js .mizo-queue-btn .mizo-queue-icon {
+    font-size: 26px !important;
+    line-height: 1 !important;
+}
+
+.video-js .mizo-queue-btn:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #ff9f0a !important;
 }

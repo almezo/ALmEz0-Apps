@@ -134,9 +134,9 @@ public class PlayerActivity extends AppCompatActivity {
     private boolean resumeChecked = false;
     private int saveTick = 0;
     private Store store;
-    private View osdChannel, resumeChip, nextPanel, btnNextItem;
+    private View osdChannel, resumeChip, nextPanel, btnNextItem, btnPrevItem;
     private ImageView osdLogo;
-    private TextView osdNumber, osdName, osdNow, osdNext, resumeText, btnRestart, nextTitle, btnNextNow, btnNextCancel, tvNextItem;
+    private TextView osdNumber, osdName, osdNow, osdNext, resumeText, btnRestart, nextTitle, btnNextNow, btnNextCancel, tvNextItem, tvPrevItem;
     private int nextCountdown = 0;
     private boolean silentAspect = false;
     private Thread.UncaughtExceptionHandler previousCrashHandler;
@@ -456,6 +456,8 @@ public class PlayerActivity extends AppCompatActivity {
         btnNextNow = findViewById(R.id.btn_next_now);
         btnNextCancel = findViewById(R.id.btn_next_cancel);
         btnNextItem = findViewById(R.id.btn_next_item);
+        btnPrevItem = findViewById(R.id.btn_prev_item);
+        tvPrevItem = findViewById(R.id.tv_prev_item);
         tvNextItem = findViewById(R.id.tv_next_item);
 
         if (btnRestart != null) btnRestart.setOnClickListener(v -> {
@@ -470,6 +472,7 @@ public class PlayerActivity extends AppCompatActivity {
             showControls();
         });
         if (btnNextItem != null) btnNextItem.setOnClickListener(v -> playNext());
+        if (btnPrevItem != null) btnPrevItem.setOnClickListener(v -> playPrevious());
 
         String title = getIntent().getStringExtra("title");
         if (title != null && !title.isEmpty() && tvTitle != null) {
@@ -1608,6 +1611,8 @@ public class PlayerActivity extends AppCompatActivity {
         boolean hasNext = queue != null && queue.size() > 1;
         if (btnNextItem != null) btnNextItem.setVisibility(hasNext ? View.VISIBLE : View.GONE);
         if (tvNextItem != null) tvNextItem.setText(isLiveStream ? "القناة التالية" : "الحلقة التالية");
+        if (btnPrevItem != null) btnPrevItem.setVisibility(hasNext ? View.VISIBLE : View.GONE);
+        if (tvPrevItem != null) tvPrevItem.setText(isLiveStream ? "القناة السابقة" : "الحلقة السابقة");
         if (isLiveStream && queue != null) showChannelOsd();
     }
 
@@ -1618,6 +1623,16 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         playIndex(PlayQueue.index() + 1);
+    }
+
+    /** الحلقة أو القناة السابقة: نفس منطق التالي بالاتجاه المعاكس. */
+    private void playPrevious() {
+        if (queue == null || queue.size() < 2) return;
+        if (!isLiveStream && PlayQueue.index() <= 0) {
+            Toast.makeText(this, "هذه أول حلقة في الموسم", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        playIndex(PlayQueue.index() - 1);
     }
 
     private long lastZapAt = 0;

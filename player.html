@@ -21,6 +21,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <!-- Screen Intelligence & App Bridge for Mobile & Desktop -->
     <script src="screen-adapter.js"></script>
+    <script src="intro.js?v=1"></script>
     <script src="app-bridge.js"></script>
     <!-- Firebase SDK & Security Tracker -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -410,6 +411,10 @@
                         </div>
                     </div>
                     <div class="profile-details">
+                        <div class="profile-row">
+                            <span class="profile-label">السيرفر</span>
+                            <span class="profile-value" id="profileServer">--</span>
+                        </div>
                         <div class="profile-row">
                             <span class="profile-label">حالة الحساب</span>
                             <span class="profile-value" id="profileType">حساب نشط</span>
@@ -818,7 +823,7 @@
                                 document.getElementById('profileStatus').innerText = (user.status && user.status.toLowerCase() === 'active') ? 'متصل' : (user.status || 'متصل');
                             }
                             if (document.getElementById('profileType')) {
-                                document.getElementById('profileType').innerText = (String(user.is_trial) === '1') ? 'حساب تجريبي' : 'حساب نشط';
+                                document.getElementById('profileType').innerText = (String(user.is_trial) === '1') ? 'حساب تجريبي' : 'حساب نشط ✓';
                             }
                             if (document.getElementById('profileMaxConn')) {
                                 document.getElementById('profileMaxConn').innerText = user.max_connections || user.max_cons || '1';

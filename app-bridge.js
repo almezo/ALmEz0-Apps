@@ -780,6 +780,18 @@
         var lastBackPress = 0;
         // fromNative: تطبيق أندرويد يسأل الصفحة أولاً؛ إن لم يبقَ ما يُغلق أو يُرجَع إليه في الصفحة
         // الرئيسية تُعيد 'exit' ويتولى التطبيق تنبيه "اضغط مرة أخرى للخروج" والخروج بنفسه
+        /**
+         * العودة من المشغل إلى الشاشة الرئيسية تمرّ بافتتاحية "سيرفرات الميزو"، بنفس
+         * سلوك تطبيق أندرويد (DashboardActivity.exitToHome).
+         */
+        function goHomeWithIntro() {
+            if (window.MizoIntro && window.MizoIntro.isDesktopApp()) {
+                window.MizoIntro.navigate('home', 'index.html');
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
+
         function handleUniversalBackButton(e, fromNative) {
             if (document.getElementById('almezo-inapp-update-overlay')) {
                 var vData = window._almezoVersionData;
@@ -924,7 +936,7 @@
                         if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
                         if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
                     }
-                    window.location.href = 'index.html';
+                    goHomeWithIntro();
                     return true;
                 }
 
@@ -935,7 +947,7 @@
                         if (typeof window.AlMeZ0App.setImmersiveFullscreen === 'function') window.AlMeZ0App.setImmersiveFullscreen(false);
                         if (typeof window.AlMeZ0App.lockPortrait === 'function') window.AlMeZ0App.lockPortrait();
                     }
-                    window.location.href = 'index.html';
+                    goHomeWithIntro();
                 }
                 return true;
             }
@@ -951,7 +963,7 @@
                 if (window.history.length > 1) {
                     window.history.back();
                 } else {
-                    window.location.href = 'index.html';
+                    goHomeWithIntro();
                 }
                 return true;
             }
@@ -1051,7 +1063,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.1.1';
+    const CURRENT_APP_VERSION = '1.1.2';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
