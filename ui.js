@@ -704,6 +704,10 @@ function renderUsersIntelContent() {
     const query = (searchInputEl && searchInputEl.value ? searchInputEl.value : '').trim().toLowerCase();
     const roleFilterEl = document.getElementById('intelRoleFilter');
     const roleFilter = (roleFilterEl && roleFilterEl.value) ? roleFilterEl.value : 'all';
+    // كان هذا السطر ناقصاً: bodyEl مستعمل خمس مرات أدناه بلا تعريف، فكانت الدالة
+    // ترمي ReferenceError في سطر الفحص التالي قبل أن ترسم شيئاً. النتيجة أن
+    // العدّادات تُحدَّث (تُضبط قبل استدعائها) ويبقى الجدول على دوّارة التحميل أبداً.
+    const bodyEl = document.getElementById('usersIntelBody');
 
     if (!statsGrid || !bodyEl) return;
 
