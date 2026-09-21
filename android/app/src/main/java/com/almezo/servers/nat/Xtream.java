@@ -124,6 +124,13 @@ public final class Xtream {
     }
 
     public static byte[] httpGet(String url) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        httpGetTo(url, bos);
+        return bos.toByteArray();
+    }
+
+    /** نفس httpGet لكن يكتب الاستجابة مباشرة في وجهة (ملف الكاش) دون نسخة كاملة في الذاكرة. */
+    private static void httpGetTo(String url, java.io.OutputStream sink) throws IOException {
         pace();
         try {
             PANEL_GATE.acquire();
@@ -132,13 +139,13 @@ public final class Xtream {
             throw new IOException("interrupted");
         }
         try {
-            return request(url);
+            request(url, sink);
         } finally {
             PANEL_GATE.release();
         }
     }
 
-    private static byte[] request(String url) throws IOException {
+    private static void request(String url, java.io.OutputStream sink) throws IOException {
         String current = url;
         for (int redirects = 0; redirects < 6; redirects++) {
             HttpURLConnection c = (HttpURLConnection) new URL(current).openConnection();
@@ -146,7 +153,12 @@ public final class Xtream {
             c.setReadTimeout(45000);
             c.setInstanceFollowRedirects(false);
             c.setRequestProperty("User-Agent", USER_AGENT);
-            c.setRequestProperty("Accept-Encoding", "identity");
+            /*
+             * لا نضع Accept-Encoding بأنفسنا: حينها يطلب النظام الضغط (gzip) ويفكّه تلقائياً.
+             * كان هنا "identity" منذ أول نسخة أصلية، فيُلغي الضغط تماماً — وقوائم الأفلام
+             * والمسلسلات JSON بعشرات الميجابايت تنضغط عادةً أضعافاً، فكان كل تحديث للباقات
+             * ينزّل البيانات كاملة بلا ضغط. اللوحة التي لا تدعم الضغط تُرسل كما كانت.
+             */
             int code = c.getResponseCode();
             if (code >= 300 && code < 400) {
                 String loc = c.getHeaderField("Location");
@@ -159,12 +171,11 @@ public final class Xtream {
                 c.disconnect();
                 throw new IOException("HTTP " + code);
             }
-            try (InputStream in = new BufferedInputStream(c.getInputStream())) {
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                byte[] buf = new byte[16384];
+            try (InputStream in = new BufferedInputStream(c.getInputStream(), 65536)) {
+                byte[] buf = new byte[65536];
                 int n;
-                while ((n = in.read(buf)) != -1) bos.write(buf, 0, n);
-                return bos.toByteArray();
+                while ((n = in.read(buf)) != -1) sink.write(buf, 0, n);
+                return;
             } finally {
                 c.disconnect();
             }
@@ -206,10 +217,12 @@ public final class Xtream {
         File f = cacheFile(key);
         boolean fresh = f.exists() && f.length() > 2 && (System.currentTimeMillis() - f.lastModified()) < DISK_TTL_MS;
         if (fresh && !force) return f;
-        byte[] body = httpGet(url);
         File tmp = new File(f.getPath() + ".tmp");
-        try (FileOutputStream out = new FileOutputStream(tmp)) {
-            out.write(body);
+        try (java.io.OutputStream out = new java.io.BufferedOutputStream(new FileOutputStream(tmp), 65536)) {
+            httpGetTo(url, out);
+        } catch (IOException e) {
+            tmp.delete();
+            throw e;
         }
         if (f.exists()) f.delete();
         if (!tmp.renameTo(f)) throw new IOException("cache write failed");

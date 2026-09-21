@@ -306,6 +306,8 @@
             if (!el || !(el instanceof HTMLElement)) return false;
             if (el.classList.contains('hidden')) return false;
             if (el.id === 'app-scaler' || el.id === 'livePlayerWrapper') return false;
+            // رسالة toast ليست نافذة: عزل الصفحة خلفها كان يجمّد الشاشة التي تظهر عليها
+            if (el.classList.contains('swal2-container') && el.querySelector('.swal2-toast')) return false;
             if (NON_MODAL_TAGS.indexOf(el.tagName) !== -1) return false;
 
             var style = window.getComputedStyle(el);
@@ -1202,7 +1204,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.2.1';
+    const CURRENT_APP_VERSION = '1.2.2';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
@@ -2061,7 +2063,10 @@
 
         // 1. Android Native System Tray Notification (Hardware StatusBar)
         try {
-            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showNotification === 'function') {
+            // بالمعرّف: التطبيق الأصلي يجلب الإشعارات بنفسه أيضاً، فيمنع ظهور الإشعار مرتين
+            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showBroadcastNotification === 'function' && notif.id) {
+                window.AndroidNativeBridge.showBroadcastNotification(String(notif.id), String(notif.timestamp || 0), notif.title || '', notif.message || '', notif.actionUrl || '');
+            } else if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showNotification === 'function') {
                 window.AndroidNativeBridge.showNotification(notif.title, notif.message, notif.actionUrl || '');
             }
         } catch (e) { }

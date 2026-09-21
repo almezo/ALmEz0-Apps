@@ -66,6 +66,15 @@ public class MainActivity extends BridgeActivity {
 
         installBackHandler();
 
+        // أندرويد 13 فما فوق يحجب كل الإشعارات بصمت ما لم يوافق المستخدم صراحةً، وكان
+        // الإذن مُعلَناً في الملف فقط دون أن يُطلب أبداً — فلا يظهر أي إشعار للمدير.
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try { requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 102); } catch (Throwable ignored) { }
+        }
+        com.almezo.servers.nat.BroadcastNotifier.schedule(this);
+        com.almezo.servers.nat.BroadcastNotifier.checkAsync(this);
+
         try {
             if (new NativePlayerBridge().isTvDevice()) {
                 getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -316,6 +325,19 @@ public class MainActivity extends BridgeActivity {
                     android.util.Log.e("MainActivity", "Failed to open native player", t);
                 }
             });
+        }
+
+        /**
+         * إشعار مدير من صفحة الويب بمعرّفه: يُسجَّل معروضاً في نفس سجل الفحص الأصلي
+         * (BroadcastNotifier)، فلا يظهر الإشعار مرتين في الشريط إن وصل من الطريقين.
+         */
+        @JavascriptInterface
+        public void showBroadcastNotification(String id, String ts, String title, String message, String actionUrl) {
+            long t = 0;
+            try { t = Long.parseLong(ts); } catch (Exception ignored) { }
+            if (com.almezo.servers.nat.BroadcastNotifier.markSeen(MainActivity.this, id, t)) {
+                com.almezo.servers.nat.BroadcastNotifier.show(MainActivity.this, id, title, message, actionUrl);
+            }
         }
 
         @JavascriptInterface

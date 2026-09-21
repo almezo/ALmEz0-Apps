@@ -1170,6 +1170,21 @@ public class PlayerActivity extends AppCompatActivity {
             return super.onKeyDown(keyCode, event);
         }
 
+        /*
+         * الطبقة ظاهرة لكن لا زر عليه التركيز: يحدث هذا عند فتح المشغل على صناديق
+         * أندرويد التي لا تعرّف نفسها كتلفاز، فلا يُعرف أنها بريموت إلا مع أول ضغطة —
+         * وكانت تلك الضغطة (وما بعدها) تضيع، فلا يتحكم المستخدم بالأزرار حتى تختفي
+         * الطبقة ويعيد إظهارها. أول سهم الآن يضع التركيز على الأزرار مباشرة.
+         */
+        if (isArrowKey(keyCode) && controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE
+                && (nextPanel == null || nextPanel.getVisibility() != View.VISIBLE) && !controlsFocused()) {
+            View target = lastFocusedControl != null && lastFocusedControl.isShown() ? lastFocusedControl : btnPlayPause;
+            if (target != null && target.requestFocus()) {
+                resetControlsHideTimer();
+                return true;
+            }
+        }
+
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -1592,6 +1607,11 @@ public class PlayerActivity extends AppCompatActivity {
             // الطبقة في منتصف تنقل المستخدم بين الأزرار.
             handler.postDelayed(hideControlsRunnable, isTvDevice ? 8000 : 4500);
         } catch (Throwable ignored) { }
+    }
+
+    private static boolean isArrowKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                || keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
     }
 
     /** هل التركيز حالياً على أحد عناصر طبقة التحكم؟ (فلا ننقله للزر الرئيسي عند كل ضغطة) */

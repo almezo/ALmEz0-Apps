@@ -7,6 +7,11 @@ package com.almezo.servers.nat;
 public final class DebugServers {
     private DebugServers() { }
 
+    /** إشعارات المدير من سيرفر الاختبار بدل Firestore الحقيقي (فلا يُرسَل شيء للعملاء). */
+    public static String broadcastQueryUrl() {
+        return "http://10.0.2.2:8765/firestore:runQuery";
+    }
+
     public static String[] testServer() {
         return new String[]{"999", "http://10.0.2.2:8765", "سيرفر تجريبي"};
     }

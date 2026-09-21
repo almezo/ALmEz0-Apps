@@ -12,6 +12,10 @@
     let currentSearchQuery = '';
     let currentSelectedDate = null;
     let logsUnsubscribe = null;
+    // سجلات يوم محدد من التقويم: البث الحي يحمل آخر 500 حركة فقط، فكان اختيار يوم سابق
+    // يعرض "لا توجد حركات" رغم وجودها. يُجلب اليوم المختار باستعلام مستقل عند الطلب.
+    const dayLogsCache = {};
+    let dayLogsLoading = null;
 
     // =============================================
     // 1. التحقق الصارم من صلاحيات المدير
@@ -21,7 +25,7 @@
             kickOut(user);
             return;
         }
-        
+
         let isAdmin = (user.uid === ADMIN_TARGET_UID);
         if (!isAdmin) {
             try {
@@ -233,11 +237,62 @@
     // =============================================
     // 5. فلترة وعرض جدول السجلات
     // =============================================
-    function renderLogsTable() {
-        const tbody = document.getElementById('socTableBody');
-        if (!tbody) return;
+    /** معامل آمن داخل onclick: JSON يعطي نصاً سليماً في JS، ثم التهريب لسياق السمة. */
+    function jsArg(value) {
+        return escapeHtml(JSON.stringify(String(value == null ? '' : value)));
+    }
 
-        let filtered = allLogs.filter(log => {
+    /** بداية اليوم المختار بالتوقيت المحلي (new Date('2026-09-20') يُقرأ بتوقيت UTC). */
+    function selectedDayStart() {
+        if (!currentSelectedDate) {
+            const n = new Date();
+            return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+        }
+        const p = String(currentSelectedDate).split('-').map(Number);
+        return new Date(p[0], p[1] - 1, p[2]);
+    }
+
+    function isTodaySelected() {
+        const d = selectedDayStart(), n = new Date();
+        return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+    }
+
+    function sourceLogs() {
+        if (!isTodaySelected() && currentSelectedDate && dayLogsCache[currentSelectedDate]) {
+            return dayLogsCache[currentSelectedDate];
+        }
+        return allLogs;
+    }
+
+    async function loadSelectedDay() {
+        if (!currentSelectedDate || isTodaySelected() || dayLogsCache[currentSelectedDate]) return;
+        if (typeof db === 'undefined' || !db) return;
+        const key = currentSelectedDate;
+        const start = selectedDayStart();
+        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+        dayLogsLoading = key;
+        renderLogsTable();
+        try {
+            const snap = await db.collection('activity_logs')
+                .where('timestamp', '>=', start)
+                .where('timestamp', '<', end)
+                .orderBy('timestamp', 'desc')
+                .limit(1000)
+                .get();
+            const list = [];
+            snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+            dayLogsCache[key] = list;
+        } catch (e) {
+            console.warn('تعذر جلب سجلات اليوم المحدد:', e);
+            if (typeof showToast === 'function') showToast('تعذر جلب سجلات هذا اليوم: ' + e.message, 'error');
+        } finally {
+            if (dayLogsLoading === key) dayLogsLoading = null;
+            renderLogsTable();
+        }
+    }
+
+    function getFilteredLogs() {
+        return sourceLogs().filter(log => {
             // 1. فلترة التبويبات
             if (currentFilterCategory === 'security') {
                 const isSecThreat = (
@@ -289,19 +344,32 @@
 
             // 3. فلترة التاريخ (عرض نتائج اليوم فقط كافتراضي)
             const logDate = new Date(getLogMillis(log));
-            let targetDate = new Date(); // اليوم كافتراضي
-            if (currentSelectedDate) {
-                targetDate = new Date(currentSelectedDate);
-            }
-            
+            const targetDate = selectedDayStart();
+
             const isSameDay = logDate.getFullYear() === targetDate.getFullYear() &&
                 logDate.getMonth() === targetDate.getMonth() &&
                 logDate.getDate() === targetDate.getDate();
-            
+
             if (!isSameDay) return false;
 
             return true;
         });
+    }
+
+    function renderLogsTable() {
+        const tbody = document.getElementById('socTableBody');
+        if (!tbody) return;
+
+        if (dayLogsLoading && dayLogsLoading === currentSelectedDate) {
+            tbody.innerHTML = `
+                <tr><td colspan="7" style="text-align:center; padding: 40px 20px; color:var(--text-secondary);">
+                    <i class="fas fa-spinner fa-spin fa-2x" style="margin-bottom:10px; color:#b388ff;"></i>
+                    <p>جاري جلب حركات اليوم المحدد...</p>
+                </td></tr>`;
+            return;
+        }
+
+        const filtered = getFilteredLogs();
 
         // تحديث شارة العدد
         const badgeEl = document.getElementById('visibleLogsBadge');
@@ -370,7 +438,7 @@
                     <td>
                         <div style="margin-bottom:3px;">${roleLabel}</div>
                         <strong style="font-size:0.95rem; color:#fff;">${escapeHtml(userName)}</strong>
-                        ${userPhone ? `<div style="font-size:0.8rem; color:var(--green-accent); font-family:monospace; direction:ltr; text-align:right;"><i class="fas fa-phone-alt" style="font-size:0.7rem;"></i> ${userPhone}</div>` : ''}
+                        ${userPhone ? `<div style="font-size:0.8rem; color:var(--green-accent); font-family:monospace; direction:ltr; text-align:right;"><i class="fas fa-phone-alt" style="font-size:0.7rem;"></i> ${escapeHtml(userPhone)}</div>` : ''}
                     </td>
                     <td>
                         ${sevBadge}
@@ -418,11 +486,11 @@
                     </td>
                     <td>
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                            <button type="button" class="btn-view-details" onclick="openLogDetailsModal('${log.id}')" title="عرض السجل الكامل">
+                            <button type="button" class="btn-view-details" onclick="openLogDetailsModal(${jsArg(log.id)})" title="عرض السجل الكامل">
                                 <i class="fas fa-eye"></i> التفاصيل
                             </button>
                             ${(log.action === 'client_locked_out' || log.action === 'lockout_attempt' || (log.details && log.details.tier)) && hwFp ? `
-                                <button type="button" class="btn-lift-ban" onclick="liftLockoutAction('${escapeHtml(hwFp)}', '${escapeHtml(userPhone || '')}')" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
+                                <button type="button" class="btn-lift-ban" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone || '')})" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
                                     <i class="fas fa-unlock-alt"></i> رفع الحظر
                                 </button>
                             ` : ''}
@@ -589,7 +657,7 @@
     // 7. نافذة التفاصيل المنبثقة (Full Details Modal)
     // =============================================
     window.openLogDetailsModal = function (logId) {
-        const log = allLogs.find(l => l.id === logId);
+        const log = sourceLogs().find(l => l.id === logId) || allLogs.find(l => l.id === logId);
         if (!log) return;
 
         const modal = document.getElementById('logDetailsModal');
@@ -621,7 +689,7 @@
                             ${userPhone ? ` | الهاتف: <span style="color:#69f0ae; font-family:monospace;">${escapeHtml(userPhone)}</span>` : ''}
                         </div>
                     </div>
-                    <button type="button" class="btn-lift-ban" style="padding:9px 18px; font-size:0.9rem;" onclick="liftLockoutAction('${escapeHtml(hwFp)}', '${escapeHtml(userPhone)}')">
+                    <button type="button" class="btn-lift-ban" style="padding:9px 18px; font-size:0.9rem;" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone)})">
                         <i class="fas fa-unlock-alt"></i> رفع الحظر فوراً
                     </button>
                 </div>
@@ -632,8 +700,8 @@
             ${lockoutControlHtml}
             <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); padding:16px; border-radius:8px; margin-bottom:12px; line-height:1.9;">
                 <p><strong>العنوان:</strong> ${escapeHtml(log.title || log.action)}</p>
-                <p><strong>الفاعل:</strong> ${escapeHtml(log.user ? log.user.name : 'زائر')} (${log.user ? log.user.role : 'visitor'})</p>
-                <p><strong>الهاتف:</strong> ${log.user && log.user.phone ? log.user.phone : 'غير متوفر'}</p>
+                <p><strong>الفاعل:</strong> ${escapeHtml(log.user ? log.user.name : 'زائر')} (${escapeHtml(log.user && log.user.role ? log.user.role : 'visitor')})</p>
+                <p><strong>الهاتف:</strong> ${log.user && log.user.phone ? escapeHtml(log.user.phone) : 'غير متوفر'}</p>
                 <p><strong>التوقيت:</strong> ${dateFormatted} - ${timeFormatted}</p>
                 <p><strong>عنوان IP العام (Public IP):</strong> <span style="color:#4fc3f7; font-family:monospace; font-weight:bold; font-size:1.05rem;">${escapeHtml(ipAddress)}</span> ${locationStr ? `<span style="color:var(--text-secondary);">(${escapeHtml(locationStr)}${ispStr ? ` - ${escapeHtml(ispStr)}` : ''})</span>` : ''}</p>
                 <p><strong>بصمة الجهاز الرقمية والعتادية (Hardware ID):</strong> <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(hwFp)}</span></p>
@@ -664,19 +732,10 @@
         if (!confirmed) return;
 
         try {
-            // 1. تصفير الحظر المحلي للجهاز فوراً
-            try {
-                if (typeof resetDeviceLockout === 'function') {
-                    resetDeviceLockout();
-                }
-                localStorage.removeItem('almezo_sec_lock_' + hw);
-                sessionStorage.removeItem('almezo_sec_lock_' + hw);
-            } catch (ce) { }
-
-            // 2. استدعاء دالة المدير لرفع الحظر السحابي
-            if (typeof adminLiftDeviceLockout === 'function') {
-                await adminLiftDeviceLockout(hw, phone);
-            }
+            // رفع الحظر فعلياً = الكتابة في السحابة، فالجهاز المحظور يقرأ حالته منها.
+            // (تصفير التخزين المحلي هنا كان يمسّ متصفح المدير نفسه لا الجهاز المحظور.)
+            if (typeof adminLiftDeviceLockout !== 'function') throw new Error('دالة رفع الحظر غير محمّلة');
+            await adminLiftDeviceLockout(hw, phone);
 
             if (typeof showToast === 'function') {
                 showToast(`✅ تم رفع الحظر الأمني عن الجهاز (${hw}) بنجاح`, 'success', 5000);
@@ -684,13 +743,11 @@
             const modal = document.getElementById('logDetailsModal');
             if (modal) modal.style.display = 'none';
         } catch (err) {
+            // كان يُعرض هنا "✅ تم فك الحظر" والجهاز ما زال محظوراً فعلاً في السحابة
             console.error('فشل رفع الحظر:', err);
-            // حتى في حال خطأ الصلاحيات السحابية، الحظر المحلي تم تصفيره
             if (typeof showToast === 'function') {
-                showToast(`✅ تم فك الحظر المحلي عن الجهاز (${hw}) بنجاح`, 'success', 5000);
+                showToast('❌ لم يُرفع الحظر: ' + (err && err.message ? err.message : 'خطأ غير معروف') + ' — الجهاز ما زال محظوراً، حاول مجدداً.', 'error', 7000);
             }
-            const modal = document.getElementById('logDetailsModal');
-            if (modal) modal.style.display = 'none';
         }
     };
 
@@ -738,16 +795,18 @@
     // 9. تصدير السجل بصيغة CSV / Excel
     // =============================================
     function exportLogsToCsv() {
-        if (!allLogs || allLogs.length === 0) {
+        // يُصدَّر ما يعرضه الجدول بالفلاتر والتاريخ والبحث الحالية، لا آخر 500 حركة كيفما كانت
+        const rows = getFilteredLogs();
+        if (!rows || rows.length === 0) {
             showToast('لا توجد سجلات لتصديرها حالياً', 'info');
             return;
         }
 
         const headers = ['التاريخ', 'الوقت', 'الاسم', 'رقم الهاتف', 'الرتبة', 'عنوان IP العام', 'الموقع ومزود الخدمة', 'بصمة الجهاز (Hardware ID)', 'عنوان الحركة', 'نوع الحركة', 'مستوى الخطورة', 'التفاصيل'];
-        
+
         let csvContent = "\uFEFF" + headers.join(',') + "\n";
-        
-        allLogs.forEach(log => {
+
+        rows.forEach(log => {
             const logMillis = getLogMillis(log);
             const dateStr = formatDate(logMillis);
             const timeStr = formatTime(logMillis);
@@ -760,21 +819,26 @@
             const title = log.title || log.action || '';
             const action = log.action || '';
             const severity = log.severity || 'info';
-            
+
             let detailsStr = '';
             if (typeof log.details === 'object') {
                 try { detailsStr = JSON.stringify(log.details); } catch(e){}
             } else if (log.details) {
                 detailsStr = String(log.details);
             }
-            
+
             const row = [
                 dateStr, timeStr, userName, userPhone, role, ip, location, hw, title, action, severity, detailsStr
-            ].map(val => '"' + String(val).replace(/"/g, '""') + '"');
-            
+            ].map(val => {
+                let v = String(val);
+                // حقن الصيغ: اسم أو هاتف يبدأ بـ = + - @ يُنفَّذ صيغةً عند فتح الملف في Excel
+                if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+                return '"' + v.replace(/"/g, '""') + '"';
+            });
+
             csvContent += row.join(',') + "\n";
         });
-        
+
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -789,8 +853,8 @@
                 action: 'admin_export_logs',
                 category: 'admin',
                 severity: 'warning',
-                title: `تصدير سجل الحركات الأمنية إلى Excel (${allLogs.length} سجل)`,
-                details: { exportedCount: allLogs.length }
+                title: `تصدير سجل الحركات الأمنية إلى Excel (${rows.length} سجل)`,
+                details: { exportedCount: rows.length }
             });
         }
     }
@@ -847,17 +911,19 @@
     async function autoCleanupOldLogs() {
         try {
             const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
-            const snapshot = await db.collection('activity_logs').where('timestamp', '<', sevenDaysAgo).get();
-
-            if (snapshot.empty) return;
-
-            const batch = db.batch();
-            snapshot.docs.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-
-            await batch.commit();
-            console.log(`Auto-cleanup: Removed ${snapshot.size} old logs.`);
+            // دفعات من 400: فايربيز يرفض أي دفعة فوق 500 عملية، فكان وجود أكثر من 500 سجل
+            // قديم يُفشل التنظيف كله في كل مرة بصمت، وتتراكم السجلات بلا نهاية.
+            let removed = 0;
+            for (let round = 0; round < 50; round++) {
+                const snapshot = await db.collection('activity_logs').where('timestamp', '<', sevenDaysAgo).limit(400).get();
+                if (snapshot.empty) break;
+                const batch = db.batch();
+                snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                removed += snapshot.size;
+                if (snapshot.size < 400) break;
+            }
+            if (removed) console.log(`Auto-cleanup: Removed ${removed} old logs.`);
         } catch (err) {
             console.error('Error auto-clearing old logs:', err);
         }
@@ -934,6 +1000,7 @@
                 onChange: function (selectedDates, dateStr) {
                     currentSelectedDate = dateStr || null;
                     renderLogsTable();
+                    loadSelectedDay();
                 }
             });
         }

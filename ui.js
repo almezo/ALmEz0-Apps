@@ -90,6 +90,7 @@ function checkFABMode() {
                 editFab.classList.toggle('edit-mode-active', isEditMode);
                 editFab.innerHTML = isEditMode ? '<i class="fas fa-times"></i>' : '<i class="fas fa-pen-to-square"></i>';
                 renderCurrentPage();
+                toggleAdminLayoutPanel(isEditMode);
             };
 
             // 3. زر غرفة المراقبة والأمان (يمين)
@@ -148,7 +149,181 @@ function checkFABMode() {
         // طباعة الحاويتين في الشاشة
         document.body.appendChild(fabContainerLeft);
         document.body.appendChild(fabContainerRight);
+
+        if (user.uid === ADMIN_UID || user.role === 'admin') {
+            applyAdminFabLayout();
+            subscribeAdminFabLayout();
+        }
     }
+    toggleAdminLayoutPanel(false);
+}
+
+// =========================================================
+// ترتيب أزرار المدير العائمة (من زر التعديل)
+// =========================================================
+// الترتيب محفوظ كما تراه العين من الأعلى للأسفل. الحاويات مرتّبة بـ column-reverse،
+// فأول عنصر في DOM يظهر في الأسفل؛ التحويل يتم عند التطبيق فقط.
+// يُحفظ في siteConfig/adminLayout (الكتابة للمدير وحده في firestore.rules)، فيتبع المدير
+// على كل أجهزته، مع نسخة محلية تُطبَّق فوراً قبل وصول فايربيز.
+const ADMIN_FAB_LABELS = {
+    adminBroadcastFab: { name: 'إرسال الإشعارات', icon: 'fa-bullhorn' },
+    adminFab: { name: 'زر التعديل', icon: 'fa-pen-to-square' },
+    adminSecurityBtn: { name: 'غرفة المراقبة والأمان', icon: 'fa-shield-halved' },
+    adminReportsBtn: { name: 'التقارير ولوحة الإدارة', icon: 'fa-chart-pie' },
+    adminPurchasesBtn: { name: 'المشتريات والمخزون', icon: 'fa-boxes-packing' },
+    adminUsersIntelBtn: { name: 'مركز العملاء', icon: 'fa-users-gear' }
+};
+const DEFAULT_ADMIN_FAB_LAYOUT = {
+    right: ['adminSecurityBtn', 'adminFab', 'adminBroadcastFab'],
+    left: ['adminUsersIntelBtn', 'adminPurchasesBtn', 'adminReportsBtn']
+};
+let adminFabLayout = null;
+let adminFabLayoutUnsub = null;
+
+function readAdminFabLayout() {
+    let layout = adminFabLayout;
+    if (!layout) {
+        try { layout = JSON.parse(localStorage.getItem('almezo_admin_fab_layout') || 'null'); } catch (e) { layout = null; }
+    }
+    return normalizeAdminFabLayout(layout);
+}
+
+/** كل زر معروف يظهر مرة واحدة بالضبط؛ ما ليس في المحفوظ يعود لمكانه الافتراضي. */
+function normalizeAdminFabLayout(layout) {
+    const known = Object.keys(ADMIN_FAB_LABELS);
+    const seen = new Set();
+    const clean = { right: [], left: [] };
+    ['right', 'left'].forEach(function (side) {
+        const list = layout && Array.isArray(layout[side]) ? layout[side] : [];
+        list.forEach(function (id) {
+            if (known.indexOf(id) !== -1 && !seen.has(id)) { seen.add(id); clean[side].push(id); }
+        });
+    });
+    ['right', 'left'].forEach(function (side) {
+        DEFAULT_ADMIN_FAB_LAYOUT[side].forEach(function (id) {
+            if (!seen.has(id)) { seen.add(id); clean[side].push(id); }
+        });
+    });
+    return clean;
+}
+
+function applyAdminFabLayout() {
+    const right = document.getElementById('globalFabContainerRight');
+    const left = document.getElementById('globalFabContainer');
+    if (!right || !left) return;
+    const layout = readAdminFabLayout();
+    [['right', right], ['left', left]].forEach(function (pair) {
+        // من الأسفل للأعلى داخل column-reverse
+        layout[pair[0]].slice().reverse().forEach(function (id) {
+            const btn = document.getElementById(id);
+            if (btn) pair[1].appendChild(btn);
+        });
+    });
+}
+
+function subscribeAdminFabLayout() {
+    if (adminFabLayoutUnsub || typeof db === 'undefined' || !db) return;
+    try {
+        adminFabLayoutUnsub = db.collection('siteConfig').doc('adminLayout').onSnapshot(function (doc) {
+            if (!doc.exists) return;
+            const data = doc.data() || {};
+            adminFabLayout = normalizeAdminFabLayout({ right: data.right, left: data.left });
+            try { localStorage.setItem('almezo_admin_fab_layout', JSON.stringify(adminFabLayout)); } catch (e) { }
+            applyAdminFabLayout();
+            if (document.getElementById('adminLayoutPanel')) renderAdminLayoutPanel();
+        }, function () { });
+    } catch (e) { }
+}
+
+async function saveAdminFabLayout(layout) {
+    const previous = readAdminFabLayout();
+    adminFabLayout = normalizeAdminFabLayout(layout);
+    try { localStorage.setItem('almezo_admin_fab_layout', JSON.stringify(adminFabLayout)); } catch (e) { }
+    applyAdminFabLayout();
+    renderAdminLayoutPanel();
+    try {
+        await db.collection('siteConfig').doc('adminLayout').set({
+            right: adminFabLayout.right,
+            left: adminFabLayout.left,
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (e) {
+        console.error('تعذر حفظ ترتيب الأزرار:', e);
+        adminFabLayout = previous;
+        try { localStorage.setItem('almezo_admin_fab_layout', JSON.stringify(previous)); } catch (err) { }
+        applyAdminFabLayout();
+        renderAdminLayoutPanel();
+        if (typeof showToast === 'function') showToast('تعذر حفظ الترتيب - تأكد أنك مسجل دخول كمدير', 'error');
+    }
+}
+
+/** تحريك زر للأعلى (-1) أو للأسفل (+1) في عموده، أو نقله للعمود الآخر ('swap'). */
+window.moveAdminFab = function (id, action) {
+    const layout = readAdminFabLayout();
+    const side = layout.right.indexOf(id) !== -1 ? 'right' : 'left';
+    const list = layout[side];
+    const i = list.indexOf(id);
+    if (i === -1) return;
+    if (action === 'swap') {
+        list.splice(i, 1);
+        layout[side === 'right' ? 'left' : 'right'].push(id);
+    } else {
+        const j = i + action;
+        if (j < 0 || j >= list.length) return;
+        list[i] = list[j];
+        list[j] = id;
+    }
+    saveAdminFabLayout(layout);
+};
+
+window.resetAdminFabLayout = function () {
+    saveAdminFabLayout(DEFAULT_ADMIN_FAB_LAYOUT);
+};
+
+function renderAdminLayoutPanel() {
+    const panel = document.getElementById('adminLayoutPanel');
+    if (!panel) return;
+    const layout = readAdminFabLayout();
+    function column(side, title) {
+        const list = layout[side];
+        const rows = list.map(function (id, i) {
+            const meta = ADMIN_FAB_LABELS[id];
+            return '<div class="alp-row">' +
+                '<span class="alp-name"><i class="fas ' + meta.icon + '"></i> ' + meta.name + '</span>' +
+                '<span class="alp-actions">' +
+                '<button type="button" onclick="moveAdminFab(\'' + id + '\', -1)" title="للأعلى"' + (i === 0 ? ' disabled' : '') + '><i class="fas fa-arrow-up"></i></button>' +
+                '<button type="button" onclick="moveAdminFab(\'' + id + '\', 1)" title="للأسفل"' + (i === list.length - 1 ? ' disabled' : '') + '><i class="fas fa-arrow-down"></i></button>' +
+                '<button type="button" onclick="moveAdminFab(\'' + id + '\', \'swap\')" title="نقله للجهة الأخرى"><i class="fas fa-right-left"></i></button>' +
+                '</span></div>';
+        }).join('');
+        return '<div class="alp-col"><div class="alp-col-title">' + title + '</div>' + (rows || '<div class="alp-empty">لا أزرار</div>') + '</div>';
+    }
+    panel.innerHTML =
+        '<div class="alp-head"><span><i class="fas fa-grip"></i> ترتيب أزرار المدير</span>' +
+        '<button type="button" class="alp-reset" onclick="resetAdminFabLayout()">الترتيب الأصلي</button></div>' +
+        '<div class="alp-cols">' + column('right', 'الجهة اليمنى') + column('left', 'الجهة اليسرى') + '</div>' +
+        '<div class="alp-hint">الترتيب يُحفظ فوراً ويظهر على كل أجهزتك. ترتيب بطاقات الأقسام من أزرار التقديم والتأخير على كل بطاقة.</div>';
+}
+
+function toggleAdminLayoutPanel(show) {
+    let panel = document.getElementById('adminLayoutPanel');
+    const isAdminUser = !!document.getElementById('adminFab');
+    if (!show || !isAdminUser) {
+        if (panel) panel.remove();
+        return;
+    }
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'adminLayoutPanel';
+        panel.className = 'admin-layout-panel';
+        // جزء من الصفحة فوق البطاقات لا طبقة عائمة فوقها، حتى تبقى حقول تعديل البطاقات متاحة
+        const grid = document.getElementById('homeCategoriesGrid');
+        const anchor = grid || document.querySelector('main') || document.querySelector('.container');
+        if (grid && grid.parentNode) grid.parentNode.insertBefore(panel, grid);
+        else if (anchor) anchor.insertBefore(panel, anchor.firstChild);
+        else document.body.appendChild(panel);
+    }
+    renderAdminLayoutPanel();
 }
 
 // =========================================================
@@ -502,6 +677,16 @@ function safeIntelEsc(s) {
     return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
+/**
+ * معامل آمن داخل onclick/onchange. تهريب HTML وحده لا يكفي داخل كود JavaScript في سمة:
+ * المتصفح يفكّ &#39; إلى ' قبل تنفيذ الكود، فاسم عميل مثل  x');fetch(...);//  كان
+ * يخرج من النص ويُنفَّذ في جلسة المدير — والاسم والهاتف يكتبهما العميل بنفسه عند التسجيل.
+ * JSON يعطي نصاً سليماً في JS، ثم التهريب لسياق السمة.
+ */
+function intelJsArg(v) {
+    return safeIntelEsc(JSON.stringify(String(v == null ? '' : v)));
+}
+
 window.openUsersIntelModal = function () {
     let overlay = document.getElementById('usersIntelModalOverlay');
     if (!overlay) {
@@ -602,6 +787,13 @@ window.closeUsersIntelModal = function () {
     const overlay = document.getElementById('usersIntelModalOverlay');
     if (overlay) overlay.style.display = 'none';
     usersIntelModalOpen = false;
+    // إيقاف المستمعين عند الإغلاق: كانا يبقيان يعملان بعد إغلاق النافذة، فكل تعديل على أي عميل
+    // يعيد قراءة مجموعة العملاء كاملة وسجلات المشغل من فايربيز بلا فائدة (قراءات مدفوعة).
+    // تُفتح من جديد عند فتح النافذة (subscribeUsersIntelData).
+    try { if (usersIntelCustomersUnsub) usersIntelCustomersUnsub(); } catch (e) { }
+    try { if (usersIntelLogsUnsub) usersIntelLogsUnsub(); } catch (e) { }
+    usersIntelCustomersUnsub = null;
+    usersIntelLogsUnsub = null;
 };
 
 window.switchUsersIntelTab = function (tab) {
@@ -833,7 +1025,7 @@ function renderUsersIntelContent() {
                     <td style="padding:6px 6px;">
                         <div style="display:inline-flex; align-items:center; gap:4px; flex-wrap:nowrap;">
                             <span style="font-weight:700; color:#cbd5e1; direction:ltr; text-align:right; font-size:0.75rem;">${safeIntelEsc(phone)}</span>
-                            <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(phone)}', this)" title="نسخ الرقم">
+                            <button type="button" class="intel-btn-copy" onclick="copyIntelText(${intelJsArg(phone)}, this)" title="نسخ الرقم">
                                 <i class="fas fa-copy"></i>
                             </button>
                             ${waPhone ? `
@@ -845,7 +1037,7 @@ function renderUsersIntelContent() {
                     </td>
                     <td style="padding:6px 6px;"><span style="color:#94a3b8; font-size:0.74rem; white-space:nowrap;">${safeIntelEsc(c.city || 'ليبيا')}</span></td>
                     <td style="padding:6px 6px;">
-                        <select onchange="changeIntelCustomerRole('${c.id}', '${safeIntelEsc(fullName)}', this.value)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:3px 5px; font-family:inherit; font-size:0.72rem; outline:none; cursor:pointer;">
+                        <select onchange="changeIntelCustomerRole(${intelJsArg(c.id)}, ${intelJsArg(fullName)}, this.value)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:3px 5px; font-family:inherit; font-size:0.72rem; outline:none; cursor:pointer;">
                             <option value="customer" ${role === 'customer' ? 'selected' : ''}>عميل</option>
                             <option value="staff" ${role === 'staff' ? 'selected' : ''}>مندوب</option>
                             <option value="admin" ${role === 'admin' ? 'selected' : ''}>مدير</option>
@@ -854,7 +1046,7 @@ function renderUsersIntelContent() {
                     </td>
                     <td style="padding:6px 6px;"><span style="color:#94a3b8; font-size:0.72rem; white-space:nowrap;">${regDateText}</span></td>
                     <td style="padding:6px 4px; text-align:center;">
-                        <button type="button" class="intel-btn-copy" onclick="openCustomerDetailNotes('${c.id}', '${safeIntelEsc(fullName)}', '${safeIntelEsc(phone)}')" title="عرض البطاقة">
+                        <button type="button" class="intel-btn-copy" onclick="openCustomerDetailNotes(${intelJsArg(c.id)}, ${intelJsArg(fullName)}, ${intelJsArg(phone)})" title="عرض البطاقة">
                             <i class="fas fa-id-card"></i>
                         </button>
                     </td>
@@ -977,7 +1169,7 @@ function renderUsersIntelContent() {
                     <td style="padding:6px 6px;">
                         <div style="display:inline-flex; align-items:center; gap:4px; flex-wrap:nowrap;">
                             <span style="font-weight:700; color:#fff; font-family:monospace; font-size:0.78rem;">${safeIntelEsc(username)}</span>
-                            <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(username)}', this)" title="نسخ اسم المستخدم">
+                            <button type="button" class="intel-btn-copy" onclick="copyIntelText(${intelJsArg(username)}, this)" title="نسخ اسم المستخدم">
                                 <i class="fas fa-copy"></i>
                             </button>
                         </div>
@@ -1494,6 +1686,43 @@ const HOME_CARD_LINKS = {
 
 let homeCardsData = Object.assign({}, DEFAULT_HOME_CARDS); // عرض فوري بالقيم الافتراضية قبل وصول بيانات فايربيز
 
+// ترتيب البطاقات الذي يختاره المدير (حقل _order في siteConfig/homeCards، مقروء للجميع)،
+// مع نسخة محلية حتى لا تظهر البطاقات بالترتيب الافتراضي لحظة ثم تتبدّل.
+let homeCardsOrder = null;
+try { homeCardsOrder = JSON.parse(localStorage.getItem('almezo_home_cards_order') || 'null'); } catch (e) { homeCardsOrder = null; }
+
+function orderedHomeKeys() {
+    const all = Object.keys(HOME_CARD_LINKS);
+    const saved = Array.isArray(homeCardsOrder) ? homeCardsOrder.filter(function (k, i, arr) {
+        return all.indexOf(k) !== -1 && arr.indexOf(k) === i;
+    }) : [];
+    return saved.concat(all.filter(function (k) { return saved.indexOf(k) === -1; }));
+}
+
+/** تقديم (-1) أو تأخير (+1) بطاقة في الصفحة الرئيسية، ويُحفظ للجميع فوراً. */
+window.moveHomeCard = async function (key, dir) {
+    const order = orderedHomeKeys();
+    const i = order.indexOf(key), j = i + dir;
+    if (i === -1 || j < 0 || j >= order.length) return;
+    const previous = order.slice();
+    order[i] = order[j];
+    order[j] = key;
+    homeCardsOrder = order;
+    try { localStorage.setItem('almezo_home_cards_order', JSON.stringify(order)); } catch (e) { }
+    lastHomeCardsHtml = '';
+    renderHomeCards();
+    try {
+        await db.collection('siteConfig').doc('homeCards').set({ _order: order }, { merge: true });
+    } catch (e) {
+        console.error('تعذر حفظ ترتيب البطاقات:', e);
+        homeCardsOrder = previous;
+        try { localStorage.setItem('almezo_home_cards_order', JSON.stringify(previous)); } catch (err) { }
+        lastHomeCardsHtml = '';
+        renderHomeCards();
+        if (typeof showToast === 'function') showToast('تعذر حفظ ترتيب البطاقات - تأكد أنك مسجل دخول كمدير', 'error');
+    }
+};
+
 if (typeof db !== 'undefined') {
     db.collection('siteConfig').doc('homeCards').onSnapshot((doc) => {
         const saved = doc.exists ? (doc.data() || {}) : {};
@@ -1502,6 +1731,10 @@ if (typeof db !== 'undefined') {
             merged[key] = Object.assign({}, DEFAULT_HOME_CARDS[key], saved[key] || {});
         });
         homeCardsData = merged;
+        if (Array.isArray(saved._order)) {
+            homeCardsOrder = saved._order;
+            try { localStorage.setItem('almezo_home_cards_order', JSON.stringify(saved._order)); } catch (e) { }
+        }
         renderHomeCards();
     }, (err) => {
         console.warn('تعذر تحميل إعدادات كروت الصفحة الرئيسية، سيتم استخدام الإعدادات الافتراضية:', err);
@@ -1523,7 +1756,8 @@ function renderHomeCards() {
     var data = homeCardsData || DEFAULT_HOME_CARDS;
     var html = '';
 
-    Object.keys(HOME_CARD_LINKS).forEach(function (key) {
+    var orderedKeys = orderedHomeKeys();
+    orderedKeys.forEach(function (key, orderIndex) {
         var card = Object.assign({}, DEFAULT_HOME_CARDS[key], data[key] || {});
         var link = HOME_CARD_LINKS[key];
         var isPlayer = (key === 'player');
@@ -1533,6 +1767,11 @@ function renderHomeCards() {
             // === وضع تعديل المدير: اسم + صورة + مفتاح تفعيل/إيقاف ===
             html += '\
             <div class="main-category-card ' + key + ' home-card-edit-wrapper" style="cursor:default; display:flex; flex-direction:column; gap:8px; padding:15px;">\
+                <div class="home-card-order-row">\
+                    <button type="button" onclick="moveHomeCard(\'' + key + '\', -1)" title="تقديم البطاقة"' + (orderIndex === 0 ? ' disabled' : '') + '><i class="fas fa-arrow-right"></i> تقديم</button>\
+                    <span class="home-card-order-pos">' + (orderIndex + 1) + ' / ' + orderedKeys.length + '</span>\
+                    <button type="button" onclick="moveHomeCard(\'' + key + '\', 1)" title="تأخير البطاقة"' + (orderIndex === orderedKeys.length - 1 ? ' disabled' : '') + '>تأخير <i class="fas fa-arrow-left"></i></button>\
+                </div>\
                 <input type="text" id="edit-home-name-' + key + '" value="' + (card.name || '').replace(/"/g, '&quot;') + '" class="edit-input" placeholder="اسم القسم">\
                 <input type="text" id="edit-home-image-' + key + '" value="' + (card.image || '').replace(/"/g, '&quot;') + '" class="edit-input" placeholder="رابط الصورة (اختياري للمشغل)">\
                 <label style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:13px; cursor:pointer;">\

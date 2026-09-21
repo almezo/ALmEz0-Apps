@@ -2958,13 +2958,16 @@ async function runSequentialAutoSync() {
         }
 
         try {
+            await dropStreamsCache(cat.type);
             const url = `${host}/player_api.php?username=${user}&password=${pass}&action=${cat.action}`;
-            await proxyFetch(url, false);
-            // كان يجلب الأقسام فقط ويكتفي بمسح الكاش، فتبقى قوائم الأفلام والقنوات قديمة.
-            // نجلب المحتوى نفسه أيضاً حتى يرى المستخدم الجديد فعلاً كما في أندرويد.
-            if (cat.streams && typeof getAllStreamsForType === 'function') {
-                try { await getAllStreamsForType(cat.type, cat.streams); } catch (e) { }
-            }
+            // الأقسام والقائمة معاً: طلبان متزامنان فقط، وهو سقف بوابة اللوحة نفسه (كالتحديث
+            // اليدوي)، والباقات الثلاث تبقى متسلسلة. كان الطلبان متتاليين فيتضاعف الانتظار.
+            await Promise.all([
+                proxyFetch(url, false),
+                (cat.streams && typeof getAllStreamsForType === 'function')
+                    ? getAllStreamsForType(cat.type, cat.streams).catch(() => { })
+                    : Promise.resolve()
+            ]);
             const now = Date.now();
             localStorage.setItem('sp_last_updated_' + cat.type, String(now));
             setCardSyncState(cat.type, 'idle', now);
@@ -2974,12 +2977,34 @@ async function runSequentialAutoSync() {
             setCardSyncState(cat.type, 'idle', now);
         }
 
-        // مهلة بصرية سلسة لإبراز الانتقال بين الباقات كما في مارفل
-        await new Promise(resolve => setTimeout(resolve, 350));
+        // مهلة بصرية قصيرة بين البطاقات فقط، لا بعد الأخيرة (كانت 350ms بعد كل واحدة)
+        if (i < categories.length - 1) await new Promise(resolve => setTimeout(resolve, 120));
     }
 
     isSequentialSyncRunning = false;
     updateCardTimestamps();
+}
+
+/**
+ * يُسقط كاش قائمة نوع واحد (من الذاكرة ومن القرص) حتى يُجلب من السيرفر فعلاً.
+ * التحديث التلقائي كان يمسح كاش الأقسام وحده، فتُقرأ قوائم القنوات والأفلام من نسخة
+ * القرص (صالحة 12 ساعة) وتُعلَّم البطاقة "آخر تحديث: الآن" والمحتوى الجديد لا يظهر.
+ */
+async function dropStreamsCache(type) {
+    try {
+        const streamsAction = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
+        const streamsKey = `${state.username || ''}_${streamsAction}`;
+        delete globalStreamsCache[streamsKey];
+        delete globalStreamsInFlight[streamsKey];
+        const db = await openPersistCacheDb();
+        if (db) {
+            await new Promise(function (resolve) {
+                const tx = db.transaction(PERSIST_CACHE_STORE, 'readwrite');
+                tx.objectStore(PERSIST_CACHE_STORE).delete(streamsKey);
+                tx.oncomplete = tx.onerror = tx.onabort = function () { resolve(); };
+            });
+        }
+    } catch (e) { }
 }
 
 async function manualRefreshCategory(type, event) {
@@ -2999,17 +3024,7 @@ async function manualRefreshCategory(type, event) {
 
     // إصلاح مهم: زر التحديث كان يمسح كاش الأقسام فقط ولا يمسح كاش قوائم القنوات/الأفلام/المسلسلات،
     // فكانت الإضافات الجديدة على السيرفر لا تظهر للمستخدم حتى بعد الضغط على "تحديث".
-    try {
-        const streamsAction = type === 'live' ? 'get_live_streams' : (type === 'vod' ? 'get_vod_streams' : 'get_series');
-        const streamsKey = `${state.username || ''}_${streamsAction}`;
-        delete globalStreamsCache[streamsKey];
-        delete globalStreamsInFlight[streamsKey];
-        const db = await openPersistCacheDb();
-        if (db) {
-            const tx = db.transaction(PERSIST_CACHE_STORE, 'readwrite');
-            tx.objectStore(PERSIST_CACHE_STORE).delete(streamsKey);
-        }
-    } catch (e) { }
+    await dropStreamsCache(type);
 
     let action = 'get_live_categories';
     let typeName = 'البث المباشر';
@@ -3923,6 +3938,19 @@ document.addEventListener('webkitfullscreenchange', () => {
 });
 
 function closeLivePlayer(clearSaved = true) {
+    // زر الإغلاق الأحمر في ملء الشاشة: يغلق القناة ويخرج من ملء الشاشة معاً، وكان يوقف
+    // البث فقط فيبقى المستخدم أمام شاشة سوداء بملء الشاشة بلا قناة.
+    const fsWrap = document.getElementById('livePlayerWrapper');
+    if (fsWrap && fsWrap.classList.contains('live-fullscreen-mode')) {
+        const onAndroid = !!(window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid));
+        if (onAndroid) {
+            // على أندرويد يفتح toggleLivePlayerFullscreen المشغل الأصلي، فنزيل الوضع يدوياً
+            fsWrap.classList.remove('live-fullscreen-mode');
+            document.body.classList.remove('in-live-fullscreen');
+        } else {
+            toggleLivePlayerFullscreen(false);
+        }
+    }
     if (window.vjsPlayer) {
         try {
             window.vjsPlayer.pause();
@@ -5448,12 +5476,29 @@ function initLivePlayerGestures() {
 // =========================================================
 // عزل الشاشات الخلفية ومنع تسرب التركيز (Phantom Focus Prevention)
 // =========================================================
+/*
+ * هل توجد نافذة حقيقية مفتوحة؟ رسائل التنبيه الصغيرة (toast) ليست نوافذ: هي في
+ * حاوية .swal2-container مثل النوافذ، فكانت تُحسب نافذة وتُعزل الشاشة التي تحتها.
+ * وقعت هذه بالضبط بعد تسجيل الخروج: رسالة "تم تسجيل الخروج بنجاح" تظهر لحظة عرض
+ * شاشة كود السيرفر، فتُعزل الشاشة وزر "الاتصال بالسيرفر" لا يقبل أي نقرة، ولا يفكّها
+ * إلا Escape. قِستُ ذلك فعلياً في برنامج الكمبيوتر.
+ * ونافذة تسجيل الخروج أثناء اختفائها (قبل حذفها بلحظات) ليست مفتوحة أيضاً.
+ */
+function isBlockingModalOpen() {
+    const candidates = document.querySelectorAll(
+        '#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)'
+    );
+    for (const m of candidates) {
+        if (m.classList.contains('swal2-container') && m.querySelector('.swal2-toast')) continue;
+        if (m.style && (m.style.opacity === '0' || m.style.pointerEvents === 'none')) continue;
+        return true;
+    }
+    return false;
+}
+
 function syncModalInertState() {
     try {
-        const activeModal = document.querySelector(
-            '#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)'
-        );
-        const isModalOpen = !!activeModal;
+        const isModalOpen = isBlockingModalOpen();
         document.querySelectorAll('.app-screen-container').forEach(s => {
             if (isModalOpen) {
                 s.inert = true;
@@ -5487,6 +5532,9 @@ if (typeof MutationObserver !== 'undefined') {
         document.querySelectorAll('#playlistsModal, #deviceModeModal, #sortModal, #fullscreenVideoModal, #trailerModal, #almezoAiModal, .modal').forEach(m => {
             modalObserver.observe(m, { attributes: true, attributeFilter: ['class', 'style'] });
         });
+        // النوافذ المؤقتة (تسجيل الخروج، رسائل SweetAlert) تُضاف وتُحذف مباشرة تحت body،
+        // وبلا هذه المراقبة كان العزل المحسوب لحظة ظهورها يبقى بعد زوالها.
+        modalObserver.observe(document.body, { childList: true });
     });
 }
 

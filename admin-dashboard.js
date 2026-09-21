@@ -3451,6 +3451,13 @@ window.sendBroadcastNotification = async function () {
         return;
     }
 
+    // الرابط يُفتح عند الضغط على الإشعار في أجهزة العملاء: http/https فقط
+    if (actionUrl && !/^https?:\/\/[^\s]+$/i.test(actionUrl)) {
+        if (typeof showToast === 'function') showToast('رابط الإشعار يجب أن يبدأ بـ https:// أو http://', 'warning');
+        if (urlEl) urlEl.focus();
+        return;
+    }
+
     const confirmRes = await Swal.fire({
         title: 'تأكيد إرسال الإشعار؟',
         text: `سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو (${title})`,
@@ -3490,7 +3497,7 @@ window.sendBroadcastNotification = async function () {
 
         Swal.fire({
             title: 'تم الإرسال بنجاح! 📢',
-            text: 'تم بث الإشعار بنجاح لجميع أجهزة العملاء وسيظهر في شريط الإشعارات لديهم فوراً.',
+            text: 'يظهر فوراً لكل من يفتح الموقع أو التطبيق الآن، ويصل إلى شريط إشعارات أجهزة أندرويد خلال 15 دقيقة كحد أقصى حتى والتطبيق مغلق.',
             icon: 'success',
             confirmButtonText: 'رائع',
             background: '#141820',
@@ -3559,9 +3566,9 @@ window.loadBroadcastHistory = async function () {
                 <div class="history-notif-item">
                     <div class="history-notif-info">
                         <span class="history-notif-title">${typeBadge} - ${safeEsc(data.title || '')}</span>
-                        <span class="history-notif-time">${dateStr} | ${safeEsc(data.message || '').substring(0, 50)}...</span>
+                        <span class="history-notif-time">${dateStr} | ${safeEsc(String(data.message || '').substring(0, 50))}${String(data.message || '').length > 50 ? '...' : ''}</span>
                     </div>
-                    <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${doc.id}')" title="حذف هذا الإشعار">
+                    <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${safeEsc(doc.id)}')" title="حذف هذا الإشعار">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -3593,6 +3600,7 @@ window.deleteBroadcastNotification = async function (docId) {
             loadBroadcastHistory();
         } catch (e) {
             console.error('Delete notification failed', e);
+            if (typeof showToast === 'function') showToast('تعذر حذف الإشعار: ' + (e.message || 'خطأ في الاتصال'), 'error');
         }
     }
 };

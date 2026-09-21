@@ -15,6 +15,12 @@ app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization,SmoothSc
 // حذفه على فك ترميز الفيديو، فتسريع الترميز والرسم أدناه باقٍ كما هو.
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
 
+// ويندوز يربط إشعارات البرنامج باختصاره المثبَّت عبر هذا المعرّف (appId في package.json).
+// بدونه لا تظهر إشعارات المدير في مركز إشعارات ويندوز 10/11 لبرنامج مُثبَّت.
+if (process.platform === 'win32') {
+    app.setAppUserModelId('com.almezo.servers');
+}
+
 // Ensure single instance of the application
 const gotTheLock = app.requestSingleInstanceLock();
 let mainWindow = null;
@@ -214,11 +220,19 @@ if (!gotTheLock) {
         try {
             const { Notification: ElectronNotification } = require('electron');
             if (ElectronNotification.isSupported() && data && data.title) {
-                new ElectronNotification({
+                const n = new ElectronNotification({
                     title: data.title,
                     body: data.message || '',
                     icon: path.join(__dirname, '../photo/logo.ico')
-                }).show();
+                });
+                // الضغط على الإشعار يُظهر البرنامج بدل ألا يفعل شيئاً
+                n.on('click', () => {
+                    if (!mainWindow || mainWindow.isDestroyed()) return;
+                    if (mainWindow.isMinimized()) mainWindow.restore();
+                    mainWindow.show();
+                    mainWindow.focus();
+                });
+                n.show();
             }
         } catch (e) { }
     });

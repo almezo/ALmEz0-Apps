@@ -1261,7 +1261,10 @@ async function adminLiftDeviceLockout(hw, phone) {
                 liftedBy: (typeof currentAuthUser !== 'undefined' && currentAuthUser) ? (currentAuthUser.firstName || 'Admin') : 'Admin'
             }, { merge: true });
         } catch (dbErr) {
+            // لا نبتلع الخطأ: رفع الحظر فعلياً هو هذه الكتابة وحدها (الجهاز المحظور يقرأها)،
+            // وكان فشلها يُعرض على المدير نجاحاً بينما يبقى الجهاز محظوراً.
             console.warn('تعذر تحديث وثيقة الحظر السحابية:', dbErr);
+            throw dbErr;
         }
     }
 
