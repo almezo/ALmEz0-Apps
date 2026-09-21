@@ -152,3 +152,19 @@ exports.pushBroadcastNotification = onDocumentCreated("broadcast_notifications/{
         logger.error("broadcast push failed", { notificationId: event.params.notificationId, error: err.message });
     }
 });
+
+// =============================================
+// ترحيل أرباح الأسبوع للمستحقات من السيرفر (المنطق في rollover.js)
+// =============================================
+// كان الترحيل يعمل فقط حين يفتح المدير لوحة الإدارة: المندوب لا يملك صلاحية تعديل حسابه
+// (firestore.rules)، فمحاولة صفحته تفشل بصمت. يعمل هنا كل ليلة 00:01 بتوقيت ليبيا، ولا يرحّل
+// إلا حين يبدأ أسبوع جديد (حسب يوم البداية في القوانين). الترحيل في الصفحة يبقى احتياطاً،
+// والاثنان لا يرحّلان مرتين (lastWeekStart).
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { getFirestore } = require("firebase-admin/firestore");
+const { runWeeklyRollover } = require("./rollover");
+
+exports.weeklyProfitRollover = onSchedule({ schedule: "1 0 * * *", timeZone: "Africa/Tripoli" }, async () => {
+    const results = await runWeeklyRollover(getFirestore(), Date.now());
+    logger.info("weekly rollover", { rolled: results.length, results: results });
+});

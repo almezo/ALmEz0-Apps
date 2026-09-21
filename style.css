@@ -9335,3 +9335,32 @@ html[data-input-mode="remote"] .main-category-card:focus-visible {
 .custom-alert-overlay {
     z-index: 2147483000 !important;
 }
+
+/* ==========================================================
+   أرصدة المناديب: الرجوع والتقدّم، ملخّص الحساب، التصحيح اليدوي
+   ========================================================== */
+.staff-edit-actions { display: flex; align-items: center; gap: 6px; }
+.balance-step-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08); color: #e2e8f0;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+.balance-step-btn:hover:not(:disabled) { background: rgba(56, 189, 248, 0.25); transform: translateY(-1px); }
+.balance-step-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.balance-current-summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;
+    margin-bottom: 16px; padding: 12px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.balance-current-summary div { display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; color: #94a3b8; }
+.balance-current-summary strong { color: #f8fafc; font-size: 1rem; }
+.balance-current-summary .balance-summary-net { grid-column: 1 / -1; }
+.manual-fix-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fbbf24; font-weight: 700; font-size: 0.9rem; }
+.manual-fix-fields { display: none; margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px dashed rgba(251, 191, 36, 0.45); }
+.manual-fix-hint { margin-top: 6px; font-size: 0.78rem; color: #94a3b8; }
+
+/* نافذة التأكيد: أسطر المراجعة (قبل ← بعد) تظهر كل منها في سطر */
+.custom-confirm-box .confirm-message { white-space: pre-line; line-height: 1.8; }
+.custom-confirm-box .confirm-title { margin: 0 0 12px; font-size: 1.15rem; font-weight: 800; color: #f8fafc; }

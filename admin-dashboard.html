@@ -1550,20 +1550,6 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="editStaffId">
-                <input type="hidden" id="editBaseLibyana">
-                <input type="hidden" id="editBaseAlmadar">
-                <input type="hidden" id="editBaseCash">
-                <input type="hidden" id="editNetLibyana">
-                <input type="hidden" id="editNetAlmadar">
-                <input type="hidden" id="editNetCash">
-                <input type="hidden" id="editNetBank">
-                <input type="hidden" id="editNetSadad">
-                <input type="hidden" id="editNetUsdt">
-                <input type="hidden" id="editBaseProfit">
-                <input type="hidden" id="editNetAmount">
-                <input type="hidden" id="editDuesOwed">
-                <input type="hidden" id="editCurrentCash">
-                <input type="hidden" id="editNetProfitWithoutBase">
 
                 <div class="staff-form-group">
                     <label for="newLibyanaVal" class="edit-balances-modal-label"><i
@@ -1606,36 +1592,35 @@
                     </div>
                 </div>
 
-                <!-- حقل التسوية للمناديب العاديين فقط -->
+                <!-- المناديب المشاركون في الأرباح: استلام ودفع وتصحيح يدوي (منطقها في admin-dashboard.js) -->
                 <div id="standardSettlementGroup" class="staff-form-group mt-20">
-                    <!-- تنبيه ومقاصة للمندوب المدين الذي لديه مستحقات سابقة -->
-                    <div id="debtorOffsetAlert" class="debtor-offset-alert">
-                        <div class="debtor-offset-alert-text">
-                            <i class="fas fa-info-circle"></i> المندوب مدين (عليه ديون كاش)، ولديه مستحقات أرباح سابقة قدرها: <strong id="debtorDuesNotice" class="debtor-offset-dues-val">0.00</strong> د.ل.
-                        </div>
-                        <label class="debtor-offset-label">
-                            <input type="checkbox" id="autoOffsetDuesCheckbox" checked class="debtor-offset-checkbox" title="تصفير المستحقات تلقائياً وخصمها من مطلوب الكاش (مقاصة)">
-                            <span>تصفير المستحقات تلقائياً وخصمها من مطلوب الكاش (مقاصة)</span>
-                        </label>
-                    </div>
+                    <div id="balanceCurrentSummary" class="balance-current-summary"></div>
 
-                    <!-- تنبيه ومقاصة للمندوب الدائن الذي في جيبه كاش من المبيعات -->
-                    <div id="creditorOffsetAlert" class="creditor-offset-alert">
-                        <div class="creditor-offset-alert-text">
-                            <i class="fas fa-info-circle"></i> بحوزة المندوب كاش مبيعات قدره: <strong id="creditorCashNotice" class="debtor-offset-dues-val">0.00</strong> د.ل.
-                            <br>
-                            المستحقات السابقة: <strong id="creditorDuesNotice" class="debtor-offset-dues-val">0.00</strong> د.ل | الصافي المطلوب دفعه: <strong id="creditorNetToPay" class="debtor-offset-dues-val">0.00</strong> د.ل
-                        </div>
-                        <label class="debtor-offset-label">
-                            <input type="checkbox" id="autoOffsetCashForCreditorCheckbox" checked class="creditor-offset-checkbox" title="مقاصة وتصفير كاش المبيعات وخصمه من المستحقات">
-                            <span>مقاصة الكاش وتصفيره (يحتفظ به المندوب وتدفع له الصافي فقط)</span>
-                        </label>
-                    </div>
+                    <label for="receivedCashVal" class="edit-balances-modal-label"><i
+                            class="fas fa-hand-holding-usd accent-red"></i> استلمت كاش من المندوب (د.ل):</label>
+                    <input type="number" id="receivedCashVal" step="0.01" min="0" title="استلمت كاش من المندوب"
+                        placeholder="يُخصم من مطلوب الكاش فقط — الزائد يُضاف لمستحقاته"
+                        class="edit-balances-modal-input input-cash">
 
-                    <label id="settlementLabel" for="settlementAmountVal" class="edit-balances-modal-label"><i
-                            class="fas fa-hand-holding-usd accent-white"></i> القيمة المسددة (د.ل):</label>
-                    <input type="number" id="settlementAmountVal" step="0.01" title="القيمة المسددة"
-                        placeholder="أدخل القيمة هنا..." class="edit-balances-modal-input input-profit">
+                    <label for="paidToStaffVal" class="edit-balances-modal-label mt-20"><i
+                            class="fas fa-money-bill-wave accent-green"></i> دفعت للمندوب (د.ل):</label>
+                    <input type="number" id="paidToStaffVal" step="0.01" min="0" title="دفعت للمندوب"
+                        placeholder="من المستحقات، ثم سلفة على ربح الأسبوع، ثم الزائد مطلوب كاش"
+                        class="edit-balances-modal-input input-profit">
+
+                    <label class="manual-fix-toggle mt-20">
+                        <input type="checkbox" id="manualFixToggle" onchange="toggleManualFix(this.checked)">
+                        <span><i class="fas fa-wrench"></i> تصحيح يدوي (اكتب القيم الصحيحة مباشرة)</span>
+                    </label>
+                    <div id="manualFixFields" class="manual-fix-fields">
+                        <label for="fixCashVal" class="edit-balances-modal-label">مطلوب كاش الصحيح (د.ل):</label>
+                        <input type="number" id="fixCashVal" step="0.01" min="0" title="مطلوب كاش الصحيح" class="edit-balances-modal-input">
+                        <label for="fixDuesVal" class="edit-balances-modal-label mt-20">المستحقات الصحيحة (د.ل):</label>
+                        <input type="number" id="fixDuesVal" step="0.01" min="0" title="المستحقات الصحيحة" class="edit-balances-modal-input">
+                        <label for="fixProfitVal" class="edit-balances-modal-label mt-20">ربح الأسبوع الصحيح (د.ل):</label>
+                        <input type="number" id="fixProfitVal" step="0.01" title="ربح الأسبوع الصحيح" class="edit-balances-modal-input">
+                        <div id="fixProfitHint" class="manual-fix-hint"></div>
+                    </div>
                 </div>
 
                 <button class="edit-balances-modal-save" onmouseover="this.classList.add('hover')"

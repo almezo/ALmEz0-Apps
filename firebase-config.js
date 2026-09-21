@@ -158,11 +158,14 @@ window.saveStaffRules = async function (newRules) {
 };
 
 // دالة مساعدة لحساب عمولة بيعة واحدة للأرباح الأسبوعية بناءً على القوانين الحية
-function _calcCommissionForSale(productName, duration) {
+function _calcCommissionForSale(productName, duration, storedCategory) {
     if (!productName || !duration) return 0;
     const rules = (window.currentStaffRules && window.currentStaffRules.commissions) ? window.currentStaffRules.commissions : DEFAULT_STAFF_RULES.commissions;
 
-    let cat = (typeof window !== 'undefined' && window.productsCategoryMap) ? window.productsCategoryMap[productName] : null;
+    // الصنف المحفوظ في البيعة نفسها أولاً: خريطة المنتجات قد لا تكون محمّلة بعد (الترحيل
+    // يعمل عند فتح الصفحة)، فيخمّن الكود الصنف من المدة ويخطئ: اشتراك سمارت أو VIP لمدة
+    // "سنة واحدة" كان يُحسب 15 بدل 10 أو 7.5.
+    let cat = storedCategory || ((typeof window !== 'undefined' && window.productsCategoryMap) ? window.productsCategoryMap[productName] : null);
 
     if (!cat) {
         const dur = String(duration).toLowerCase();
@@ -191,6 +194,54 @@ if (typeof window !== 'undefined') {
     window.calculateTotalCommission = _calcCommissionForSale;
 }
 
+/**
+ * ربح بيعة واحدة — المصدر الوحيد لكل الحسابات (لوحة المدير، صفحة المندوب، الترحيل).
+ * - بيعة "دين" ربحها 0 دائماً.
+ * - الربح المحفوظ لحظة البيع (commission) يُعتمد كما هو: تغيير أسعار العمولة لاحقاً
+ *   لا يغيّر ربح بيعة قديمة.
+ * - البيعات القديمة قبل حفظ الربح: points إن وُجد، وإلا تُحسب بالقوانين وبصنفها المحفوظ.
+ */
+function _saleCommission(t) {
+    if (!t || t.type !== 'sale') return 0;
+    if (String(t.method || '').trim() === 'دين') return 0;
+    if (typeof t.commission === 'number' && !isNaN(t.commission)) return t.commission;
+    if (t.points !== undefined && t.points !== null) return Number(t.points) || 0;
+    return _calcCommissionForSale(t.product, t.duration, t.category) || 0;
+}
+window.saleCommission = _saleCommission;
+
+/**
+ * حصة مندوب من ربح الأسبوع حسب "قوانين المناديب" (متساوية أو نسب مخصصة).
+ * نفس الدالة للبطاقات وللترحيل، فيُرحَّل بالضبط ما رآه المندوب ربحاً لأسبوعه.
+ */
+function _staffProfitShare(staffName, total) {
+    const name = String(staffName || '');
+    const rules = window.currentStaffRules || DEFAULT_STAFF_RULES;
+    const sharing = (rules && rules.profitSharing) ? rules.profitSharing : DEFAULT_STAFF_RULES.profitSharing;
+    const excluded = sharing.excludedStaff || ['ابراهيم'];
+    if (excluded.some(ex => name.includes(ex))) return 0;
+    const eligible = sharing.eligibleStaff || ['اسلام', 'ايوب', 'اسامه'];
+    const matched = eligible.find(el => name.includes(el));
+    if (!matched) return 0;
+    if (sharing.mode === 'custom') {
+        const pct = (sharing.customPercents && sharing.customPercents[matched] !== undefined)
+            ? Number(sharing.customPercents[matched])
+            : (100 / Math.max(1, eligible.length));
+        return (Number(total) || 0) * ((Number(pct) || 0) / 100);
+    }
+    return (Number(total) || 0) / Math.max(1, eligible.length);
+}
+window.staffProfitShare = _staffProfitShare;
+
+/** هل المندوب ضمن من يشاركون في الأرباح (القوانين)؟ */
+window.isProfitSharingStaff = function (staffName) {
+    const name = String(staffName || '');
+    const rules = window.currentStaffRules || DEFAULT_STAFF_RULES;
+    const sharing = (rules && rules.profitSharing) ? rules.profitSharing : DEFAULT_STAFF_RULES.profitSharing;
+    if ((sharing.excludedStaff || ['ابراهيم']).some(ex => name.includes(ex))) return false;
+    return (sharing.eligibleStaff || ['اسلام', 'ايوب', 'اسامه']).some(el => name.includes(el));
+};
+
 function _getLibyaWeekStart(baseDate) {
     const d = new Date(baseDate);
     d.setHours(0, 0, 0, 0);
@@ -205,6 +256,10 @@ function _getLibyaWeekStart(baseDate) {
 function _weekDateKey(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+/** بداية الأسبوع الحالي (السبت 00:00 بتوقيت الجهاز = ليبيا) — لحساب ربح الأسبوع الجاري */
+window.getLibyaWeekStart = function () {
+    return _getLibyaWeekStart(new Date());
+};
 window.getCurrentWeekKey = function () {
     return _weekDateKey(_getLibyaWeekStart(new Date()));
 };
@@ -217,44 +272,34 @@ window.getCurrentWeekKey = function () {
  */
 window.rolloverUnpaidWeeklyProfit = async function (staffId) {
     const currentWeekKey = window.getCurrentWeekKey();
+    const rules = window.currentStaffRules || DEFAULT_STAFF_RULES;
+    if (rules.weekCycle && rules.weekCycle.autoRollover === false) return;
     try {
         await db.runTransaction(async (tx) => {
             const staffRef = db.collection('customers').doc(staffId);
             const staffDoc = await tx.get(staffRef);
             if (!staffDoc.exists) return;
             const data = staffDoc.data();
+            if (data.lastWeekStart === currentWeekKey) return; // محدث بالفعل (أو رحّله السيرفر)
 
             const nameCheck = (data.firstName || data.name || '');
-            const isIbrahim = nameCheck.includes('ابراهيم');
-            const isSharedThree = nameCheck.includes('اسلام') || nameCheck.includes('ايوب') || nameCheck.includes('اسامه');
+            const sharing = (rules.profitSharing || DEFAULT_STAFF_RULES.profitSharing);
+            const isExcluded = (sharing.excludedStaff || ['ابراهيم']).some(ex => nameCheck.includes(ex));
 
-            // إبراهيم: مستثنى نهائياً من المستحقات والأرباح
-            if (isIbrahim) {
-                if (data.duesOwed !== 0 || data.baseProfit !== 0 || data.lastWeekStart !== currentWeekKey) {
-                    tx.update(staffRef, {
-                        duesOwed: 0,
-                        baseProfit: 0,
-                        lastWeekStart: currentWeekKey
-                    });
-                }
+            // المستثنى (إبراهيم): لا أرباح ولا مستحقات ولا سلفة
+            if (isExcluded) {
+                tx.update(staffRef, { duesOwed: 0, baseProfit: 0, profitAdvance: 0, lastWeekStart: currentWeekKey, balanceUndo: [], balanceRedo: [] });
                 return;
             }
-
-            // باقي المناديب: يجب أن يكونوا من المناديب الثلاثة
-            if (!isSharedThree) {
+            if (!window.isProfitSharingStaff(nameCheck) || !data.lastWeekStart) {
                 tx.update(staffRef, { lastWeekStart: currentWeekKey });
                 return;
             }
-
-            if (!data.lastWeekStart) {
-                // أول تشغيل: سجل الأسبوع الحالي
-                tx.update(staffRef, { lastWeekStart: currentWeekKey });
-                return;
-            }
-            if (data.lastWeekStart === currentWeekKey) return; // محدث بالفعل
 
             let duesOwed = parseFloat(data.duesOwed) || 0;
             let baseProfit = parseFloat(data.baseProfit) || 0;
+            let advance = parseFloat(data.profitAdvance) || 0;
+            let cashAdd = 0;
             let cursor = new Date(data.lastWeekStart + 'T00:00:00');
             let safetyCounter = 0;
 
@@ -268,36 +313,39 @@ window.rolloverUnpaidWeeklyProfit = async function (staffId) {
                     .where('timestamp', '>=', cursor)
                     .where('timestamp', '<', weekEnd)
                     .get();
+                weekSnap.forEach(doc => { weekTotal += _saleCommission(doc.data()); });
 
-                weekSnap.forEach(doc => {
-                    const t = doc.data();
-                    if (t.type === 'sale') {
-                        if (t.points !== undefined && t.points !== null) {
-                            weekTotal += Number(t.points) || 0;
-                        } else {
-                            weekTotal += _calcCommissionForSale(t.product, t.duration);
-                        }
-                    }
-                });
-
-                // المناديب الثلاثة يتشاركون الأرباح بالتساوي (القسمة على 3)
-                const weekShare = weekTotal / 3;
-                duesOwed += (weekShare + baseProfit); // إضافة ربح الأسبوع المنتهي للمستحقات مع أي تعديل سابق
-                baseProfit = 0; // تصفير رصيد الأسبوع استعداداً للأسبوع الجديد
-
+                // ربح الأسبوع المنتهي (حصته حسب القوانين + أي تصحيح يدوي) ناقص ما دُفع منه
+                // مقدماً، يُرحَّل للمستحقات. ثم يبدأ الأسبوع الجديد بصفر.
+                duesOwed += _staffProfitShare(nameCheck, weekTotal) + baseProfit - advance;
+                baseProfit = 0;
+                advance = 0;
                 cursor = weekEnd;
             }
 
-            tx.update(staffRef, {
+            // لا مستحقات سالبة أبداً: إن كانت السلفة أكبر من ربح الأسبوع، يصير الفرق مطلوب كاش
+            if (duesOwed < 0) {
+                cashAdd = -duesOwed;
+                duesOwed = 0;
+            }
+
+            const update = {
                 duesOwed: duesOwed,
-                baseProfit: baseProfit,
-                lastWeekStart: currentWeekKey
-            });
+                baseProfit: 0,
+                profitAdvance: 0,
+                lastWeekStart: currentWeekKey,
+                // تعديلات الأسبوع الماضي لا يُتراجع عنها بعد الترحيل (كانت ستلغيه)
+                balanceUndo: [],
+                balanceRedo: []
+            };
+            if (cashAdd > 0) update.baseCash = (parseFloat(data.baseCash) || 0) + cashAdd;
+            tx.update(staffRef, update);
         });
     } catch (e) {
         console.error('خطأ في ترحيل أرباح الأسبوع للمستحقات:', e);
     }
 };
+
 
 // =============================================
 // حالة المصادقة العامة (Single Source of Truth)

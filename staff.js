@@ -279,13 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if ((data.method === "كاش" || data.method === "دين") && isToday) todayCashSales += price;
 
                         if (isToday) {
-                            let pool = 0;
-                            if (data.points !== undefined && data.points !== null) {
-                                pool = Number(data.points) || 0;
-                            } else if (typeof calculateTotalCommission === 'function') {
-                                pool = calculateTotalCommission(data.product, data.duration);
-                            }
-                            todayTotalProfit += pool;
+                            todayTotalProfit += window.saleCommission(data);
                         }
                     } else if (data.type === "withdrawal") {
                         const amt = parseFloat(data.amount) || 0;
@@ -372,34 +366,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseProfit = parseFloat(staffData.baseProfit) || 0;
             const duesOwed = parseFloat(staffData.duesOwed) || 0;
 
-            let earnedProfit = 0;
-            const rules = window.currentStaffRules || window.DEFAULT_STAFF_RULES;
-            const sharing = (rules && rules.profitSharing) ? rules.profitSharing : {};
-            const excludedList = sharing.excludedStaff || ['ابراهيم'];
-            const eligibleList = sharing.eligibleStaff || ['اسلام', 'ايوب', 'اسامه'];
-            const isCustomMode = (sharing.mode === 'custom');
-            const customPercents = sharing.customPercents || {};
+            // حصة المندوب من ربح الأسبوع حسب القوانين (نفس دالة لوحة المدير والترحيل)
+            let earnedProfit = window.staffProfitShare(currentStaffName, globalWeeklyProfit) + baseProfit;
+            // ما دفعه المدير مقدماً من ربح هذا الأسبوع: لا يغيّر ربح الأسبوع، ويُطرح عند الترحيل
+            const profitAdvance = parseFloat(staffData.profitAdvance) || 0;
 
-            const isExcluded = excludedList.some(ex => currentStaffName && currentStaffName.includes(ex));
-            if (isExcluded) {
-                earnedProfit = 0;
-            } else {
-                const isEligible = eligibleList.some(el => currentStaffName && currentStaffName.includes(el));
-                if (isEligible) {
-                    if (isCustomMode) {
-                        const matchedName = eligibleList.find(el => currentStaffName && currentStaffName.includes(el));
-                        const pct = (matchedName && customPercents[matchedName] !== undefined)
-                            ? Number(customPercents[matchedName])
-                            : (100 / Math.max(1, eligibleList.length));
-                        earnedProfit = globalWeeklyProfit * (pct / 100);
-                    } else {
-                        earnedProfit = (globalWeeklyProfit / Math.max(1, eligibleList.length));
-                    }
-                }
-            }
-            earnedProfit += baseProfit;
-
-            let netAmount = duesOwed + earnedProfit - cashTotal;
+            // الصافي = مطلوب كاش − (المستحقات + ربح الأسبوع − السلفة). موجب: على المندوب
+            let netAmount = cashTotal - (duesOwed + earnedProfit - profitAdvance);
 
             // حسابات خاصة بمندوب ابراهيم (حساب المصرفي / سداد / USDT) من مبيعات وسحوبات المناديب
             let bankSales = 0, sadadSales = 0, usdtSales = 0;
@@ -487,6 +460,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (profitEl) {
                     profitEl.textContent = earnedProfit.toFixed(2);
                 }
+                if (profitTitleEl) {
+                    profitTitleEl.textContent = profitAdvance > 0.004
+                        ? 'ربح الأسبوع (مدفوع مقدماً ' + profitAdvance.toFixed(2) + ')'
+                        : 'ربح الأسبوع';
+                }
 
                 const duesCard = document.querySelector('.balance-card-dues');
                 if (duesCard) duesCard.className = 'balance-card balance-card-dues';
@@ -497,14 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const netCard = document.querySelector('.balance-card-net');
                 if (netCard) netCard.className = 'balance-card balance-card-net';
                 const netTitleEl = document.getElementById('netCardTitle') || (netCard ? netCard.querySelector('.balance-card-title') : null);
-                if (netTitleEl) netTitleEl.textContent = 'الصافي';
+                if (netTitleEl) {
+                    netTitleEl.textContent = netAmount > 0.004 ? 'الصافي — عليك' : (netAmount < -0.004 ? 'الصافي — لك' : 'الصافي');
+                }
                 const netEl = document.querySelector("#netBalance .card-net-amount");
                 if (netEl) {
-                    netEl.textContent = netAmount.toFixed(2);
-                    if (netAmount > 0) {
-                        netEl.style.color = 'var(--success-color, #4ade80)';
-                    } else if (netAmount < 0) {
+                    netEl.textContent = Math.abs(netAmount).toFixed(2);
+                    if (netAmount > 0.004) {
                         netEl.style.color = 'var(--danger-color, #f87171)';
+                    } else if (netAmount < -0.004) {
+                        netEl.style.color = 'var(--success-color, #4ade80)';
                     } else {
                         netEl.style.color = '#ffffff';
                     }
@@ -583,13 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let total = 0;
             lastWeeklySnapshot.forEach(doc => {
                 const data = doc.data();
-                if (data.type === 'sale') {
-                    if (data.points !== undefined && data.points !== null) {
-                        total += Number(data.points) || 0;
-                    } else if (typeof calculateTotalCommission === 'function') {
-                        total += calculateTotalCommission(data.product, data.duration);
-                    }
-                }
+                total += window.saleCommission(data);
             });
             globalWeeklyProfit = total;
             processBalances();
@@ -691,10 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // حساب الربح للعمليات المفلترة
             if (data.type === 'sale') {
-                if (typeof calculateTotalCommission === 'function') {
-                    // الاعتماد على الدالة فقط
-                    filteredProfit += calculateTotalCommission(data.product, data.duration);
-                }
+                filteredProfit += window.saleCommission(data);
             }
 
             let dateStr = 'الآن';
@@ -1207,16 +1178,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
 
-            const selOpt = (selectDuration && selectDuration.selectedIndex >= 0) ? selectDuration.options[selectDuration.selectedIndex] : null;
-            let points = 0;
-            if (isProductSpecified) {
-                points = (selOpt && selOpt.dataset && selOpt.dataset.points) ? Number(selOpt.dataset.points) : 0;
-                if (isNaN(points) || points <= 0) {
-                    points = (typeof calculateTotalCommission === 'function') ? calculateTotalCommission(product, duration) : 0;
-                }
-                if (method === 'دين') {
-                    points = 0;
-                }
+            // ربح البيعة يُحسب الآن من القوانين ويُحفظ معها: لا يتغيّر لاحقاً إن تغيّرت أسعار
+            // العمولة، وبيعة "الدين" ربحها 0. (كان يُحسب ولا يُحفظ، فتُعطى بيعة الدين ربحاً
+            // كاملاً عند إعادة الحساب.)
+            let saleCommissionValue = 0;
+            if (isProductSpecified && method !== 'دين' && typeof window.calculateTotalCommission === 'function') {
+                saleCommissionValue = Number(window.calculateTotalCommission(product, duration, cat)) || 0;
             }
 
             let currentStaffId = uid;
@@ -1271,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     isDirectSale: !isProductSpecified,
                     // تم تغيير الاسم إلى inventoryPointsDeducted لمنع تداخل أرباح المندوب
                     inventoryPointsDeducted: pointsToDeduct,
+                    commission: saleCommissionValue,
                     price: Number(price) || 0,
                     method: String(method),
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()

@@ -1340,7 +1340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isIbrahim = staffName.includes('ابراهيم');
 
             // ترحيل تلقائي لأي أرباح أسبوع سابق لم تُدفع إلى خانة "مستحقات" (للمناديب الثلاثة فقط)
-            if (!isIbrahim && typeof window.getCurrentWeekKey === 'function' && staffData.lastWeekStart !== window.getCurrentWeekKey()) {
+            if (typeof window.getCurrentWeekKey === 'function' && staffData.lastWeekStart !== window.getCurrentWeekKey()) {
                 window.rolloverUnpaidWeeklyProfit(staffId);
             }
 
@@ -1459,6 +1459,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const sadadTotal = sadadSales - sadadWithdrawals + baseSadad;
             const usdtTotal = usdtSales - usdtWithdrawals + baseUsdt;
 
+            // القيم الحية (من العمليات) لكل مندوب: نافذة التعديل تحسب منها لحظة الحفظ، لا من
+            // أرقام الشاشة لحظة فتح النافذة — بيعة تُسجَّل أثناء التعديل لا تُفسد الحساب.
+            window.staffLive = window.staffLive || {};
+            window.staffLive[staffId] = {
+                name: staffName,
+                isIbrahim: isIbrahim,
+                netLibyana: libyanaSales - libyanaWithdrawals,
+                netAlmadar: almadarSales - almadarWithdrawals,
+                netCash: cashSales - cashWithdrawals,
+                netBank: bankSales - bankWithdrawals,
+                netSadad: sadadSales - sadadWithdrawals,
+                netUsdt: usdtSales - usdtWithdrawals
+            };
+            const undoStack = Array.isArray(staffData.balanceUndo) ? staffData.balanceUndo : [];
+            const redoStack = Array.isArray(staffData.balanceRedo) ? staffData.balanceRedo : [];
+            const lastUndo = undoStack.length ? undoStack[undoStack.length - 1] : null;
+            const lastRedo = redoStack.length ? redoStack[redoStack.length - 1] : null;
+            const escAttr = (v) => String(v || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            const undoTitle = lastUndo ? 'تراجع عن: ' + escAttr(lastUndo.summary) : 'لا يوجد تعديل للتراجع عنه';
+            const redoTitle = lastRedo ? 'إعادة: ' + escAttr(lastRedo.summary) : 'لا يوجد ما يُعاد';
+            const profitAdvance = parseFloat(staffData.profitAdvance) || 0;
+
             // (تم إيقاف الكتابة التلقائية لتخفيف الضغط على قاعدة البيانات ولأن المندوب يحسبها بنفسه)
             // const updates = {};
             // if (staffData.currentLibyana !== libyanaTotal) updates.currentLibyana = libyanaTotal;
@@ -1474,7 +1496,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="width: 100%;">
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: none; margin-bottom: 10px; width: 100%; gap: 15px;">
                         <h3 class="staff-form-title" style="margin: 0;"><i class="fas fa-user-tie"></i> ${staffName}</h3>
-                        <button class="edit-balance-btn" style="background: linear-gradient(135deg, #4CAF50, #2E7D32); border: none; color: #fff; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3); display: flex; align-items: center; gap: 6px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(76, 175, 80, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(76, 175, 80, 0.3)'" onclick="editBalances('${staffId}', '${staffName}', ${libyanaTotal}, ${almadarTotal}, ${cashTotal}, ${baseLibyana}, ${baseAlmadar}, ${baseCash}, ${libyanaSales - libyanaWithdrawals}, ${almadarSales - almadarWithdrawals}, ${cashSales - cashWithdrawals}, ${bankTotal}, ${sadadTotal}, ${usdtTotal}, ${bankSales - bankWithdrawals}, ${sadadSales - sadadWithdrawals}, ${usdtSales - usdtWithdrawals}, ${baseBank}, ${baseSadad}, ${baseUsdt})"><i class="fas fa-edit"></i> تعديل</button>
+                        <div class="staff-edit-actions">
+                            <button type="button" class="balance-step-btn" title="${undoTitle}" ${undoStack.length ? '' : 'disabled'} onclick="undoBalanceEdit('${staffId}')"><i class="fas fa-rotate-left"></i></button>
+                            <button type="button" class="balance-step-btn" title="${redoTitle}" ${redoStack.length ? '' : 'disabled'} onclick="redoBalanceEdit('${staffId}')"><i class="fas fa-rotate-right"></i></button>
+                            <button class="edit-balance-btn" style="background: linear-gradient(135deg, #4CAF50, #2E7D32); border: none; color: #fff; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3); display: flex; align-items: center; gap: 6px;" onclick="editBalances('${staffId}')"><i class="fas fa-edit"></i> تعديل</button>
+                        </div>
                     </div>
                     <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 15px;">رقم الهاتف: <span style="direction:ltr; display:inline-block;">${staffData.phone}</span></p>
                 </div>
@@ -1518,8 +1544,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     ` : `
-                    <div class="balance-card balance-card-profit" data-staff-id="${staffId}" data-staff-name="${staffName}" data-cash-total="${cashTotal}" data-base-profit="${baseProfit}" data-dues-owed="${duesOwed}">
-                        <h4 class="balance-card-title">ربح الأسبوع</h4>
+                    <div class="balance-card balance-card-profit" data-staff-id="${staffId}" data-staff-name="${staffName}" data-cash-total="${cashTotal}" data-base-profit="${baseProfit}" data-dues-owed="${duesOwed}" data-profit-advance="${profitAdvance}">
+                        <h4 class="balance-card-title card-profit-title">ربح الأسبوع</h4>
                         <div class="balance-card-amount balance-val-profit">
                             <span class="balance-val-amount card-profit-amount">0.00</span> <span class="balance-val-currency">د.ل</span>
                         </div>
@@ -1531,7 +1557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="balance-card balance-card-net" data-staff-id="${staffId}">
-                        <h4 class="balance-card-title">الصافي</h4>
+                        <h4 class="balance-card-title card-net-title">الصافي</h4>
                         <div class="balance-card-amount balance-val-net">
                             <span class="balance-val-amount card-net-amount">0.00</span> <span class="balance-val-currency">د.ل</span>
                         </div>
@@ -1555,77 +1581,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateStaffProfitsFromLatestTotal() {
-        const totalProfits = window.latestWeeklyTotalProfits || 0;
-        const rules = window.currentStaffRules || window.DEFAULT_STAFF_RULES;
-        const sharing = (rules && rules.profitSharing) ? rules.profitSharing : {};
-        const excludedList = sharing.excludedStaff || ['ابراهيم'];
-        const eligibleList = sharing.eligibleStaff || ['اسلام', 'ايوب', 'اسامه'];
-        const isCustomMode = (sharing.mode === 'custom');
-        const customPercents = sharing.customPercents || {};
+    /**
+     * مجموع ربح الأسبوع الحالي (من السبت) من كل العمليات. كان ربح البطاقات يُؤخذ من فترة
+     * سجل المبيعات المعروضة، فالبحث عن أسبوع سابق كان يغيّر ربح الأسبوع والصافي على البطاقات،
+     * وإن ضُغط "تعديل" وقتها حُفظ الحساب على أرقام ذلك الأسبوع.
+     */
+    function currentWeekProfitTotal() {
+        const start = (typeof window.getLibyaWeekStart === 'function') ? window.getLibyaWeekStart() : new Date(0);
+        let total = 0;
+        transactionsDocs.forEach(doc => {
+            const t = doc.data();
+            if (t.type !== 'sale') return;
+            const ts = (t.timestamp && typeof t.timestamp.toDate === 'function') ? t.timestamp.toDate() : new Date();
+            if (ts >= start) total += window.saleCommission(t);
+        });
+        return total;
+    }
+    window.currentWeekProfitTotal = currentWeekProfitTotal;
 
+    function updateStaffProfitsFromLatestTotal() {
+        const weekTotal = currentWeekProfitTotal();
         document.querySelectorAll('.balance-card-profit').forEach(card => {
+            if (card.classList.contains('balance-card-bank')) return; // بطاقة المصرفي عند ابراهيم
             const staffId = card.getAttribute('data-staff-id');
             const staffName = card.getAttribute('data-staff-name') || '';
-
-            // المندوب المستثنى (مثل ابراهيم): تم استبدال صناديقه بحساب المصرفي، سداد، و USDT
-            const isExcluded = excludedList.some(ex => staffName.includes(ex));
-            if (isExcluded) {
-                return;
-            }
-
             const rawCash = parseFloat(card.getAttribute('data-cash-total')) || 0;
             const baseProfit = parseFloat(card.getAttribute('data-base-profit')) || 0;
             const duesOwed = parseFloat(card.getAttribute('data-dues-owed')) || 0;
+            const advance = parseFloat(card.getAttribute('data-profit-advance')) || 0;
+
+            const earnedProfit = window.staffProfitShare(staffName, weekTotal) + baseProfit;
+            // الصافي = مطلوب كاش − (المستحقات + ربح الأسبوع − السلفة). موجب: على المندوب
+            const netAmount = rawCash - (duesOwed + earnedProfit - advance);
+
             const profitSpan = card.querySelector('.card-profit-amount');
-
-            // 1. حساب إجمالي الأرباح المستحقة للمندوب ديناميكياً
-            let earnedProfit = 0;
-            const isEligible = eligibleList.some(el => staffName.includes(el));
-            if (isEligible) {
-                if (isCustomMode) {
-                    const matchedName = eligibleList.find(el => staffName.includes(el));
-                    const pct = (matchedName && customPercents[matchedName] !== undefined)
-                        ? Number(customPercents[matchedName])
-                        : (100 / Math.max(1, eligibleList.length));
-                    earnedProfit = totalProfits * (pct / 100);
-                } else {
-                    earnedProfit = (totalProfits / Math.max(1, eligibleList.length));
-                }
-            }
-            earnedProfit += baseProfit;
-
-            // 2. تحديث البطاقات
-            let netAmount = duesOwed + earnedProfit - rawCash;
-
-            // 3. تحديث بطاقة الكاش والربح والصافي في الواجهة
-            const cashCard = document.querySelector(`.balance-card-cash[data-staff-id="${staffId}"]`);
-            if (cashCard) {
-                const cashSpan = cashCard.querySelector('.card-cash-amount');
-                if (cashSpan) {
-                    cashSpan.textContent = rawCash.toFixed(2);
-                }
-            }
-
-            if (profitSpan) {
-                profitSpan.textContent = earnedProfit.toFixed(2);
-            }
+            if (profitSpan) profitSpan.textContent = earnedProfit.toFixed(2);
+            const profitTitle = card.querySelector('.card-profit-title');
+            if (profitTitle) profitTitle.textContent = advance > 0.004 ? 'ربح الأسبوع (مدفوع مقدماً ' + advance.toFixed(2) + ')' : 'ربح الأسبوع';
 
             const netCard = document.querySelector(`.balance-card-net[data-staff-id="${staffId}"]`);
             if (netCard) {
                 const netSpan = netCard.querySelector('.card-net-amount');
+                const netTitle = netCard.querySelector('.card-net-title');
+                if (netTitle) netTitle.textContent = netAmount > 0.004 ? 'الصافي — على المندوب' : (netAmount < -0.004 ? 'الصافي — للمندوب' : 'الصافي');
                 if (netSpan) {
-                    netSpan.textContent = netAmount.toFixed(2);
-                    if (netAmount > 0) {
-                        netSpan.style.color = 'var(--success-color, #4ade80)';
-                    } else if (netAmount < 0) {
-                        netSpan.style.color = 'var(--danger-color, #f87171)';
-                    } else {
-                        netSpan.style.color = '#ffffff';
-                    }
+                    netSpan.textContent = Math.abs(netAmount).toFixed(2);
+                    netSpan.style.color = netAmount > 0.004 ? 'var(--danger-color, #f87171)'
+                        : (netAmount < -0.004 ? 'var(--success-color, #4ade80)' : '#ffffff');
                 }
             }
-            // 4. تحديث الأرصدة في قاعدة البيانات (تم تعطيله لأن الحساب يتم لحظياً في لوحة المندوب)
         });
     }
 
@@ -1921,11 +1925,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const docId = item.id;
 
                 if (data.type === 'sale') {
-                    if (data.points !== undefined && data.points !== null) {
-                        totalProfits += Number(data.points) || 0;
-                    } else if (typeof calculateTotalCommission === 'function') {
-                        totalProfits += calculateTotalCommission(data.product, data.duration);
-                    }
+                    totalProfits += window.saleCommission(data);
                 }
                 let d = new Date();
                 if (data.timestamp) {
@@ -2474,185 +2474,145 @@ window.addEventListener('keydown', (e) => {
 // =============================================
 // Edit Staff Balances Logic
 // =============================================
-window.editBalances = function (staffId, staffName, currentLibyana, currentAlmadar, currentCash, baseLibyana, baseAlmadar, baseCash, netLibyana, netAlmadar, netCash, bankTotal, sadadTotal, usdtTotal, bankSales, sadadSales, usdtSales, baseBank, baseSadad, baseUsdt) {
+// =============================================
+// أرصدة المناديب: القيم الأساسية وطريقة عرضها
+// =============================================
+// قواعد المدير:
+// - ربح الأسبوع لا يمسّه أي تعديل: يتغيّر بالمبيعات فقط ويُرحَّل للمستحقات بداية الأسبوع.
+// - "استلمت كاش من المندوب" يُخصم من مطلوب الكاش فقط؛ الزائد عنه يُضاف لمستحقاته.
+// - "دفعت للمندوب" يُخصم من المستحقات، ثم سلفة على ربح الأسبوع، ثم الزائد يصير مطلوب كاش.
+// - لا مطلوب كاش ولا مستحقات بالسالب.
+// - الصافي = مطلوب كاش − (المستحقات + ربح الأسبوع − السلفة). موجب: على المندوب.
+const BALANCE_BASE_FIELDS = ['baseLibyana', 'baseAlmadar', 'baseCash', 'baseProfit', 'duesOwed', 'profitAdvance', 'baseBank', 'baseSadad', 'baseUsdt'];
+
+function roundMoney(v) {
+    return Math.round((Number(v) || 0) * 100) / 100;
+}
+
+function snapshotBalanceBases(data) {
+    const o = {};
+    BALANCE_BASE_FIELDS.forEach(k => { o[k] = roundMoney(data ? data[k] : 0); });
+    return o;
+}
+
+function sameBalanceBases(a, b) {
+    return BALANCE_BASE_FIELDS.every(k => Math.abs((Number(a[k]) || 0) - (Number(b[k]) || 0)) < 0.005);
+}
+
+/** الأرقام كما تظهر على البطاقة، من القيم الأساسية + العمليات الحية. */
+function balanceView(staffId, bases) {
+    const live = (window.staffLive || {})[staffId] || {};
+    const weekTotal = (typeof window.currentWeekProfitTotal === 'function') ? window.currentWeekProfitTotal() : 0;
+    const share = live.isIbrahim ? 0 : window.staffProfitShare(live.name, weekTotal);
+    const view = {
+        libyana: (live.netLibyana || 0) + bases.baseLibyana,
+        almadar: (live.netAlmadar || 0) + bases.baseAlmadar,
+        cash: (live.netCash || 0) + bases.baseCash,
+        dues: bases.duesOwed,
+        profit: share + bases.baseProfit,
+        advance: bases.profitAdvance,
+        bank: (live.netBank || 0) + bases.baseBank,
+        sadad: (live.netSadad || 0) + bases.baseSadad,
+        usdt: (live.netUsdt || 0) + bases.baseUsdt,
+        share: share
+    };
+    view.net = view.cash - (view.dues + view.profit - view.advance);
+    return view;
+}
+
+function netLabel(net) {
+    if (net > 0.004) return net.toFixed(2) + ' على المندوب';
+    if (net < -0.004) return Math.abs(net).toFixed(2) + ' للمندوب';
+    return '0.00 (مصفّر)';
+}
+
+/** نص المراجعة: كل رقم قبل ← بعد، وما لم يتغيّر يُكتب بجانبه (بدون تغيير). */
+function balancePreviewText(live, before, after, notes) {
+    const rows = live.isIbrahim
+        ? [['مطلوب ليبيانا', 'libyana'], ['مطلوب المدار', 'almadar'], ['مطلوب كاش', 'cash'], ['حساب المصرفي', 'bank'], ['سداد', 'sadad'], ['USDT', 'usdt']]
+        : [['مطلوب ليبيانا', 'libyana'], ['مطلوب المدار', 'almadar'], ['مطلوب كاش', 'cash'], ['المستحقات', 'dues'], ['ربح الأسبوع', 'profit'], ['سلفة على ربح الأسبوع', 'advance']];
+    const lines = [];
+    if (notes && notes.length) lines.push(notes.join('\n'), '');
+    rows.forEach(([label, key]) => {
+        const a = Number(before[key]) || 0, b = Number(after[key]) || 0;
+        if (key === 'advance' && Math.abs(a) < 0.005 && Math.abs(b) < 0.005) return;
+        lines.push(Math.abs(a - b) < 0.005
+            ? `${label}: ${b.toFixed(2)} (بدون تغيير)`
+            : `${label}: ${a.toFixed(2)} ← ${b.toFixed(2)}`);
+    });
+    if (!live.isIbrahim) {
+        lines.push(Math.abs(before.net - after.net) < 0.005
+            ? `الصافي: ${netLabel(after.net)} (بدون تغيير)`
+            : `الصافي: ${netLabel(before.net)} ← ${netLabel(after.net)}`);
+    }
+    return lines.join('\n');
+}
+
+window.editBalances = async function (staffId) {
+    const live = (window.staffLive || {})[staffId];
+    if (!live) {
+        showToast('بيانات المندوب لم تُحمَّل بعد، حاول بعد لحظات', 'warning');
+        return;
+    }
+    let bases;
+    try {
+        const doc = await db.collection('customers').doc(staffId).get();
+        bases = snapshotBalanceBases(doc.data() || {});
+    } catch (e) {
+        showToast('تعذر جلب حساب المندوب: ' + e.message, 'error');
+        return;
+    }
+    const v = balanceView(staffId, bases);
+
     document.getElementById('editStaffId').value = staffId;
-    document.getElementById('editStaffName').innerText = staffName;
-
-    document.getElementById('editBaseLibyana').value = baseLibyana || 0;
-    document.getElementById('editBaseAlmadar').value = baseAlmadar || 0;
-    document.getElementById('editBaseCash').value = baseCash || 0;
-
-    document.getElementById('editNetLibyana').value = netLibyana || 0;
-    document.getElementById('editNetAlmadar').value = netAlmadar || 0;
-    document.getElementById('editNetCash').value = netCash || 0;
-
-    if (document.getElementById('editNetBank')) document.getElementById('editNetBank').value = bankSales || 0;
-    if (document.getElementById('editNetSadad')) document.getElementById('editNetSadad').value = sadadSales || 0;
-    if (document.getElementById('editNetUsdt')) document.getElementById('editNetUsdt').value = usdtSales || 0;
-
-    const isIbrahim = (staffName || '').includes('ابراهيم');
-
-    // Get current net profit and base profit from DOM (safely guarded)
-    let currentNetProfit = 0;
-    let baseProfit = 0;
-    let netAmount = 0;
-
-    const profitCard = document.querySelector(`.balance-card-profit[data-staff-id="${staffId}"]`);
-    if (profitCard) {
-        const profitSpan = profitCard.querySelector('.card-profit-amount');
-        if (profitSpan) {
-            currentNetProfit = parseFloat(profitSpan.textContent) || 0;
-        }
-        baseProfit = parseFloat(profitCard.getAttribute('data-base-profit')) || 0;
-    }
-    const duesOwed = profitCard ? (parseFloat(profitCard.getAttribute('data-dues-owed')) || 0) : 0;
-
-    const netCard = document.querySelector(`.balance-card-net[data-staff-id="${staffId}"]`);
-    if (netCard) {
-        const netSpan = netCard.querySelector('.card-net-amount');
-        if (netSpan) {
-            netAmount = parseFloat(netSpan.textContent) || 0;
-        }
-    }
-
-    // Add missing hidden inputs dynamically if not exist
-    if (!document.getElementById('editBaseProfit')) {
-        const h = document.createElement('input'); h.type = 'hidden'; h.id = 'editBaseProfit'; document.querySelector('.modal-body').appendChild(h);
-    }
-    if (!document.getElementById('editNetAmount')) {
-        const h = document.createElement('input'); h.type = 'hidden'; h.id = 'editNetAmount'; document.querySelector('.modal-body').appendChild(h);
-    }
-    if (!document.getElementById('editDuesOwed')) {
-        const h = document.createElement('input'); h.type = 'hidden'; h.id = 'editDuesOwed'; document.querySelector('.modal-body').appendChild(h);
-    }
-    if (!document.getElementById('editCurrentCash')) {
-        const h = document.createElement('input'); h.type = 'hidden'; h.id = 'editCurrentCash'; document.querySelector('.modal-body').appendChild(h);
-    }
-
-    let rawCash = parseFloat(currentCash);
-    if (isNaN(rawCash)) {
-        const cashCard = document.querySelector(`.balance-card-cash[data-staff-id="${staffId}"]`);
-        rawCash = cashCard ? (parseFloat(cashCard.querySelector('.card-cash-amount')?.textContent) || 0) : 0;
-    }
-
-    document.getElementById('editBaseProfit').value = baseProfit || 0;
-    document.getElementById('editNetAmount').value = netAmount || 0;
-    document.getElementById('editDuesOwed').value = duesOwed || 0;
-    document.getElementById('editCurrentCash').value = rawCash || 0;
-
-    document.getElementById('newLibyanaVal').value = (parseFloat(currentLibyana) || 0).toFixed(2);
-    document.getElementById('newAlmadarVal').value = (parseFloat(currentAlmadar) || 0).toFixed(2);
+    document.getElementById('editStaffName').innerText = live.name;
+    document.getElementById('newLibyanaVal').value = v.libyana.toFixed(2);
+    document.getElementById('newAlmadarVal').value = v.almadar.toFixed(2);
 
     const ibrahimFields = document.getElementById('ibrahimEditFields');
-    const standardSettlementGroup = document.getElementById('standardSettlementGroup');
-
-    if (isIbrahim) {
+    const standardGroup = document.getElementById('standardSettlementGroup');
+    if (live.isIbrahim) {
         if (ibrahimFields) ibrahimFields.style.display = 'block';
-        if (standardSettlementGroup) standardSettlementGroup.style.display = 'none';
-
-        let cashVal = parseFloat(currentCash);
-        if (isNaN(cashVal)) {
-            const cashCard = document.querySelector(`.balance-card-cash[data-staff-id="${staffId}"]`);
-            cashVal = cashCard ? (parseFloat(cashCard.querySelector('.card-cash-amount')?.textContent) || 0) : 0;
-        }
-
-        let bTotal = parseFloat(bankTotal);
-        if (isNaN(bTotal)) {
-            const bankCard = document.querySelector(`.balance-card-bank[data-staff-id="${staffId}"]`);
-            bTotal = bankCard ? (parseFloat(bankCard.querySelector('.card-bank-amount')?.textContent) || 0) : 0;
-        }
-
-        let sTotal = parseFloat(sadadTotal);
-        if (isNaN(sTotal)) {
-            const sadadCard = document.querySelector(`.balance-card-sadad[data-staff-id="${staffId}"]`);
-            sTotal = sadadCard ? (parseFloat(sadadCard.querySelector('.card-sadad-amount')?.textContent) || 0) : 0;
-        }
-
-        let uTotal = parseFloat(usdtTotal);
-        if (isNaN(uTotal)) {
-            const usdtCard = document.querySelector(`.balance-card-usdt[data-staff-id="${staffId}"]`);
-            uTotal = usdtCard ? (parseFloat(usdtCard.querySelector('.card-usdt-amount')?.textContent) || 0) : 0;
-        }
-
-        if (document.getElementById('newCashVal')) document.getElementById('newCashVal').value = cashVal.toFixed(2);
-        if (document.getElementById('newBankVal')) document.getElementById('newBankVal').value = bTotal.toFixed(2);
-        if (document.getElementById('newSadadVal')) document.getElementById('newSadadVal').value = sTotal.toFixed(2);
-        if (document.getElementById('newUsdtVal')) document.getElementById('newUsdtVal').value = uTotal.toFixed(2);
+        if (standardGroup) standardGroup.style.display = 'none';
+        document.getElementById('newCashVal').value = v.cash.toFixed(2);
+        document.getElementById('newBankVal').value = v.bank.toFixed(2);
+        document.getElementById('newSadadVal').value = v.sadad.toFixed(2);
+        document.getElementById('newUsdtVal').value = v.usdt.toFixed(2);
     } else {
         if (ibrahimFields) ibrahimFields.style.display = 'none';
-        if (standardSettlementGroup) standardSettlementGroup.style.display = 'block';
-
-        const debtorOffsetAlert = document.getElementById('debtorOffsetAlert');
-        const debtorDuesNotice = document.getElementById('debtorDuesNotice');
-        const autoOffsetCheckbox = document.getElementById('autoOffsetDuesCheckbox');
-
-        const creditorOffsetAlert = document.getElementById('creditorOffsetAlert');
-        const creditorCashNotice = document.getElementById('creditorCashNotice');
-        const creditorDuesNotice = document.getElementById('creditorDuesNotice');
-        const creditorNetToPay = document.getElementById('creditorNetToPay');
-        const autoOffsetCashCreditorCheckbox = document.getElementById('autoOffsetCashForCreditorCheckbox');
-
-        const settlementLabel = document.getElementById('settlementLabel');
-        const settlementInput = document.getElementById('settlementAmountVal');
-        if (settlementInput) settlementInput.value = '';
-
-        if (netAmount < 0 && duesOwed > 0) {
-            if (debtorOffsetAlert) debtorOffsetAlert.style.display = 'block';
-            if (debtorDuesNotice) debtorDuesNotice.innerText = duesOwed.toFixed(2);
-            if (autoOffsetCheckbox) autoOffsetCheckbox.checked = true;
-            if (creditorOffsetAlert) creditorOffsetAlert.style.display = 'none';
-        } else if (netAmount > 0 && rawCash > 0 && duesOwed > 0) {
-            if (debtorOffsetAlert) debtorOffsetAlert.style.display = 'none';
-            if (creditorOffsetAlert) {
-                creditorOffsetAlert.style.display = 'block';
-                if (creditorCashNotice) creditorCashNotice.innerText = rawCash.toFixed(2);
-                if (creditorDuesNotice) creditorDuesNotice.innerText = duesOwed.toFixed(2);
-                const netDuesToPay = Math.max(0, duesOwed - rawCash);
-                if (creditorNetToPay) creditorNetToPay.innerText = netDuesToPay.toFixed(2);
-                if (autoOffsetCashCreditorCheckbox) {
-                    autoOffsetCashCreditorCheckbox.checked = true;
-                    autoOffsetCashCreditorCheckbox.onchange = function () {
-                        if (autoOffsetCashCreditorCheckbox.checked) {
-                            if (settlementInput) {
-                                settlementInput.value = netDuesToPay > 0 ? netDuesToPay.toFixed(2) : '';
-                                settlementInput.placeholder = netDuesToPay > 0 ? `صافي المستحقات المطلوب دفعها: ${netDuesToPay.toFixed(2)}` : '0.00 (المستحقات تعادل الكاش تماماً)';
-                            }
-                        } else {
-                            if (settlementInput) {
-                                settlementInput.value = duesOwed.toFixed(2);
-                                settlementInput.placeholder = `أقصى مبلغ متاح: ${netAmount.toFixed(2)}`;
-                            }
-                        }
-                    };
-                }
-
-                if (settlementInput) {
-                    settlementInput.value = netDuesToPay > 0 ? netDuesToPay.toFixed(2) : '';
-                    settlementInput.placeholder = netDuesToPay > 0 ? `صافي المستحقات المطلوب دفعها: ${netDuesToPay.toFixed(2)}` : '0.00 (المستحقات تعادل الكاش تماماً)';
-                }
-            }
-        } else {
-            if (debtorOffsetAlert) debtorOffsetAlert.style.display = 'none';
-            if (creditorOffsetAlert) creditorOffsetAlert.style.display = 'none';
+        if (standardGroup) standardGroup.style.display = 'block';
+        const summary = document.getElementById('balanceCurrentSummary');
+        if (summary) {
+            summary.innerHTML =
+                `<div><span>مطلوب كاش</span><strong>${v.cash.toFixed(2)}</strong></div>` +
+                `<div><span>المستحقات</span><strong>${v.dues.toFixed(2)}</strong></div>` +
+                `<div><span>ربح الأسبوع</span><strong>${v.profit.toFixed(2)}</strong></div>` +
+                (v.advance > 0.004 ? `<div><span>سلفة على الربح</span><strong>${v.advance.toFixed(2)}</strong></div>` : '') +
+                `<div class="balance-summary-net"><span>الصافي</span><strong>${netLabel(v.net)}</strong></div>`;
         }
-
-        if (settlementLabel && settlementInput) {
-            if (netAmount > 0) {
-                settlementLabel.innerHTML = '<i class="fas fa-hand-holding-usd accent-white"></i> القيمة المدفوعة للمندوب (د.ل):';
-                if (!(rawCash > 0 && duesOwed > 0)) {
-                    settlementInput.placeholder = `أقصى مبلغ متاح: ${netAmount.toFixed(2)}`;
-                }
-            } else if (netAmount < 0) {
-                settlementLabel.innerHTML = '<i class="fas fa-hand-holding-usd accent-white"></i> القيمة المستلمة كاش من المندوب (د.ل):';
-                settlementInput.placeholder = `المتبقي المطلوب كاش: ${Math.abs(netAmount).toFixed(2)}`;
-            } else {
-                settlementLabel.innerHTML = '<i class="fas fa-hand-holding-usd accent-white"></i> الحساب مصفر (لا يوجد مستحقات أو ديون)';
-                settlementInput.placeholder = '0.00';
-            }
-        }
+        document.getElementById('receivedCashVal').value = '';
+        document.getElementById('paidToStaffVal').value = '';
+        document.getElementById('fixCashVal').value = v.cash.toFixed(2);
+        document.getElementById('fixDuesVal').value = v.dues.toFixed(2);
+        document.getElementById('fixProfitVal').value = v.profit.toFixed(2);
+        const hint = document.getElementById('fixProfitHint');
+        if (hint) hint.textContent = `ربح المبيعات هذا الأسبوع وحده: ${v.share.toFixed(2)} د.ل`;
+        const toggle = document.getElementById('manualFixToggle');
+        if (toggle) toggle.checked = false;
+        const fixGroup = document.getElementById('manualFixFields');
+        if (fixGroup) fixGroup.style.display = 'none';
     }
 
     document.getElementById('editBalancesModal').style.display = 'block';
+};
+
+window.toggleManualFix = function (on) {
+    const fixGroup = document.getElementById('manualFixFields');
+    if (fixGroup) fixGroup.style.display = on ? 'block' : 'none';
+    ['receivedCashVal', 'paidToStaffVal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = !!on; if (on) el.value = ''; }
+    });
 };
 
 window.closeEditBalancesModal = function () {
@@ -2758,153 +2718,228 @@ window.saveEditedSale = async function () {
     }
 };
 
-window.saveNewBalances = async function () {
-    const staffId = document.getElementById('editStaffId').value;
-    if (!staffId) return;
-
-    const staffName = (document.getElementById('editStaffName').innerText || '').trim();
-    const isIbrahim = staffName.includes('ابراهيم');
-
-    const targetLibyana = parseFloat(document.getElementById('newLibyanaVal').value) || 0;
-    const targetAlmadar = parseFloat(document.getElementById('newAlmadarVal').value) || 0;
-
-    const netLibyana = parseFloat(document.getElementById('editNetLibyana').value) || 0;
-    const netAlmadar = parseFloat(document.getElementById('editNetAlmadar').value) || 0;
-
-    const newBaseLibyana = targetLibyana - netLibyana;
-    const newBaseAlmadar = targetAlmadar - netAlmadar;
-
-    const updateData = {
-        baseLibyana: newBaseLibyana,
-        baseAlmadar: newBaseAlmadar
+/** يحسب القيم الأساسية الجديدة من خانات النافذة، بقواعد المدير (انظر أعلى القسم). */
+function computeBalanceEdit(live, bases, view) {
+    const b = Object.assign({}, bases);
+    const notes = [];
+    const num = (id) => {
+        const el = document.getElementById(id);
+        if (!el || el.disabled || String(el.value).trim() === '') return null;
+        const v = parseFloat(el.value);
+        return isNaN(v) ? NaN : v;
+    };
+    const setTarget = (inputId, viewKey, baseKey, netValue, label) => {
+        const t = num(inputId);
+        if (t === null) return;
+        if (isNaN(t)) throw new Error('قيمة غير صحيحة في خانة ' + label);
+        if (Math.abs(t - view[viewKey]) < 0.005) return;
+        b[baseKey] = roundMoney(t - (netValue || 0));
+        notes.push(`${label} ← ${t.toFixed(2)}`);
     };
 
-    const logDetails = {
-        staffId: staffId,
-        targetLibyana: targetLibyana,
-        targetAlmadar: targetAlmadar
-    };
+    setTarget('newLibyanaVal', 'libyana', 'baseLibyana', live.netLibyana, 'مطلوب ليبيانا');
+    setTarget('newAlmadarVal', 'almadar', 'baseAlmadar', live.netAlmadar, 'مطلوب المدار');
 
-    if (isIbrahim) {
-        // جميع قيم مندوب ابراهيم قابلة للتعديل المباشر
-        const targetCash = parseFloat(document.getElementById('newCashVal').value) || 0;
-        const targetBank = parseFloat(document.getElementById('newBankVal').value) || 0;
-        const targetSadad = parseFloat(document.getElementById('newSadadVal').value) || 0;
-        const targetUsdt = parseFloat(document.getElementById('newUsdtVal').value) || 0;
-
-        const netCash = parseFloat(document.getElementById('editNetCash').value) || 0;
-        const netBank = parseFloat(document.getElementById('editNetBank').value) || 0;
-        const netSadad = parseFloat(document.getElementById('editNetSadad').value) || 0;
-        const netUsdt = parseFloat(document.getElementById('editNetUsdt').value) || 0;
-
-        const newBaseCash = targetCash - netCash;
-        const newBaseBank = targetBank - netBank;
-        const newBaseSadad = targetSadad - netSadad;
-        const newBaseUsdt = targetUsdt - netUsdt;
-
-        updateData.baseCash = newBaseCash;
-        updateData.baseBank = newBaseBank;
-        updateData.baseSadad = newBaseSadad;
-        updateData.baseUsdt = newBaseUsdt;
-
-        logDetails.targetCash = targetCash;
-        logDetails.targetBank = targetBank;
-        logDetails.targetSadad = targetSadad;
-        logDetails.targetUsdt = targetUsdt;
-    } else {
-        // المناديب الآخرين: كاش، أرباح، مستحقات، تسوية
-        let newBaseCash = parseFloat(document.getElementById('editBaseCash').value) || 0;
-        let newBaseProfit = parseFloat(document.getElementById('editBaseProfit').value) || 0;
-        let newDuesOwed = parseFloat(document.getElementById('editDuesOwed').value) || 0;
-        const currentCash = parseFloat(document.getElementById('editCurrentCash')?.value) || 0;
-
-        const netAmount = parseFloat(document.getElementById('editNetAmount').value) || 0;
-        const settlementAmount = Math.abs(parseFloat(document.getElementById('settlementAmountVal').value) || 0);
-        const autoOffsetDues = document.getElementById('autoOffsetDuesCheckbox') ? document.getElementById('autoOffsetDuesCheckbox').checked : false;
-        const autoOffsetCashCreditor = document.getElementById('autoOffsetCashForCreditorCheckbox') ? document.getElementById('autoOffsetCashForCreditorCheckbox').checked : false;
-
-        if (netAmount < 0) {
-            // المندوب مدين (عليه ديون كاش)
-            if (autoOffsetDues && newDuesOwed > 0) {
-                // تصفير المستحقات ومقاصتها مع مطلوب الكاش
-                newBaseCash -= newDuesOwed;
-                logDetails.offsetDuesAmount = newDuesOwed;
-                newDuesOwed = 0;
-            }
-            if (settlementAmount > 0) {
-                const totalDebt = Math.abs(netAmount);
-                newBaseCash -= settlementAmount;
-                if (settlementAmount > totalDebt) {
-                    const extra = settlementAmount - totalDebt;
-                    newBaseProfit -= extra;
-                }
-                logDetails.settlementAmount = settlementAmount;
-            }
-        } else if (netAmount > 0) {
-            // المندوب دائن: مقاصة الكاش مع المستحقات إن وجدت
-            if (autoOffsetCashCreditor && currentCash > 0 && newDuesOwed > 0) {
-                const cashToOffset = Math.min(currentCash, newDuesOwed);
-                newBaseCash -= cashToOffset;
-                newDuesOwed -= cashToOffset;
-                logDetails.offsetCreditorCash = cashToOffset;
-            }
-
-            // القيمة المدفوعة للمندوب تخصم من المستحقات القديمة أولاً ثم من ربح الأسبوع
-            if (settlementAmount > 0) {
-                if (settlementAmount <= newDuesOwed) {
-                    newDuesOwed -= settlementAmount;
-                } else {
-                    const remainder = settlementAmount - newDuesOwed;
-                    newDuesOwed = 0;
-                    newBaseProfit -= remainder;
-                }
-                logDetails.settlementAmount = settlementAmount;
-            }
-        } else {
-            if (settlementAmount > 0) {
-                newBaseCash -= settlementAmount;
-                logDetails.settlementAmount = settlementAmount;
-            }
-        }
-
-        updateData.baseCash = newBaseCash;
-        updateData.baseProfit = newBaseProfit;
-        updateData.duesOwed = newDuesOwed;
+    if (live.isIbrahim) {
+        setTarget('newCashVal', 'cash', 'baseCash', live.netCash, 'مطلوب كاش');
+        setTarget('newBankVal', 'bank', 'baseBank', live.netBank, 'حساب المصرفي');
+        setTarget('newSadadVal', 'sadad', 'baseSadad', live.netSadad, 'سداد');
+        setTarget('newUsdtVal', 'usdt', 'baseUsdt', live.netUsdt, 'USDT');
+        return { bases: b, notes: notes };
     }
 
-    try {
-        const btn = document.querySelector('.edit-balances-modal-save');
-        const oldText = btn.innerHTML;
-        btn.innerHTML = 'جاري الحفظ...';
-        btn.disabled = true;
+    const manual = document.getElementById('manualFixToggle') && document.getElementById('manualFixToggle').checked;
+    if (manual) {
+        const fc = num('fixCashVal'), fd = num('fixDuesVal'), fp = num('fixProfitVal');
+        if (fc === null || fd === null || fp === null || isNaN(fc) || isNaN(fd) || isNaN(fp)) {
+            throw new Error('أكمل خانات التصحيح اليدوي الثلاث بأرقام صحيحة');
+        }
+        if (fc < 0 || fd < 0) throw new Error('مطلوب الكاش والمستحقات لا يكونان بالسالب');
+        b.baseCash = roundMoney(fc - (live.netCash || 0));
+        b.duesOwed = roundMoney(fd);
+        b.baseProfit = roundMoney(fp - view.share);
+        notes.push('تصحيح يدوي للأرصدة');
+        return { bases: b, notes: notes };
+    }
 
-        await db.collection('customers').doc(staffId).update(updateData);
+    const received = num('receivedCashVal');
+    const paid = num('paidToStaffVal');
+    if (isNaN(received) || isNaN(paid)) throw new Error('أدخل المبلغ بأرقام صحيحة');
+    if ((received || 0) < 0 || (paid || 0) < 0) throw new Error('المبالغ لا تكون بالسالب');
+
+    let cash = view.cash, dues = b.duesOwed, advance = b.profitAdvance;
+
+    if (received > 0) {
+        // يُخصم من مطلوب الكاش فقط؛ الزائد عنه يُضاف لمستحقات المندوب
+        const fromCash = Math.min(received, Math.max(cash, 0));
+        cash -= fromCash;
+        const extra = received - fromCash;
+        dues += extra;
+        notes.push(`استلمت كاش من المندوب: ${received.toFixed(2)}` +
+            (extra > 0.004 ? ` — الزائد عن مطلوب الكاش (${extra.toFixed(2)}) أُضيف لمستحقاته` : ''));
+    }
+
+    if (paid > 0) {
+        // من المستحقات أولاً، ثم سلفة على ربح الأسبوع الحالي، ثم الزائد يصير مطلوب كاش
+        const fromDues = Math.min(paid, Math.max(dues, 0));
+        dues -= fromDues;
+        let rest = paid - fromDues;
+        const room = Math.max(view.profit - advance, 0);
+        const fromProfit = Math.min(rest, room);
+        advance += fromProfit;
+        rest -= fromProfit;
+        cash += rest;
+        const parts = [];
+        if (fromDues > 0.004) parts.push(`${fromDues.toFixed(2)} من المستحقات`);
+        if (fromProfit > 0.004) parts.push(`${fromProfit.toFixed(2)} سلفة على ربح الأسبوع`);
+        if (rest > 0.004) parts.push(`${rest.toFixed(2)} أُضيفت لمطلوب الكاش عليه`);
+        notes.push(`دفعت للمندوب: ${paid.toFixed(2)}` + (parts.length ? ` (${parts.join('، ')})` : ''));
+    }
+
+    b.baseCash = roundMoney(bases.baseCash + (cash - view.cash));
+    b.duesOwed = roundMoney(dues);
+    b.profitAdvance = roundMoney(advance);
+    return { bases: b, notes: notes };
+}
+
+window.saveNewBalances = async function () {
+    const staffId = document.getElementById('editStaffId').value;
+    const live = (window.staffLive || {})[staffId];
+    if (!staffId || !live) return;
+    const ref = db.collection('customers').doc(staffId);
+    const btn = document.querySelector('#editBalancesModal .edit-balances-modal-save');
+
+    let fresh, before, result;
+    try {
+        fresh = snapshotBalanceBases((await ref.get()).data() || {});
+        before = balanceView(staffId, fresh);
+        result = computeBalanceEdit(live, fresh, before);
+    } catch (e) {
+        showToast(e.message, 'error');
+        return;
+    }
+    if (sameBalanceBases(fresh, result.bases)) {
+        showToast('لا يوجد أي تغيير للحفظ', 'info');
+        return;
+    }
+
+    const after = balanceView(staffId, result.bases);
+    const ok = await showConfirm(balancePreviewText(live, before, after, result.notes), {
+        title: 'مراجعة التعديل — ' + live.name, okText: 'تأكيد الحفظ', danger: false
+    });
+    if (!ok) return;
+
+    const summary = result.notes.join(' • ') || 'تعديل الأرصدة';
+    try {
+        if (btn) { btn.disabled = true; btn.innerHTML = 'جاري الحفظ...'; }
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            const d = snap.data() || {};
+            if (!sameBalanceBases(snapshotBalanceBases(d), fresh)) {
+                throw new Error('تغيّر حساب المندوب أثناء المراجعة (تعديل آخر أو ترحيل). أغلق النافذة وأعد التعديل.');
+            }
+            const undo = (Array.isArray(d.balanceUndo) ? d.balanceUndo : []).slice(-19);
+            undo.push({
+                at: Date.now(),
+                week: window.getCurrentWeekKey(),
+                before: fresh,
+                after: result.bases,
+                summary: summary
+            });
+            tx.update(ref, Object.assign({}, result.bases, { balanceUndo: undo, balanceRedo: [] }));
+        });
 
         if (typeof logActivity === 'function') {
             logActivity({
                 action: 'admin_adjust_balances',
                 category: 'admin',
                 severity: 'warning',
-                title: 'تعديل وتصفير أرصدة المندوب: ' + staffName,
-                details: logDetails
+                title: 'تعديل أرصدة المندوب: ' + live.name,
+                details: { staffId: staffId, summary: summary, before: fresh, after: result.bases }
             });
         }
-
         window.closeEditBalancesModal();
-        btn.innerHTML = oldText;
-        btn.disabled = false;
-
-        location.reload();
+        showToast('تم حفظ التعديل ✅ ويمكن التراجع عنه من زر الرجوع', 'success');
     } catch (err) {
         console.error('Error updating balances:', err);
-        showAlert('فشل الحفظ: ' + err.message);
-        const btn = document.querySelector('.edit-balances-modal-save');
-        if (btn) {
-            btn.innerHTML = '<i class="fas fa-save"></i> حفظ التعديلات';
-            btn.disabled = false;
-        }
+        showAlert('فشل الحفظ: ' + err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save icon-spacing-left"></i> حفظ التعديلات'; }
     }
 };
+
+/**
+ * الرجوع خطوة أو التقدّم خطوة في تعديلات المندوب. يعمل داخل الأسبوع نفسه فقط: الترحيل
+ * يمسح السجل، لأن الرجوع لتعديل قبله كان سيلغي الترحيل ويُفسد المستحقات.
+ */
+async function stepBalanceHistory(staffId, direction) {
+    const live = (window.staffLive || {})[staffId];
+    if (!live) return;
+    const ref = db.collection('customers').doc(staffId);
+    const isUndo = direction === 'undo';
+
+    let d;
+    try {
+        d = (await ref.get()).data() || {};
+    } catch (e) {
+        showToast('تعذر جلب حساب المندوب: ' + e.message, 'error');
+        return;
+    }
+    const stack = Array.isArray(isUndo ? d.balanceUndo : d.balanceRedo) ? (isUndo ? d.balanceUndo : d.balanceRedo) : [];
+    if (!stack.length) {
+        showToast(isUndo ? 'لا يوجد تعديل للتراجع عنه' : 'لا يوجد ما يُعاد', 'info');
+        return;
+    }
+    const entry = stack[stack.length - 1];
+    if (entry.week && entry.week !== window.getCurrentWeekKey()) {
+        showAlert('هذا التعديل من أسبوع سابق وقد رُحِّلت الأرباح بعده، فلا يمكن التراجع عنه تلقائياً. استخدم التصحيح اليدوي في نافذة التعديل.', 'warning');
+        return;
+    }
+    const current = snapshotBalanceBases(d);
+    const expected = isUndo ? entry.after : entry.before;
+    const target = snapshotBalanceBases(isUndo ? entry.before : entry.after);
+    if (!sameBalanceBases(current, expected)) {
+        showAlert('تغيّر حساب المندوب بعد هذا التعديل، فلا يمكن ' + (isUndo ? 'التراجع عنه' : 'إعادته') + ' تلقائياً. استخدم التصحيح اليدوي في نافذة التعديل.', 'warning');
+        return;
+    }
+
+    const text = balancePreviewText(live, balanceView(staffId, current), balanceView(staffId, target),
+        [(isUndo ? 'التراجع عن: ' : 'إعادة: ') + (entry.summary || 'تعديل')]);
+    const ok = await showConfirm(text, {
+        title: (isUndo ? 'الرجوع خطوة — ' : 'التقدّم خطوة — ') + live.name,
+        okText: isUndo ? 'تراجع' : 'أعد التعديل', danger: false
+    });
+    if (!ok) return;
+
+    try {
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            const cur = snap.data() || {};
+            if (!sameBalanceBases(snapshotBalanceBases(cur), expected)) {
+                throw new Error('تغيّر حساب المندوب للتو، أعد المحاولة');
+            }
+            const undo = Array.isArray(cur.balanceUndo) ? cur.balanceUndo.slice() : [];
+            const redo = Array.isArray(cur.balanceRedo) ? cur.balanceRedo.slice() : [];
+            if (isUndo) redo.push(undo.pop()); else undo.push(redo.pop());
+            tx.update(ref, Object.assign({}, target, { balanceUndo: undo.slice(-20), balanceRedo: redo.slice(-20) }));
+        });
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: isUndo ? 'admin_undo_balances' : 'admin_redo_balances',
+                category: 'admin',
+                severity: 'warning',
+                title: (isUndo ? 'تراجع عن تعديل أرصدة ' : 'إعادة تعديل أرصدة ') + live.name,
+                details: { staffId: staffId, summary: entry.summary, restored: target }
+            });
+        }
+        showToast(isUndo ? 'تم الرجوع خطوة ✅' : 'تمت إعادة التعديل ✅', 'success');
+    } catch (err) {
+        showAlert('فشل: ' + err.message, 'error');
+    }
+}
+
+window.undoBalanceEdit = function (staffId) { return stepBalanceHistory(staffId, 'undo'); };
+window.redoBalanceEdit = function (staffId) { return stepBalanceHistory(staffId, 'redo'); };
 
 // =============================================
 // Search & Filter History Logic

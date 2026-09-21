@@ -2836,6 +2836,12 @@ window.showConfirm = function (message, opts) {
         btnContainer.appendChild(btnCancel);
 
         box.appendChild(icon);
+        if (opts.title) {
+            const titleEl = document.createElement('h3');
+            titleEl.className = 'confirm-title';
+            titleEl.textContent = opts.title;
+            box.appendChild(titleEl);
+        }
         box.appendChild(msg);
         box.appendChild(btnContainer);
         overlay.appendChild(box);
