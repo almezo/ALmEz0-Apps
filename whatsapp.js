@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (typeof showToast === 'function') {
                 showToast('يرجى اختيار طريقة الدفع أولاً', 'error');
             } else {
-                alert('يرجى اختيار طريقة الدفع أولاً');
+                showAlert('يرجى اختيار طريقة الدفع أولاً');
             }
             return;
         }

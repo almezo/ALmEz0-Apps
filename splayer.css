@@ -7912,3 +7912,108 @@ body:not(.kbd-nav) :focus-visible {
     outline: none !important;
     box-shadow: none !important;
 }
+
+
+/* ==========================================================
+   نوافذ التنبيه والتأكيد والإدخال بهوية الميزو (splayer.js)
+   مطابقة لنوافذ الموقع، بلا backdrop-filter: في برنامج الكمبيوتر
+   تُنشئ طبقة تركيب لا تُحدَّث.
+   ========================================================== */
+.mz-dlg-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    background: rgba(5, 8, 15, 0.82);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+.mz-dlg-overlay.visible { opacity: 1; }
+.mz-dlg-box {
+    width: 100%;
+    max-width: 420px;
+    box-sizing: border-box;
+    padding: 28px 24px 22px;
+    border-radius: 20px;
+    text-align: center;
+    color: #f8fafc;
+    font-family: 'Almarai', 'Tajawal', sans-serif;
+    background: linear-gradient(145deg, rgba(22, 27, 34, 0.98) 0%, rgba(13, 17, 23, 0.99) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.12);
+    transform: scale(0.92) translateY(14px);
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.mz-dlg-overlay.visible .mz-dlg-box { transform: scale(1) translateY(0); }
+.mz-dlg-icon { font-size: 3rem; margin-bottom: 14px; display: inline-block; }
+.mz-dlg-success .mz-dlg-icon { color: #10b981; filter: drop-shadow(0 0 14px rgba(16, 185, 129, 0.45)); }
+.mz-dlg-error .mz-dlg-icon { color: #ef4444; filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.45)); }
+.mz-dlg-warning .mz-dlg-icon,
+.mz-dlg-question .mz-dlg-icon { color: #f59e0b; filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.45)); }
+.mz-dlg-info .mz-dlg-icon { color: #38bdf8; filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.45)); }
+.mz-dlg-title { margin: 0 0 10px; font-size: 1.25rem; font-weight: 800; color: #f8fafc; }
+.mz-dlg-message { margin: 0 0 22px; font-size: 1.05rem; line-height: 1.6; color: #cbd5e1; word-break: break-word; white-space: pre-line; }
+.mz-dlg-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 20px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(56, 189, 248, 0.35);
+    background: rgba(15, 23, 42, 0.85);
+    color: #fff;
+    font-size: 1.05rem;
+    font-family: inherit;
+    text-align: center;
+    outline: none;
+}
+.mz-dlg-input:focus { border-color: #38bdf8; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+.mz-dlg-buttons { display: flex; gap: 12px; justify-content: center; }
+.mz-dlg-btn {
+    flex: 1;
+    max-width: 180px;
+    padding: 12px 18px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.mz-dlg-ok { color: #1a1300; background: linear-gradient(135deg, #f4c242, #e5a91a); box-shadow: 0 6px 16px rgba(244, 194, 66, 0.3); }
+.mz-dlg-ok.mz-dlg-danger { color: #fff; background: linear-gradient(135deg, #ff4d4d, #d32f2f); box-shadow: 0 6px 16px rgba(211, 47, 47, 0.35); }
+.mz-dlg-cancel { color: #e2e8f0; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.08); }
+.mz-dlg-btn:hover { transform: translateY(-2px); }
+.mz-dlg-btn:focus, .mz-dlg-btn:focus-visible { outline: none; border-color: #fff; transform: scale(1.05); }
+
+/* رسالة قصيرة بهوية الميزو حين لا تُحمَّل SweetAlert (showToast في splayer.js) */
+.mz-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 42px;
+    z-index: 2147483001;
+    max-width: min(80vw, 560px);
+    padding: 12px 24px;
+    border-radius: 999px;
+    background: rgba(17, 24, 39, 0.96);
+    border: 1.5px solid rgba(245, 158, 11, 0.55);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-family: 'Almarai', 'Tajawal', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    text-align: center;
+    direction: rtl;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, 14px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.mz-toast.visible { opacity: 1; transform: translate(-50%, 0); }
+.mz-toast-success { border-color: rgba(16, 185, 129, 0.6); }
+.mz-toast-error { border-color: rgba(239, 68, 68, 0.65); }

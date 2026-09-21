@@ -899,6 +899,157 @@ window.addEventListener('popstate', function (event) {
 });
 
 // ==========================================
+// نوافذ التنبيه والتأكيد والإدخال بهوية الميزو
+// ==========================================
+// المشغل لا يحمّل ui.js، فكانت تنبيهاته تسقط إلى alert/confirm الافتراضية: في برنامج
+// الكمبيوتر تظهر بتصميم ويندوز (حذف حساب من قوائم التشغيل مثلاً)، وفي أندرويد بتصميم النظام.
+// هذه نسخة مكتفية بنفسها من نوافذ الموقع (نفس الألوان والشكل)، بلا مكتبة من الإنترنت،
+// تعمل بالفأرة واللمس والكيبورد والريموت. لا تُعرَّف إن كانت نوافذ ui.js محمّلة.
+(function () {
+    const ICONS = {
+        success: 'fa-circle-check', error: 'fa-circle-xmark',
+        warning: 'fa-triangle-exclamation', info: 'fa-circle-info', question: 'fa-circle-question'
+    };
+    const TITLES = { success: 'تم بنجاح', error: 'خطأ', warning: 'تنبيه', info: 'معلومة', question: 'تأكيد' };
+
+    function guessType(message) {
+        const s = String(message || '');
+        if (/✅|بنجاح|^تم /.test(s)) return 'success';
+        if (/خطأ|فشل|تعذر|غير صحيح/.test(s)) return 'error';
+        return 'info';
+    }
+
+    function openDialog(opts) {
+        return new Promise(function (resolve) {
+            const type = opts.type || 'info';
+            const overlay = document.createElement('div');
+            overlay.className = 'mz-dlg-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+
+            const box = document.createElement('div');
+            box.className = 'mz-dlg-box mz-dlg-' + type;
+            box.setAttribute('dir', 'rtl');
+
+            const icon = document.createElement('i');
+            icon.className = 'fas ' + (ICONS[type] || ICONS.info) + ' mz-dlg-icon';
+            box.appendChild(icon);
+
+            const title = document.createElement('h3');
+            title.className = 'mz-dlg-title';
+            title.textContent = opts.title || TITLES[type] || 'تنبيه';
+            box.appendChild(title);
+
+            const msg = document.createElement('p');
+            msg.className = 'mz-dlg-message';
+            msg.textContent = String(opts.message == null ? '' : opts.message);
+            box.appendChild(msg);
+
+            let input = null;
+            if (opts.prompt) {
+                input = document.createElement('input');
+                input.className = 'mz-dlg-input';
+                input.type = 'text';
+                input.value = opts.defaultValue == null ? '' : String(opts.defaultValue);
+                input.setAttribute('dir', 'auto');
+                box.appendChild(input);
+            }
+
+            const buttons = document.createElement('div');
+            buttons.className = 'mz-dlg-buttons';
+            const ok = document.createElement('button');
+            ok.type = 'button';
+            ok.className = 'mz-dlg-btn mz-dlg-ok' + (opts.danger ? ' mz-dlg-danger' : '');
+            ok.textContent = opts.okText || 'حسناً';
+            buttons.appendChild(ok);
+            let cancel = null;
+            if (opts.cancelText) {
+                cancel = document.createElement('button');
+                cancel.type = 'button';
+                cancel.className = 'mz-dlg-btn mz-dlg-cancel';
+                cancel.textContent = opts.cancelText;
+                buttons.appendChild(cancel);
+            }
+            box.appendChild(buttons);
+            overlay.appendChild(box);
+
+            const previouslyFocused = document.activeElement;
+            let done = false;
+            function close(result) {
+                if (done) return;
+                done = true;
+                document.removeEventListener('keydown', onKey, true);
+                overlay.classList.remove('visible');
+                setTimeout(function () {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    try { if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus(); } catch (e) { }
+                    resolve(result);
+                }, 180);
+            }
+            const okValue = function () { return opts.prompt ? input.value : true; };
+            const cancelValue = opts.prompt ? null : (opts.cancelText ? false : true);
+
+            // الكيبورد والريموت: Enter للتأكيد، Escape/رجوع للإلغاء، والأسهم بين الزرين.
+            // يُلتقط قبل محرك تنقل الريموت حتى لا تتسرب الأسهم للشاشة خلف النافذة.
+            function onKey(e) {
+                const k = e.key;
+                if (k === 'Escape' || k === 'GoBack' || k === 'BrowserBack' || e.keyCode === 27) {
+                    e.preventDefault(); e.stopPropagation(); close(cancelValue);
+                } else if (k === 'Enter' || e.keyCode === 13) {
+                    if (document.activeElement === cancel) return; // يُنفّذ الزر المُركَّز بضغطته
+                    e.preventDefault(); e.stopPropagation(); close(okValue());
+                } else if (/^Arrow(Left|Right|Up|Down)$/.test(k) || k === 'Tab') {
+                    if (input && document.activeElement === input && (k === 'ArrowLeft' || k === 'ArrowRight')) return;
+                    e.preventDefault(); e.stopPropagation();
+                    const order = [input, ok, cancel].filter(Boolean);
+                    const i = order.indexOf(document.activeElement);
+                    const back = k === 'ArrowUp' || k === 'ArrowRight' || (k === 'Tab' && e.shiftKey);
+                    const next = order[(i + (back ? -1 : 1) + order.length) % order.length];
+                    if (next) next.focus();
+                }
+            }
+            ok.addEventListener('click', function () { close(okValue()); });
+            if (cancel) cancel.addEventListener('click', function () { close(cancelValue); });
+            overlay.addEventListener('click', function (e) { if (e.target === overlay) close(cancelValue); });
+            document.addEventListener('keydown', onKey, true);
+
+            document.body.appendChild(overlay);
+            requestAnimationFrame(function () {
+                overlay.classList.add('visible');
+                const first = input || ok;
+                try { first.focus(); if (input) input.select(); } catch (e) { }
+            });
+        });
+    }
+
+    if (typeof window.showAlert !== 'function') {
+        window.showAlert = function (message, type, title) {
+            return openDialog({ message: message, type: type || guessType(message), title: title });
+        };
+    }
+    if (typeof window.showConfirm !== 'function') {
+        window.showConfirm = function (message, opts) {
+            opts = opts || {};
+            return openDialog({
+                message: message, type: opts.type || 'question', title: opts.title,
+                okText: opts.okText || 'نعم، متأكد', cancelText: opts.cancelText || 'إلغاء', danger: opts.danger !== false
+            });
+        };
+    }
+    if (typeof window.showPrompt !== 'function') {
+        window.showPrompt = function (message, defaultValue, title) {
+            return openDialog({
+                message: message, type: 'info', title: title || 'إدخال بيانات', prompt: true,
+                defaultValue: defaultValue, okText: 'حفظ', cancelText: 'إلغاء'
+            });
+        };
+    }
+    // شبكة أمان: أي alert متبقٍّ (هنا أو في سكربت آخر) يظهر بهوية الميزو لا بتصميم النظام.
+    // لا انتقال بعد أي alert في المشغل، فلا يضر أن النافذة لا توقف تنفيذ الكود.
+    window.alert = function (message) { window.showAlert(message); };
+})();
+
+// ==========================================
 // CUSTOM SWEETALERT2 POPUP & TOAST HELPERS
 // ==========================================
 function showAppAlert(text, icon = 'warning', title = '') {
@@ -923,8 +1074,8 @@ function showAppAlert(text, icon = 'warning', title = '') {
             }
         });
     } else {
-        alert(text);
-        return Promise.resolve();
+        // SweetAlert من الإنترنت لم يُحمَّل: نافذة الميزو بدل تنبيه النظام الافتراضي
+        return window.showAlert(text, icon, title || defaultTitles[icon]);
     }
 }
 
@@ -945,6 +1096,19 @@ function showToast(title, icon = 'success') {
             title: title
         });
     } else {
+        // SweetAlert من الإنترنت لم يُحمَّل: كانت الرسالة تضيع بصمت. كبسولة بهوية الميزو بدلها.
+        const old = document.querySelector('.mz-toast');
+        if (old) old.remove();
+        const t = document.createElement('div');
+        t.className = 'mz-toast mz-toast-' + (icon || 'info');
+        t.setAttribute('role', 'status');
+        t.textContent = String(title == null ? '' : title);
+        document.body.appendChild(t);
+        requestAnimationFrame(() => t.classList.add('visible'));
+        setTimeout(() => {
+            t.classList.remove('visible');
+            setTimeout(() => t.remove(), 250);
+        }, 2600);
     }
 }
 
@@ -1010,14 +1174,14 @@ function saveAccountToStorage(account) {
     return accounts;
 }
 
-function deleteAccount(accId) {
+async function deleteAccount(accId) {
     const accounts = getSavedAccounts();
     const target = accounts.find(a => a.id === accId);
     const targetName = target ? (target.serverName + ' (' + target.username + ')') : 'هذا السيرفر';
 
-    if (!confirm(`هل أنت متأكد من رغبتك في حذف ${targetName} من قوائم التشغيل؟`)) {
-        return;
-    }
+    // كانت confirm() الافتراضية: في برنامج الكمبيوتر تظهر بتصميم ويندوز
+    const ok = await showConfirm(`هل أنت متأكد من رغبتك في حذف ${targetName} من قوائم التشغيل؟`, { title: 'حذف السيرفر' });
+    if (!ok) return;
 
     const updated = accounts.filter(a => a.id !== accId);
     localStorage.setItem('sp_accounts', JSON.stringify(updated));
@@ -5485,6 +5649,7 @@ function initLivePlayerGestures() {
  * ونافذة تسجيل الخروج أثناء اختفائها (قبل حذفها بلحظات) ليست مفتوحة أيضاً.
  */
 function isBlockingModalOpen() {
+    if (document.querySelector('.mz-dlg-overlay')) return true;
     const candidates = document.querySelectorAll(
         '#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)'
     );
@@ -5605,7 +5770,8 @@ function initTvNavigationEngine() {
 
     function getVisibleFocusables() {
         // فحص النوافذ المنبثقة النشطة لحصر التركيز داخلها ومنع تسرب الأسهم لخلفية الشاشة
-        const activeModal = document.querySelector('#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
+        // نافذة التنبيه/التأكيد أولاً: قد تُفتح فوق نافذة أخرى (تأكيد حذف فوق قوائم التشغيل)
+        const activeModal = document.querySelector('.mz-dlg-overlay') || document.querySelector('#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
         let container = activeModal;
         let includeNav = false;
 

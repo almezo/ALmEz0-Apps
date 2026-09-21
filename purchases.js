@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const supplier = document.getElementById('purSupplier').value.trim();
 
         if (!cat || !item || isNaN(qty) || qty <= 0 || isNaN(price) || !supplier) {
-            alert('الرجاء تعبئة جميع الحقول بشكل صحيح');
+            showAlert('الرجاء تعبئة جميع الحقول بشكل صحيح');
             return;
         }
 
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, { merge: true });
             });
 
-            alert('تم تسجيل الفاتورة وإضافة الكمية للمخزن بنجاح ✅');
+            showAlert('تم تسجيل الفاتورة وإضافة الكمية للمخزن بنجاح ✅');
 
             if (typeof logActivity === 'function') {
                 logActivity({
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('purSupplier').value = '';
         } catch (e) {
             console.error(e);
-            alert('حدث خطأ أثناء الحفظ!');
+            showAlert('حدث خطأ أثناء الحفظ!');
         } finally {
             btn.innerHTML = '<i class="fas fa-save"></i> حفظ الفاتورة وإضافة للمخزن';
             btn.disabled = false;
@@ -395,13 +395,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.deleteInventoryItem = async function (itemId) {
-        let confirmed = (typeof showConfirm === 'function')
-            ? await showConfirm(`هل أنت متأكد من حذف صنف (${itemId}) بالكامل من المخزن؟`)
-            : confirm(`هل أنت متأكد من حذف صنف (${itemId}) بالكامل من المخزن؟`);
+        let confirmed = await showConfirm(`هل أنت متأكد من حذف صنف (${itemId}) بالكامل من المخزن؟`);
         if (!confirmed) return;
         try {
             await db.collection('inventory').doc(itemId).delete();
-            alert('تم حذف الصنف من المخزن بنجاح ✅');
+            showAlert('تم حذف الصنف من المخزن بنجاح ✅');
 
             if (typeof logActivity === 'function') {
                 logActivity({
@@ -414,14 +412,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error(e);
-            alert('حدث خطأ أثناء حذف الصنف!');
+            showAlert('حدث خطأ أثناء حذف الصنف!');
         }
     };
 
     window.editStock = async function (itemId, currentCount) {
-        const newCount = (typeof showPrompt === 'function')
-            ? await showPrompt(`تعديل عدد قطع (${itemId}):`, currentCount, 'تعديل المخزون')
-            : prompt(`تعديل عدد قطع (${itemId}):`, currentCount);
+        const newCount = await showPrompt(`تعديل عدد قطع (${itemId}):`, currentCount, 'تعديل المخزون');
         if (newCount !== null && String(newCount).trim() !== '') {
             const parsed = parseFloat(newCount); // التعديل هنا لقبول الكسور
             if (!isNaN(parsed)) {
@@ -602,7 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!startDate && !endDate) {
-            alert('يرجى اختيار تاريخ للبحث');
+            showAlert('يرجى اختيار تاريخ للبحث');
             return;
         }
 
@@ -689,9 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // حذف الفاتورة (من مستند شهرها) وخصم كميتها من المخزن وتعديل رأس المال
     window.deletePurchase = async function (monthId, purchaseId, itemName, qty, totalPrice) {
-        let confirmed = (typeof showConfirm === 'function')
-            ? await showConfirm(`هل أنت متأكد من حذف هذه الفاتورة؟\nسيتم خصم (${qty}) قطعة من مخزن (${itemName}) وتعديل رأس المال.`)
-            : confirm(`هل أنت متأكد من حذف هذه الفاتورة؟\nسيتم خصم (${qty}) قطعة من مخزن (${itemName}) وتعديل رأس المال.`);
+        let confirmed = await showConfirm(`هل أنت متأكد من حذف هذه الفاتورة؟\nسيتم خصم (${qty}) قطعة من مخزن (${itemName}) وتعديل رأس المال.`);
         if (!confirmed) return;
 
         try {
@@ -719,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, { merge: true });
             });
 
-            alert('تم حذف الفاتورة وتحديث المخزن بنجاح ✅');
+            showAlert('تم حذف الفاتورة وتحديث المخزن بنجاح ✅');
 
             if (typeof logActivity === 'function') {
                 logActivity({
@@ -732,7 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error(e);
-            alert('حدث خطأ أثناء حذف الفاتورة!');
+            showAlert('حدث خطأ أثناء حذف الفاتورة!');
         }
     };
 });

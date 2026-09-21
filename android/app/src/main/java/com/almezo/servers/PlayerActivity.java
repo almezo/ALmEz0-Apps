@@ -252,7 +252,7 @@ public class PlayerActivity extends AppCompatActivity {
             Log.e(TAG, "Uncaught exception in PlayerActivity on thread " + thread.getName(), throwable);
             try {
                 runOnUiThread(() -> {
-                    Toast.makeText(getApplicationContext(), "حدث خطأ أثناء تشغيل الوسائط", Toast.LENGTH_SHORT).show();
+                    com.almezo.servers.nat.Ui.toast(PlayerActivity.this, "حدث خطأ أثناء تشغيل الوسائط");
                     finish();
                 });
             } catch (Throwable ignored) {
@@ -296,8 +296,9 @@ public class PlayerActivity extends AppCompatActivity {
             setupPlayer();
         } catch (Throwable t) {
             Log.e(TAG, "Critical error during PlayerActivity onCreate", t);
-            Toast.makeText(this, "تعذر تشغيل الفيديو: " + t.getMessage(), Toast.LENGTH_LONG).show();
-            finish();
+            com.almezo.servers.nat.Ui.toast(this, "تعذر تشغيل الفيديو: " + t.getMessage());
+            // الرسالة مرسومة داخل نافذة المشغل: نغلقه بعد أن تُقرأ لا فوراً
+            handler.postDelayed(this::finish, 1800);
         }
     }
 
@@ -488,7 +489,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         if (btnCast != null) {
             btnCast.setOnClickListener(v -> {
-                Toast.makeText(this, "جاري البحث عن أجهزة البث المتاحة...", Toast.LENGTH_SHORT).show();
+                com.almezo.servers.nat.Ui.toast(this, "جاري البحث عن أجهزة البث المتاحة...");
             });
         }
 
@@ -571,7 +572,7 @@ public class PlayerActivity extends AppCompatActivity {
                             if (tvAspectText != null) tvAspectText.setText("تكبير");
                             break;
                     }
-                    if (!silentAspect) Toast.makeText(this, toastMsg, Toast.LENGTH_SHORT).show();
+                    if (!silentAspect) com.almezo.servers.nat.Ui.toast(this, toastMsg);
                     if (store != null) store.putString("player_aspect", String.valueOf(currentAspectIndex));
                 } catch (Throwable t) {
                     Log.w(TAG, "aspect change error", t);
@@ -931,7 +932,7 @@ public class PlayerActivity extends AppCompatActivity {
         isScreenLocked = true;
         hideControls();
         showUnlockButton();
-        Toast.makeText(this, "تم قفل الشاشة", Toast.LENGTH_SHORT).show();
+        com.almezo.servers.nat.Ui.toast(this, "تم قفل الشاشة");
     }
 
     /**
@@ -952,7 +953,7 @@ public class PlayerActivity extends AppCompatActivity {
             btnUnlockScreen.setVisibility(View.GONE);
         }
         showControls();
-        Toast.makeText(this, "تم فتح قفل الشاشة", Toast.LENGTH_SHORT).show();
+        com.almezo.servers.nat.Ui.toast(this, "تم فتح قفل الشاشة");
     }
 
     // ==========================================
@@ -1309,8 +1310,9 @@ public class PlayerActivity extends AppCompatActivity {
     private void setupPlayer() {
         videoUrl = getIntent().getStringExtra("videoUrl");
         if (videoUrl == null || videoUrl.trim().isEmpty()) {
-            Toast.makeText(this, "رابط الفيديو غير صالح", Toast.LENGTH_LONG).show();
-            finish();
+            com.almezo.servers.nat.Ui.toast(this, "رابط الفيديو غير صالح");
+            // الرسالة مرسومة داخل نافذة المشغل: نغلقه بعد أن تُقرأ لا فوراً
+            handler.postDelayed(this::finish, 1800);
             return;
         }
 
@@ -1506,7 +1508,7 @@ public class PlayerActivity extends AppCompatActivity {
                             }
                         }
 
-                        Toast.makeText(PlayerActivity.this, "تعذر استكمال البث من السيرفر", Toast.LENGTH_SHORT).show();
+                        com.almezo.servers.nat.Ui.toast(PlayerActivity.this, "تعذر استكمال البث من السيرفر");
                     } catch (Throwable t) {
                         Log.w(TAG, "onPlayerError error", t);
                     }
@@ -1519,7 +1521,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         } catch (Throwable t) {
             Log.e(TAG, "Error initializing ExoPlayer", t);
-            Toast.makeText(this, "خطأ في تشغيل الوسائط: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            com.almezo.servers.nat.Ui.toast(this, "خطأ في تشغيل الوسائط: " + t.getMessage());
             finish();
         }
     }
@@ -1675,7 +1677,7 @@ public class PlayerActivity extends AppCompatActivity {
     private void playNext() {
         if (queue == null || queue.size() < 2) return;
         if (!isLiveStream && PlayQueue.index() >= queue.size() - 1) {
-            Toast.makeText(this, "هذه آخر حلقة في الموسم", Toast.LENGTH_SHORT).show();
+            com.almezo.servers.nat.Ui.toast(this, "هذه آخر حلقة في الموسم");
             return;
         }
         playIndex(PlayQueue.index() + 1);
@@ -1685,7 +1687,7 @@ public class PlayerActivity extends AppCompatActivity {
     private void playPrevious() {
         if (queue == null || queue.size() < 2) return;
         if (!isLiveStream && PlayQueue.index() <= 0) {
-            Toast.makeText(this, "هذه أول حلقة في الموسم", Toast.LENGTH_SHORT).show();
+            com.almezo.servers.nat.Ui.toast(this, "هذه أول حلقة في الموسم");
             return;
         }
         playIndex(PlayQueue.index() - 1);

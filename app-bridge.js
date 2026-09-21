@@ -344,6 +344,7 @@
                 '.modal',
                 '[role="dialog"]',
                 '.custom-logout-modal',
+                '.mz-dlg-overlay',
                 '#player-exclusive-overlay.active',
                 '.pwa-fallback-overlay.active'
             ];
@@ -934,6 +935,31 @@
         })();
 
         function handleUniversalBackButton(e, fromNative) {
+            // نافذة التنبيه/التأكيد في المشغل (splayer.js) فوق أي شيء آخر: الرجوع = إلغاء.
+            // هذا المستمع يلتقط Escape قبلها ويوقفه، فكانت تبقى مفتوحة ولا تُغلق بالرجوع.
+            var mzDialog = document.querySelector('.mz-dlg-overlay');
+            if (mzDialog) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                var mzBtn = mzDialog.querySelector('.mz-dlg-cancel') || mzDialog.querySelector('.mz-dlg-ok');
+                if (mzBtn) mzBtn.click();
+                return true;
+            }
+
+            // نوافذ التنبيه والتأكيد في الموقع تعلو أي نافذة أخرى، فالرجوع يغلقها هي أولاً
+            // (كان يُغلق النافذة التي تحتها لأن getOpenModal يرتّب بطبقة z-index القديمة)
+            var siteDialogs = document.querySelectorAll('.custom-confirm-overlay, .custom-alert-overlay');
+            if (siteDialogs.length) {
+                var topDialog = siteDialogs[siteDialogs.length - 1];
+                var dlgBtn = topDialog.querySelector('.btn-confirm-no') || topDialog.querySelector('.btn-alert-ok');
+                if (dlgBtn) {
+                    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                    dlgBtn.click();
+                    return true;
+                }
+            }
+
             if (document.getElementById('almezo-inapp-update-overlay')) {
                 var vData = window._almezoVersionData;
                 if (vData && vData.isMandatory) {
@@ -991,7 +1017,8 @@
                     if (btnCancel) { btnCancel.click(); return true; }
                 }
                 if (openModal.classList.contains('custom-alert-overlay')) {
-                    var btnAlertOk = openModal.querySelector('.btn-alert-ok');
+                    // نافذة الإدخال (showPrompt) من نفس الصنف وزرها "إلغاء" لا "حسناً"
+                    var btnAlertOk = openModal.querySelector('.btn-confirm-no') || openModal.querySelector('.btn-alert-ok');
                     if (btnAlertOk) { btnAlertOk.click(); return true; }
                 }
                 if (openModal.classList.contains('custom-prompt-overlay')) {
@@ -1204,7 +1231,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.2.3';
+    const CURRENT_APP_VERSION = '1.2.4';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {

@@ -242,7 +242,7 @@
 
     async function startMediaRecorderVoice() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            alert('التعرف الصوتي غير مدعوم في هذا الجهاز، يمكنك الكتابة في الحقل أدناه.');
+            showAlert('التعرف الصوتي غير مدعوم في هذا الجهاز، يمكنك الكتابة في الحقل أدناه.', 'info');
             return;
         }
         try {
@@ -289,7 +289,7 @@
             isRecordingMedia = false;
             updateMicButtonState(false);
             showAiStatus('جاهز لمساعدتك ✨');
-            alert('يرجى السماح بصلاحية الميكروفون للتحدث صوتياً.');
+            showAlert('يرجى السماح بصلاحية الميكروفون للتحدث صوتياً.', 'warning');
         }
     }
 

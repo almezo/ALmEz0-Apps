@@ -723,12 +723,7 @@
         }
 
         const phoneLabel = phone ? ` ورقم الهاتف (${phone})` : '';
-        let confirmed = true;
-        if (typeof showConfirm === 'function') {
-            confirmed = await showConfirm(`هل أنت متأكد من رفع الحظر الأمني عن الجهاز (${hw})${phoneLabel} فوراً؟`);
-        } else {
-            confirmed = confirm(`هل أنت متأكد من رفع الحظر الأمني عن الجهاز (${hw})${phoneLabel} فوراً؟`);
-        }
+        const confirmed = await showConfirm(`هل أنت متأكد من رفع الحظر الأمني عن الجهاز (${hw})${phoneLabel} فوراً؟`, { title: 'رفع الحظر' });
         if (!confirmed) return;
 
         try {

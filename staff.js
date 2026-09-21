@@ -845,7 +845,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof showToast === 'function') {
                 showToast("يرجى اختيار تاريخ للبحث", "warning");
             } else {
-                alert("يرجى اختيار تاريخ للبحث");
+                showAlert("يرجى اختيار تاريخ للبحث");
             }
             return;
         }
@@ -874,7 +874,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof showToast === 'function') {
                 showToast("تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية", "error");
             } else {
-                alert("تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية");
+                showAlert("تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية");
             }
             return;
         }
@@ -1103,21 +1103,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isIbrahimUser || isProductSpecified) {
                 if (!cat) {
                     if (typeof showToast === 'function') showToast('يرجى اختيار نوع المنتج (IPTV / سمارت / VIP)', 'error');
-                    else alert('يرجى اختيار نوع المنتج');
+                    else showAlert('يرجى اختيار نوع المنتج');
                     if (selectCategory) selectCategory.focus();
                     return;
                 }
 
                 if (!product) {
                     if (typeof showToast === 'function') showToast('يرجى اختيار اسم المنتج من القائمة', 'error');
-                    else alert('يرجى اختيار اسم المنتج');
+                    else showAlert('يرجى اختيار اسم المنتج');
                     if (selectItem) selectItem.focus();
                     return;
                 }
 
                 if (!duration) {
                     if (typeof showToast === 'function') showToast('يرجى اختيار المدة / الباقة', 'error');
-                    else alert('يرجى اختيار المدة / الباقة');
+                    else showAlert('يرجى اختيار المدة / الباقة');
                     if (selectDuration) selectDuration.focus();
                     return;
                 }
@@ -1127,7 +1127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const price = priceInput ? parseFloat(priceInput.value) : NaN;
             if (isNaN(price) || price <= 0) {
                 if (typeof showToast === 'function') showToast('يرجى إدخال سعر البيع بشكل صحيح', 'error');
-                else alert('يرجى إدخال سعر البيع');
+                else showAlert('يرجى إدخال سعر البيع');
                 if (priceInput) priceInput.focus();
                 return;
             }
@@ -1135,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const method = saleMethodSelect ? saleMethodSelect.value : (document.getElementById('saleMethod') ? document.getElementById('saleMethod').value : '');
             if (!method) {
                 if (typeof showToast === 'function') showToast('الرجاء اختيار طريقة الدفع المستلمة', 'error');
-                else alert('الرجاء اختيار طريقة الدفع المستلمة');
+                else showAlert('الرجاء اختيار طريقة الدفع المستلمة');
                 if (saleMethodSelect) saleMethodSelect.focus();
                 return;
             }
@@ -1147,7 +1147,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (method === 'ليبيانا' || method === 'المدار') {
                 if (!saleRecipientSelect || !saleRecipientSelect.value) {
                     if (typeof showToast === 'function') showToast('الرجاء اختيار لمن الرصيد (المندوب المستلم) قبل تسجيل المبيعة', 'error');
-                    else alert('الرجاء اختيار لمن الرصيد (المندوب المستلم) قبل تسجيل المبيعة');
+                    else showAlert('الرجاء اختيار لمن الرصيد (المندوب المستلم) قبل تسجيل المبيعة');
                     if (saleRecipientSelect) saleRecipientSelect.focus();
                     return;
                 }
@@ -1161,14 +1161,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isNaN(libVal) || libVal <= 0) {
                     if (typeof showToast === 'function') showToast('يرجى إدخال قيمة رصيد ليبيانا بشكل صحيح', 'error');
-                    else alert('يرجى إدخال قيمة رصيد ليبيانا بشكل صحيح');
+                    else showAlert('يرجى إدخال قيمة رصيد ليبيانا بشكل صحيح');
                     if (splitLibyanaAmountInput) splitLibyanaAmountInput.focus();
                     return;
                 }
 
                 if (isNaN(almVal) || almVal <= 0) {
                     if (typeof showToast === 'function') showToast('يرجى إدخال قيمة رصيد المدار بشكل صحيح', 'error');
-                    else alert('يرجى إدخال قيمة رصيد المدار بشكل صحيح');
+                    else showAlert('يرجى إدخال قيمة رصيد المدار بشكل صحيح');
                     if (splitAlmadarAmountInput) splitAlmadarAmountInput.focus();
                     return;
                 }
@@ -1176,20 +1176,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Math.abs((libVal + almVal) - price) > 0.01) {
                     const sum = (libVal + almVal).toFixed(2);
                     if (typeof showToast === 'function') showToast(`مجموع قيمتي ليبيانا والمدار (${sum} د.ل) لا يساوي سعر البيع الإجمالي (${price} د.ل)`, 'error');
-                    else alert(`مجموع قيمتي ليبيانا والمدار (${sum} د.ل) لا يساوي سعر البيع الإجمالي (${price} د.ل)`);
+                    else showAlert(`مجموع قيمتي ليبيانا والمدار (${sum} د.ل) لا يساوي سعر البيع الإجمالي (${price} د.ل)`);
                     return;
                 }
 
                 if (!splitLibyanaRecipientSelect || !splitLibyanaRecipientSelect.value) {
                     if (typeof showToast === 'function') showToast('الرجاء اختيار مستلم رصيد ليبيانا', 'error');
-                    else alert('الرجاء اختيار مستلم رصيد ليبيانا');
+                    else showAlert('الرجاء اختيار مستلم رصيد ليبيانا');
                     if (splitLibyanaRecipientSelect) splitLibyanaRecipientSelect.focus();
                     return;
                 }
 
                 if (!splitAlmadarRecipientSelect || !splitAlmadarRecipientSelect.value) {
                     if (typeof showToast === 'function') showToast('الرجاء اختيار مستلم رصيد المدار', 'error');
-                    else alert('الرجاء اختيار مستلم رصيد المدار');
+                    else showAlert('الرجاء اختيار مستلم رصيد المدار');
                     if (splitAlmadarRecipientSelect) splitAlmadarRecipientSelect.focus();
                     return;
                 }
@@ -1248,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isIbrahimUser) {
                     if (pointsRaw === '' || isNaN(parseFloat(pointsRaw)) || parseFloat(pointsRaw) <= 0) {
                         if (typeof showToast === 'function') showToast('يرجى إدخال عدد النقاط المسحوبة من المخزن بشكل صحيح (أكبر من الصفر)', 'error');
-                        else alert('يرجى إدخال عدد النقاط');
+                        else showAlert('يرجى إدخال عدد النقاط');
                         if (pointsInput) pointsInput.focus();
                         return;
                     }
@@ -1631,7 +1631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof showToast === 'function') {
                     showToast('جاري تحميل مكتبة معالجة الصور، يرجى المحاولة بعد لحظات...', 'info');
                 } else {
-                    alert('جاري تحميل مكتبة معالجة الصور...');
+                    showAlert('جاري تحميل مكتبة معالجة الصور...');
                 }
                 return;
             }
@@ -1858,7 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof showToast === 'function') {
                     showToast('حدث خطأ أثناء إنشاء الصورة، يرجى المحاولة مرة أخرى', 'error');
                 } else {
-                    alert('حدث خطأ أثناء إنشاء الصورة');
+                    showAlert('حدث خطأ أثناء إنشاء الصورة');
                 }
             } finally {
                 btnDownload.disabled = false;

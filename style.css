@@ -9327,3 +9327,11 @@ html[data-input-mode="remote"] .main-category-card:focus-visible {
     gap: 6px;
 }
 .home-card-order-pos { font-size: 0.8rem; color: #94a3b8; font-weight: 700; }
+
+/* نوافذ التنبيه والتأكيد والإدخال (showAlert / showConfirm / showPrompt) فوق أي نافذة أخرى:
+   كانت طبقتها 10000 فتُرسم خلف نافذة إرسال الإشعارات وغيرها (حتى 99999999)،
+   فيضغط المدير "إرسال" ولا يرى نافذة التأكيد إطلاقاً. */
+.custom-confirm-overlay,
+.custom-alert-overlay {
+    z-index: 2147483000 !important;
+}

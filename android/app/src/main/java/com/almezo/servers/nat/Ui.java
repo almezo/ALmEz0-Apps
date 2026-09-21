@@ -246,11 +246,60 @@ public final class Ui {
     /**
      * @param green كبسولة خضراء (للتنبيهات الإيجابية مثل "اضغط مرة أخرى للخروج")
      */
+    /** آخر نافذة منبثقة ظاهرة (NatDialog): الرسالة تُعرض فوقها لا خلفها. */
+    private static java.lang.ref.WeakReference<android.app.Dialog> topDialog;
+
+    static void setTopDialog(android.app.Dialog d, boolean showing) {
+        if (showing) topDialog = new java.lang.ref.WeakReference<>(d);
+        else if (topDialog != null && topDialog.get() == d) topDialog = null;
+    }
+
+    private static android.app.Activity activityOf(Context ctx) {
+        while (ctx instanceof android.content.ContextWrapper) {
+            if (ctx instanceof android.app.Activity) return (android.app.Activity) ctx;
+            ctx = ((android.content.ContextWrapper) ctx).getBaseContext();
+        }
+        return null;
+    }
+
+    /**
+     * الرسالة تُرسم داخل نافذة التطبيق نفسها لا كـ Toast مخصص: أندرويد 11+ يقيّد Toast
+     * بواجهة مخصصة (setView) فيقتلها أحياناً قبل الظهور ("Toast already killed" في سجل
+     * النظام)، وحينها لا تظهر أي رسالة. رسم الكبسولة في النافذة لا يخضع لأي قيد.
+     * رسالة النظام الافتراضية تبقى فقط حين لا توجد أي نافذة للتطبيق.
+     */
     public static void toast(Context ctx, String msg, boolean green) {
         if (ctx == null || msg == null) return;
+        final Context app = ctx.getApplicationContext();
+        final android.app.Activity activity = activityOf(ctx);
+        // النافذة تُختار في الدورة التالية لا الآن: كثيراً ما تُغلق النافذة المنبثقة مباشرة بعد
+        // الرسالة ("تم تفعيل الحساب" ثم dismiss)، فلو رُسمت فيها لاختفت معها فوراً.
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            android.app.Dialog dlg = topDialog != null ? topDialog.get() : null;
+            android.view.Window win = null;
+            if (dlg != null && dlg.isShowing()) win = dlg.getWindow();
+            if (win == null && activity != null && !activity.isFinishing() && !activity.isDestroyed()) {
+                win = activity.getWindow();
+            }
+            if (win == null) {
+                android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showInWindow(win, msg, green);
+        });
+    }
+
+    private static void showInWindow(android.view.Window win, String msg, boolean green) {
         try {
+            if (!(win.getDecorView() instanceof android.view.ViewGroup)) return;
+            android.view.ViewGroup decor = (android.view.ViewGroup) win.getDecorView();
+            Context ctx = decor.getContext();
+            View old = decor.findViewWithTag(TOAST_TAG);
+            if (old != null) decor.removeView(old);
+
             float d = ctx.getResources().getDisplayMetrics().density;
             android.widget.TextView tv = new android.widget.TextView(ctx);
+            tv.setTag(TOAST_TAG);
             tv.setText(msg);
             tv.setTextColor(0xFFFFFFFF);
             tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
@@ -272,16 +321,27 @@ public final class Ui {
                 bg.setStroke(Math.round(1.5f * d), 0x80F59E0B);
             }
             tv.setBackground(bg);
-            tv.setElevation(8 * d);
-            android.widget.Toast t = new android.widget.Toast(ctx.getApplicationContext());
-            t.setView(tv);
-            t.setDuration(android.widget.Toast.LENGTH_SHORT);
-            t.setGravity(android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL, 0, Math.round(48 * d));
-            t.show();
+            tv.setElevation(24 * d);
+            tv.setClickable(false);
+            tv.setFocusable(false);
+
+            android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL);
+            lp.bottomMargin = Math.round(48 * d);
+            decor.addView(tv, lp);
+
+            tv.setAlpha(0f);
+            tv.setTranslationY(16 * d);
+            tv.animate().alpha(1f).translationY(0).setDuration(180).start();
+            tv.postDelayed(() -> tv.animate().alpha(0f).setDuration(220)
+                    .withEndAction(() -> { if (tv.getParent() == decor) decor.removeView(tv); }).start(), 2400);
         } catch (Throwable e) {
-            android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(win.getContext().getApplicationContext(), msg, android.widget.Toast.LENGTH_SHORT).show();
         }
     }
+
+    private static final String TOAST_TAG = "mizo_toast";
 
     public static int logoPlaceholder() {
         return R.drawable.almezo_logo;

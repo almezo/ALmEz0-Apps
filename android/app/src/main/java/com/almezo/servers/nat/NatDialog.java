@@ -26,6 +26,18 @@ public class NatDialog extends android.app.Dialog {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        Ui.setTopDialog(this, true);
+    }
+
+    @Override
+    protected void onStop() {
+        Ui.setTopDialog(this, false);
+        super.onStop();
+    }
+
+    @Override
     public void setContentView(int layoutResID) {
         super.setContentView(layoutResID);
         Fx.install(getWindow());

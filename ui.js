@@ -508,38 +508,28 @@ window.sendBroadcastNotification = async function () {
     const actionUrl = urlEl ? urlEl.value.trim() : '';
 
     if (!title) {
-        if (typeof showToast === 'function') showToast('يرجى كتابة عنوان الإشعار', 'warning');
-        else alert('يرجى كتابة عنوان الإشعار');
+        showToast('يرجى كتابة عنوان الإشعار', 'warning');
         if (titleEl) titleEl.focus();
         return;
     }
 
     if (!message) {
-        if (typeof showToast === 'function') showToast('يرجى كتابة نص رسالة الإشعار', 'warning');
-        else alert('يرجى كتابة نص رسالة الإشعار');
+        showToast('يرجى كتابة نص رسالة الإشعار', 'warning');
         if (msgEl) msgEl.focus();
         return;
     }
 
-    if (typeof Swal !== 'undefined') {
-        const confirmRes = await Swal.fire({
-            title: 'تأكيد إرسال الإشعار؟',
-            text: `سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو (${title})`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'نعم، إرسال الآن 🚀',
-            cancelButtonText: 'إلغاء',
-            background: '#141820',
-            color: '#fff',
-            customClass: {
-                popup: 'almezo-swal-popup',
-                confirmButton: 'almezo-swal-btn'
-            }
-        });
-        if (!confirmRes.isConfirmed) return;
-    } else {
-        if (!confirm(`سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو (${title})، هل تريد المتابعة؟`)) return;
+    // الرابط يُفتح عند الضغط على الإشعار في أجهزة العملاء: http/https فقط
+    if (actionUrl && !/^https?:\/\/[^\s]+$/i.test(actionUrl)) {
+        showToast('رابط الإشعار يجب أن يبدأ بـ https:// أو http://', 'warning');
+        if (urlEl) urlEl.focus();
+        return;
     }
+
+    // كانت confirm() الافتراضية حين لا تُحمَّل مكتبة SweetAlert (الصفحة الرئيسية وتطبيق أندرويد)،
+    // فتظهر بتصميم النظام. نافذة الموقع المصمّمة دائماً.
+    const confirmed = await showConfirm(`سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو (${title})، هل تريد المتابعة؟`, { title: 'تأكيد إرسال الإشعار', okText: 'نعم، أرسل الآن', danger: false });
+    if (!confirmed) return;
 
     if (sendBtn) {
         sendBtn.disabled = true;
@@ -565,18 +555,7 @@ window.sendBroadcastNotification = async function () {
 
         await firestore.collection('broadcast_notifications').add(notifDoc);
 
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'تم الإرسال بنجاح! 📢',
-                text: 'تم بث الإشعار بنجاح لجميع أجهزة العملاء وسيظهر في شريط الإشعارات لديهم فوراً.',
-                icon: 'success',
-                confirmButtonText: 'رائع',
-                background: '#141820',
-                color: '#fff'
-            });
-        } else if (typeof showToast === 'function') {
-            showToast('📢 تم إرسال وبث الإشعار لجميع الأجهزة بنجاح!', 'success', 5000);
-        }
+        showAlert('يصل فوراً إلى شريط إشعارات أجهزة أندرويد حتى والتطبيق مغلق، ويظهر لكل من يفتح الموقع أو برنامج الكمبيوتر الآن. (أجهزة أندرويد بلا خدمات Google Play تستلمه خلال 15 دقيقة.)', 'success', 'تم الإرسال بنجاح! 📢');
 
         if (titleEl) titleEl.value = '';
         if (msgEl) msgEl.value = '';
@@ -586,11 +565,7 @@ window.sendBroadcastNotification = async function () {
 
     } catch (err) {
         console.error('Failed to send broadcast notification:', err);
-        if (typeof showToast === 'function') {
-            showToast('فشل إرسال الإشعار: ' + (err.message || 'خطأ في الاتصال'), 'error', 5000);
-        } else {
-            alert('فشل إرسال الإشعار: ' + err.message);
-        }
+        showAlert('فشل إرسال الإشعار: ' + (err.message || 'خطأ في الاتصال'), 'error');
     } finally {
         if (sendBtn) {
             sendBtn.disabled = false;
@@ -631,9 +606,9 @@ window.loadBroadcastHistory = async function () {
                 <div class="history-notif-item">
                     <div class="history-notif-info">
                         <span class="history-notif-title">${typeBadge} - ${safeEsc(data.title || '')}</span>
-                        <span class="history-notif-time">${dateStr} | ${safeEsc(data.message || '').substring(0, 50)}...</span>
+                        <span class="history-notif-time">${dateStr} | ${safeEsc(String(data.message || '').substring(0, 50))}${String(data.message || '').length > 50 ? '...' : ''}</span>
                     </div>
-                    <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${doc.id}')" title="حذف هذا الإشعار">
+                    <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${safeEsc(doc.id)}')" title="حذف هذا الإشعار">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -648,16 +623,17 @@ window.loadBroadcastHistory = async function () {
 
 window.deleteBroadcastNotification = async function (docId) {
     if (!docId) return;
-    if (confirm('هل أنت متأكد من رغبتك في حذف هذا الإشعار من السجل؟')) {
+    if (await showConfirm('هل أنت متأكد من رغبتك في حذف هذا الإشعار من السجل؟', { title: 'حذف الإشعار' })) {
         try {
             const firestore = (window.db) || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
             if (firestore) {
                 await firestore.collection('broadcast_notifications').doc(docId).delete();
-                if (typeof showToast === 'function') showToast('تم حذف الإشعار', 'info');
+                showToast('تم حذف الإشعار', 'info');
                 loadBroadcastHistory();
             }
         } catch (e) {
             console.error('Delete notification failed', e);
+            showToast('تعذر حذف الإشعار: ' + (e.message || 'خطأ في الاتصال'), 'error');
         }
     }
 };
@@ -1266,7 +1242,7 @@ window.changeIntelCustomerRole = async function (customerId, customerName, newRo
         }
     } catch (err) {
         console.error('Error updating role:', err);
-        alert('تعذر تحديث الرتبة: ' + err.message);
+        showAlert('تعذر تحديث الرتبة: ' + err.message, 'error');
         renderUsersIntelContent();
     }
 };
@@ -1939,9 +1915,7 @@ window.saveProduct = async function (id) {
 };
 
 window.deleteProduct = async function (id) {
-    const isConfirmed = (typeof showConfirm === 'function')
-        ? await showConfirm('هل أنت متأكد من حذف هذا المنتج نهائياً؟')
-        : confirm('هل أنت متأكد من حذف هذا المنتج نهائياً؟');
+    const isConfirmed = await showConfirm('هل أنت متأكد من حذف هذا المنتج نهائياً؟', { title: 'حذف المنتج' });
     if (isConfirmed) {
         try {
             await db.collection('products').doc(id).delete();
@@ -2016,10 +1990,10 @@ window.moveProduct = async function (id, direction, categoryKey) {
 };
 
 window.addNewProduct = async function (categoryKey) {
-    const id = prompt('أدخل ID مميز باللغة الإنجليزية (مثال: new_server):');
+    const id = await showPrompt('أدخل ID مميز باللغة الإنجليزية (مثال: new_server):', '', 'منتج جديد');
     if (!id) return;
 
-    const name = prompt('أدخل اسم المنتج:');
+    const name = await showPrompt('أدخل اسم المنتج:', '', 'منتج جديد');
     if (!name) return;
 
     let maxSort = 0;
@@ -2669,7 +2643,7 @@ async function confirmLogout() {
     if (typeof showConfirm === 'function') {
         isConfirmed = await showConfirm('هل أنت متأكد من تسجيل الخروج من حسابك؟');
     } else {
-        isConfirmed = confirm('هل أنت متأكد من تسجيل الخروج من حسابك؟');
+        isConfirmed = await showConfirm('هل أنت متأكد من تسجيل الخروج من حسابك؟');
     }
 
     if (!isConfirmed) return;
@@ -2830,7 +2804,8 @@ async function handleChangePassword() {
 // =============================================
 // Custom Confirm Modal
 // =============================================
-window.showConfirm = function (message) {
+window.showConfirm = function (message, opts) {
+    opts = opts || {};
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'custom-confirm-overlay';
@@ -2850,7 +2825,8 @@ window.showConfirm = function (message) {
 
         const btnConfirm = document.createElement('button');
         btnConfirm.className = 'btn-confirm-yes';
-        btnConfirm.innerHTML = '<i class="fas fa-check"></i> نعم، متأكد';
+        btnConfirm.innerHTML = '<i class="fas fa-check"></i> ';
+        btnConfirm.appendChild(document.createTextNode(opts.okText || 'نعم، متأكد'));
 
         const btnCancel = document.createElement('button');
         btnCancel.className = 'btn-confirm-no';
@@ -2877,7 +2853,11 @@ window.showConfirm = function (message) {
             }, 50);
         });
 
+        let closed = false;
         function close(result) {
+            if (closed) return;
+            closed = true;
+            document.removeEventListener('keydown', onKey, true);
             overlay.classList.remove('visible');
             box.classList.remove('visible');
             setTimeout(() => {
@@ -2888,8 +2868,18 @@ window.showConfirm = function (message) {
             }, 300);
         }
 
+        // Escape يلغي، وEnter يؤكّد ما لم يكن التركيز على زر الإلغاء
+        function onKey(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) { e.preventDefault(); e.stopPropagation(); close(false); }
+            else if ((e.key === 'Enter' || e.keyCode === 13) && document.activeElement !== btnCancel) {
+                e.preventDefault(); e.stopPropagation(); close(true);
+            }
+        }
+        document.addEventListener('keydown', onKey, true);
+
         btnConfirm.addEventListener('click', () => close(true));
         btnCancel.addEventListener('click', () => close(false));
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
     });
 };
 
@@ -4996,3 +4986,7 @@ async function handleStaffRoleChange(newRole) {
         }
     }
 })();
+
+// شبكة أمان: أي alert متبقٍّ في صفحات الموقع يظهر بنافذة الموقع المصمّمة لا بتصميم المتصفح
+// أو ويندوز أو أندرويد. لا انتقال بعد أي alert في الموقع، فعدم توقّف التنفيذ لا يضر.
+window.alert = function (message) { window.showAlert(message); };
