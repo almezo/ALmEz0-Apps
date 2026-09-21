@@ -20,8 +20,8 @@ android {
         applicationId "com.almezo.servers"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 113
-        versionName "1.2.2"
+        versionCode 114
+        versionName "1.2.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -85,6 +85,10 @@ dependencies {
     implementation "androidx.media3:media3-ui:1.2.1"
     implementation "androidx.media3:media3-common:1.2.1"
     implementation "androidx.media3:media3-datasource:1.2.1"
+
+    // إشعارات المدير الفورية (FCM) حتى والتطبيق مغلق — انظر nat/PushService
+    implementation platform("com.google.firebase:firebase-bom:33.7.0")
+    implementation "com.google.firebase:firebase-messaging"
 }
 
 apply from: 'capacitor.build.gradle'

@@ -105,6 +105,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- إشعارات المدير الفورية عبر FCM (nat.PushService) -->
+        <service
+            android:name=".nat.PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- فحص دوري لإشعارات المدير والتطبيق مغلق (nat.BroadcastNotifier) -->
         <service
             android:name=".nat.BroadcastJobService"

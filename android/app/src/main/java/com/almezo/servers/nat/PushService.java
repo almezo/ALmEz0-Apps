@@ -1,0 +1,37 @@
+package com.almezo.servers.nat;
+
+import androidx.annotation.NonNull;
+
+import com.google.firebase.messaging.FirebaseMessagingService;
+import com.google.firebase.messaging.RemoteMessage;
+
+import java.util.Map;
+
+/**
+ * استقبال إشعارات المدير فوراً عبر FCM، حتى والتطبيق مغلق.
+ *
+ * دالة pushBroadcastNotification في functions/index.js ترسل كل إشعار جديد إلى موضوع
+ * "broadcast" كرسالة بيانات (data) لا رسالة عرض، فيصل إلى هنا في كل الحالات ونعرضه نحن:
+ * بنفس القناة والشكل، وبنفس سجل المعروض المشترك مع الفحص الدوري وصفحة الويب
+ * (BroadcastNotifier.markSeen)، فلا يظهر الإشعار مرتين مهما وصل من أكثر من طريق.
+ */
+public class PushService extends FirebaseMessagingService {
+
+    @Override
+    public void onMessageReceived(@NonNull RemoteMessage message) {
+        Map<String, String> d = message.getData();
+        if (d == null || d.isEmpty()) return;
+        String id = d.get("id");
+        long ts = 0;
+        try { ts = Long.parseLong(d.get("ts")); } catch (Exception ignored) { }
+        if (BroadcastNotifier.markSeen(this, id, ts)) {
+            BroadcastNotifier.show(this, id, d.get("title"), d.get("message"), d.get("actionUrl"));
+        }
+    }
+
+    @Override
+    public void onNewToken(@NonNull String token) {
+        // لا نحتاج الرمز: الإرسال عبر موضوع "broadcast" لا إلى أجهزة بعينها
+        BroadcastNotifier.subscribePush(this);
+    }
+}

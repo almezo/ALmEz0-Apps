@@ -174,10 +174,28 @@ public final class BroadcastNotifier {
         manager.createNotificationChannel(channel);
     }
 
+    /**
+     * الاشتراك في موضوع FCM "broadcast": الإشعار يصل فوراً عبر PushService. الفحص الدوري
+     * أدناه يبقى احتياطاً للأجهزة بلا خدمات Google Play (صناديق TV كثيرة) أو إن تعذّر FCM.
+     */
+    public static void subscribePush(Context context) {
+        try {
+            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
+                com.google.firebase.FirebaseApp.initializeApp(context);
+            }
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("broadcast")
+                    .addOnFailureListener(e -> Log.w(TAG, "FCM subscribe failed", e));
+        } catch (Throwable t) {
+            // بلا خدمات Google Play أو بلا إعداد فايربيز: يكفي الفحص الدوري
+            Log.w(TAG, "FCM unavailable", t);
+        }
+    }
+
     /** فحص دوري كل 15 دقيقة (أقل مدة يسمح بها النظام) حتى والتطبيق مغلق. */
     public static void schedule(Context context) {
         if (scheduled) return;
         scheduled = true;
+        subscribePush(context);
         try {
             JobScheduler js = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
             if (js == null) return;

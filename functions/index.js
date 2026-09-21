@@ -110,3 +110,45 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
     }
     throw new HttpsError("internal", "عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً.");
 });
+
+// =============================================
+// إشعارات المدير الفورية لأجهزة أندرويد (FCM)
+// =============================================
+// كل وثيقة جديدة في broadcast_notifications (من صفحة الإشعارات في لوحة المدير) تُرسَل
+// فوراً إلى موضوع "broadcast" الذي يشترك فيه تطبيق أندرويد (nat/BroadcastNotifier).
+// رسالة بيانات (data) لا رسالة عرض: التطبيق يعرضها بنفسه بنفس القناة والشكل، ويمنع
+// تكرارها مع الفحص الدوري وصفحة الويب. تصل حتى والتطبيق مغلق.
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { initializeApp, getApps } = require("firebase-admin/app");
+const { getMessaging } = require("firebase-admin/messaging");
+if (!getApps().length) initializeApp();
+
+exports.pushBroadcastNotification = onDocumentCreated("broadcast_notifications/{notificationId}", async (event) => {
+    const doc = event.data ? event.data.data() : null;
+    if (!doc || doc.active === false) return;
+
+    const ts = Number(doc.timestamp) || Date.now();
+    const message = {
+        topic: "broadcast",
+        data: {
+            id: String(event.params.notificationId),
+            title: String(doc.title || "سيرفرات الميزو"),
+            message: String(doc.message || ""),
+            actionUrl: String(doc.actionUrl || ""),
+            ts: String(ts)
+        },
+        android: {
+            priority: "high",
+            // نفس نافذة الـ48 ساعة في التطبيق: جهاز مطفأ لأكثر منها لا يستلم إشعاراً قديماً
+            ttl: 48 * 60 * 60 * 1000
+        }
+    };
+
+    try {
+        const id = await getMessaging().send(message);
+        logger.info("broadcast push sent", { notificationId: event.params.notificationId, fcmId: id });
+    } catch (err) {
+        // الفحص الدوري في التطبيق يوصل الإشعار خلال 15 دقيقة حتى لو فشل هذا الإرسال
+        logger.error("broadcast push failed", { notificationId: event.params.notificationId, error: err.message });
+    }
+});

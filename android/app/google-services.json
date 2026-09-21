@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "991150710552",
+    "project_id": "almez0-servers",
+    "storage_bucket": "almez0-servers.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:991150710552:android:2024c9e4bf0f8e2311c86d",
+        "android_client_info": {
+          "package_name": "com.almezo.servers"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpFsrH9r2q_yrOwIHddf6qpYJpg1l6YHo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
