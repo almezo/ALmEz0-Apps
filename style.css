@@ -9364,3 +9364,23 @@ html[data-input-mode="remote"] .main-category-card:focus-visible {
 /* نافذة التأكيد: أسطر المراجعة (قبل ← بعد) تظهر كل منها في سطر */
 .custom-confirm-box .confirm-message { white-space: pre-line; line-height: 1.8; }
 .custom-confirm-box .confirm-title { margin: 0 0 12px; font-size: 1.15rem; font-weight: 800; color: #f8fafc; }
+
+/* إطار التركيز الأبيض يظهر فقط بعد استعمال الريموت أو الكيبورد (html.mz-kbd من app-bridge.js)،
+   ويختفي مع أول لمسة أو نقرة ماوس. أجهزة التلفاز مستثناة فتبقى على الإطار دائماً.
+   خانات الكتابة تحتفظ بتنسيق تركيزها الخاص حين يُنقر فيها. */
+html:not(.mz-kbd):not([data-is-tv="true"]) .tv-focused {
+    outline: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+html:not(.mz-kbd):not([data-is-tv="true"]) :focus-visible:not(input):not(textarea):not(select) {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+html:not(.mz-kbd):not([data-is-tv="true"]) input:focus-visible,
+html:not(.mz-kbd):not([data-is-tv="true"]) textarea:focus-visible,
+html:not(.mz-kbd):not([data-is-tv="true"]) select:focus-visible {
+    outline: none !important;
+}

@@ -1541,20 +1541,9 @@ window.showGlobalBroadcastBanner = function (notif) {
         banner.classList.add('visible');
     });
 
-    const dismissBtn = banner.querySelector('#btnClosePushBanner');
-    if (dismissBtn) {
-        dismissBtn.onclick = () => {
-            banner.classList.remove('visible');
-            setTimeout(() => banner.remove(), 450);
-        };
-    }
-
-    setTimeout(() => {
-        if (banner.parentElement) {
-            banner.classList.remove('visible');
-            setTimeout(() => banner.remove(), 450);
-        }
-    }, 15000);
+    // 30 ثانية، زر الإغلاق، والسحب يميناً أو يساراً (firebase-config.js)
+    if (typeof window.mzBannerLifecycle === 'function') window.mzBannerLifecycle(banner, 30000);
+    else setTimeout(() => { if (banner.parentElement) banner.remove(); }, 30000);
 };
 
 window.initBroadcastNotificationListener = function () {
@@ -1589,16 +1578,12 @@ window.initBroadcastNotificationListener = function () {
                         const data = doc.data();
                         data.id = doc.id;
 
-                        const lastId = localStorage.getItem('almezo_last_broadcast_id');
-                        const lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10);
                         const notifTs = parseInt(data.timestamp || '0', 10);
                         const now = Date.now();
                         const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
-                        // Show if new notification ID or newer timestamp within 48h
-                        if (doc.id !== lastId && notifTs > lastTs && (now - notifTs < FORTY_EIGHT_HOURS)) {
-                            localStorage.setItem('almezo_last_broadcast_id', doc.id);
-                            localStorage.setItem('almezo_last_broadcast_ts', String(notifTs));
+                        // مرة واحدة فقط لكل جهاز، سواء أغلقه العميل أم اختفى وحده
+                        if ((now - notifTs < FORTY_EIGHT_HOURS) && !window.mzBroadcastAlreadySeen(doc.id, notifTs)) {
                             window.showGlobalBroadcastBanner(data);
                         }
                     }, err => {

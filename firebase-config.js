@@ -1534,3 +1534,139 @@ async function logActivity(logData) {
     } catch (e) { }
 })();
 
+
+// =============================================
+// إطار التركيز: للريموت والكيبورد فقط (كل الصفحات)
+// =============================================
+(function () {
+    // إطار التركيز الأبيض للريموت والكيبورد فقط. كان يظهر لمستخدم اللمس والماوس أيضاً لأن
+    // فتح أي نافذة أو إغلاقها يضع .tv-focused تلقائياً، ووضع الريموت (tv-nav-active) لا يُلغى
+    // أبداً بعد تفعيله. الآن: أي زر تنقل يُظهر الإطار (html.mz-kbd)، وأول لمسة أو نقرة تُخفيه.
+    // أجهزة التلفاز تبقى على الإطار دائماً (CSS يستثني data-is-tv)، فزر OK في الريموت
+    // الذي قد يولّد mousedown لا يُخفيه هناك.
+    var KBD_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape'];
+    var KBD_CODES = [37, 38, 39, 40, 9, 13, 27, 23, 4];
+    window.addEventListener('keydown', function (e) {
+        if (KBD_KEYS.indexOf(e.key) !== -1 || KBD_CODES.indexOf(e.keyCode) !== -1) {
+            // Enter أثناء الكتابة في خانة لا يعني تنقلاً بالكيبورد
+            var t = e.target, tag = t && t.tagName;
+            if ((e.key === 'Enter' || e.keyCode === 13) && (tag === 'INPUT' || tag === 'TEXTAREA')) return;
+            document.documentElement.classList.add('mz-kbd');
+        }
+    }, true);
+    function markPointerInput(e) {
+        var root = document.documentElement;
+        if (root.getAttribute('data-is-tv') === 'true' || root.classList.contains('tv-device-mode')) return;
+        if (e && e.isTrusted === false) return;
+        root.classList.remove('mz-kbd');
+        if (document.body) document.body.classList.remove('tv-nav-active');
+        if (root.getAttribute('data-input-mode') === 'remote') {
+            root.setAttribute('data-input-mode', e && e.type === 'touchstart' ? 'touch' : 'mouse');
+        }
+        var marked = document.querySelectorAll('.tv-focused');
+        for (var i = 0; i < marked.length; i++) marked[i].classList.remove('tv-focused');
+    }
+    window.addEventListener('mousedown', markPointerInput, { capture: true, passive: true });
+    window.addEventListener('touchstart', markPointerInput, { capture: true, passive: true });
+})();
+
+// =============================================
+// إشعار داخل الموقع والبرنامج: 30 ثانية، إغلاق بالزر أو بالسحب، ومرة واحدة فقط
+// =============================================
+(function () {
+    var SEEN_KEY = 'almezo_seen_broadcasts';
+
+    /**
+     * يعيد true إن كان الإشعار ظهر لهذا الجهاز من قبل، وإلا يسجّله ظاهراً ويعيد false.
+     * كان يُحفظ آخر إشعار فقط، فحذف أحدث إشعار من لوحة المدير يُعيد إظهار الذي قبله.
+     * الآن قائمة بآخر 50 معرّفاً، ويُسجَّل الإشعار لحظة ظهوره سواء أُغلق أم لا.
+     */
+    window.mzBroadcastAlreadySeen = function (id, ts) {
+        var seen = [];
+        try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || []; } catch (e) { seen = []; }
+        var lastId = null, lastTs = 0;
+        try {
+            lastId = localStorage.getItem('almezo_last_broadcast_id');
+            lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10) || 0;
+        } catch (e) { }
+        if (seen.indexOf(id) !== -1 || id === lastId || (ts && ts <= lastTs)) return true;
+        seen.push(id);
+        if (seen.length > 50) seen = seen.slice(-50);
+        try {
+            localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+            localStorage.setItem('almezo_last_broadcast_id', id);
+            localStorage.setItem('almezo_last_broadcast_ts', String(Math.max(ts || 0, lastTs)));
+        } catch (e) { }
+        return false;
+    };
+
+    /** إغلاق تلقائي بعد 30 ثانية، وزر الإغلاق، والسحب يميناً أو يساراً مثل إشعارات الهاتف. */
+    window.mzBannerLifecycle = function (banner, ms) {
+        var timer = null, gone = false;
+        function remove() { if (banner.parentElement) banner.remove(); }
+        function hide() {
+            if (gone) return;
+            gone = true;
+            clearTimeout(timer);
+            banner.classList.remove('visible');
+            setTimeout(remove, 450);
+        }
+        function startTimer() { clearTimeout(timer); timer = setTimeout(hide, ms || 30000); }
+
+        var btn = banner.querySelector('.push-close-btn');
+        if (btn) btn.onclick = function (e) { if (e) e.stopPropagation(); hide(); };
+
+        // السحب
+        var startX = 0, startY = 0, dx = 0, dragging = false, decided = false, startT = 0;
+        function setX(x, withTransition) {
+            banner.style.transition = withTransition ? 'transform 0.3s ease, opacity 0.3s ease' : 'none';
+            banner.style.transform = 'translateX(calc(-50% + ' + x + 'px)) translateY(0)';
+            banner.style.opacity = String(Math.max(0, 1 - Math.abs(x) / 320));
+        }
+        function down(x, y, target) {
+            if (gone || (target && target.closest && target.closest('.push-close-btn, .push-action-btn'))) return;
+            startX = x; startY = y; dx = 0; dragging = true; decided = false; startT = Date.now();
+            clearTimeout(timer);
+        }
+        function move(x, y, ev) {
+            if (!dragging) return;
+            var mx = x - startX, my = y - startY;
+            if (!decided) {
+                if (Math.abs(mx) < 6 && Math.abs(my) < 6) return;
+                decided = true;
+                if (Math.abs(my) > Math.abs(mx)) { dragging = false; startTimer(); return; }
+            }
+            dx = mx;
+            if (ev && ev.cancelable) ev.preventDefault();
+            setX(dx, false);
+        }
+        function up() {
+            if (!dragging) return;
+            dragging = false;
+            var fast = Math.abs(dx) / Math.max(1, Date.now() - startT) > 0.5;
+            if (decided && (Math.abs(dx) > 90 || (fast && Math.abs(dx) > 30))) {
+                gone = true;
+                setX(dx > 0 ? window.innerWidth : -window.innerWidth, true);
+                setTimeout(remove, 320);
+                return;
+            }
+            if (decided) {
+                setX(0, true);
+                setTimeout(function () { if (!gone) { banner.style.transition = ''; banner.style.transform = ''; banner.style.opacity = ''; } }, 320);
+            }
+            startTimer();
+        }
+        banner.addEventListener('touchstart', function (e) { var t = e.touches[0]; down(t.clientX, t.clientY, e.target); }, { passive: true });
+        banner.addEventListener('touchmove', function (e) { var t = e.touches[0]; move(t.clientX, t.clientY, e); }, { passive: false });
+        banner.addEventListener('touchend', up);
+        banner.addEventListener('touchcancel', up);
+        banner.addEventListener('mousedown', function (e) { if (e.button === 0) down(e.clientX, e.clientY, e.target); });
+        window.addEventListener('mousemove', function (e) { if (dragging) move(e.clientX, e.clientY, e); });
+        window.addEventListener('mouseup', function () { if (dragging) up(); });
+
+        banner.style.touchAction = 'pan-y';
+        banner.style.cursor = 'grab';
+        startTimer();
+        return hide;
+    };
+})();
