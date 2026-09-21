@@ -41,12 +41,9 @@ public class NatDialog extends android.app.Dialog {
         if (event.getAction() == android.view.KeyEvent.ACTION_DOWN && getWindow() != null) {
             int dir = Fx.directionOf(event.getKeyCode());
             android.view.View focused = getCurrentFocus();
-            if (dir != 0 && focused != null && !(focused instanceof android.widget.EditText)) {
-                android.view.View next = Fx.spatialNext(getWindow().getDecorView(), focused, dir);
-                if (next != null && next != focused) {
-                    next.requestFocus();
-                    return true;
-                }
+            if (dir != 0 && focused != null && !(focused instanceof android.widget.EditText)
+                    && Fx.move(getWindow().getDecorView(), focused, dir)) {
+                return true;
             }
         }
         return super.dispatchKeyEvent(event);

@@ -185,27 +185,79 @@ public final class Fx {
     // ------------------------------------------------------------ تنقل الريموت
 
     /**
-     * تنقل هندسي حقيقي بالريموت عبر الشاشة كلها.
+     * تنقل هندسي حقيقي بالريموت عبر الشاشة كلها: ينقل التركيز بضغطة سهم إلى أقرب عنصر في
+     * اتجاه الضغط فعلياً على الشاشة، ويعيد true إن تكفّل بالضغطة.
      *
      * خوارزمية أندرويد الافتراضية تبحث داخل الحاوية أولاً، فالضغط يساراً في أول عنصر من صف
      * في الشبكة كان يلتف لآخر الصف السابق بدل الخروج إلى القائمة الجانبية المجاورة، والانتقال
-     * بين الشريط العلوي والمحتوى والتذييل غير مضمون. هنا نختار أقرب عنصر في اتجاه الضغط
-     * بالمسافة الفعلية على الشاشة، فيصل المستخدم إلى الزر الذي يراه أمامه مباشرة.
+     * بين الشريط العلوي والمحتوى والتذييل غير مضمون.
      *
-     * @return العنصر التالي، أو null فنترك السلوك الافتراضي (يتكفّل بتمرير القوائم الطويلة)
+     * الترتيب: هدف داخل نفس القائمة أولاً، ثم تمرير القائمة نفسها إن لم يُرسم الصف
+     * التالي بعد، ثم بحث هندسي في الشاشة كلها.
+     *
+     * لا نعيد الأمر إلى خوارزمية أندرويد الافتراضية أبداً ما دام التركيز داخل قائمة:
+     * حين يكون القسم المُركَّز آخر صف مرسوم، لا يجد بحثنا داخل القائمة شيئاً تحته،
+     * وكان التسليم للنظام هنا يُخرج التركيز من قائمة الأقسام إلى الشريط العلوي ثم إلى
+     * شبكة البطاقات، فيمشي المستخدم في البطاقات ثم يعود للأقسام وهو ممسك بالسهم —
+     * وهو العطل الذي قِستُه فعلياً على المحاكي في شاشة الأفلام.
      */
-    public static View spatialNext(View root, View from, int direction) {
-        if (root == null || from == null) return null;
-        // أولاً: هدف داخل نفس القائمة أو الشبكة. الضغط للأسفل في القائمة الجانبية كان
-        // يقفز إلى بطاقة قناة في الشبكة لأن الصف التالي لم يُرسم بعد، بدل تمرير القائمة.
+    public static boolean move(View root, View from, int direction) {
+        if (root == null || from == null) return false;
         View container = scrollParentOf(from);
         if (container != null) {
             View inside = searchIn(container, from, direction);
-            if (inside != null) return inside;
-            // لا شيء داخلها في هذا الاتجاه: نترك النظام يمرّرها بدل الخروج منها فجأة
-            if (canScroll(container, direction)) return null;
+            if (inside != null && inside != from && inside.requestFocus()) return true;
+            // الصف التالي لم يُرسم بعد: نمرّر القائمة بأنفسنا ونركّز عليه حين يجهز
+            if (canScroll(container, direction) && stepInList(container, from, direction)) return true;
         }
-        return searchIn(root, from, direction);
+        View next = searchIn(root, from, direction);
+        if (next != null && next != from && next.requestFocus()) return true;
+        // لا شيء في هذا الاتجاه داخل قائمة: نبتلع الضغطة بدل أن يلتف النظام للطرف المقابل
+        return container != null;
+    }
+
+    /**
+     * يمرّر القائمة خطوة واحدة في اتجاه الضغط وينقل التركيز إلى العنصر التالي فيها.
+     * في الشبكة تكون الخطوة عموداً كاملاً (عدد الأعمدة) لأن الأسفل صفٌّ لا عنصر.
+     */
+    private static boolean stepInList(View container, View from, int direction) {
+        if (!(container instanceof RecyclerView)) {
+            boolean vertical = direction == View.FOCUS_UP || direction == View.FOCUS_DOWN;
+            int sign = (direction == View.FOCUS_UP || direction == View.FOCUS_LEFT) ? -1 : 1;
+            int by = sign * (vertical ? container.getHeight() : container.getWidth()) / 3;
+            container.scrollBy(vertical ? 0 : by, vertical ? by : 0);
+            return true;
+        }
+        RecyclerView rv = (RecyclerView) container;
+        RecyclerView.Adapter<?> adapter = rv.getAdapter();
+        View item = rv.findContainingItemView(from);
+        if (adapter == null || item == null) return false;
+        int pos = rv.getChildAdapterPosition(item);
+        if (pos == RecyclerView.NO_POSITION) return false;
+
+        int step = 1;
+        RecyclerView.LayoutManager lm = rv.getLayoutManager();
+        boolean vertical = direction == View.FOCUS_UP || direction == View.FOCUS_DOWN;
+        if (lm instanceof androidx.recyclerview.widget.GridLayoutManager && vertical) {
+            step = Math.max(1, ((androidx.recyclerview.widget.GridLayoutManager) lm).getSpanCount());
+        }
+        int target = pos + ((direction == View.FOCUS_UP || direction == View.FOCUS_LEFT) ? -step : step);
+        if (target < 0) target = 0;
+        if (target >= adapter.getItemCount()) target = adapter.getItemCount() - 1;
+        if (target == pos) return false;
+
+        rv.scrollToPosition(target);
+        focusWhenReady(rv, target, 0);
+        return true;
+    }
+
+    /** العنصر الجديد لا يوجد لحظة التمرير؛ نحاول تركيزه في الإطارات التالية حتى يُربَط. */
+    private static void focusWhenReady(RecyclerView rv, int pos, int tries) {
+        rv.post(() -> {
+            RecyclerView.ViewHolder vh = rv.findViewHolderForAdapterPosition(pos);
+            if (vh != null && vh.itemView.isShown() && vh.itemView.requestFocus()) return;
+            if (tries < 10) focusWhenReady(rv, pos, tries + 1);
+        });
     }
 
     /** أقرب حاوية قابلة للتمرير تحتوي العنصر. */

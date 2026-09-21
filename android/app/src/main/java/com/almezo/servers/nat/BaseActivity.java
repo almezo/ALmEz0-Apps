@@ -56,7 +56,6 @@ public abstract class BaseActivity extends AppCompatActivity {
      * تنقل الريموت هندسي في كل شاشات المشغل: السهم ينقل التركيز إلى أقرب عنصر في اتجاه الضغط
      * فعلياً على الشاشة، بدل خوارزمية أندرويد التي تبحث داخل الحاوية أولاً فتلتف داخل الشبكة
      * ولا تخرج إلى القائمة الجانبية أو الشريط العلوي إلا بعد دورة طويلة.
-     * إن لم يوجد عنصر في ذلك الاتجاه نترك السلوك الافتراضي ليتكفّل بتمرير القوائم الطويلة.
      */
     @Override
     public boolean dispatchKeyEvent(android.view.KeyEvent event) {
@@ -64,12 +63,9 @@ public abstract class BaseActivity extends AppCompatActivity {
             int dir = Fx.directionOf(event.getKeyCode());
             View focused = getCurrentFocus();
             // داخل حقول الكتابة تبقى الأسهم لتحريك المؤشر بين الحروف
-            if (dir != 0 && focused != null && !(focused instanceof android.widget.EditText)) {
-                View next = Fx.spatialNext(getWindow().getDecorView(), focused, dir);
-                if (next != null && next != focused) {
-                    next.requestFocus();
-                    return true;
-                }
+            if (dir != 0 && focused != null && !(focused instanceof android.widget.EditText)
+                    && Fx.move(getWindow().getDecorView(), focused, dir)) {
+                return true;
             }
         }
         return super.dispatchKeyEvent(event);

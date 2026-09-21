@@ -471,9 +471,53 @@
             }
         }
 
+        /** يرفع علامات العزل عن عنصر واحد ويعيد له tabindex الأصلي. */
+        function clearLockMarks(el) {
+            if (!el || !el.hasAttribute) return;
+            if (el.hasAttribute('data-tv-inert-applied')) {
+                if (el.inert !== undefined) el.inert = false;
+                el.removeAttribute('data-tv-inert-applied');
+                el.removeAttribute('aria-hidden');
+                var a = lockedBackgroundSiblings.indexOf(el);
+                if (a !== -1) lockedBackgroundSiblings.splice(a, 1);
+            }
+            if (el.hasAttribute('data-tv-orig-tabindex')) {
+                var orig = el.getAttribute('data-tv-orig-tabindex');
+                if (orig !== null && orig !== '') {
+                    el.setAttribute('tabindex', orig);
+                } else {
+                    el.removeAttribute('tabindex');
+                }
+                el.removeAttribute('data-tv-orig-tabindex');
+                var b = lockedFallbackElements.indexOf(el);
+                if (b !== -1) lockedFallbackElements.splice(b, 1);
+            }
+        }
+
+        /** يرفع العزل عن عنصر وكل ما بداخله. */
+        function releaseLock(root) {
+            if (!root) return;
+            clearLockMarks(root);
+            var inner = root.querySelectorAll('[data-tv-inert-applied], [data-tv-orig-tabindex]');
+            for (var i = 0; i < inner.length; i++) clearLockMarks(inner[i]);
+        }
+
         function lockBackgroundForModal(modalEl) {
             if (!modalEl) return;
             if (activeTrappedModal === modalEl) return;
+
+            /*
+             * النافذة التي نفتحها الآن قد تكون عُزلت قبل قليل ضمن خلفية نافذة أخرى.
+             * يحدث هذا مع النوافذ الموجودة أصلاً في الصفحة — نافذة الفرز ووضع الجهاز
+             * ومشغل الفيديو بملء الشاشة ونوافذ التأكيد — لأن الحلقة أدناه تتخطّى
+             * النافذة الهدف دون أن ترفع عنها عزلاً سابقاً.
+             *
+             * النتيجة التي قِستُها فعلياً: النافذة تظهر سليمة تماماً ولا تصل إليها أي
+             * نقرة إطلاقاً (كل ضغطة تمر من فوقها إلى body)، والبرنامج يبدو متجمّداً بلا
+             * أي أثر بصري، ولا يفكّه إلا Escape لأن مستمعه على المستند لا على النافذة.
+             * لذلك نرفع العزل عنها وعن كل ما بداخله قبل عزل الخلفية من جديد.
+             */
+            releaseLock(modalEl);
 
             var currentActive = document.activeElement;
             var triggerEl = (currentActive && currentActive !== document.body && !modalEl.contains(currentActive)) ? currentActive : null;
@@ -772,6 +816,29 @@
             return currentModal;
         }
 
+        /*
+         * حارس: لا يجوز أن يبقى أي عزل وليس هناك نافذة مفتوحة.
+         *
+         * عزلٌ عالق يعني صفحة لا تقبل أي نقرة مع أنها تبدو سليمة تماماً، وهو عطل
+         * لا يشفى إلا بإعادة تحميل الصفحة. مهما كان التسلسل الذي أوصلنا إليه — نافذة
+         * حُذفت من DOM قبل أن يلتقطها المراقب، أو انتقال بين الشاشات وسط الحركة —
+         * يصلحه هذا الفحص عند أول نقرة أو عند العودة إلى البرنامج.
+         */
+        var lastStuckCheck = 0;
+        function releaseStuckLocks() {
+            var now = Date.now();
+            if (now - lastStuckCheck < 400) return;
+            lastStuckCheck = now;
+            if (getOpenModal()) return;
+            var stale = document.querySelectorAll('[data-tv-inert-applied], [data-tv-orig-tabindex]');
+            if (!stale.length) return;
+            for (var i = 0; i < stale.length; i++) clearLockMarks(stale[i]);
+            lockedBackgroundSiblings = [];
+            lockedFallbackElements = [];
+            modalStack = [];
+            activeTrappedModal = null;
+        }
+
         // مراقب DOM فوري لرصد فتح أو إغلاق أي نافذة تلقائياً وعزل الخلفية فوراً
         var modalObserver = null;
         try {
@@ -786,7 +853,15 @@
             });
         } catch (obsErr) { }
 
-        window.addEventListener('click', syncModalState, true);
+        window.addEventListener('click', function () {
+            syncModalState();
+            releaseStuckLocks();
+        }, true);
+        // العودة للبرنامج من نافذة أخرى: أكثر لحظة اشتكى فيها المستخدم من توقف النقر
+        window.addEventListener('focus', releaseStuckLocks);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) releaseStuckLocks();
+        });
 
         // حارس أمني دائم: منع تسرب التركيز إلى خارج النافذة نهائياً
         document.addEventListener('focusin', function (e) {
@@ -1127,7 +1202,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.1.9';
+    const CURRENT_APP_VERSION = '1.2.0';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {

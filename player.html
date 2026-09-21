@@ -161,12 +161,22 @@
             } catch (e) { }
         })();
     </script>
+    <!-- تنسيق غطاء الإقلاع هنا لا في سمة style على العنصر: يُقرأ قبل جسم الصفحة فيُرسم
+         الغطاء مع أول بكسل كما كان، دون تنسيق مضمّن (تحذير no-inline-styles). -->
+    <style>
+        #mizo-boot-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483600;
+            background: #05070b;
+        }
+    </style>
 </head>
 
 <body class="screen-is-dashboard">
     <!-- غطاء الإقلاع: يُرسم مع أول بكسل قبل أي محتوى، فلا تومض الصفحة قبل الافتتاحية.
          تتولاه intro.js ثم يزول. الموقع وبرنامج الكمبيوتر فقط — أندرويد له افتتاحيته الأصلية. -->
-    <div id="mizo-boot-overlay" style="position:fixed;inset:0;z-index:2147483600;background:#05070b"></div>
+    <div id="mizo-boot-overlay"></div>
     <script>
         (function () {
             var b = document.getElementById('mizo-boot-overlay');
