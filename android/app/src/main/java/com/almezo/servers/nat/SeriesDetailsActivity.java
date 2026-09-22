@@ -669,6 +669,24 @@ public class SeriesDetailsActivity extends BaseActivity implements Downloads.Lis
                     play.setVisibility(hasFocus ? View.VISIBLE : View.GONE);
                 });
                 applyFocusScale(v, 1.04f);
+                // الريموت: زر التنزيل داخل البطاقة لا يصله البحث التلقائي عن التركيز، فنوجّهه يدوياً.
+                // سهم لأعلى من الحلقة -> زر تنزيلها (أعلى الصورة)، ومنه سهم لأسفل -> الحلقة نفسها.
+                v.setOnKeyListener((view, keyCode, event) -> {
+                    if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                            && dlBadge.getVisibility() == View.VISIBLE) {
+                        dlBadge.requestFocus();
+                        return true;
+                    }
+                    return false;
+                });
+                dlBadge.setOnKeyListener((view, keyCode, event) -> {
+                    if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN && event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                        v.requestFocus();
+                        return true;
+                    }
+                    return false;
+                });
+                applyFocusScale(dlBadge, 1.15f);
             }
         }
 

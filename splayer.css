@@ -8089,11 +8089,13 @@ body:not(.kbd-nav) :focus-visible {
 
 .nav-btn-downloads {
     position: relative;
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.1)) !important;
-    color: #22c55e !important;
-    border-color: rgba(34, 197, 94, 0.4) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
 }
-.nav-btn-downloads:hover { background: linear-gradient(135deg, #22c55e, #16a34a) !important; color: #fff !important; }
+.nav-btn-downloads:hover { background: rgba(255, 255, 255, 0.2) !important; color: #fff !important; }
+/* زر التنزيلات في الشاشة الرئيسية للمشغل فقط (لا بجانب زر الرجوع في الأفلام والمسلسلات) */
+body:not(.screen-is-dashboard) .nav-btn-downloads { display: none !important; }
 .nav-dl-count {
     position: absolute;
     top: -4px;

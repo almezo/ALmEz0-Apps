@@ -36,7 +36,7 @@
             android:progressDrawable="@drawable/nat_watch_progress"
             android:visibility="gone" />
 
-        <!-- حالة التنزيل: زر لمس صغير (لا يأخذ تركيز الريموت؛ بالريموت يُستعمل الضغط الطويل) -->
+        <!-- حالة التنزيل: زر صغير. بالريموت: سهم لأعلى من الحلقة يصل إليه، وسهم لأسفل يعيد للحلقة -->
         <FrameLayout
             android:id="@+id/ep_dl"
             android:layout_width="42dp"
@@ -47,7 +47,8 @@
             android:clickable="true"
             android:contentDescription="تنزيل الحلقة"
             android:elevation="3dp"
-            android:focusable="false">
+            android:focusable="true"
+            android:focusableInTouchMode="false">
 
             <ImageView
                 android:id="@+id/ep_dl_icon"

@@ -95,7 +95,7 @@
             android:contentDescription="التنزيلات"
             android:src="@drawable/fa_download"
             android:visibility="gone"
-            app:tint="@color/nat_green" />
+            app:tint="#FFFFFFFF" />
 
         <ImageButton
             android:id="@+id/nav_btn_device"
