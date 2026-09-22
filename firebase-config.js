@@ -1670,3 +1670,154 @@ async function logActivity(logData) {
         return hide;
     };
 })();
+
+// =============================================
+// إقفال الحساب مع المناديب (MizoLedger)
+// =============================================
+// أرصدة المناديب والشركات = الرصيد الأساسي المحفوظ + مجموع العمليات. بعد "إقفال الحساب" تُضاف
+// مجاميع ما قبل الإقفال إلى الأرصدة الأساسية، فلا يعود لازماً تنزيل العمليات القديمة: الصفحات
+// تنزّل ما بعد الإقفال فقط (وما يلزم لربح الأسبوع وفاتورة الشهر). الرصيد نفسه لا يتغير.
+window.MizoLedger = (function () {
+    let cutoffMs = null;
+    let loaded = false;
+    const subs = [];
+
+    function tsMs(t) {
+        if (!t || !t.timestamp) return Date.now(); // عملية تُكتب الآن (وقت الخادم لم يصل بعد)
+        const v = t.timestamp;
+        if (typeof v.toMillis === 'function') return v.toMillis();
+        if (typeof v.toDate === 'function') return v.toDate().getTime();
+        const n = new Date(v).getTime();
+        return isNaN(n) ? Date.now() : n;
+    }
+
+    return {
+        /** يستمع لتاريخ آخر إقفال ويستدعي cb عند أول قراءة وعند كل تغيير. */
+        subscribe: function (cb) {
+            subs.push(cb);
+            if (loaded) { cb(cutoffMs); return; }
+            if (subs.length > 1) return;
+            try {
+                db.collection('systemSettings').doc('ledger').onSnapshot(function (snap) {
+                    const d = snap.exists ? snap.data() : null;
+                    const c = d && d.cutoff && typeof d.cutoff.toMillis === 'function' ? d.cutoff.toMillis() : null;
+                    const changed = !loaded || c !== cutoffMs;
+                    cutoffMs = c;
+                    loaded = true;
+                    if (changed) subs.forEach(function (fn) { try { fn(cutoffMs); } catch (e) { console.error(e); } });
+                }, function (err) {
+                    console.warn('ledger listener:', err);
+                    loaded = true;
+                    subs.forEach(function (fn) { try { fn(null); } catch (e) { } });
+                });
+            } catch (e) {
+                loaded = true;
+                cb(null);
+            }
+        },
+        cutoffMs: function () { return cutoffMs; },
+        timeOf: tsMs,
+        /** هل تدخل العملية في الأرصدة الحية؟ (بعد آخر إقفال، أو كلها إن لم يتم إقفال) */
+        counts: function (t) { return cutoffMs === null || tsMs(t) > cutoffMs; },
+        /** بداية ما يجب تنزيله: الأقدم بين تاريخ الإقفال والتواريخ الإضافية (أسبوع، شهر). null = الكل. */
+        windowStart: function (extraDates) {
+            if (cutoffMs === null) return null;
+            let m = cutoffMs;
+            (extraDates || []).forEach(function (d) { if (d && d.getTime() < m) m = d.getTime(); });
+            return new Date(m);
+        }
+    };
+})();
+
+// =============================================
+// الكيبورد لا يظهر إلا بضغطة المستخدم على صندوق النص (أندرويد)
+// =============================================
+// التنقل بالريموت يضع التركيز على صناديق النص فيفتح أندرويد الكيبورد تلقائياً ويغطي الشاشة، حتى لو
+// كان المستخدم يمرّ على الخانة فقط. وكذلك نوافذ تضع التركيز تلقائياً على أول خانة. هنا: أي تركيز لم
+// يأتِ من لمسة على الخانة نفسها يُقفل الخانة مؤقتاً (قراءة فقط + inputmode=none) فلا يُفتح الكيبورد،
+// ويبقى الإطار ظاهراً. الضغط على OK أو لمس الخانة يفتحها ويُظهر الكيبورد. مثل مشغل الميزو الأصلي.
+(function () {
+    var ua = navigator.userAgent || '';
+    var isAndroid = /android/i.test(ua) || !!window.AndroidNativeBridge;
+    if (!isAndroid) return; // الكمبيوتر والمتصفحات بلوحة مفاتيح حقيقية: لا تغيير
+
+    var TEXT_TYPES = ['', 'text', 'search', 'email', 'tel', 'password', 'number', 'url'];
+    var lastPointer = { target: null, time: 0 };
+    var reopening = null;
+
+    function isEditable(el) {
+        if (!el || !el.tagName) return false;
+        if (el.tagName === 'TEXTAREA') return !el.disabled;
+        if (el.tagName === 'INPUT') return TEXT_TYPES.indexOf((el.getAttribute('type') || '').toLowerCase()) !== -1 && !el.disabled;
+        return el.isContentEditable === true;
+    }
+
+    function lock(el) {
+        if (el.hasAttribute('data-kbd-locked')) return;
+        el.setAttribute('data-kbd-locked', '1');
+        el.setAttribute('data-kbd-prev-ro', el.readOnly ? '1' : '0');
+        el.setAttribute('data-kbd-prev-im', el.getAttribute('inputmode') || '');
+        el.setAttribute('inputmode', 'none');
+        if ('readOnly' in el) el.readOnly = true;
+    }
+
+    function unlock(el) {
+        if (!el || !el.hasAttribute('data-kbd-locked')) return;
+        if ('readOnly' in el) el.readOnly = el.getAttribute('data-kbd-prev-ro') === '1';
+        var im = el.getAttribute('data-kbd-prev-im');
+        if (im) el.setAttribute('inputmode', im); else el.removeAttribute('inputmode');
+        el.removeAttribute('data-kbd-locked');
+        el.removeAttribute('data-kbd-prev-ro');
+        el.removeAttribute('data-kbd-prev-im');
+    }
+
+    /** يفتح الخانة ويُظهر الكيبورد (بعد OK بالريموت). */
+    function openForTyping(el) {
+        unlock(el);
+        reopening = el;
+        try { el.blur(); } catch (e) { }
+        setTimeout(function () {
+            try {
+                el.focus();
+                if (typeof el.setSelectionRange === 'function' && el.value) {
+                    try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { }
+                }
+                el.click();
+            } catch (e) { }
+            setTimeout(function () { reopening = null; }, 300);
+        }, 30);
+    }
+
+    function onPointer(e) {
+        lastPointer = { target: e.target, time: Date.now() };
+        var el = e.target && e.target.closest ? e.target.closest('input, textarea, [contenteditable="true"]') : null;
+        if (el && el.hasAttribute('data-kbd-locked')) unlock(el); // لمسة على الخانة: الكيبورد يظهر كالعادة
+    }
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('touchstart', onPointer, { capture: true, passive: true });
+    document.addEventListener('mousedown', onPointer, true);
+
+    document.addEventListener('focusin', function (e) {
+        var el = e.target;
+        if (!isEditable(el) || el === reopening) return;
+        // تركيز من لمسة على الخانة نفسها (أو داخلها) قبل لحظات: مسموح
+        var t = lastPointer.target;
+        if (t && (t === el || (el.contains && el.contains(t))) && Date.now() - lastPointer.time < 800) return;
+        lock(el);
+    }, true);
+
+    document.addEventListener('focusout', function (e) {
+        if (e.target !== reopening) unlock(e.target);
+    }, true);
+
+    // OK / Enter على خانة مقفلة: تُفتح للكتابة بدل إرسال النموذج
+    window.addEventListener('keydown', function (e) {
+        var el = document.activeElement;
+        if (!el || !el.hasAttribute || !el.hasAttribute('data-kbd-locked')) return;
+        if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            openForTyping(el);
+        }
+    }, true);
+})();

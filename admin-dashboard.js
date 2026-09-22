@@ -2,6 +2,142 @@
 // منطق لوحة تقارير المدير (Admin Dashboard)
 // =============================================
 
+/**
+ * تهريب النصوص قبل وضعها في الصفحة. بيانات العمليات يكتبها المناديب (وكان أي عميل مسجّل يستطيع
+ * إنشاء عملية قبل تشديد القواعد)، فاسم منتج أو سبب سحب فيه وسم HTML كان يُنفَّذ داخل لوحة المدير
+ * بصلاحيات المدير. escRecordForHtml نسخة للعرض فقط: النصوص مُهرَّبة، والأرقام والتواريخ كما هي.
+ */
+function escH(v) {
+    if (typeof window.escapeHtml === 'function') return window.escapeHtml(v);
+    return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * مجاميع عمليات مندوب واحد (مبيعات وسحوبات لكل محفظة). منقولة حرفياً من حساب البطاقات حتى
+ * يستعملها العرض و"إقفال الحساب" بنفس المنطق تماماً: الرصيد = الرصيد الأساسي + هذه المجاميع.
+ * include(tData) يحدد العمليات الداخلة (بعد آخر إقفال للعرض، أو حتى لحظة الإقفال للإقفال).
+ */
+function computeStaffLedgerSums(staffId, staffName, isIbrahim, docs, include) {
+    let libyanaSales = 0, libyanaWithdrawals = 0;
+    let almadarSales = 0, almadarWithdrawals = 0;
+    let cashSales = 0, cashWithdrawals = 0;
+
+    docs.forEach(tDoc => {
+        const tData = tDoc.data();
+        if (!include(tData)) return;
+
+        // العمليات كمستلم (Taker)
+        if (tData.type === 'sale') {
+            const p = parseFloat(tData.price) || 0;
+
+            // ليبيانا: تذهب لمحفظة المندوب المستلم للرصيد (أو للمندوب البائع كدعم رجعي إذا لم يحدد)
+            if (tData.method === 'ليبيانا') {
+                const libyanaRecipientId = tData.creditRecipientId || tData.staffId;
+                if (libyanaRecipientId === staffId) {
+                    libyanaSales += p;
+                }
+            } else if (tData.method === 'المدار') {
+                // المدار: تذهب لمحفظة المندوب المستلم للرصيد (أو للمندوب البائع كدعم رجعي إذا لم يحدد)
+                const almadarRecipientId = tData.creditRecipientId || tData.staffId;
+                if (almadarRecipientId === staffId) {
+                    almadarSales += p;
+                }
+            } else if (tData.method === 'دفع مشترك (ليبيانا + مدار)' && tData.splitDetails) {
+                // دفع مشترك: توزيع كل جزء على المستلم المحدد له
+                if (tData.splitDetails.libyanaRecipientId === staffId) {
+                    libyanaSales += parseFloat(tData.splitDetails.libyanaAmount) || 0;
+                }
+                if (tData.splitDetails.almadarRecipientId === staffId) {
+                    almadarSales += parseFloat(tData.splitDetails.almadarAmount) || 0;
+                }
+            } else if (tData.staffId === staffId) {
+                // كاش ودين: تذهب دائماً للمندوب الذي قام بالبيعة
+                if (tData.method === 'كاش' || tData.method === 'دين') {
+                    cashSales += p;
+                }
+            }
+        } else if (tData.type === 'withdrawal') {
+            if (tData.staffId === staffId) {
+                const amt = parseFloat(tData.amount) || 0;
+                if (tData.wallet === 'ليبيانا') libyanaWithdrawals += amt;
+                if (tData.wallet === 'المدار') almadarWithdrawals += amt;
+                if (tData.wallet === 'كاش') cashWithdrawals += amt;
+            }
+        } else if (tData.type === 'debt_transfer') {
+            if (tData.staffId === staffId) {
+                // للمندوب ابراهيم فقط: سحب الرصيد من مندوب آخر لا يضاف في مطلوب كاش ولا يخصم من صافي الربح
+                if (!isIbrahim) {
+                    const amt = parseFloat(tData.amount) || 0;
+                    if (tData.wallet === 'ليبيانا') cashSales += amt;
+                    if (tData.wallet === 'المدار') cashSales += amt;
+                }
+            }
+        }
+
+        // العمليات كمعطي (Giver)
+        if (tData.debtor === staffName || (tData.debtor && (tData.debtor.includes(staffName) || staffName.includes(tData.debtor)))) {
+            if (tData.type === 'debt_transfer') {
+                const origCredit = parseFloat(tData.originalCredit) || 0;
+                if (tData.wallet === 'ليبيانا') libyanaWithdrawals += origCredit;
+                if (tData.wallet === 'المدار') almadarWithdrawals += origCredit;
+            }
+        }
+    });
+
+    // حسابات خاصة بمندوب ابراهيم (حساب المصرفي / سداد / USDT) من مبيعات وسحوبات المناديب
+    let bankSales = 0, sadadSales = 0, usdtSales = 0;
+    let bankWithdrawals = 0, sadadWithdrawals = 0, usdtWithdrawals = 0;
+    if (isIbrahim) {
+        docs.forEach(tDoc => {
+            const tData = tDoc.data();
+            if (!include(tData)) return;
+            if (tData.type === 'sale') {
+                const p = parseFloat(tData.price) || 0;
+                const m = (tData.method || '').trim();
+                if (m === 'تحويلات مصرفية' || m.includes('مصرف')) {
+                    bankSales += p;
+                } else if (m === 'سداد' || m.includes('سداد')) {
+                    sadadSales += p;
+                } else if (m.toUpperCase() === 'USDT' || m.toUpperCase().includes('USDT')) {
+                    usdtSales += p;
+                }
+            } else if (tData.type === 'withdrawal' || tData.type === 'debt_transfer') {
+                const isIbrTrans = (tData.staffId === staffId) || (tData.debtor && (tData.debtor.includes('ابراهيم') || staffName.includes(tData.debtor)));
+                if (isIbrTrans) {
+                    const amt = parseFloat(tData.amount) || 0;
+                    const w = (tData.wallet || '').trim();
+                    if (w === 'حساب المصرفي' || w === 'تحويلات مصرفية' || w.includes('مصرف')) {
+                        bankWithdrawals += amt;
+                    } else if (w === 'سداد' || w.includes('سداد')) {
+                        sadadWithdrawals += amt;
+                    } else if (w.toUpperCase() === 'USDT' || w.toUpperCase().includes('USDT')) {
+                        usdtWithdrawals += amt;
+                    }
+                }
+            }
+        });
+    }
+
+
+    return {
+        libyanaSales, libyanaWithdrawals, almadarSales, almadarWithdrawals, cashSales, cashWithdrawals,
+        bankSales, sadadSales, usdtSales, bankWithdrawals, sadadWithdrawals, usdtWithdrawals
+    };
+}
+
+function escRecordForHtml(d) {
+    if (!d || typeof d !== 'object') return d;
+    const out = {};
+    Object.keys(d).forEach(function (k) {
+        const v = d[k];
+        if (typeof v === 'string') out[k] = escH(v);
+        else if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.toDate !== 'function') out[k] = escRecordForHtml(v);
+        else out[k] = v;
+    });
+    return out;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const adminMainContent = document.getElementById('adminMainContent');
 
@@ -107,14 +243,29 @@ document.addEventListener('DOMContentLoaded', () => {
             grid.innerHTML = '<p style="color: #f44336;">حدث خطأ أثناء جلب المناديب.</p>';
         });
 
-        // 2. الاستماع الحي لجميع العمليات (Transactions)
-        transactionsUnsubscribe = db.collection('transactions').onSnapshot(transSnapshot => {
-            transactionsDocs = transSnapshot.docs;
-            renderRealtimeBalances();
-            renderCompanyBalances();
-        }, err => {
-            console.error('Error listening to transactions:', err);
-        });
+        // 2. الاستماع الحي للعمليات: بعد آخر "إقفال للحساب" فقط (وما يلزم لربح الأسبوع وفاتورة
+        //    الشهر). كان يُنزّل كل العمليات منذ أول يوم مع كل فتح للوحة، فتثقل وتكلف أكثر كل يوم.
+        //    بلا إقفال سابق يبقى كما كان: كل العمليات.
+        const subscribeTransactions = () => {
+            if (transactionsUnsubscribe) transactionsUnsubscribe();
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const weekStart = (typeof window.getLibyaWeekStart === 'function') ? window.getLibyaWeekStart() : null;
+            const from = window.MizoLedger ? window.MizoLedger.windowStart([monthStart, weekStart]) : null;
+            window.transactionsLoadedFrom = from;
+            let q = db.collection('transactions');
+            if (from) q = q.where('timestamp', '>=', firebase.firestore.Timestamp.fromDate(from));
+            transactionsUnsubscribe = q.onSnapshot(transSnapshot => {
+                transactionsDocs = transSnapshot.docs;
+                renderRealtimeBalances();
+                renderCompanyBalances();
+                if (typeof window.onLedgerDataRefreshed === 'function') window.onLedgerDataRefreshed();
+            }, err => {
+                console.error('Error listening to transactions:', err);
+            });
+        };
+        if (window.MizoLedger) window.MizoLedger.subscribe(subscribeTransactions);
+        else subscribeTransactions();
 
         // 3. الاستماع الحي لآخر تصفية تمت مع كل شركة (تحدد نقطة بداية الحساب)
         companyBalancesUnsubscribe = db.collection('companyBalances').onSnapshot(compSnapshot => {
@@ -127,6 +278,148 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error listening to companyBalances:', err);
         });
     }
+
+    // =============================================
+    // إقفال الحساب مع كل المناديب (مرة كل شهر أو شهرين)
+    // =============================================
+    // يضيف مجاميع العمليات حتى لحظة الإقفال إلى الأرصدة الأساسية لكل مندوب (ولكل شركة)، ويحفظ
+    // تاريخ الإقفال. بعده تنزّل الصفحات العمليات اللاحقة فقط. الأرصدة المعروضة لا تتغير: الرصيد =
+    // الأساسي + المجاميع، وما انتقل من المجاميع أُضيف للأساسي بنفس القيمة. العمليات القديمة لا تُحذف.
+    function ledgerScreenNumbers() {
+        return Array.from(document.querySelectorAll('#staffBalancesGrid .balance-val-amount, #companyBalancesGrid .balance-val-amount'))
+            .map(el => el.textContent.trim()).join('|');
+    }
+
+    function renderLedgerStatus() {
+        const el = document.getElementById('ledgerStatusLine');
+        if (!el) return;
+        const c = window.MizoLedger ? window.MizoLedger.cutoffMs() : null;
+        el.innerHTML = c
+            ? '<i class="fas fa-lock"></i> آخر إقفال للحساب: <span dir="ltr">' + new Date(c).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) + '</span>'
+            : '<i class="fas fa-lock-open"></i> لم يتم إقفال الحساب بعد — الأرصدة تُحسب من كل العمليات منذ البداية';
+    }
+    if (window.MizoLedger) window.MizoLedger.subscribe(renderLedgerStatus);
+
+    window.closeLedgerNow = async function () {
+        if (!staffDocs || !staffDocs.length) return;
+        const oldCutoff = window.MizoLedger ? window.MizoLedger.cutoffMs() : null;
+        const ok = await showConfirm(
+            'سيتم إقفال الحساب مع كل المناديب الآن:\n\n' +
+            '• أرصدة كل مندوب وكل شركة تبقى كما هي تماماً.\n' +
+            '• العمليات حتى هذه اللحظة تُحفظ داخل الأرصدة، فلا تُنزَّل مرة أخرى عند فتح الصفحات (أسرع وأقل تكلفة).\n' +
+            '• العمليات القديمة لا تُحذف، وتبقى في السجل والتقارير.\n' +
+            '• تعديل أو حذف عملية قبل الإقفال لاحقاً لن يغيّر الأرصدة.',
+            { title: 'إقفال الحساب مع المناديب', okText: 'إقفال الحساب', cancelText: 'تراجع', danger: false });
+        if (!ok) return;
+
+        const btn = document.getElementById('btnCloseLedger');
+        const oldHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإقفال...'; }
+        const before = ledgerScreenNumbers();
+        try {
+            const FV = firebase.firestore.FieldValue;
+            const TS = firebase.firestore.Timestamp;
+            const ledgerRef = db.collection('systemSettings').doc('ledger');
+
+            // 1) وقت الإقفال من ساعة الخادم (لا ساعة الجهاز)، ثم مهلة لتصل أي عملية تُكتب الآن
+            const probeRef = db.collection('systemSettings').doc('ledger_probe');
+            await probeRef.set({ at: FV.serverTimestamp() });
+            const probe = await probeRef.get({ source: 'server' });
+            const cutoffTs = probe.data().at;
+            await new Promise(r => setTimeout(r, 2500));
+
+            // 2) عمليات ما بين الإقفال السابق وهذا الإقفال، من الخادم مباشرة
+            let q = db.collection('transactions').where('timestamp', '<=', cutoffTs);
+            if (oldCutoff !== null) q = q.where('timestamp', '>', TS.fromMillis(oldCutoff));
+            const docs = (await q.get({ source: 'server' })).docs;
+
+            // 3) مجاميع كل مندوب بنفس دالة العرض
+            const staffIncs = staffDocs.map(doc => {
+                const d = doc.data();
+                const staffName = escH(d.firstName ? d.firstName.trim() : (d.name ? d.name.trim().split(' ')[0] : (d.phone || 'مندوب غير معروف')));
+                const isIbrahim = staffName.includes('ابراهيم');
+                const x = computeStaffLedgerSums(doc.id, staffName, isIbrahim, docs, () => true);
+                return {
+                    ref: doc.ref, name: staffName,
+                    inc: {
+                        baseLibyana: x.libyanaSales - x.libyanaWithdrawals,
+                        baseAlmadar: x.almadarSales - x.almadarWithdrawals,
+                        baseCash: x.cashSales - x.cashWithdrawals,
+                        baseBank: x.bankSales - x.bankWithdrawals,
+                        baseSadad: x.sadadSales - x.sadadWithdrawals,
+                        baseUsdt: x.usdtSales - x.usdtWithdrawals
+                    }
+                };
+            });
+
+            // 4) الشركات: مبيعات ما بعد آخر تصفية وحتى الإقفال تُضاف إلى salesAdjustment
+            const companyIncs = COMPANY_CONFIG.map(c => {
+                const cd = companyBalancesDocs[c.id] || {};
+                const resetMs = cd.resetAt && typeof cd.resetAt.toMillis === 'function' ? cd.resetAt.toMillis() : null;
+                let fold = 0;
+                docs.forEach(t => {
+                    const x = t.data();
+                    if (x.type !== 'sale' || x.method !== c.method) return;
+                    if (resetMs === null || window.MizoLedger.timeOf(x) > resetMs) fold += parseFloat(x.price) || 0;
+                });
+                return { id: c.id, fold };
+            });
+
+            // 5) كل شيء في معاملة واحدة، ويُرفض إن أُقفل الحساب من جهاز آخر في نفس الوقت
+            await db.runTransaction(async tx => {
+                const cur = await tx.get(ledgerRef);
+                const curCut = cur.exists && cur.data().cutoff && typeof cur.data().cutoff.toMillis === 'function' ? cur.data().cutoff.toMillis() : null;
+                if (curCut !== oldCutoff) throw new Error('ledger-changed');
+                staffIncs.forEach(u => {
+                    // سجل التراجع يُمسح: الأرصدة الأساسية تغيّرت فلا يصح التراجع عن تعديل قبل الإقفال
+                    const upd = { balanceUndo: [], balanceRedo: [] };
+                    Object.keys(u.inc).forEach(k => { if (u.inc[k]) upd[k] = FV.increment(u.inc[k]); });
+                    tx.update(u.ref, upd);
+                });
+                companyIncs.forEach(c => {
+                    if (c.fold) tx.set(db.collection('companyBalances').doc(c.id), { salesAdjustment: FV.increment(c.fold) }, { merge: true });
+                });
+                tx.set(ledgerRef, {
+                    cutoff: cutoffTs,
+                    previousCutoff: oldCutoff !== null ? TS.fromMillis(oldCutoff) : null,
+                    closedAt: FV.serverTimestamp(),
+                    transactionsClosed: docs.length
+                });
+            });
+
+            if (typeof logActivity === 'function') {
+                logActivity({
+                    action: 'admin_close_ledger',
+                    category: 'admin',
+                    severity: 'warning',
+                    title: 'إقفال الحساب مع المناديب (' + docs.length + ' عملية)',
+                    details: {
+                        transactions: docs.length,
+                        staff: staffIncs.map(u => u.name + ': ' + Object.keys(u.inc).filter(k => u.inc[k]).map(k => k + ' +' + u.inc[k].toFixed(2)).join(' ')).join(' | ').slice(0, 1500),
+                        companies: companyIncs.filter(c => c.fold).map(c => c.id + ' +' + c.fold.toFixed(2)).join(' | ')
+                    }
+                });
+            }
+
+            // 6) التحقق: كل رقم على الشاشة بعد الإقفال يجب أن يطابق ما قبله
+            setTimeout(() => {
+                const after = ledgerScreenNumbers();
+                if (after === before) {
+                    showToast('تم إقفال الحساب (' + docs.length + ' عملية) — كل الأرصدة مطابقة لما قبل الإقفال', 'success');
+                } else {
+                    console.warn('ledger check', { before, after });
+                    showAlert('تم الإقفال، لكن بعض الأرقام على الشاشة تغيّرت بعده. قد تكون عملية جديدة سُجلت أثناء الإقفال. راجع الأرصدة، وأرسل لي صورة إن لم تكن هناك عملية جديدة.', 'warning', 'مراجعة الأرصدة');
+                }
+            }, 5000);
+        } catch (e) {
+            console.error('closeLedger', e);
+            showAlert(e && e.message === 'ledger-changed'
+                ? 'تم إقفال الحساب من جهاز آخر للتو. لم يتغير شيء.'
+                : 'تعذّر إقفال الحساب، ولم يتغير أي رصيد. حاول مرة أخرى.', 'error', 'إقفال الحساب');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+        }
+    };
 
     // =============================================
     // توسيط الصندوق اليتيم إذا بقي وحيداً في آخر صف
@@ -193,8 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tData = tDoc.data();
                 if (tData.type === 'sale' && tData.method === company.method) {
                     const ts = tData.timestamp ? tData.timestamp.toDate() : null;
-                    // نحسب فقط العمليات التي تمت بعد آخر تصفية (أو كل العمليات إذا لم تتم أي تصفية بعد)
-                    if (!resetAt || (ts && ts > resetAt)) {
+                    // نحسب فقط العمليات التي تمت بعد آخر تصفية (أو كل العمليات إذا لم تتم أي تصفية بعد)،
+                    // وبعد آخر إقفال للحساب: ما قبله أُضيف إلى salesAdjustment لحظة الإقفال
+                    if ((!resetAt || (ts && ts > resetAt)) && (!window.MizoLedger || window.MizoLedger.counts(tData))) {
                         liveSales += parseFloat(tData.price) || 0;
                     }
                 }
@@ -318,7 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tData = tDoc.data();
             if (tData.type === 'sale' && tData.method === config.method) {
                 const ts = tData.timestamp ? tData.timestamp.toDate() : null;
-                if (!resetAt || (ts && ts > resetAt)) {
+                if ((!resetAt || (ts && ts > resetAt)) && (!window.MizoLedger || window.MizoLedger.counts(tData))) {
                     liveSales += parseFloat(tData.price) || 0;
                 }
             }
@@ -507,6 +801,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /** نافذة إجمالي مبيعات المنتجات لكل شركة على حدة، بنفس الفترة والشركة المختارتين في القسم. */
+    window.openCompanyProductSalesSummary = function () {
+        if (!window.companyPeriodSales) window.searchCompanySales();
+        const period = window.companyPeriodSales || { filtered: [], companyId: 'all' };
+        const subtitle = `الفترة: ${period.startDisplay || ''} - ${period.endDisplay || ''}`;
+
+        const companies = [];
+        let totalSalesCount = 0;
+        let totalSalesAmount = 0;
+        COMPANY_CONFIG.forEach(c => {
+            if (period.companyId !== 'all' && period.companyId !== c.id) return;
+            const sales = period.filtered.filter(item => item.data.method === c.method);
+            const summary = window.summarizeSalesByProduct(sales.map(item => item.data));
+            if (summary.count === 0) return;
+            companies.push({ id: c.id, label: c.label, list: summary.list, count: summary.count, amount: summary.amount });
+            totalSalesCount += summary.count;
+            totalSalesAmount += summary.amount;
+        });
+
+        window.currentActiveProductSummary = {
+            groupKey: subtitle,
+            periodSubtitle: subtitle,
+            isPeriod: true,
+            isCompany: true,
+            companies: companies,
+            list: [].concat(...companies.map(c => c.list)),
+            totalSalesCount: totalSalesCount,
+            totalSalesAmount: totalSalesAmount
+        };
+
+        const modal = document.getElementById('productSalesSummaryModal');
+        if (!modal) return;
+        document.getElementById('productSummaryTitle').textContent = 'إجمالي مبيعات الشركات للفترة المحددة';
+        document.getElementById('productSummarySubtitle').textContent = `📅 ${subtitle}`;
+        document.getElementById('summaryTotalSalesCount').textContent = totalSalesCount;
+        document.getElementById('summaryTotalSalesAmount').textContent = totalSalesAmount.toFixed(2) + ' د.ل';
+        document.getElementById('summaryDistinctProductsCount').textContent = companies.length;
+        const thirdLabel = document.getElementById('summaryThirdStatLabel');
+        if (thirdLabel) thirdLabel.textContent = 'عدد الشركات';
+
+        const searchInput = document.getElementById('productSummarySearch');
+        if (searchInput) searchInput.value = '';
+
+        window.renderCompanySummaryTable(companies);
+        modal.style.display = 'block';
+        const tableWrap = document.querySelector('.product-summary-table-wrap');
+        if (tableWrap) tableWrap.scrollTop = 0;
+    };
+
     window.searchCompanySales = function () {
         const container = document.getElementById('companyMonthlyHistoryContainer');
         const select = document.getElementById('companyFilterSelect');
@@ -544,9 +887,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const startDisplay = startDate ? formatDisplayDate(startDate) : 'البداية';
         const endDisplay = endDate ? formatDisplayDate(endDate) : 'الآن';
 
+        // فترة أقدم من العمليات المحمّلة (قبل آخر إقفال للحساب): تُجلب من قاعدة البيانات مرة واحدة
+        let sourceDocs = transactionsDocs;
+        const loadedFrom = window.transactionsLoadedFrom;
+        if (loadedFrom && (!startDate || startDate < loadedFrom)) {
+            const key = (startDate ? startDate.getTime() : 0) + '_' + (endDate ? endDate.getTime() : 0);
+            if (window._companyArchive && window._companyArchive.key === key) {
+                sourceDocs = window._companyArchive.docs;
+            } else {
+                container.innerHTML = '<div class="table-empty-message mt-20"><i class="fas fa-spinner fa-spin"></i> جاري جلب مبيعات الفترة...</div>';
+                let q = db.collection('transactions');
+                if (startDate) q = q.where('timestamp', '>=', firebase.firestore.Timestamp.fromDate(startDate));
+                if (endDate) q = q.where('timestamp', '<=', firebase.firestore.Timestamp.fromDate(endDate));
+                q.get().then(snap => {
+                    window._companyArchive = { key: key, docs: snap.docs };
+                    window.searchCompanySales();
+                }).catch(err => {
+                    console.error('company archive fetch:', err);
+                    container.innerHTML = '<div class="table-empty-message mt-20">تعذّر جلب مبيعات هذه الفترة</div>';
+                });
+                return;
+            }
+        }
+
         // تصفية العمليات في الفترة المحددة
         const filtered = [];
-        transactionsDocs.forEach(tDoc => {
+        sourceDocs.forEach(tDoc => {
             const tData = tDoc.data();
             if (tData.type !== 'sale') return;
             if (!tData.timestamp) return;
@@ -567,6 +933,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // فرز تنازلي حسب التاريخ والوقت
         filtered.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        // لزر "إجمالي مبيعات الشركات للفترة": نفس الفترة والشركة المعروضتين هنا
+        window.companyPeriodSales = { filtered: filtered, companyId: companyId, startDisplay: startDisplay, endDisplay: endDisplay };
+        const companyBadge = document.getElementById('companySalesBadge');
+        if (companyBadge) companyBadge.textContent = window.summarizeSalesByProduct(filtered.map(item => item.data)).count;
 
         // حالة 1: تصفية لشركة محددة (عرض مفصل وإمكانية تنزيل الفاتورة وتعديل الحصص)
         if (companyId !== 'all') {
@@ -652,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 filtered.forEach((item, idx) => {
-                    const tData = item.data;
+                    const tData = escRecordForHtml(item.data);
                     const price = item.price;
                     const almezoShare = item.almezoShare;
                     const companyShare = item.companyShare;
@@ -662,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const timeShort = item.date.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' });
                     const timeFormatted = item.date.toLocaleDateString('en-GB') + ' ' + timeShort;
                     const staffName = (window.staffNamesCache && window.staffNamesCache[tData.staffId])
-                        ? window.staffNamesCache[tData.staffId].split(' ')[0]
+                        ? escH(window.staffNamesCache[tData.staffId].split(' ')[0])
                         : (tData.staffName ? tData.staffName.split(' ')[0] : (tData.performedBy || 'مندوب'));
                     const productDisplay = (tData.product || 'منتج') + (tData.duration ? ` - ${tData.duration}` : '');
 
@@ -684,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${companyShare.toFixed(2)} <span class="curr-lbl">د.ل</span>
                             </td>
                             <td class="col-actions">
-                                <button type="button" class="btn-edit-share" onclick="openEditCompanySaleShareModal('${item.id}', '${encodeURIComponent(productDisplay)}', ${price}, ${almezoShare}, ${companyShare}, '${cConfig.id}', '${encodeURIComponent(cConfig.label)}', ${almezoPercentLabel}, ${companyPercentLabel})" title="تعديل الحصص يدوياً لهذه المبيعة">
+                                <button type="button" class="btn-edit-share" onclick="openEditCompanySaleShareModal('${item.id}', '${encodeURIComponent((item.data.product || 'منتج') + (item.data.duration ? ' - ' + item.data.duration : '')).replace(/'/g, '%27')}', ${price}, ${almezoShare}, ${companyShare}, '${cConfig.id}', '${encodeURIComponent(cConfig.label)}', ${almezoPercentLabel}, ${companyPercentLabel})" title="تعديل الحصص يدوياً لهذه المبيعة">
                                     <i class="fas fa-edit"></i> <span class="edit-share-btn-text">تعديل</span>
                                 </button>
                             </td>
@@ -1121,7 +1492,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 data.transactions.forEach((item, i) => {
-                    const tData = item.data;
+                    const tData = escRecordForHtml(item.data);
                     const price = item.price !== undefined ? item.price : (parseFloat(tData.price) || 0);
                     const almezoShare = item.almezoShare !== undefined ? item.almezoShare : (price * data.almezoPercent);
                     const companyShare = item.companyShare !== undefined ? item.companyShare : (price * data.companyPercent);
@@ -1129,7 +1500,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const timeStr = item.date.toLocaleDateString('en-GB') + ' ' + item.date.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' });
                     const staffName = (window.staffNamesCache && window.staffNamesCache[tData.staffId])
-                        ? window.staffNamesCache[tData.staffId].split(' ')[0]
+                        ? escH(window.staffNamesCache[tData.staffId].split(' ')[0])
                         : (tData.staffName ? tData.staffName.split(' ')[0] : (tData.performedBy || 'مندوب'));
                     const prod = (tData.product || 'منتج') + (tData.duration ? ` - ${tData.duration}` : '');
                     const bg = i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)';
@@ -1334,7 +1705,7 @@ document.addEventListener('DOMContentLoaded', () => {
         staffDocs.forEach(doc => {
             const staffData = doc.data();
             const staffId = doc.id;
-            const staffName = staffData.firstName ? staffData.firstName.trim() : (staffData.name ? staffData.name.trim().split(' ')[0] : (staffData.phone || 'مندوب غير معروف'));
+            const staffName = escH(staffData.firstName ? staffData.firstName.trim() : (staffData.name ? staffData.name.trim().split(' ')[0] : (staffData.phone || 'مندوب غير معروف')));
 
             window.staffNamesCache[staffId] = staffName;
             const isIbrahim = staffName.includes('ابراهيم');
@@ -1344,70 +1715,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.rolloverUnpaidWeeklyProfit(staffId);
             }
 
-            let libyanaSales = 0, libyanaWithdrawals = 0;
-            let almadarSales = 0, almadarWithdrawals = 0;
-            let cashSales = 0, cashWithdrawals = 0;
-
-            transactionsDocs.forEach(tDoc => {
-                const tData = tDoc.data();
-
-                // العمليات كمستلم (Taker)
-                if (tData.type === 'sale') {
-                    const p = parseFloat(tData.price) || 0;
-
-                    // ليبيانا: تذهب لمحفظة المندوب المستلم للرصيد (أو للمندوب البائع كدعم رجعي إذا لم يحدد)
-                    if (tData.method === 'ليبيانا') {
-                        const libyanaRecipientId = tData.creditRecipientId || tData.staffId;
-                        if (libyanaRecipientId === staffId) {
-                            libyanaSales += p;
-                        }
-                    } else if (tData.method === 'المدار') {
-                        // المدار: تذهب لمحفظة المندوب المستلم للرصيد (أو للمندوب البائع كدعم رجعي إذا لم يحدد)
-                        const almadarRecipientId = tData.creditRecipientId || tData.staffId;
-                        if (almadarRecipientId === staffId) {
-                            almadarSales += p;
-                        }
-                    } else if (tData.method === 'دفع مشترك (ليبيانا + مدار)' && tData.splitDetails) {
-                        // دفع مشترك: توزيع كل جزء على المستلم المحدد له
-                        if (tData.splitDetails.libyanaRecipientId === staffId) {
-                            libyanaSales += parseFloat(tData.splitDetails.libyanaAmount) || 0;
-                        }
-                        if (tData.splitDetails.almadarRecipientId === staffId) {
-                            almadarSales += parseFloat(tData.splitDetails.almadarAmount) || 0;
-                        }
-                    } else if (tData.staffId === staffId) {
-                        // كاش ودين: تذهب دائماً للمندوب الذي قام بالبيعة
-                        if (tData.method === 'كاش' || tData.method === 'دين') {
-                            cashSales += p;
-                        }
-                    }
-                } else if (tData.type === 'withdrawal') {
-                    if (tData.staffId === staffId) {
-                        const amt = parseFloat(tData.amount) || 0;
-                        if (tData.wallet === 'ليبيانا') libyanaWithdrawals += amt;
-                        if (tData.wallet === 'المدار') almadarWithdrawals += amt;
-                        if (tData.wallet === 'كاش') cashWithdrawals += amt;
-                    }
-                } else if (tData.type === 'debt_transfer') {
-                    if (tData.staffId === staffId) {
-                        // للمندوب ابراهيم فقط: سحب الرصيد من مندوب آخر لا يضاف في مطلوب كاش ولا يخصم من صافي الربح
-                        if (!isIbrahim) {
-                            const amt = parseFloat(tData.amount) || 0;
-                            if (tData.wallet === 'ليبيانا') cashSales += amt;
-                            if (tData.wallet === 'المدار') cashSales += amt;
-                        }
-                    }
-                }
-
-                // العمليات كمعطي (Giver)
-                if (tData.debtor === staffName || (tData.debtor && (tData.debtor.includes(staffName) || staffName.includes(tData.debtor)))) {
-                    if (tData.type === 'debt_transfer') {
-                        const origCredit = parseFloat(tData.originalCredit) || 0;
-                        if (tData.wallet === 'ليبيانا') libyanaWithdrawals += origCredit;
-                        if (tData.wallet === 'المدار') almadarWithdrawals += origCredit;
-                    }
-                }
-            });
+            // مجاميع العمليات بعد آخر إقفال للحساب (MizoLedger)؛ ما قبله داخل الأرصدة الأساسية
+            const sums = computeStaffLedgerSums(staffId, staffName, isIbrahim, transactionsDocs,
+                (t) => !window.MizoLedger || window.MizoLedger.counts(t));
+            const { libyanaSales, libyanaWithdrawals, almadarSales, almadarWithdrawals, cashSales, cashWithdrawals } = sums;
 
             const baseLibyana = parseFloat(staffData.baseLibyana) || 0;
             const baseAlmadar = parseFloat(staffData.baseAlmadar) || 0;
@@ -1418,38 +1729,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const almadarTotal = almadarSales - almadarWithdrawals + baseAlmadar;
             const cashTotal = cashSales - cashWithdrawals + baseCash;
 
-            // حسابات خاصة بمندوب ابراهيم (حساب المصرفي / سداد / USDT) من مبيعات وسحوبات المناديب
-            let bankSales = 0, sadadSales = 0, usdtSales = 0;
-            let bankWithdrawals = 0, sadadWithdrawals = 0, usdtWithdrawals = 0;
-            if (isIbrahim) {
-                transactionsDocs.forEach(tDoc => {
-                    const tData = tDoc.data();
-                    if (tData.type === 'sale') {
-                        const p = parseFloat(tData.price) || 0;
-                        const m = (tData.method || '').trim();
-                        if (m === 'تحويلات مصرفية' || m.includes('مصرف')) {
-                            bankSales += p;
-                        } else if (m === 'سداد' || m.includes('سداد')) {
-                            sadadSales += p;
-                        } else if (m.toUpperCase() === 'USDT' || m.toUpperCase().includes('USDT')) {
-                            usdtSales += p;
-                        }
-                    } else if (tData.type === 'withdrawal' || tData.type === 'debt_transfer') {
-                        const isIbrTrans = (tData.staffId === staffId) || (tData.debtor && (tData.debtor.includes('ابراهيم') || staffName.includes(tData.debtor)));
-                        if (isIbrTrans) {
-                            const amt = parseFloat(tData.amount) || 0;
-                            const w = (tData.wallet || '').trim();
-                            if (w === 'حساب المصرفي' || w === 'تحويلات مصرفية' || w.includes('مصرف')) {
-                                bankWithdrawals += amt;
-                            } else if (w === 'سداد' || w.includes('سداد')) {
-                                sadadWithdrawals += amt;
-                            } else if (w.toUpperCase() === 'USDT' || w.toUpperCase().includes('USDT')) {
-                                usdtWithdrawals += amt;
-                            }
-                        }
-                    }
-                });
-            }
+            // حسابات ابراهيم (المصرفي / سداد / USDT) ضمن sums أعلاه
+            const { bankSales, sadadSales, usdtSales, bankWithdrawals, sadadWithdrawals, usdtWithdrawals } = sums;
 
             const baseBank = parseFloat(staffData.baseBank) || 0;
             const baseSadad = parseFloat(staffData.baseSadad) || 0;
@@ -1723,7 +2004,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let rowsHtml = '';
         items.forEach(item => {
-            const data = item.data;
+            const data = escRecordForHtml(item.data);
             const formattedTime = new Intl.DateTimeFormat('en-US', {
                 hour: '2-digit', minute: '2-digit', hour12: true
             }).format(item.d);
@@ -1731,7 +2012,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateStrHtml = `<span dir="ltr">${formattedTime}</span>`;
 
             const staffName = (window.staffNamesCache && window.staffNamesCache[data.staffId])
-                ? window.staffNamesCache[data.staffId].split(' ')[0]
+                ? escH(window.staffNamesCache[data.staffId].split(' ')[0])
                 : (data.staffId || 'مندوب');
 
             if (data.type === 'sale') {
@@ -1740,8 +2021,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if ((data.method === 'ليبيانا' || data.method === 'المدار') && rName) {
                     methodDisplay += ` <br><span style="font-size:0.75rem; color:#888;">(الرصيد لـ: ${rName.split(' ')[0]})</span>`;
                 } else if (data.method === 'دفع مشترك (ليبيانا + مدار)' && data.splitDetails) {
-                    const lName = data.splitDetails.libyanaRecipientName ? data.splitDetails.libyanaRecipientName.split(' ')[0] : (data.splitDetails.libyanaRecipientId && window.staffNamesCache && window.staffNamesCache[data.splitDetails.libyanaRecipientId] ? window.staffNamesCache[data.splitDetails.libyanaRecipientId].split(' ')[0] : '');
-                    const aName = data.splitDetails.almadarRecipientName ? data.splitDetails.almadarRecipientName.split(' ')[0] : (data.splitDetails.almadarRecipientId && window.staffNamesCache && window.staffNamesCache[data.splitDetails.almadarRecipientId] ? window.staffNamesCache[data.splitDetails.almadarRecipientId].split(' ')[0] : '');
+                    const lName = data.splitDetails.libyanaRecipientName ? data.splitDetails.libyanaRecipientName.split(' ')[0] : (data.splitDetails.libyanaRecipientId && window.staffNamesCache && window.staffNamesCache[data.splitDetails.libyanaRecipientId] ? escH(window.staffNamesCache[data.splitDetails.libyanaRecipientId].split(' ')[0]) : '');
+                    const aName = data.splitDetails.almadarRecipientName ? data.splitDetails.almadarRecipientName.split(' ')[0] : (data.splitDetails.almadarRecipientId && window.staffNamesCache && window.staffNamesCache[data.splitDetails.almadarRecipientId] ? escH(window.staffNamesCache[data.splitDetails.almadarRecipientId].split(' ')[0]) : '');
                     methodDisplay = `<span style="font-weight:bold; color:var(--primary-color);">دفع مشترك:</span><br>` +
                         `<span style="font-size:0.75rem; color:#c084fc;">ليبيانا: ${data.splitDetails.libyanaAmount} د.ل (${lName})</span><br>` +
                         `<span style="font-size:0.75rem; color:#81c784;">المدار: ${data.splitDetails.almadarAmount} د.ل (${aName})</span>`;
@@ -1780,11 +2061,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // تخزين بيانات العملية في ذاكرة مؤقتة عالمية لاستخدامها عند فتح نافذة التعديل
                 window.masterHistoryDocsCache = window.masterHistoryDocsCache || {};
+                // من البيانات الأصلية لا النسخة المُهرَّبة للعرض، وإلا ظهر & كـ &amp; في نافذة التعديل وحُفظ هكذا
+                const raw = item.data;
                 window.masterHistoryDocsCache[item.id] = {
-                    product: data.product || '',
-                    duration: data.duration || '',
-                    method: data.method || '',
-                    price: data.price || 0
+                    product: raw.product || '',
+                    duration: raw.duration || '',
+                    method: raw.method || '',
+                    price: raw.price || 0,
+                    timestamp: raw.timestamp || null
                 };
             } else if (data.type === 'withdrawal') {
                 let badgeText = 'سحب رصيد';
@@ -2171,11 +2455,20 @@ window.openProductSalesSummary = function (encodedGroupKey) {
                 duration: dur,
                 displayName: key,
                 count: 0,
-                totalAmount: 0
+                totalAmount: 0,
+                points: 0,
+                pricedAmount: 0
             };
         }
         summaryMap[key].count += 1;
         summaryMap[key].totalAmount += price;
+        // نقاط المخزن التي أدخلها المندوب. سعر النقطة يُحسب من المبيعات التي فيها نقاط فقط،
+        // فالمبيعات القديمة أو التي بلا نقاط لا تُنزّل المتوسط
+        const salePoints = parseFloat(item.data.inventoryPointsDeducted) || 0;
+        if (salePoints > 0) {
+            summaryMap[key].points += salePoints;
+            summaryMap[key].pricedAmount += price;
+        }
         totalSalesCount += 1;
         totalSalesAmount += price;
     });
@@ -2207,6 +2500,8 @@ window.openProductSalesSummary = function (encodedGroupKey) {
     document.getElementById('summaryTotalSalesCount').textContent = totalSalesCount;
     document.getElementById('summaryTotalSalesAmount').textContent = totalSalesAmount.toFixed(2) + ' د.ل';
     document.getElementById('summaryDistinctProductsCount').textContent = summaryList.length;
+    const thirdStatLabel = document.getElementById('summaryThirdStatLabel');
+    if (thirdStatLabel) thirdStatLabel.textContent = 'تنوع المنتجات';
 
     const searchInput = document.getElementById('productSummarySearch');
     if (searchInput) searchInput.value = '';
@@ -2219,24 +2514,13 @@ window.openProductSalesSummary = function (encodedGroupKey) {
     if (tableWrap) tableWrap.scrollTop = 0;
 };
 
-window.renderProductSummaryTable = function (list, totalCount) {
-    const tbody = document.getElementById('productSummaryTableBody');
-    if (!tbody) return;
+/** عدد النقاط بلا أصفار زائدة: 4 لا 4.00، و7.5 كما هي. */
+function formatSummaryNumber(n) {
+    return String(Math.round(n * 100) / 100);
+}
 
-    if (!list || list.length === 0) {
-        const isPeriod = window.currentActiveProductSummary && window.currentActiveProductSummary.isPeriod;
-        const emptyMsg = isPeriod ? 'لا توجد مبيعات مسجلة في هذه الفترة' : 'لا توجد مبيعات مسجلة في هذا اليوم';
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="table-empty-message" style="text-align: center; padding: 25px; color: #8b949e;">
-                    <i class="fas fa-box-open" style="font-size: 1.5rem; display: block; margin-bottom: 8px; opacity: 0.6;"></i>
-                    ${emptyMsg}
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
+/** صفوف جدول إجمالي المنتجات (مشتركة بين نافذة المنتجات ونافذة الشركات). */
+window.productSummaryRowsHtml = function (list, totalCount) {
     let html = '';
     let lastProductName = null;
     list.forEach((item, index) => {
@@ -2260,17 +2544,115 @@ window.renderProductSummaryTable = function (list, totalCount) {
                     <span class="product-summary-percent">(${percent}%)</span>
                 </td>
                 <td style="text-align: center;">
+                    <span class="product-summary-points" dir="ltr">${item.points > 0 ? formatSummaryNumber(item.points) : '—'}</span>
+                </td>
+                <td style="text-align: center;">
+                    <span class="product-summary-point-price" dir="ltr">${item.points > 0 ? (item.pricedAmount / item.points).toFixed(2) + ' د.ل' : '—'}</span>
+                </td>
+                <td style="text-align: center;">
                     <strong class="product-summary-amount" dir="ltr">${item.totalAmount.toFixed(2)} د.ل</strong>
                 </td>
             </tr>
         `;
     });
 
+    return html;
+};
+
+/**
+ * تجميع مبيعات حسب المنتج والباقة (نفس قواعد نافذة إجمالي المنتجات): المبيعات المباشرة لا تدخل،
+ * وسعر النقطة من المبيعات التي أُدخلت لها نقاط فقط.
+ */
+window.summarizeSalesByProduct = function (salesData) {
+    const map = {};
+    let count = 0;
+    let amount = 0;
+    salesData.forEach(d => {
+        if (!d || d.type !== 'sale') return;
+        const rawProd = (d.product || '').trim();
+        const normProd = rawProd.replace(/ه/g, 'ة');
+        if (d.isDirectSale || normProd.includes('مبيعة مباشرة')) return;
+        const p = rawProd || 'منتج غير محدد';
+        const dur = (d.duration || '').trim();
+        const key = dur ? `${p} - ${dur}` : p;
+        const price = parseFloat(d.price) || 0;
+        if (!map[key]) map[key] = { productName: p, duration: dur, displayName: key, count: 0, totalAmount: 0, points: 0, pricedAmount: 0 };
+        map[key].count += 1;
+        map[key].totalAmount += price;
+        const salePoints = parseFloat(d.inventoryPointsDeducted) || 0;
+        if (salePoints > 0) {
+            map[key].points += salePoints;
+            map[key].pricedAmount += price;
+        }
+        count += 1;
+        amount += price;
+    });
+    const list = Object.values(map);
+    list.sort((a, b) => {
+        const nameComp = a.productName.localeCompare(b.productName, 'ar');
+        if (nameComp !== 0) return nameComp;
+        return (window.parseDurationMonths ? window.parseDurationMonths(a.duration) - window.parseDurationMonths(b.duration) : 0);
+    });
+    return { list: list, count: count, amount: amount };
+};
+
+/** جدول نافذة الشركات: عنوان لكل شركة ثم منتجاتها، والنسبة من مبيعات الشركة نفسها. */
+window.renderCompanySummaryTable = function (companies, query) {
+    const tbody = document.getElementById('productSummaryTableBody');
+    if (!tbody) return;
+    const q = (query || '').trim().toLowerCase();
+    let html = '';
+    (companies || []).forEach(c => {
+        const rows = q ? c.list.filter(item => item.displayName.toLowerCase().includes(q)) : c.list;
+        if (!rows.length) return;
+        html += `
+            <tr class="company-summary-head">
+                <td colspan="6">
+                    <i class="fas fa-building"></i> ${c.label}
+                    <span class="company-summary-head-meta" dir="rtl">${c.count} مبيعة · <span dir="ltr">${c.amount.toFixed(2)} د.ل</span></span>
+                </td>
+            </tr>`;
+        html += window.productSummaryRowsHtml(rows, c.count);
+    });
+    if (!html) {
+        html = `
+            <tr>
+                <td colspan="6" class="table-empty-message" style="text-align: center; padding: 25px; color: #8b949e;">
+                    <i class="fas fa-box-open" style="font-size: 1.5rem; display: block; margin-bottom: 8px; opacity: 0.6;"></i>
+                    ${q ? 'لا توجد منتجات مطابقة للبحث' : 'لا توجد مبيعات للشركات في هذه الفترة'}
+                </td>
+            </tr>`;
+    }
     tbody.innerHTML = html;
+};
+
+window.renderProductSummaryTable = function (list, totalCount) {
+    const tbody = document.getElementById('productSummaryTableBody');
+    if (!tbody) return;
+
+    if (!list || list.length === 0) {
+        const isPeriod = window.currentActiveProductSummary && window.currentActiveProductSummary.isPeriod;
+        const emptyMsg = isPeriod ? 'لا توجد مبيعات مسجلة في هذه الفترة' : 'لا توجد مبيعات مسجلة في هذا اليوم';
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="table-empty-message" style="text-align: center; padding: 25px; color: #8b949e;">
+                    <i class="fas fa-box-open" style="font-size: 1.5rem; display: block; margin-bottom: 8px; opacity: 0.6;"></i>
+                    ${emptyMsg}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = window.productSummaryRowsHtml(list, totalCount);
 };
 
 window.filterProductSummary = function (query) {
     if (!window.currentActiveProductSummary) return;
+    if (window.currentActiveProductSummary.isCompany) {
+        window.renderCompanySummaryTable(window.currentActiveProductSummary.companies, query);
+        return;
+    }
     const q = (query || '').trim().toLowerCase();
     const list = window.currentActiveProductSummary.list || [];
     const totalCount = window.currentActiveProductSummary.totalSalesCount || 0;
@@ -2294,11 +2676,23 @@ window.copyProductSummaryToClipboard = async function () {
     }
 
     const titleSuffix = isPeriod ? (periodSubtitle || groupKey) : groupKey;
-    let text = `📊 إجمالي مبيعات المنتجات (${titleSuffix})\n`;
+    const isCompany = !!window.currentActiveProductSummary.isCompany;
+    const lineOf = (item, idx) => {
+        const pointsText = item.points > 0
+            ? ` | نقاط: ${formatSummaryNumber(item.points)} | سعر النقطة: ${(item.pricedAmount / item.points).toFixed(2)} د.ل`
+            : '';
+        return `${idx + 1}. ${item.displayName}: عدد ${item.count}${pointsText} (إجمالي: ${item.totalAmount.toFixed(2)} د.ل)\n`;
+    };
+    let text = `📊 ${isCompany ? 'إجمالي مبيعات الشركات' : 'إجمالي مبيعات المنتجات'} (${titleSuffix})\n`;
     text += `═══════════════════════════════════\n`;
-    list.forEach((item, idx) => {
-        text += `${idx + 1}. ${item.displayName}: عدد ${item.count} (إجمالي: ${item.totalAmount.toFixed(2)} د.ل)\n`;
-    });
+    if (isCompany) {
+        window.currentActiveProductSummary.companies.forEach(c => {
+            text += `\n🏢 ${c.label} — ${c.count} مبيعة (${c.amount.toFixed(2)} د.ل)\n`;
+            c.list.forEach((item, idx) => { text += lineOf(item, idx); });
+        });
+    } else {
+        list.forEach((item, idx) => { text += lineOf(item, idx); });
+    }
     text += `───────────────────────────────────\n`;
     text += `🔹 إجمالي عدد المبيعات: ${totalSalesCount}\n`;
     text += `💰 إجمالي مبالغ المبيعات: ${totalSalesAmount.toFixed(2)} د.ل\n`;
@@ -2383,11 +2777,20 @@ window.openPeriodProductSalesSummary = function () {
                 duration: dur,
                 displayName: key,
                 count: 0,
-                totalAmount: 0
+                totalAmount: 0,
+                points: 0,
+                pricedAmount: 0
             };
         }
         summaryMap[key].count += 1;
         summaryMap[key].totalAmount += price;
+        // نقاط المخزن التي أدخلها المندوب. سعر النقطة يُحسب من المبيعات التي فيها نقاط فقط،
+        // فالمبيعات القديمة أو التي بلا نقاط لا تُنزّل المتوسط
+        const salePoints = parseFloat(tData.inventoryPointsDeducted) || 0;
+        if (salePoints > 0) {
+            summaryMap[key].points += salePoints;
+            summaryMap[key].pricedAmount += price;
+        }
         totalSalesCount += 1;
         totalSalesAmount += price;
     });
@@ -2421,6 +2824,8 @@ window.openPeriodProductSalesSummary = function () {
     document.getElementById('summaryTotalSalesCount').textContent = totalSalesCount;
     document.getElementById('summaryTotalSalesAmount').textContent = totalSalesAmount.toFixed(2) + ' د.ل';
     document.getElementById('summaryDistinctProductsCount').textContent = summaryList.length;
+    const thirdStatLabel = document.getElementById('summaryThirdStatLabel');
+    if (thirdStatLabel) thirdStatLabel.textContent = 'تنوع المنتجات';
 
     const searchInput = document.getElementById('productSummarySearch');
     if (searchInput) searchInput.value = '';
@@ -2648,6 +3053,9 @@ window.openEditSaleModal = function (transactionId) {
     }
 
     document.getElementById('editSaleModal').style.display = 'block';
+    if (window.MizoLedger && !window.MizoLedger.counts(data)) {
+        showToast('هذه العملية قبل آخر إقفال للحساب: تعديلها يغيّر السجل والتقارير فقط، ولا يغيّر أرصدة المناديب', 'warning', 7000);
+    }
 };
 
 window.closeEditSaleModal = function () {
@@ -3110,7 +3518,11 @@ window.addEventListener("pageshow", () => {
 // دالة إلغاء العملية
 // =============================================
 window.deleteTransaction = async function (transactionId) {
-    const isConfirmed = await showConfirm('هل أنت متأكد من إلغاء هذه العملية؟');
+    const cached = window.masterHistoryDocsCache && window.masterHistoryDocsCache[transactionId];
+    const beforeClose = cached && window.MizoLedger && !window.MizoLedger.counts(cached);
+    const isConfirmed = await showConfirm(beforeClose
+        ? 'هذه العملية قبل آخر إقفال للحساب. حذفها يزيلها من السجل والتقارير فقط، ولا يغيّر أرصدة المناديب.\n\nهل تريد حذفها؟'
+        : 'هل أنت متأكد من إلغاء هذه العملية؟');
     if (isConfirmed) {
         try {
             await db.collection('transactions').doc(transactionId).delete();

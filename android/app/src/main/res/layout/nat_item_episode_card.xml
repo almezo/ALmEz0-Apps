@@ -36,6 +36,39 @@
             android:progressDrawable="@drawable/nat_watch_progress"
             android:visibility="gone" />
 
+        <!-- حالة التنزيل: زر لمس صغير (لا يأخذ تركيز الريموت؛ بالريموت يُستعمل الضغط الطويل) -->
+        <FrameLayout
+            android:id="@+id/ep_dl"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="top|start"
+            android:layout_margin="8dp"
+            android:background="@drawable/nat_bg_dl_badge"
+            android:clickable="true"
+            android:contentDescription="تنزيل الحلقة"
+            android:elevation="3dp"
+            android:focusable="false">
+
+            <ImageView
+                android:id="@+id/ep_dl_icon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/fa_download"
+                app:tint="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/ep_dl_pct"
+                style="@style/NatText.ExtraBold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textColor="#FF38BDF8"
+                android:textSize="11sp"
+                android:visibility="gone" />
+        </FrameLayout>
+
         <!-- تعتيم خفيف وزر التشغيل عند التركيز -->
         <View
             android:id="@+id/ep_dim"

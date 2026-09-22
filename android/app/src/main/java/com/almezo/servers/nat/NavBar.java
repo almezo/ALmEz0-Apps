@@ -24,7 +24,7 @@ public final class NavBar {
         }
     };
 
-    public final ImageButton home, accounts, device, profile, logout, back;
+    public final ImageButton home, accounts, device, profile, logout, back, downloads;
 
     public NavBar(Activity a) {
         clock = a.findViewById(R.id.nav_clock);
@@ -35,7 +35,8 @@ public final class NavBar {
         profile = a.findViewById(R.id.nav_btn_profile);
         logout = a.findViewById(R.id.nav_btn_logout);
         back = a.findViewById(R.id.nav_btn_back);
-        for (View v : new View[]{home, accounts, device, profile, logout, back}) {
+        downloads = a.findViewById(R.id.nav_btn_downloads);
+        for (View v : new View[]{home, accounts, device, profile, logout, back, downloads}) {
             if (v != null) BaseActivity.applyFocusScale(v, 1.12f);
         }
         if (device != null) {

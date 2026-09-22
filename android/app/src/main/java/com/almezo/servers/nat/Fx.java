@@ -109,7 +109,10 @@ public final class Fx {
         unclipParents(v);
         float s = focusScaleOf(v);
         float d = v.getResources().getDisplayMetrics().density;
-        v.animate().scaleX(s).scaleY(s).translationZ(10 * d).setInterpolator(OVERSHOOT).setDuration(200).start();
+        // صندوق الكتابة لا يُرفع: الرفع (translationZ) يجعله فوق الأزرار المرسومة عليه كزر العين
+        // في كلمة المرور، فيأخذ لمساتها ولا يُضغط الزر إلا بعد نقل المؤشر لصندوق آخر
+        float z = (v instanceof EditText) ? 0f : 10 * d;
+        v.animate().scaleX(s).scaleY(s).translationZ(z).setInterpolator(OVERSHOOT).setDuration(200).start();
         glow(v, true);
         if (!hasOwnFocusStyle(v)) {
             v.setTag(R.id.fx_prev_fg, v.getForeground() == null ? NO_FOREGROUND : v.getForeground());

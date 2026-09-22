@@ -88,6 +88,13 @@
             android:theme="@style/NatTheme" />
 
         <activity
+            android:name=".nat.DownloadsActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/NatTheme" />
+
+        <activity
             android:name=".PlayerActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:exported="false"
@@ -114,6 +121,12 @@
             </intent-filter>
         </service>
 
+        <!-- تنزيل الأفلام والحلقات في الخلفية (nat.Downloads) -->
+        <service
+            android:name=".nat.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- فحص دوري لإشعارات المدير والتطبيق مغلق (nat.BroadcastNotifier) -->
         <service
             android:name=".nat.BroadcastJobService"
@@ -123,6 +136,8 @@
 
     <!-- Permissions & TV Hardware Support -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

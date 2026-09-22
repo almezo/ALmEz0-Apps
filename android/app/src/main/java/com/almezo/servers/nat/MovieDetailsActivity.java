@@ -36,7 +36,7 @@ import java.util.List;
  * - بيانات وصفية كاملة: المفضلة، التصنيف المترجم، التقييم الذهبي، الإعلان الترويجي، القصة المترجمة، المخرج والممثلين.
  * - شريط أفلام رائجة للمشاهدة الآن مع أيقونة اللهب المتوهج وبادجات التقييم الذهبية وحدود التركيز الحمراء.
  */
-public class MovieDetailsActivity extends BaseActivity {
+public class MovieDetailsActivity extends BaseActivity implements Downloads.Listener {
 
     private Store store;
     private Xtream api;
@@ -83,6 +83,10 @@ public class MovieDetailsActivity extends BaseActivity {
             toast(now ? "تمت الإضافة إلى المفضلة" : "تمت الإزالة من المفضلة");
             paintFav(fav);
         });
+
+        View download = findViewById(R.id.det_btn_download);
+        applyFocusScale(download, 1.05f);
+        download.setOnClickListener(v -> onDownloadClick());
 
         View trailer = findViewById(R.id.det_btn_trailer);
         applyFocusScale(trailer, 1.06f);
@@ -470,9 +474,69 @@ public class MovieDetailsActivity extends BaseActivity {
         sb.append(part.trim());
     }
 
+    private String downloadId() {
+        return "vod:" + id;
+    }
+
+    /** زر التنزيل: يبدأ التنزيل، أو يفتح صندوق متابعته، أو يشغّل الملف المنزّل. */
+    private void onDownloadClick() {
+        Downloads dl = Downloads.get(this);
+        Downloads.Item existing = dl.find(downloadId());
+        if (existing != null) {
+            DownloadDialog.show(this, existing.id);
+            return;
+        }
+        Downloads.Item req = new Downloads.Item();
+        req.id = downloadId();
+        req.kind = "movie";
+        req.title = name;
+        req.subtitle = "فيلم";
+        req.poster = cover;
+        req.ext = (ext == null || ext.isEmpty()) ? "mp4" : ext;
+        req.url = api.streamUrl(Models.VOD, id, req.ext);
+        req.contentKey = "vod:" + id;
+        req.accountId = account.id;
+        dl.enqueue(req);
+        DownloadDialog.show(this, req.id);
+    }
+
+    @Override
+    public void onDownloadsChanged() {
+        paintDownloadButton();
+    }
+
+    private void paintDownloadButton() {
+        TextView text = findViewById(R.id.det_btn_download_text);
+        ImageView icon = findViewById(R.id.det_btn_download_icon);
+        if (text == null) return;
+        Downloads dl = Downloads.get(this);
+        Downloads.Item i = dl.find(downloadId());
+        if (i == null) {
+            text.setText("تنزيل");
+            icon.setImageResource(R.drawable.fa_download);
+        } else if (Downloads.DONE.equals(i.state)) {
+            text.setText("تم التنزيل ✓ — بدون إنترنت");
+            icon.setImageResource(R.drawable.fa_circle_check);
+        } else if (Downloads.RUNNING.equals(i.state)) {
+            text.setText("جاري التنزيل " + i.percent() + "%");
+            icon.setImageResource(R.drawable.fa_download);
+        } else if (Downloads.PAUSED.equals(i.state)) {
+            text.setText("التنزيل متوقف " + i.percent() + "%");
+            icon.setImageResource(R.drawable.fa_pause);
+        } else if (Downloads.FAILED.equals(i.state)) {
+            text.setText("فشل التنزيل — اضغط للتفاصيل");
+            icon.setImageResource(R.drawable.fa_triangle_exclamation);
+        } else {
+            text.setText("في قائمة التنزيل");
+            icon.setImageResource(R.drawable.fa_clock);
+        }
+    }
+
     private void playMovie() {
         store.recordContinueWatching(Models.VOD, id);
-        String url = api.streamUrl(Models.VOD, id, ext);
+        // الملف المنزّل أولاً: يعمل بلا إنترنت ولا يفتح اتصالاً بالسيرفر
+        String local = Downloads.get(this).localFile(downloadId());
+        String url = local != null ? Uri.fromFile(new java.io.File(local)).toString() : api.streamUrl(Models.VOD, id, ext);
         PlayQueue.single(new PlayQueue.Entry(url, name, cover, "vod:" + id, id, Models.VOD));
         Intent i = new Intent(this, PlayerActivity.class);
         i.putExtra("queue", true);
@@ -497,6 +561,19 @@ public class MovieDetailsActivity extends BaseActivity {
         } catch (Exception e) {
             toast("لا يوجد تطبيق لتشغيل الإعلان على هذا الجهاز");
         }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Downloads.get(this).addListener(this);
+        paintDownloadButton();
+    }
+
+    @Override
+    protected void onStop() {
+        Downloads.get(this).removeListener(this);
+        super.onStop();
     }
 
     @Override

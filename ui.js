@@ -25,6 +25,199 @@ var ADMIN_UID = window.ADMIN_UID || '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1';
 let isEditMode = false;
 let isDataLoadedFromFirestore = false;
 
+// =============================================
+// وضع التعديل: حماية التعديلات غير المحفوظة
+// =============================================
+// كل بطاقة تعديل تحمل data-edit-id. أي كتابة فيها تجعلها "غير محفوظة"، وعند إعادة رسم الصفحة
+// (بعد حفظ منتج آخر أو تحديث من فايربيز) تبقى البطاقة نفسها بما كتبه المدير بدل أن تُستبدل بالقيم القديمة.
+const editDirty = new Set();
+
+/** قيمة آمنة داخل value="" أو textarea: علامة " في اسم كانت تقطع الخانة وتُحفظ مقطوعة. */
+function escEdit(v) {
+    if (typeof window.escapeHtml === 'function') return window.escapeHtml(v);
+    return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function markEditDirty(id) {
+    if (!id || !isEditMode) return;
+    editDirty.add(id);
+    updateSaveAllButton();
+}
+
+function clearEditDirty(id) {
+    editDirty.delete(id);
+    updateSaveAllButton();
+}
+
+function editCardSelector(id) {
+    return '[data-edit-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]';
+}
+
+/** يرسم الحاوية من جديد مع إبقاء بطاقات التعديل غير المحفوظة كما هي (بكل ما كُتب فيها). */
+function renderKeepingEdits(container, html) {
+    var kept = {};
+    if (isEditMode && editDirty.size) {
+        container.querySelectorAll('[data-edit-id]').forEach(function (node) {
+            if (editDirty.has(node.dataset.editId)) kept[node.dataset.editId] = node;
+        });
+    }
+    container.innerHTML = html;
+    Object.keys(kept).forEach(function (id) {
+        var fresh = container.querySelector(editCardSelector(id));
+        if (fresh) fresh.replaceWith(kept[id]);
+        else clearEditDirty(id); // المنتج حُذف من مكان آخر
+    });
+}
+
+window.removeEditRow = function (btn) {
+    var card = btn.closest('[data-edit-id]');
+    btn.parentElement.remove();
+    if (card) markEditDirty(card.dataset.editId);
+};
+
+['input', 'change'].forEach(function (type) {
+    document.addEventListener(type, function (e) {
+        if (!isEditMode || !e.target || !e.target.closest) return;
+        var card = e.target.closest('[data-edit-id]');
+        if (card) markEditDirty(card.dataset.editId);
+    }, true);
+});
+
+/** زر "حفظ كل التعديلات" العائم: يظهر فقط حين توجد تعديلات غير محفوظة. */
+function updateSaveAllButton() {
+    var btn = document.getElementById('adminSaveAllBtn');
+    var count = isEditMode ? editDirty.size : 0;
+    if (!count) {
+        if (btn) btn.remove();
+        return;
+    }
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'adminSaveAllBtn';
+        btn.type = 'button';
+        btn.className = 'admin-save-all-btn';
+        btn.onclick = function () { window.saveAllEdits(); };
+        document.body.appendChild(btn);
+    }
+    btn.innerHTML = '<i class="fas fa-save"></i> حفظ كل التعديلات <span class="admin-save-all-count">' + count + '</span>';
+}
+
+window.saveAllEdits = async function () {
+    var ids = Array.from(editDirty);
+    if (!ids.length) return;
+    var btn = document.getElementById('adminSaveAllBtn');
+    if (btn) btn.disabled = true;
+    var ok = 0, failed = 0;
+    for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        var card = document.querySelector(editCardSelector(id));
+        if (!card) { clearEditDirty(id); continue; }
+        var kind = card.dataset.editKind;
+        var saved = false;
+        if (kind === 'home') saved = await window.saveHomeCard(id.slice(5), { silent: true });
+        else if (kind === 'details') saved = await window.saveProductDetails(id, card.dataset.editCategory, { silent: true });
+        else saved = await window.saveProduct(id, { silent: true });
+        if (saved) ok++; else failed++;
+    }
+    btn = document.getElementById('adminSaveAllBtn');
+    if (btn) btn.disabled = false;
+    if (failed) showToast('تم حفظ ' + ok + ' وتعذّر حفظ ' + failed + ' — راجع البطاقات المتبقية', 'error');
+    else showToast('تم حفظ كل التعديلات (' + ok + ')', 'success');
+};
+
+/** قبل الخروج من وضع التعديل أو مغادرة الصفحة: تنبيه إن كانت هناك تعديلات لم تُحفظ. */
+async function confirmDiscardEdits() {
+    if (!isEditMode || !editDirty.size) return true;
+    var ok = await showConfirm('لديك تعديلات غير محفوظة على ' + editDirty.size + ' عنصر.\nإذا تابعت ستضيع هذه التعديلات.',
+        { title: 'تعديلات غير محفوظة' });
+    if (ok) {
+        editDirty.clear();
+        updateSaveAllButton();
+    }
+    return ok;
+}
+
+document.addEventListener('click', async function (e) {
+    if (!isEditMode || !editDirty.size) return;
+    var link = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!link || link.target === '_blank' || link.getAttribute('href').charAt(0) === '#') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (await confirmDiscardEdits()) window.location.href = link.href;
+}, true);
+
+// المنتجات المحذوفة: نسخة كاملة على جهاز المدير (آخر 10) وفي سجل النشاط، فيمكن استرجاعها
+const DELETED_PRODUCTS_KEY = 'almezo_deleted_products';
+
+function readDeletedProducts() {
+    try { return JSON.parse(localStorage.getItem(DELETED_PRODUCTS_KEY) || '[]') || []; } catch (e) { return []; }
+}
+
+function writeDeletedProducts(list) {
+    try { localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(list.slice(0, 10))); } catch (e) { }
+}
+
+function deletedProductsHtml(categoryKey) {
+    var list = readDeletedProducts().filter(function (d) { return d.data && d.data.category === categoryKey; });
+    if (!list.length) return '';
+    var html = '<div class="admin-restore-box"><div class="admin-restore-title"><i class="fas fa-trash-arrow-up"></i> منتجات محذوفة يمكن استرجاعها</div>';
+    list.forEach(function (d) {
+        html += '<button type="button" class="admin-restore-btn" onclick="restoreDeletedProduct(\'' + escEdit(d.id) + '\')">'
+            + '<i class="fas fa-rotate-left"></i> ' + escEdit(d.data.name || d.id)
+            + ' <span class="admin-restore-date">' + new Date(d.deletedAt).toLocaleDateString('en-GB') + '</span></button>';
+    });
+    return html + '</div>';
+}
+
+window.restoreDeletedProduct = async function (id) {
+    var list = readDeletedProducts();
+    var entry = list.find(function (d) { return d.id === id; });
+    if (!entry) return;
+    try {
+        var ref = db.collection('products').doc(id);
+        var existing = await ref.get();
+        if (existing.exists) {
+            showToast('يوجد منتج بنفس المعرّف حالياً، لا يمكن الاسترجاع فوقه', 'error');
+            return;
+        }
+        await ref.set(entry.data);
+        writeDeletedProducts(list.filter(function (d) { return d.id !== id; }));
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: 'admin_restore_product',
+                category: 'admin',
+                severity: 'success',
+                title: 'استرجاع منتج محذوف: ' + (entry.data.name || id),
+                details: { productId: id, name: entry.data.name || '' }
+            });
+        }
+        showToast('تم استرجاع المنتج: ' + (entry.data.name || id), 'success');
+        renderCurrentPage();
+    } catch (e) {
+        console.error(e);
+        showToast('حدث خطأ أثناء الاسترجاع', 'error');
+    }
+};
+
+/**
+ * توحيد شكل السعر والمدة عند الحفظ. الأرقام العربية (٥٠) تتحول إلى 50: أرباح المناديب تتعرف على
+ * الباقة بالبحث عن "3" أو "12" في المدة، فمدة مكتوبة "٣ أشهر" كانت تُحسب بلا ربح.
+ * السعر الذي هو رقم وعملة فقط (50، ٥٠ دل، 50د.ل) يُحفظ "50 د.ل"، وأي نص آخر يبقى كما كُتب.
+ */
+function normalizeDigits(text) {
+    return String(text || '').replace(/[٠-٩]/g, function (d) { return String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)); })
+        .replace(/[۰-۹]/g, function (d) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)); })
+        .replace(/٫/g, '.');
+}
+
+function normalizePrice(text) {
+    var t = normalizeDigits(text).trim();
+    var m = t.match(/^(\d+(?:[.,]\d+)?)\s*(د\s*\.?\s*ل\s*\.?|دينار(\s*ليبي)?|ل\s*\.?\s*د\s*\.?|lyd)?$/i);
+    if (!m) return t;
+    return m[1].replace(',', '.') + ' د.ل';
+}
+
 window.renderCurrentPage = function () {
     if (document.getElementById('homeCategoriesGrid')) renderHomeCards();
     if (document.getElementById('vip-container')) renderLogoList('vip', 'vip-container', 'vip-details.html');
@@ -85,8 +278,10 @@ function checkFABMode() {
             editFab.className = 'floating-btn edit-fab';
             editFab.innerHTML = '<i class="fas fa-pen-to-square"></i>';
             editFab.title = 'تعديل الأسعار والمحتوى';
-            editFab.onclick = function () {
+            editFab.onclick = async function () {
+                if (isEditMode && !(await confirmDiscardEdits())) return;
                 isEditMode = !isEditMode;
+                if (!isEditMode) { editDirty.clear(); updateSaveAllButton(); }
                 editFab.classList.toggle('edit-mode-active', isEditMode);
                 editFab.innerHTML = isEditMode ? '<i class="fas fa-times"></i>' : '<i class="fas fa-pen-to-square"></i>';
                 renderCurrentPage();
@@ -1727,19 +1922,19 @@ function renderHomeCards() {
         if (isEditMode) {
             // === وضع تعديل المدير: اسم + صورة + مفتاح تفعيل/إيقاف ===
             html += '\
-            <div class="main-category-card ' + key + ' home-card-edit-wrapper" style="cursor:default; display:flex; flex-direction:column; gap:8px; padding:15px;">\
+            <div class="main-category-card ' + key + ' home-card-edit-wrapper" data-edit-id="home:' + key + '" data-edit-kind="home" style="cursor:default; display:flex; flex-direction:column; gap:8px; padding:15px;">\
                 <div class="home-card-order-row">\
                     <button type="button" onclick="moveHomeCard(\'' + key + '\', -1)" title="تقديم البطاقة"' + (orderIndex === 0 ? ' disabled' : '') + '><i class="fas fa-arrow-right"></i> تقديم</button>\
                     <span class="home-card-order-pos">' + (orderIndex + 1) + ' / ' + orderedKeys.length + '</span>\
                     <button type="button" onclick="moveHomeCard(\'' + key + '\', 1)" title="تأخير البطاقة"' + (orderIndex === orderedKeys.length - 1 ? ' disabled' : '') + '>تأخير <i class="fas fa-arrow-left"></i></button>\
                 </div>\
-                <input type="text" id="edit-home-name-' + key + '" value="' + (card.name || '').replace(/"/g, '&quot;') + '" class="edit-input" placeholder="اسم القسم">\
-                <input type="text" id="edit-home-image-' + key + '" value="' + (card.image || '').replace(/"/g, '&quot;') + '" class="edit-input" placeholder="رابط الصورة (اختياري للمشغل)">\
+                <input type="text" id="edit-home-name-' + key + '" value="' + escEdit(card.name || '') + '" class="edit-input" placeholder="اسم القسم">\
+                <input type="text" id="edit-home-image-' + key + '" value="' + escEdit(card.image || '') + '" class="edit-input" placeholder="رابط الصورة (اختياري للمشغل)">\
                 <label style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:13px; cursor:pointer;">\
                     <input type="checkbox" id="edit-home-enabled-' + key + '" ' + (isEnabled ? 'checked' : '') + ' onchange="toggleHomeReasonBox(\'' + key + '\')"> القسم مفعّل وظاهر للزوار\
                 </label>\
                 <div id="edit-home-reason-wrapper-' + key + '" style="display:' + (isEnabled ? 'none' : 'block') + ';">\
-                    <input type="text" id="edit-home-reason-' + key + '" value="' + (card.reason || '').replace(/"/g, '&quot;') + '" class="edit-input" placeholder="سبب الإيقاف (مثال: قريباً)">\
+                    <input type="text" id="edit-home-reason-' + key + '" value="' + escEdit(card.reason || '') + '" class="edit-input" placeholder="سبب الإيقاف (مثال: قريباً)">\
                 </div>\
                 <button class="admin-action-btn admin-save-btn" onclick="saveHomeCard(\'' + key + '\')"><i class="fas fa-save"></i> حفظ تعديلات القسم</button>\
             </div>';
@@ -1778,7 +1973,7 @@ function renderHomeCards() {
     if (html === lastHomeCardsHtml) return; // لا تغيير فعلي: نترك البطاقات كما هي
     var isRepeatRender = lastHomeCardsHtml !== '';
     lastHomeCardsHtml = html;
-    container.innerHTML = html;
+    renderKeepingEdits(container, html);
     if (isRepeatRender) container.classList.add('cards-no-entrance');
 }
 
@@ -1802,7 +1997,8 @@ window.toggleHomeReasonBox = function (key) {
     }
 };
 
-window.saveHomeCard = async function (key) {
+window.saveHomeCard = async function (key, opts) {
+    opts = opts || {};
     var nameInput = document.getElementById('edit-home-name-' + key);
     var imageInput = document.getElementById('edit-home-image-' + key);
     var enabledInput = document.getElementById('edit-home-enabled-' + key);
@@ -1815,7 +2011,7 @@ window.saveHomeCard = async function (key) {
 
     if (!name) {
         showToast('الرجاء إدخال اسم القسم', 'error');
-        return;
+        return false;
     }
 
     try {
@@ -1833,10 +2029,13 @@ window.saveHomeCard = async function (key) {
             });
         }
 
-        showToast('تم حفظ تعديلات القسم بنجاح', 'success');
+        clearEditDirty('home:' + key);
+        if (!opts.silent) showToast('تم حفظ تعديلات القسم بنجاح', 'success');
+        return true;
     } catch (e) {
         console.error(e);
         showToast('حدث خطأ أثناء الحفظ - تأكد أنك مسجل دخول كمدير', 'error');
+        return false;
     }
 };
 
@@ -1865,9 +2064,23 @@ window.migrateDataToFirestore = async function () {
 };
 
 // Admin Crud Functions
-window.saveProduct = async function (id) {
-    const name = document.getElementById(`edit-name-${id}`).value;
-    const logo = document.getElementById(`edit-logo-${id}`).value;
+window.saveProduct = async function (id, opts) {
+    opts = opts || {};
+    const name = document.getElementById(`edit-name-${id}`).value.trim();
+    const logo = document.getElementById(`edit-logo-${id}`).value.trim();
+    if (!name) {
+        showToast('اسم المنتج لا يكون فارغاً', 'error');
+        return false;
+    }
+
+    // المبيعات محفوظة باسم المنتج، فتغيير الاسم يقسم المنتج في تقارير المبيعات إلى سطرين
+    const current = findProductById(id);
+    if (current && current.name && current.name !== name) {
+        const ok = await showConfirm('ستغيّر اسم "' + current.name + '" إلى "' + name + '".\n\n'
+            + 'المبيعات السابقة مسجلة بالاسم القديم، فسيظهر المنتج في تقارير المبيعات بسطرين: القديم والجديد.',
+            { title: 'تغيير اسم منتج' });
+        if (!ok) return false;
+    }
 
     try {
         await db.collection('products').doc(id).update({
@@ -1880,46 +2093,77 @@ window.saveProduct = async function (id) {
                 category: 'admin',
                 severity: 'warning',
                 title: 'تعديل بيانات منتج: ' + name,
-                details: { productId: id, name: name }
+                details: { productId: id, name: name, oldName: current ? current.name : '' }
             });
         }
-        if (typeof logActivity === 'function') {
-            logActivity({
-                action: 'admin_edit_product',
-                category: 'admin',
-                severity: 'warning',
-                title: 'تعديل بيانات منتج: ' + name,
-                details: { productId: id, name: name }
-            });
-        }
-        showToast('تم حفظ التعديلات بنجاح', 'success');
+        clearEditDirty(id);
+        if (!opts.silent) showToast('تم حفظ التعديلات بنجاح', 'success');
+        return true;
     } catch (e) {
         console.error(e);
         showToast('حدث خطأ أثناء الحفظ', 'error');
+        return false;
     }
 };
 
+function findProductById(id) {
+    for (const key of Object.keys(siteData)) {
+        const found = (siteData[key] || []).find(p => p.id === id);
+        if (found) return found;
+    }
+    return null;
+}
+
 window.deleteProduct = async function (id) {
-    const isConfirmed = await showConfirm('هل أنت متأكد من حذف هذا المنتج نهائياً؟', { title: 'حذف المنتج' });
-    if (isConfirmed) {
-        try {
-            await db.collection('products').doc(id).delete();
-            if (typeof logActivity === 'function') {
-                logActivity({
-                    action: 'admin_delete_product',
-                    category: 'admin',
-                    severity: 'danger',
-                    title: 'حذف منتج نهائياً',
-                    details: { productId: id }
-                });
-            }
-            showToast('تم حذف المنتج', 'info');
-        } catch (e) {
-            console.error(e);
-            showToast('حدث خطأ أثناء الحذف', 'error');
+    const current = findProductById(id);
+    const label = current && current.name ? '"' + current.name + '"' : 'هذا المنتج';
+    const isConfirmed = await showConfirm('هل أنت متأكد من حذف ' + label + '؟\nيمكنك استرجاعه لاحقاً من "منتجات محذوفة" أسفل القائمة.', { title: 'حذف المنتج' });
+    if (!isConfirmed) return;
+    try {
+        const ref = db.collection('products').doc(id);
+        const snap = await ref.get();
+        const data = snap.exists ? snap.data() : null;
+        await ref.delete();
+        if (data) {
+            writeDeletedProducts([{ id: id, data: data, deletedAt: Date.now() }]
+                .concat(readDeletedProducts().filter(d => d.id !== id)));
         }
+        clearEditDirty(id);
+        if (typeof logActivity === 'function') {
+            logActivity({
+                action: 'admin_delete_product',
+                category: 'admin',
+                severity: 'danger',
+                title: 'حذف منتج: ' + (data && data.name ? data.name : id),
+                // نسخة كاملة من المنتج للرجوع إليها حتى من جهاز آخر
+                details: { productId: id, product: data }
+            });
+        }
+        showToast('تم حذف المنتج — يمكن استرجاعه من أسفل القائمة', 'info');
+        renderCurrentPage();
+    } catch (e) {
+        console.error(e);
+        showToast('حدث خطأ أثناء الحذف', 'error');
     }
 };
+
+/**
+ * عدد البطاقات في الصف الواحد كما يظهر فعلاً (كان ثابتاً 2، فعلى الكمبيوتر حيث يظهر 3 أو 4 في
+ * الصف كان "أعلى" ينقل المنتج لمكان غير متوقع).
+ */
+function productGridColumns(categoryKey) {
+    const containerId = { iptv: 'iptv-container', smartApps: 'smart-container', vip: 'vip-container' }[categoryKey];
+    const container = containerId && document.getElementById(containerId);
+    const cards = container ? container.querySelectorAll('[data-edit-id]') : [];
+    if (cards.length < 2) return 1;
+    const firstTop = cards[0].getBoundingClientRect().top;
+    let cols = 0;
+    for (const card of cards) {
+        if (Math.abs(card.getBoundingClientRect().top - firstTop) < 5) cols++;
+        else break;
+    }
+    return Math.max(1, cols);
+}
 
 window.moveProduct = async function (id, direction, categoryKey) {
     const list = siteData[categoryKey];
@@ -1932,8 +2176,8 @@ window.moveProduct = async function (id, direction, categoryKey) {
     // For Arabic RTL grid layout:
     if (direction === 'right') targetIndex = currentIndex - 1;
     else if (direction === 'left') targetIndex = currentIndex + 1;
-    else if (direction === 'up') targetIndex = currentIndex - 2;
-    else if (direction === 'down') targetIndex = currentIndex + 2;
+    else if (direction === 'up') targetIndex = currentIndex - productGridColumns(categoryKey);
+    else if (direction === 'down') targetIndex = currentIndex + productGridColumns(categoryKey);
 
     if (targetIndex >= 0 && targetIndex < list.length) {
         const currentDoc = list[currentIndex];
@@ -1975,11 +2219,22 @@ window.moveProduct = async function (id, direction, categoryKey) {
 };
 
 window.addNewProduct = async function (categoryKey) {
-    const id = await showPrompt('أدخل ID مميز باللغة الإنجليزية (مثال: new_server):', '', 'منتج جديد');
-    if (!id) return;
-
-    const name = await showPrompt('أدخل اسم المنتج:', '', 'منتج جديد');
+    const nameRaw = await showPrompt('أدخل اسم المنتج:', '', 'منتج جديد');
+    const name = (nameRaw || '').trim();
     if (!name) return;
+
+    // المعرّف يُولَّد تلقائياً: كان يُكتب يدوياً، ومعرّف مكرر كان يكتب المنتج الجديد فوق
+    // منتج موجود ويمسح أسعاره ووصفه بلا تنبيه
+    let id = '';
+    for (let attempt = 0; attempt < 5 && !id; attempt++) {
+        const candidate = categoryKey + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+        const existing = await db.collection('products').doc(candidate).get();
+        if (!existing.exists) id = candidate;
+    }
+    if (!id) {
+        showToast('تعذّر إنشاء معرّف للمنتج، حاول مجدداً', 'error');
+        return;
+    }
 
     let maxSort = 0;
     if (siteData[categoryKey] && siteData[categoryKey].length > 0) {
@@ -2013,7 +2268,8 @@ window.addNewProduct = async function (categoryKey) {
     }
 };
 
-window.saveProductDetails = async function (id, categoryKey) {
+window.saveProductDetails = async function (id, categoryKey, opts) {
+    opts = opts || {};
     let updates = {};
 
     // تجميع خطط الأسعار
@@ -2022,8 +2278,8 @@ window.saveProductDetails = async function (id, categoryKey) {
         const planRows = plansContainer.querySelectorAll('.edit-plan-row');
         const plans = [];
         planRows.forEach(row => {
-            const duration = row.querySelector('.plan-duration-input').value.trim();
-            const price = row.querySelector('.plan-price-input').value.trim();
+            const duration = normalizeDigits(row.querySelector('.plan-duration-input').value).trim();
+            const price = normalizePrice(row.querySelector('.plan-price-input').value);
             if (duration || price) {
                 plans.push({ duration: duration, price: price });
             }
@@ -2032,7 +2288,7 @@ window.saveProductDetails = async function (id, categoryKey) {
             updates.plans = plans;
         } else {
             showToast('يجب إدخال خطة واحدة على الأقل', 'error');
-            return;
+            return false;
         }
     }
 
@@ -2114,22 +2370,26 @@ window.saveProductDetails = async function (id, categoryKey) {
             });
         }
 
-        showToast('تم حفظ التحديثات بنجاح', 'success');
+        clearEditDirty(id);
+        if (!opts.silent) showToast('تم حفظ التحديثات بنجاح', 'success');
+        return true;
     } catch (e) {
         console.error(e);
         showToast('حدث خطأ أثناء الحفظ', 'error');
+        return false;
     }
 };
 
 window.addPlanRow = function (id) {
     const container = document.getElementById(`edit-plans-container-${id}`);
     if (container) {
+        markEditDirty(id);
         const row = document.createElement('div');
         row.className = 'edit-plan-row';
         row.innerHTML = `
             <input type="text" class="edit-input plan-duration-input" placeholder="المدة (مثال: 3 أشهر)">
             <input type="text" class="edit-input plan-price-input" placeholder="السعر (مثال: 50 د.ل)">
-            <button class="admin-delete-plan-btn" onclick="this.parentElement.remove()" title="حذف الخطة"><i class="fas fa-trash"></i></button>
+            <button class="admin-delete-plan-btn" onclick="removeEditRow(this)" title="حذف الخطة"><i class="fas fa-trash"></i></button>
         `;
         container.appendChild(row);
     }
@@ -2138,12 +2398,13 @@ window.addPlanRow = function (id) {
 window.addAppRow = function (id, os) {
     const container = document.getElementById(`edit-app-${os}-container-${id}`);
     if (container) {
+        markEditDirty(id);
         const row = document.createElement('div');
         row.className = 'edit-app-row';
         row.innerHTML = `
             <input type="text" class="edit-input app-name-input" placeholder="اسم التطبيق (مثلاً: تطبيق الميزو)">
             <input type="text" class="edit-input app-link-input" placeholder="رابط التحميل">
-            <button class="admin-delete-app-btn" onclick="this.parentElement.remove()" title="حذف التطبيق"><i class="fas fa-trash"></i></button>
+            <button class="admin-delete-app-btn" onclick="removeEditRow(this)" title="حذف التطبيق"><i class="fas fa-trash"></i></button>
         `;
         const addBtn = container.querySelector('.admin-add-app-btn');
         container.insertBefore(row, addBtn);
@@ -2153,12 +2414,13 @@ window.addAppRow = function (id, os) {
 window.addSmartCodeRow = function (id) {
     const container = document.getElementById(`edit-app-smart-codes-${id}`);
     if (container) {
+        markEditDirty(id);
         const row = document.createElement('div');
         row.className = 'edit-app-row';
         row.innerHTML = `
             <input type="text" class="edit-input app-name-input" placeholder="اسم التطبيق">
             <input type="text" class="edit-input app-code-input" placeholder="كود Downloader">
-            <button class="admin-delete-app-btn" onclick="this.parentElement.remove()" title="حذف الكود"><i class="fas fa-trash"></i></button>
+            <button class="admin-delete-app-btn" onclick="removeEditRow(this)" title="حذف الكود"><i class="fas fa-trash"></i></button>
         `;
         const addBtn = container.querySelector('.admin-add-app-btn');
         container.insertBefore(row, addBtn);
@@ -3225,6 +3487,25 @@ function renderProducts(categoryKey, containerId, categoryLabel) {
     container.innerHTML = html;
 }
 
+/** بطاقة تعديل منتج في القوائم: الاسم والشعار والحفظ والحذف والترتيب. */
+function editProductCardHtml(item, categoryKey, detailPageName, namePlaceholder) {
+    var id = escEdit(item.id);
+    return '\
+            <div class="product-card iptv-logo-card" data-edit-id="' + id + '" data-edit-kind="basic">\
+                <input type="text" id="edit-name-' + id + '" value="' + escEdit(item.name) + '" class="edit-input" placeholder="' + namePlaceholder + '">\
+                <input type="text" id="edit-logo-' + id + '" value="' + escEdit(item.logo) + '" class="edit-input" placeholder="رابط الشعار">\
+                <button class="admin-action-btn admin-save-btn" onclick="saveProduct(\'' + id + '\')"><i class="fas fa-save"></i> حفظ</button>\
+                <button class="admin-action-btn admin-delete-btn" onclick="deleteProduct(\'' + id + '\')"><i class="fas fa-trash"></i> حذف</button>\
+                <div class="sort-arrows" style="display:flex; justify-content:space-between; margin-top:10px; gap:5px; width:100%;">\
+                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\'' + id + '\', \'up\', \'' + categoryKey + '\')" title="أعلى">⬆️</button>\
+                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\'' + id + '\', \'down\', \'' + categoryKey + '\')" title="أسفل">⬇️</button>\
+                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\'' + id + '\', \'right\', \'' + categoryKey + '\')" title="يمين">➡️</button>\
+                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\'' + id + '\', \'left\', \'' + categoryKey + '\')" title="يسار">⬅️</button>\
+                </div>\
+                <a href="' + detailPageName + '?id=' + encodeURIComponent(item.id) + '" style="margin-top:10px; font-size:12px; color:var(--text-secondary);">تعديل التفاصيل والأسعار &rarr;</a>\
+            </div>';
+}
+
 /**
  * عرض قائمة سيرفرات IPTV كبطاقات لوجو قابلة للنقر
  */
@@ -3235,20 +3516,7 @@ function renderIptvList(containerId) {
     var html = '';
     siteData.iptv.forEach(function (server) {
         if (isEditMode) {
-            html += '\
-            <div class="product-card iptv-logo-card">\
-                <input type="text" id="edit-name-'+ server.id + '" value="' + server.name + '" class="edit-input" placeholder="اسم السيرفر">\
-                <input type="text" id="edit-logo-'+ server.id + '" value="' + server.logo + '" class="edit-input" placeholder="رابط الشعار">\
-                <button class="admin-action-btn admin-save-btn" onclick="saveProduct(\''+ server.id + '\')"><i class="fas fa-save"></i> حفظ</button>\
-                <button class="admin-action-btn admin-delete-btn" onclick="deleteProduct(\''+ server.id + '\')"><i class="fas fa-trash"></i> حذف</button>\
-                <div class="sort-arrows" style="display:flex; justify-content:space-between; margin-top:10px; gap:5px; width:100%;">\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ server.id + '\', \'up\', \'iptv\')" title="أعلى">⬆️</button>\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ server.id + '\', \'down\', \'iptv\')" title="أسفل">⬇️</button>\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ server.id + '\', \'right\', \'iptv\')" title="يمين">➡️</button>\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ server.id + '\', \'left\', \'iptv\')" title="يسار">⬅️</button>\
-                </div>\
-                <a href="server-details.html?id=' + server.id + '" style="margin-top:10px; font-size:12px; color:var(--text-secondary);">تعديل التفاصيل والأسعار &rarr;</a>\
-            </div>';
+            html += editProductCardHtml(server, 'iptv', 'server-details.html', 'اسم السيرفر');
         } else {
             html += '\
             <a href="server-details.html?id=' + server.id + '" class="product-card iptv-logo-card">\
@@ -3261,8 +3529,9 @@ function renderIptvList(containerId) {
 
     if (isEditMode) {
         html += '<div class="admin-add-btn" onclick="addNewProduct(\'iptv\')"><i class="fas fa-plus-circle"></i>إضافة سيرفر جديد</div>';
+        html += deletedProductsHtml('iptv');
     }
-    container.innerHTML = html;
+    renderKeepingEdits(container, html);
 }
 
 /**
@@ -3275,20 +3544,7 @@ function renderLogoList(categoryKey, containerId, detailPageName) {
     var html = '';
     siteData[categoryKey].forEach(function (item) {
         if (isEditMode) {
-            html += '\
-            <div class="product-card iptv-logo-card">\
-                <input type="text" id="edit-name-'+ item.id + '" value="' + item.name + '" class="edit-input" placeholder="الاسم">\
-                <input type="text" id="edit-logo-'+ item.id + '" value="' + item.logo + '" class="edit-input" placeholder="رابط الشعار">\
-                <button class="admin-action-btn admin-save-btn" onclick="saveProduct(\''+ item.id + '\')"><i class="fas fa-save"></i> حفظ</button>\
-                <button class="admin-action-btn admin-delete-btn" onclick="deleteProduct(\''+ item.id + '\')"><i class="fas fa-trash"></i> حذف</button>\
-                <div class="sort-arrows" style="display:flex; justify-content:space-between; margin-top:10px; gap:5px; width:100%;">\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ item.id + '\', \'up\', \'' + categoryKey + '\')" title="أعلى">⬆️</button>\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ item.id + '\', \'down\', \'' + categoryKey + '\')" title="أسفل">⬇️</button>\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ item.id + '\', \'right\', \'' + categoryKey + '\')" title="يمين">➡️</button>\
-                    <button class="admin-action-btn" style="flex:1;" onclick="moveProduct(\''+ item.id + '\', \'left\', \'' + categoryKey + '\')" title="يسار">⬅️</button>\
-                </div>\
-                <a href="' + detailPageName + '?id=' + item.id + '" style="margin-top:10px; font-size:12px; color:var(--text-secondary);">تعديل التفاصيل والأسعار &rarr;</a>\
-            </div>';
+            html += editProductCardHtml(item, categoryKey, detailPageName, 'الاسم');
         } else {
             html += '\
             <a href="' + detailPageName + '?id=' + item.id + '" class="product-card iptv-logo-card">\
@@ -3301,8 +3557,9 @@ function renderLogoList(categoryKey, containerId, detailPageName) {
 
     if (isEditMode) {
         html += '<div class="admin-add-btn" onclick="addNewProduct(\'' + categoryKey + '\')"><i class="fas fa-plus-circle"></i>إضافة عنصر جديد</div>';
+        html += deletedProductsHtml(categoryKey);
     }
-    container.innerHTML = html;
+    renderKeepingEdits(container, html);
 }
 
 /**
@@ -3335,7 +3592,7 @@ function renderDetails(categoryKey) {
     var plansHtml = '';
 
     if (isEditMode) {
-        plansHtml += '<div style="grid-column: 1 / -1; margin-bottom: 20px; text-align:right;">';
+        plansHtml += '<div style="grid-column: 1 / -1; margin-bottom: 20px; text-align:right;" data-edit-id="' + escEdit(item.id) + '" data-edit-kind="details" data-edit-category="' + categoryKey + '">';
 
         // --- 1. تعديل خطط الأسعار ---
         plansHtml += '<h4 style="margin-bottom:8px; color:var(--warning);">تعديل خطط الأسعار</h4>';
@@ -3344,9 +3601,9 @@ function renderDetails(categoryKey) {
             item.plans.forEach((plan) => {
                 plansHtml += `
                 <div class="edit-plan-row">
-                    <input type="text" class="edit-input plan-duration-input" value="${plan.duration}" placeholder="المدة (مثال: 3 أشهر)">
-                    <input type="text" class="edit-input plan-price-input" value="${plan.price}" placeholder="السعر (مثال: 50 د.ل)">
-                    <button class="admin-delete-plan-btn" onclick="this.parentElement.remove()" title="حذف الخطة"><i class="fas fa-trash"></i></button>
+                    <input type="text" class="edit-input plan-duration-input" value="${escEdit(plan.duration)}" placeholder="المدة (مثال: 3 أشهر)">
+                    <input type="text" class="edit-input plan-price-input" value="${escEdit(plan.price)}" placeholder="السعر (مثال: 50 د.ل)">
+                    <button class="admin-delete-plan-btn" onclick="removeEditRow(this)" title="حذف الخطة"><i class="fas fa-trash"></i></button>
                 </div>`;
             });
         }
@@ -3358,7 +3615,7 @@ function renderDetails(categoryKey) {
         // تحويل <br> إلى أسطر جديدة لتكون مقروءة في textarea
         let readableDesc = desc.replace(/<br\s*[\/]?>/gi, '\n');
         plansHtml += '<h4 style="margin-bottom:8px; margin-top:15px; color:var(--warning);">تعديل الوصف</h4>';
-        plansHtml += '<textarea id="edit-desc-' + item.id + '" class="edit-textarea" placeholder="اكتب الوصف هنا... يدعم الأسطر الجديدة">' + readableDesc + '</textarea>';
+        plansHtml += '<textarea id="edit-desc-' + item.id + '" class="edit-textarea" placeholder="اكتب الوصف هنا... يدعم الأسطر الجديدة">' + escEdit(readableDesc) + '</textarea>';
 
         // --- 3. تعديل روابط التطبيقات ---
         let appsObj = item.apps !== undefined ? item.apps : {};
@@ -3389,9 +3646,9 @@ function renderDetails(categoryKey) {
             appsList.forEach(app => {
                 html += `
                 <div class="edit-app-row">
-                    <input type="text" class="edit-input app-name-input" value="${app.name || ''}" placeholder="اسم التطبيق (مثلاً: تطبيق الميزو)">
-                    <input type="text" class="edit-input app-link-input" value="${app.link || ''}" placeholder="رابط التحميل">
-                    <button class="admin-delete-app-btn" onclick="this.parentElement.remove()" title="حذف التطبيق"><i class="fas fa-trash"></i></button>
+                    <input type="text" class="edit-input app-name-input" value="${escEdit(app.name || '')}" placeholder="اسم التطبيق (مثلاً: تطبيق الميزو)">
+                    <input type="text" class="edit-input app-link-input" value="${escEdit(app.link || '')}" placeholder="رابط التحميل">
+                    <button class="admin-delete-app-btn" onclick="removeEditRow(this)" title="حذف التطبيق"><i class="fas fa-trash"></i></button>
                 </div>`;
             });
             return html;
@@ -3425,7 +3682,7 @@ function renderDetails(categoryKey) {
                     <h5><i class="fas fa-tv" style="color: #ff9800;"></i> تطبيقات الشاشات (Smart)</h5>
                     <div style="margin-bottom: 15px;">
                         <label style="color:var(--text-secondary); font-size:12px; margin-bottom: 5px; display: block;">رابط تطبيق Downloader الأساسي:</label>
-                        <input type="text" id="edit-app-smart-link-${item.id}" class="edit-input" value="${smartLink}" placeholder="رابط Downloader">
+                        <input type="text" id="edit-app-smart-link-${item.id}" class="edit-input" value="${escEdit(smartLink)}" placeholder="رابط Downloader">
                     </div>
                     <h6 style="color:var(--text-secondary); font-size:0.85rem; margin-bottom: 8px;">أكواد التحميل:</h6>
                     `;
@@ -3433,9 +3690,9 @@ function renderDetails(categoryKey) {
         smartCodes.forEach(codeObj => {
             plansHtml += `
                 <div class="edit-app-row">
-                    <input type="text" class="edit-input app-name-input" value="${codeObj.name || ''}" placeholder="اسم التطبيق">
-                    <input type="text" class="edit-input app-code-input" value="${codeObj.code || ''}" placeholder="كود Downloader">
-                    <button class="admin-delete-app-btn" onclick="this.parentElement.remove()" title="حذف الكود"><i class="fas fa-trash"></i></button>
+                    <input type="text" class="edit-input app-name-input" value="${escEdit(codeObj.name || '')}" placeholder="اسم التطبيق">
+                    <input type="text" class="edit-input app-code-input" value="${escEdit(codeObj.code || '')}" placeholder="كود Downloader">
+                    <button class="admin-delete-app-btn" onclick="removeEditRow(this)" title="حذف الكود"><i class="fas fa-trash"></i></button>
                 </div>`;
         });
 
@@ -3465,7 +3722,7 @@ function renderDetails(categoryKey) {
     }
 
     var plansContainer = document.getElementById('plans-container');
-    if (plansContainer) plansContainer.innerHTML = plansHtml;
+    if (plansContainer) renderKeepingEdits(plansContainer, plansHtml);
 
     // روابط تحميل التطبيقات (لسيرفرات IPTV فقط)
     if (!isEditMode && categoryKey === 'iptv' && item.apps) {

@@ -17,7 +17,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AlMeZ0 Servers - تقارير المبيعات</title>
     <!-- CSS -->
-    <link rel="stylesheet" href="style.css?v=4067.0">
+    <link rel="stylesheet" href="style.css?v=4076.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -307,7 +307,8 @@
 
             .history-search-btn,
             .history-reset-btn,
-            .history-search-btn-group .btn-product-summary.period-summary-btn {
+            .history-search-btn-group .btn-product-summary.period-summary-btn,
+            .company-summary-btn-stack .btn-product-summary.company-summary-btn {
                 width: 100% !important;
                 min-width: 100% !important;
                 height: 42px !important;
@@ -1411,9 +1412,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
     <!-- Config & Screen Intelligence -->
-    <script src="firebase-config.js?v=4066.0"></script>
+    <script src="firebase-config.js?v=4077.0"></script>
     <script src="screen-adapter.js?v=4070.0"></script>
-    <script src="app-bridge.js?v=4070.0"></script>
+    <script src="app-bridge.js?v=4070.0.1"></script>
 </head>
 
 <body>
@@ -1442,8 +1443,12 @@
                 <button onclick="openStaffManagementModal()" class="custom-staff-btn" title="إدارة الموظفين والمناديب">
                     <i class="fas fa-users-cog"></i> إدارة الموظفين
                 </button>
+                <button type="button" id="btnCloseLedger" onclick="closeLedgerNow()" class="custom-staff-btn btn-close-ledger" title="إقفال الحساب مع كل المناديب: الأرصدة تبقى كما هي والصفحات تصبح أخف">
+                    <i class="fas fa-lock"></i> إقفال الحساب
+                </button>
             </div>
         </div>
+        <div class="ledger-status-line" id="ledgerStatusLine"></div>
 
         <!-- أرصدة المناديب -->
         <div class="forms-grid" id="staffBalancesGrid">
@@ -1483,11 +1488,17 @@
                         class="history-search-input" autocomplete="off">
                 </div>
 
-                <div class="history-search-btn-group">
-                    <button type="button" class="btn-primary history-search-btn" onclick="searchCompanySales()"><i
-                            class="fas fa-search"></i> عرض المبيعات</button>
-                    <button type="button" class="history-reset-btn" onclick="resetCompanySalesToCurrentMonth()" title="عرض شهر كامل"><i
-                            class="fas fa-calendar-check"></i> الشهر الحالي</button>
+                <div class="company-summary-btn-stack">
+                    <button type="button" id="btnCompanyProductSummary" class="btn-product-summary period-summary-btn company-summary-btn" onclick="openCompanyProductSalesSummary()" title="عرض مبيعات كل منتج لكل شركة على حدة في الفترة المحددة">
+                        <i class="fas fa-chart-pie"></i> إجمالي مبيعات الشركات للفترة
+                        <span class="summary-btn-badge" id="companySalesBadge">0</span>
+                    </button>
+                    <div class="history-search-btn-group">
+                        <button type="button" class="btn-primary history-search-btn" onclick="searchCompanySales()"><i
+                                class="fas fa-search"></i> عرض المبيعات</button>
+                        <button type="button" class="history-reset-btn" onclick="resetCompanySalesToCurrentMonth()" title="عرض شهر كامل"><i
+                                class="fas fa-calendar-check"></i> الشهر الحالي</button>
+                    </div>
                 </div>
             </div>
             <p class="history-search-note">* العرض الافتراضي لمدة شهر كامل، ويمكنك تخصيص الفترة (من - إلى) لأي شركة وتنزيل فاتورة مبيعاتها كصورة رسمية عالية الدقة.</p>
@@ -1841,7 +1852,7 @@
                     <div class="product-summary-stat-card stat-products-count">
                         <div class="stat-icon"><i class="fas fa-boxes-stacked"></i></div>
                         <div class="stat-info">
-                            <span class="stat-label">تنوع المنتجات</span>
+                            <span class="stat-label" id="summaryThirdStatLabel">تنوع المنتجات</span>
                             <span id="summaryDistinctProductsCount" class="stat-value">0</span>
                         </div>
                     </div>
@@ -1866,6 +1877,8 @@
                                 <th class="product-summary-th-idx">#</th>
                                 <th class="product-summary-th-product">المنتج / الباقة</th>
                                 <th class="product-summary-th-qty">الكمية (العدد)</th>
+                                <th class="product-summary-th-points">عدد النقاط</th>
+                                <th class="product-summary-th-point-price">سعر بيع النقطة</th>
                                 <th class="product-summary-th-amount">إجمالي القيمة</th>
                             </tr>
                         </thead>
@@ -2184,8 +2197,8 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="ui.js?v=4071.0"></script>
-    <script src="admin-dashboard.js?v=4071.0"></script>
+    <script src="ui.js?v=4074.0"></script>
+    <script src="admin-dashboard.js?v=4076.0"></script>
 </body>
 
 </html>

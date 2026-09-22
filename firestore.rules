@@ -9,6 +9,12 @@ service cloud.firestore {
       );
     }
 
+    // مندوب مسجّل (دوره في وثيقته staff). الإنشاء والتعديل على الدور مقصوران على المدير.
+    function isStaff() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff';
+    }
+
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -79,8 +85,14 @@ service cloud.firestore {
           isAdmin() ||
           get(/databases/$(database)/documents/customers/$(request.auth.uid)).data.role == 'staff'
       );
-      // السماح بإنشاء معاملة فقط إذا كان uid مطابقاً لـ staffId
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.staffId;
+      // إنشاء عملية: للمناديب والمدير فقط، وباسم صاحبها. كان أي عميل مسجّل في الموقع يستطيع إنشاء
+      // "مبيعة" بمعرّفه فتدخل تقارير المدير وأرصدة الشركات، ونصوصها تُعرض في لوحة المدير.
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.staffId &&
+        (isStaff() || isAdmin()) &&
+        request.resource.data.type is string &&
+        (!('product' in request.resource.data) || (request.resource.data.product is string && request.resource.data.product.size() <= 120)) &&
+        (!('duration' in request.resource.data) || (request.resource.data.duration is string && request.resource.data.duration.size() <= 60));
       // السماح للمدير بالحذف وللمندوب بحذف عملياته
       allow delete: if request.auth != null && (isAdmin() || request.auth.uid == resource.data.staffId);
       // السماح للمدير فقط بتعديل عملية موجودة (تصحيح سعر/منتج/طريقة دفع بالخطأ)
@@ -90,8 +102,16 @@ service cloud.firestore {
     match /activity_logs/{logId} {
       // السماح بالقراءة والحذف للمدير العام فقط
       allow read, delete: if isAdmin();
-      // السماح بإنشاء السجلات لكافة الحركات (الزوار، العملاء، المناديب، المدير)
-      allow create: if true;
+      // إنشاء السجلات متاح للجميع (الزوار أيضاً: محاولات الدخول الفاشلة)، لكن بشكل وحجم محددين:
+      // كان أي شخص يستطيع كتابة سجلات بلا حد أو بحجم كبير، أو ينتحل صفة المدير في صفحة الأمان.
+      allow create: if
+        request.resource.data.keys().hasOnly(['action', 'category', 'severity', 'title', 'details', 'user',
+          'device', 'publicIp', 'hardwareFingerprint', 'page', 'url', 'createdAt', 'timestamp', 'clientTime']) &&
+        request.resource.data.action is string && request.resource.data.action.size() <= 80 &&
+        request.resource.data.title is string && request.resource.data.title.size() <= 400 &&
+        request.resource.data.details is map && request.resource.data.details.size() <= 40 &&
+        request.resource.data.timestamp == request.time &&
+        (!('user' in request.resource.data) || !(request.resource.data.user.role == 'admin') || isAdmin());
       // منع التعديل على السجلات لضمان عدم التلاعب بها (Immutable Audit Trail)
       allow update: if false;
     }

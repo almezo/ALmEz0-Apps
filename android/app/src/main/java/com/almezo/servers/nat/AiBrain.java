@@ -6,7 +6,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,7 +15,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,7 +31,6 @@ import java.util.regex.Pattern;
  */
 public final class AiBrain {
 
-    private static final String MODEL = "gemini-2.5-flash";
     private static final int MAX_CARDS = 8;
 
     public static final class Card {
@@ -93,7 +90,7 @@ public final class AiBrain {
             history.clear();
             if (turns != null) {
                 history.addAll(turns);
-                while (history.size() > 8) history.remove(0);
+                while (history.size() > 12) history.remove(0);
             }
         }
     }
@@ -114,32 +111,24 @@ public final class AiBrain {
         Map<String, Models.Item> known = new LinkedHashMap<>();
         String context = buildContext(question, intent, cat, known);
 
+        // التعليمات وإعدادات النموذج في السيرفر (العقل المشترك مع نسخة الكمبيوتر)، والجهاز يرسل
+        // السؤال وبيانات سيرفر العميل والمحادثة السابقة فقط.
         JSONObject payload = new JSONObject();
-        payload.put("model", MODEL);
-        payload.put("systemInstruction", new JSONObject().put("parts",
-                new JSONArray().put(new JSONObject().put("text", systemPrompt()))));
-        JSONArray contents = new JSONArray();
+        payload.put("mode", "answer");
+        payload.put("question", question);
+        payload.put("context", context);
+        JSONArray hist = new JSONArray();
         synchronized (history) {
-            for (JSONObject h : history) contents.put(h);
+            for (JSONObject h : history) {
+                String t = h.getJSONArray("parts").getJSONObject(0).optString("text", "");
+                hist.put(new JSONObject().put("role", h.optString("role")).put("text", t));
+            }
         }
-        contents.put(userTurn(context + "\n\nسؤال العميل: " + question));
-        payload.put("contents", contents);
+        payload.put("history", hist);
 
-        // بحث جوجل له حصة مجانية صغيرة (500 طلب يومياً مشتركة بين النماذج)، وكان يُفعَّل مع كل
-        // سؤال مهما كان، فتنفد الحصة سريعاً ويصل العميل خطأ في كل الأسئلة بقية اليوم. أسئلة
-        // الترشيح والقنوات والتوفر تُجاب من كتالوج السيرفر نفسه ولا تستفيد من البحث، فنقصره
-        // على ما يحتاج معلومة حيّة فعلاً: المباريات وأخبارها، والمعلومات عن الأعمال والممثلين.
+        // بحث جوجل له حصة يومية صغيرة: فقط لما يحتاج معلومة حيّة (المباريات والمعلومات عن الأعمال)
         String intentName = intent.optString("intent", "chat");
-        if ("sports".equals(intentName) || "info".equals(intentName)) {
-            payload.put("tools", new JSONArray().put(new JSONObject().put("googleSearch", new JSONObject())));
-        }
-        // gemini-2.5-flash نموذج تفكير: رموز التفكير تُحسب من maxOutputTokens. بحدّ 1200 وبلا
-        // ضبط للتفكير كان النموذج يستهلك الحدّ كله في التفكير ويعود بنص فارغ، فتظهر للعميل
-        // رسالة "تعذر الوصول إلى المساعد" في كل سؤال. نضبط ميزانية التفكير ونترك مساحة للرد.
-        payload.put("generationConfig", new JSONObject()
-                .put("temperature", 0.7)
-                .put("maxOutputTokens", 4096)
-                .put("thinkingConfig", new JSONObject().put("thinkingBudget", 1024)));
+        payload.put("useSearch", "sports".equals(intentName) || "info".equals(intentName));
 
         JSONObject result = client.generate(payload);
         String raw = result.optString("text", "").trim();
@@ -149,7 +138,7 @@ public final class AiBrain {
             history.add(userTurn(question));
             history.add(new JSONObject().put("role", "model").put("parts",
                     new JSONArray().put(new JSONObject().put("text", raw))));
-            while (history.size() > 8) history.remove(0);
+            while (history.size() > 12) history.remove(0);
         }
 
         List<Card> cards = new ArrayList<>();
@@ -162,6 +151,11 @@ public final class AiBrain {
             if (it != null && seen.add(key)) cards.add(new Card(m.group(1).toLowerCase(Locale.ROOT), it));
         }
         String text = TAG.matcher(raw).replaceAll("").replaceAll("[ \\t]+\\n", "\n").replaceAll("\\n{3,}", "\n\n").trim();
+        int remaining = result.optInt("remaining", 99);
+        if (remaining <= 5) {
+            text += "\n\n" + (remaining == 0 ? "ℹ️ هذا آخر سؤال متاح لك اليوم، ويتجدد الحد غداً."
+                    : "ℹ️ متبقٍ لك اليوم " + remaining + " أسئلة.");
+        }
 
         List<Source> sources = new ArrayList<>();
         JSONArray src = result.optJSONArray("sources");
@@ -182,30 +176,6 @@ public final class AiBrain {
                 new JSONArray().put(new JSONObject().put("text", text)));
     }
 
-    private String systemPrompt() {
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone("Africa/Tripoli"));
-        String now = String.format(Locale.US, "%04d-%02d-%02d %02d:%02d",
-                c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH),
-                c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE));
-        return "أنت \"مساعد الميزو\"، مساعد ذكي داخل مشغل سيرفرات الميزو (ALmEz0) للأفلام والمسلسلات والقنوات المباشرة.\n"
-                + "تحدث بالعربية بأسلوب طبيعي وودود وذكي، وافهم كل اللهجات (الليبية، المصرية، الخليجية، الشامية، المغاربية). "
-                + "يمكنك الدردشة بحرية في أي موضوع ترفيهي أو رياضي أو عام يسأل عنه العميل.\n\n"
-                + "مصادر معلوماتك:\n"
-                + "1) \"بيانات سيرفر العميل\" المرفقة مع كل رسالة: هي المصدر الوحيد لما هو متوفر في سيرفره الحالي، مع معرّف كل عمل وقناة.\n"
-                + "2) بحث Google: لكل معلومة من خارج السيرفر (مواعيد المباريات، القنوات الناقلة، النتائج، الأخبار، معلومات عن فيلم أو ممثل).\n\n"
-                + "قواعد إلزامية:\n"
-                + "- لا تقل أبداً إن عملاً أو قناة متوفرة إلا إذا وردت في بيانات سيرفر العميل المرفقة. إن لم تجدها فيها فقل بوضوح إنها غير متوفرة حالياً في السيرفر، ويمكنك اقتراح بديل متوفر من البيانات.\n"
-                + "- بعد اسم كل فيلم أو مسلسل أو قناة تذكرها من بيانات السيرفر ضع وسمه كما هو في البيانات تماماً: [[movie:المعرف]] أو [[series:المعرف]] أو [[channel:المعرف]]. "
-                + "التطبيق يحوّل الوسم إلى بطاقة تفتح صفحة الفيلم أو المسلسل أو تشغّل القناة. لا تخترع معرفاً ولا تضع وسماً لعمل غير موجود في البيانات.\n"
-                + "- المباريات: ابحث في Google دائماً قبل الإجابة عن أي مباراة أو موعد أو قناة ناقلة، واذكر الموعد بتوقيت ليبيا/مصر (GMT+2) وبتوقيت مكة (GMT+3)، والبطولة، والقناة الناقلة الرسمية، "
-                + "واذكر اسم الموقع الذي أخذت منه المعلومة. إن كانت القناة الناقلة ضمن قنوات السيرفر المرفقة فضع وسمها ليشغّلها العميل مباشرة.\n"
-                + "- لا تخمّن ولا تؤلف معلومة: إن لم تجد معلومة مؤكدة فقل ذلك بصراحة (مثل: لم أجد موعداً مؤكداً لهذه المباراة).\n"
-                + "- عند الاقتراح: اختر من بيانات السيرفر ما يطابق الطلب فعلاً (التصنيف، اللغة، البلد، المزاج)، ونوّع ولا تكرر نفس الأعمال في كل مرة، "
-                + "واكتب لكل عمل سطراً صحيحاً مشوقاً (السنة، النوع، فكرة القصة بدون حرق). إن لم يكن في البيانات ما يطابق الطلب فقل ذلك.\n"
-                + "- كن مختصراً ومنظماً: نقاط أو فقرات قصيرة، بلا مقدمات طويلة ولا تكرار لنفس الجمل بين الردود.\n\n"
-                + "الوقت الآن بتوقيت ليبيا: " + now + ".";
-    }
-
     // ------------------------------------------------------------------ فهم الطلب
 
     private JSONObject understand(String question) {
@@ -220,46 +190,13 @@ public final class AiBrain {
                     prev.append(h.optString("role")).append(": ").append(t).append('\n');
                 }
             }
-            String prompt = "You classify one message sent to the AI assistant inside an Arabic IPTV player app "
-                    + "(movies, series, live TV channels, sports). Return only JSON.\n"
-                    + "- intent: sports (matches, fixtures, results, which channel shows a game), availability (is a specific title or channel on the server), "
-                    + "recommend (suggest something to watch), channel (find/play a TV channel), info (facts about a title, actor or story), chat (anything else).\n"
-                    + "- type: movie, series, channel or any.\n"
-                    + "- titles: specific titles or channel names the user means, each in its official original form (usually English) AND in Arabic when different. "
-                    + "Example: \"فيلم انسبشن\" -> [\"Inception\",\"انسبشن\"]; \"قناة الجزيرة\" -> [\"Al Jazeera\",\"الجزيرة\"].\n"
-                    + "- genres: subset of [action, adventure, animation, comedy, crime, documentary, drama, family, fantasy, history, horror, music, mystery, romance, scifi, thriller, war, western, biography, sport, kids].\n"
-                    + "- language: arabic, english, turkish, indian, korean, japanese, spanish, french, or empty. (مصري/خليجي/سوري -> arabic, أجنبي/أمريكي -> english)\n"
-                    + "- country: production country code if requested (us, uk, eg, sa, sy, tr, in, kr, jp, fr, es ...) else empty.\n"
-                    + "- keywords: other useful search words (team, league, actor), may be empty.\n"
-                    + "Use the previous conversation to resolve follow-ups like \"والمسلسلات؟\" or \"غيره\".\n\n"
-                    + (prev.length() > 0 ? "Previous conversation:\n" + prev + "\n" : "")
-                    + "Message: " + question;
-
-            JSONObject schema = new JSONObject()
-                    .put("type", "OBJECT")
-                    .put("properties", new JSONObject()
-                            .put("intent", new JSONObject().put("type", "STRING"))
-                            .put("type", new JSONObject().put("type", "STRING"))
-                            .put("titles", new JSONObject().put("type", "ARRAY").put("items", new JSONObject().put("type", "STRING")))
-                            .put("genres", new JSONObject().put("type", "ARRAY").put("items", new JSONObject().put("type", "STRING")))
-                            .put("language", new JSONObject().put("type", "STRING"))
-                            .put("country", new JSONObject().put("type", "STRING"))
-                            .put("keywords", new JSONObject().put("type", "ARRAY").put("items", new JSONObject().put("type", "STRING"))))
-                    .put("required", new JSONArray().put("intent").put("type"));
-
             JSONObject payload = new JSONObject()
-                    .put("model", MODEL)
-                    .put("contents", new JSONArray().put(userTurn(prompt)))
-                    .put("generationConfig", new JSONObject()
-                            .put("temperature", 0)
-                            .put("maxOutputTokens", 2048)
-                            .put("responseMimeType", "application/json")
-                            .put("responseSchema", schema)
-                            // تحليل نيّة السؤال لا يحتاج تفكيراً، وتركه مفتوحاً كان يبتلع حدّ الإخراج
-                            .put("thinkingConfig", new JSONObject().put("thinkingBudget", 0)));
-            String text = client.generate(payload).optString("text", "").trim();
-            int a = text.indexOf('{'), b = text.lastIndexOf('}');
-            if (a >= 0 && b > a) return new JSONObject(text.substring(a, b + 1));
+                    .put("mode", "understand")
+                    .put("question", question)
+                    .put("prev", prev.toString());
+            JSONObject intent = client.generate(payload).optJSONObject("intent");
+            if (intent != null && intent.has("intent")) return intent;
+            return guessIntent(question);
         } catch (AiClient.AuthRequiredException e) {
             // يُعالج في الطلب الرئيسي برسالة واضحة
         } catch (Exception ignored) { }

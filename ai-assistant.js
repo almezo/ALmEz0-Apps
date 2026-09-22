@@ -107,10 +107,7 @@
         if (session.messages && session.messages.length > 0) {
             session.messages.forEach(m => {
                 appendMessage(m.sender, m.text, m.actionCardsHtml || '', false);
-                conversationHistory.push({
-                    role: m.sender === 'user' ? 'user' : 'model',
-                    parts: [{ text: m.text }]
-                });
+                conversationHistory.push({ role: m.sender === 'user' ? 'user' : 'model', text: String(m.text || '').replace(/^🎙️ /, '') });
             });
         } else {
             appendMessage('model', 'محادثة سابقة فارغة. كيف يمكنني مساعدتك؟', '', false);
@@ -165,7 +162,7 @@
             return `
                 <div class="ai-history-item ${isActive}" onclick="window.AlMeZ0AI.loadSession('${s.id}')">
                     <div class="ai-history-item-info">
-                        <span class="ai-history-item-title" title="${safeTitle}">${s.title || 'محادثة'}</span>
+                        <span class="ai-history-item-title" title="${safeTitle}">${escHtml(s.title || 'محادثة')}</span>
                         <span class="ai-history-item-date">${dateStr}</span>
                     </div>
                     <button class="ai-history-btn-del" title="حذف" onclick="window.AlMeZ0AI.deleteSession('${s.id}', event)">
@@ -283,7 +280,7 @@
                 if (isRecordingMedia && mediaRecorder && mediaRecorder.state === 'recording') {
                     mediaRecorder.stop();
                 }
-            }, 8000);
+            }, 20000); // حتى 20 ثانية؛ السيرفر يقبل التسجيل ويحوّله لنص قبل الإجابة
         } catch (err) {
             console.error('[AlMeZ0 AI] getUserMedia error', err);
             isRecordingMedia = false;
@@ -409,81 +406,362 @@
     }
 
     const GENRE_KEYWORD_MAP = {
-        action: ['اكشن', 'قتال', 'معارك', 'حروب', 'حرب', 'مطاردة', 'اثاره', 'إثاره', 'action'],
-        comedy: ['كوميد', 'ضحك', 'مضحك', 'فرفش', 'طاش', 'comedy'],
-        horror: ['رعب', 'مخيف', 'ارواح', 'اشباح', 'جن', 'زومبي', 'horror'],
-        drama: ['درام', 'حزين', 'مؤثر', 'اجتماعي', 'drama'],
-        scifi: ['خيال', 'علمي', 'فضاء', 'كائنات', 'مستقبل', 'sci fi', 'scifi', 'fiction'],
-        animation: ['كرتون', 'انمي', 'اطفال', 'أنمي', 'anime', 'animation', 'cartoon'],
-        arabic: ['عربي', 'مصر', 'سوري', 'لبنان', 'خليج', 'تونسي', 'مغرب'],
-        turkish: ['تركي', 'تركيه', 'turk'],
-        foreign: ['اجنبي', 'امريكي', 'هوليوود', 'foreign', 'english'],
-        indian: ['هندي', 'بوليوود', 'indian', 'hindi']
+        action: ['اكشن', 'قتال', 'معارك', 'مطاردة', 'action'],
+        adventure: ['مغامر', 'adventure'],
+        comedy: ['كوميد', 'ضحك', 'مضحك', 'فرفش', 'comedy'],
+        horror: ['رعب', 'مخيف', 'اشباح', 'زومبي', 'horror'],
+        thriller: ['اثاره', 'تشويق', 'thriller', 'suspense'],
+        crime: ['جريم', 'عصابات', 'crime'],
+        mystery: ['غموض', 'لغز', 'mystery'],
+        drama: ['درام', 'اجتماعي', 'drama'],
+        romance: ['رومانس', 'رومانسي', 'حب', 'romance', 'romantic'],
+        scifi: ['خيال علمي', 'فضاء', 'sci fi', 'scifi', 'science fiction'],
+        fantasy: ['فانتازيا', 'خيال', 'fantasy'],
+        animation: ['كرتون', 'انمي', 'رسوم', 'anime', 'animation', 'cartoon'],
+        kids: ['اطفال', 'kids', 'children'],
+        family: ['عائلي', 'family'],
+        war: ['حرب', 'حروب', 'war'],
+        history: ['تاريخ', 'تاريخي', 'history', 'historical'],
+        documentary: ['وثائقي', 'documentary'],
+        sport: ['رياضي', 'sport'],
+        biography: ['سيره', 'biography']
+    };
+
+    const LANGUAGE_CAT_WORDS = {
+        arabic: ['عربي', 'arab', 'مصر', 'سوري', 'خليج', 'لبنان', 'رمضان'],
+        english: ['اجنبي', 'english', 'foreign', 'امريكي', 'hollywood', 'netflix'],
+        turkish: ['تركي', 'turk'],
+        indian: ['هندي', 'indian', 'hindi', 'bollywood'],
+        korean: ['كوري', 'korea', 'asian', 'اسيوي'],
+        japanese: ['ياباني', 'japan', 'anime', 'انمي'],
+        spanish: ['اسباني', 'spanish', 'latino', 'مكسيكي'],
+        french: ['فرنسي', 'french']
     };
 
     function detectGenres(normText) {
         const detected = [];
         for (const [genre, keywords] of Object.entries(GENRE_KEYWORD_MAP)) {
-            if (keywords.some(kw => normText.includes(kw))) {
-                detected.push(genre);
-            }
+            if (keywords.some(kw => normText.includes(normalizeArabic(kw)))) detected.push(genre);
         }
         return detected;
     }
 
-    // اختيار عشوائي من أفضل النتائج بدل أخذ الأربعة الأوائل دائماً بالترتيب نفسه.
-    // السبب: الاقتراح العام ("اقترح لي فيلم") كان يُرجع دائماً نفس الأفلام الأعلى تقييماً
-    // بالترتيب ذاته، فيبدو المساعد وكأنه يحفظ إجابة واحدة ويكررها في كل مرة.
-    // الآن نأخذ عينة متنوعة من أفضل المرشحين فتتغير الاقتراحات مع كل طلب.
-    function pickVariedTop(sortedList, count) {
-        if (!Array.isArray(sortedList) || sortedList.length === 0) return [];
-        if (sortedList.length <= count) return sortedList.slice(0, count);
-
-        const poolSize = Math.min(sortedList.length, Math.max(count * 6, 30));
-        const pool = sortedList.slice(0, poolSize);
-
-        // خلط فيشر-ييتس على نسخة من المجموعة ثم أخذ العدد المطلوب
-        const shuffled = pool.slice();
-        for (let i = shuffled.length - 1; i > 0; i--) {
+    function shuffle(list) {
+        const a = list.slice();
+        for (let i = a.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            const tmp = shuffled[i];
-            shuffled[i] = shuffled[j];
-            shuffled[j] = tmp;
+            const t = a[i]; a[i] = a[j]; a[j] = t;
         }
-        return shuffled.slice(0, count);
+        return a;
     }
 
-    // تصفية كروت التشغيل لتطابق ما ذكره المساعد فعلياً في نص رده فقط.
-    // السبب: كان النص يتحدث عن فيلم بينما الكروت أسفله تعرض أفلاماً أخرى لم تُذكر إطلاقاً،
-    // لأن الكروت كانت تُبنى من نتائج البحث المحلي بغض النظر عما اختاره المساعد.
-    function filterContextToMentioned(serverContext, replyText) {
-        if (!serverContext || !replyText) return serverContext;
+    function escHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
 
-        const normReply = normalizeArabic(replyText);
-        const isMentioned = (name) => {
-            const n = normalizeArabic(name || '');
-            if (!n || n.length < 2) return false;
-            if (normReply.includes(n)) return true;
-            // مطابقة مرنة: يكفي ورود أغلب كلمات العنوان في الرد (لاختلاف علامات الترقيم والسنة)
-            const words = n.split(' ').filter(w => w.length > 2);
-            if (words.length === 0) return false;
-            const hit = words.filter(w => normReply.includes(w)).length;
-            return (hit / words.length) >= 0.75;
-        };
+    // تنسيق آمن لرد المساعد: النص يُهرَّب أولاً (لا HTML من النموذج أو من بحث الويب يصل للصفحة)،
+    // ثم يُدعم **الخط العريض** والنقاط "- " والأسطر فقط.
+    function renderRichText(text) {
+        const lines = escHtml(text).split('\n');
+        let html = '', inList = false;
+        lines.forEach(line => {
+            const t = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|\s)\*(?!\s)([^*]+?)\*(?=\s|$)/g, '$1<em>$2</em>');
+            const m = t.match(/^\s*(?:[-•*]|\d+[.)])\s+(.*)$/);
+            if (m) {
+                if (!inList) { html += '<ul class="ai-msg-list">'; inList = true; }
+                html += '<li>' + m[1] + '</li>';
+            } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += t.trim() ? '<div>' + t.replace(/^#+\s*/, '') + '</div>' : '<div class="ai-msg-gap"></div>';
+            }
+        });
+        if (inList) html += '</ul>';
+        return html;
+    }
 
-        const filtered = {
-            isSports: serverContext.isSports,
-            movies: (serverContext.movies || []).filter(m => isMentioned(m.name)),
-            series: (serverContext.series || []).filter(s => isMentioned(s.name)),
-            channels: serverContext.channels || []
-        };
+    // =========================================================================
+    // 2. فهم السؤال وجمع بيانات سيرفر العميل (نفس منهج مشغل أندرويد)
+    // =========================================================================
+    // النموذج يفهم السؤال أولاً (اللهجة، الاسم الأصلي للعمل، التصنيف، المتابعة على سؤال سابق)، ثم
+    // نبحث في قوائم السيرفر النشط ونرسل النتائج مع وسم لكل عمل. النموذج يضع الوسم بعد كل عمل يذكره
+    // فتُبنى بطاقات التشغيل من الوسوم نفسها، فلا تظهر بطاقة لعمل لم يذكره ولا لعمل غير موجود.
 
-        // إن لم يُذكر أي عنوان صراحةً (مثل رد عام أو سؤال عن قناة) نُبقي القائمة الأصلية
-        // بدل إخفاء كل الكروت وحرمان المستخدم من التشغيل السريع
-        if (filtered.movies.length === 0 && filtered.series.length === 0) {
-            return serverContext;
+    function guessIntent(question) {
+        const n = normalizeArabic(question);
+        let intent = 'chat', type = 'any';
+        if (isSportsQuery(question)) { intent = 'sports'; type = 'channel'; }
+        else if (/قناه|قنوات|channel/.test(n)) { intent = 'channel'; type = 'channel'; }
+        else if (/مسلسل|حلقه|series/.test(n)) { intent = 'recommend'; type = 'series'; }
+        else if (/فيلم|افلام|سهره|movie/.test(n)) { intent = 'recommend'; type = 'movie'; }
+        return { intent, type, titles: [], genres: detectGenres(n), language: '', country: '', keywords: [] };
+    }
+
+    async function understandQuestion(question) {
+        try {
+            const prev = conversationHistory.slice(-2)
+                .map(h => h.role + ': ' + String(h.text || '').slice(0, 600)).join('\n');
+            const data = await callAi({ mode: 'understand', question, prev }, 15000);
+            if (data && data.intent && data.intent.intent) return data.intent;
+        } catch (e) {
+            if (/resource-exhausted|الحد اليومي/i.test(String((e && (e.code || e.message)) || ''))) throw e;
         }
-        return filtered;
+        return guessIntent(question);
+    }
+
+    function cleanName(s) {
+        return normalizeArabic(s)
+            .replace(/\b(4k|uhd|fhd|hd|sd|hevc|h265|1080p|720p|cam|vip)\b/g, ' ')
+            .replace(/[^\p{L}\p{N} ]/gu, ' ')
+            .replace(/^(فيلم|مسلسل|قناه|افلام)\s+/, '')
+            .replace(/\s+/g, ' ').trim();
+    }
+
+    // مطابقة الاسم: كاملاً، أو 75% من كلماته على الأقل
+    function searchByName(list, term, limit) {
+        const q = cleanName(term);
+        const words = q.split(' ').filter(w => w.length >= 2 || /\d/.test(w));
+        if (!words.length) return [];
+        const exact = [], strong = [];
+        list.forEach(it => {
+            const n = ' ' + cleanName(it.name || '') + ' ';
+            if (n.trim() === '') return;
+            if (n.includes(' ' + q + ' ')) { exact.push(it); return; }
+            const hit = words.filter(w => n.includes(' ' + w + ' ')).length;
+            if (words.length >= 2 && hit * 4 >= words.length * 3) strong.push(it);
+        });
+        exact.sort((a, b) => (a.name || '').length - (b.name || '').length);
+        return exact.concat(strong.filter(x => !exact.includes(x))).slice(0, limit);
+    }
+
+    const catalogCache = {};
+    async function catalog(type) {
+        if (catalogCache[type]) return catalogCache[type];
+        const action = type === 'vod' ? 'get_vod_streams' : type === 'series' ? 'get_series' : 'get_live_streams';
+        let items = [], cats = [];
+        try { if (window.getAllStreamsForType) items = await window.getAllStreamsForType(type, action); } catch (e) { }
+        try { if (window.getAllCategoriesForType) cats = await window.getAllCategoriesForType(type); } catch (e) { }
+        const catMap = {};
+        (Array.isArray(cats) ? cats : []).forEach(c => { catMap[String(c.category_id)] = c.category_name || ''; });
+        const out = { items: Array.isArray(items) ? items : [], cats: catMap };
+        if (out.items.length) catalogCache[type] = out;
+        return out;
+    }
+
+    function itemId(type, it) { return String(type === 'series' ? it.series_id : it.stream_id); }
+    function tagOf(type) { return type === 'vod' ? 'movie' : type === 'series' ? 'series' : 'channel'; }
+
+    function describeItem(type, it, cats) {
+        const label = type === 'vod' ? 'فيلم' : type === 'series' ? 'مسلسل' : 'قناة';
+        let line = `- ${label}: "${String(it.name || '').trim()}"`;
+        const year = it.year || (it.releaseDate || it.release_date || '').slice(0, 4);
+        if (year && /^\d{4}$/.test(year)) line += ` | السنة ${year}`;
+        const r = parseFloat(it.rating);
+        if (r > 0) line += ` | التقييم ${r.toFixed(1)}/10`;
+        const cn = cats[String(it.category_id)];
+        if (cn) line += ` | القسم: ${cn}`;
+        if (it.genre) line += ` | النوع: ${String(it.genre).slice(0, 60)}`;
+        if (it.plot) line += ` | القصة: ${String(it.plot).replace(/\s+/g, ' ').slice(0, 160)}`;
+        return line + ` | الوسم: [[${tagOf(type)}:${itemId(type, it)}]]`;
+    }
+
+    function matchesLanguage(it, cats, language) {
+        if (!language) return true;
+        const words = LANGUAGE_CAT_WORDS[language];
+        if (!words) return true;
+        const cn = normalizeArabic(cats[String(it.category_id)] || '');
+        return words.some(w => cn.includes(normalizeArabic(w)));
+    }
+
+    function matchesGenre(it, cats, genres) {
+        if (!genres.length) return true;
+        const hay = normalizeArabic((cats[String(it.category_id)] || '') + ' ' + (it.genre || ''));
+        return genres.some(g => (GENRE_KEYWORD_MAP[g] || [g]).some(kw => hay.includes(normalizeArabic(kw))));
+    }
+
+    function pickCandidates(type, data, genres, language) {
+        let pool = data.items.filter(it => matchesLanguage(it, data.cats, language));
+        if (!pool.length) pool = data.items;
+        const byGenre = pool.filter(it => matchesGenre(it, data.cats, genres));
+        const base = genres.length && byGenre.length ? byGenre : pool;
+        // الأحدث إضافةً ثم الأعلى تقييماً، مع خلط حتى تتنوع الاقتراحات بين الطلبات
+        const recent = base.slice().sort((a, b) => (Number(b.added || b.last_modified) || 0) - (Number(a.added || a.last_modified) || 0)).slice(0, 400);
+        recent.sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
+        return shuffle(recent.slice(0, 90)).slice(0, 25);
+    }
+
+    const SPORT_CHANNEL_WORDS = ['bein', 'ssc', 'alkass', 'al kass', 'ad sport', 'abu dhabi sport', 'ابوظبي الرياض', 'on time', 'ontime',
+        'sport', 'رياض', 'كوره', 'dazn', 'sky sport', 'espn', 'arryadia', 'الرياضيه', 'libya sport', 'ليبيا الرياض'];
+
+    async function buildServerContext(question, intent) {
+        const kind = intent.intent || 'chat';
+        const type = intent.type || 'any';
+        const titles = Array.isArray(intent.titles) ? intent.titles.filter(Boolean) : [];
+        const keywords = Array.isArray(intent.keywords) ? intent.keywords.filter(Boolean) : [];
+        const genres = (Array.isArray(intent.genres) ? intent.genres : []).filter(g => GENRE_KEYWORD_MAP[g]);
+        const language = String(intent.language || '').toLowerCase();
+        const known = {};
+        const remember = (t, list) => list.forEach(it => { known[tagOf(t) + ':' + itemId(t, it)] = { type: t, item: it }; });
+
+        const wantMovies = type === 'movie' || type === 'any';
+        const wantSeries = type === 'series' || type === 'any';
+        const wantLive = type === 'channel' || kind === 'sports' || kind === 'channel';
+
+        const [vod, series, live] = await Promise.all([catalog('vod'), catalog('series'), catalog('live')]);
+        const byType = { vod, series, live };
+        let sb = `[بيانات سيرفر العميل]\n- المحتوى الكلي: ${vod.items.length} فيلم، ${series.items.length} مسلسل، ${live.items.length} قناة مباشرة.\n`;
+
+        // 1) أعمال أو قنوات محددة بالاسم
+        const terms = titles.slice();
+        if (!terms.length && (kind === 'availability' || kind === 'info')) terms.push(question);
+        if (terms.length) {
+            sb += '\n[نتائج البحث بالاسم في السيرفر]\n';
+            const types = wantLive && type !== 'any' ? ['live'] : type === 'any' ? ['vod', 'series', 'live'] : [type === 'movie' ? 'vod' : 'series'];
+            let any = false;
+            types.forEach(t => {
+                const found = [];
+                terms.forEach(term => searchByName(byType[t].items, term, 5).forEach(it => { if (!found.includes(it)) found.push(it); }));
+                if (!found.length) return;
+                any = true;
+                const list = found.slice(0, 8);
+                remember(t, list);
+                sb += list.map(it => describeItem(t, it, byType[t].cats)).join('\n') + '\n';
+            });
+            if (!any) sb += `- لا يوجد في السيرفر أي عمل أو قناة بهذا الاسم: ${terms.join('، ')}.\n`;
+        }
+
+        // 2) المباريات: القنوات الرياضية لربط القناة الناقلة بقناة عند العميل
+        if (kind === 'sports') {
+            const extra = keywords.map(k => normalizeArabic(k));
+            let sports = live.items.filter(c => {
+                const n = normalizeArabic(c.name || '') + ' ' + normalizeArabic(live.cats[String(c.category_id)] || '');
+                return SPORT_CHANNEL_WORDS.some(w => n.includes(w)) || extra.some(w => w.length > 2 && n.includes(w));
+            });
+            sports = sports.slice(0, 60);
+            sb += '\n[القنوات الرياضية المتوفرة في السيرفر]\n';
+            if (!sports.length) sb += '- لا توجد قنوات رياضية في هذا السيرفر.\n';
+            else { remember('live', sports); sb += sports.map(it => describeItem('live', it, live.cats)).join('\n') + '\n'; }
+        } else if (kind === 'channel' && !titles.length) {
+            const found = [];
+            keywords.forEach(k => searchByName(live.items, k, 10).forEach(it => { if (!found.includes(it)) found.push(it); }));
+            const nk = keywords.map(k => normalizeArabic(k)).filter(k => k.length > 2);
+            live.items.forEach(it => {
+                if (found.length >= 25) return;
+                const cn = normalizeArabic(live.cats[String(it.category_id)] || '');
+                if (nk.some(k => cn.includes(k)) && !found.includes(it)) found.push(it);
+            });
+            if (found.length) {
+                const list = found.slice(0, 25);
+                remember('live', list);
+                sb += '\n[قنوات مطابقة في السيرفر]\n' + list.map(it => describeItem('live', it, live.cats)).join('\n') + '\n';
+            }
+        }
+
+        // 3) ترشيحات حسب النوع والتصنيف واللغة
+        if (kind === 'recommend' || ((kind === 'chat' || kind === 'info') && genres.length)) {
+            const desc = (genres.length ? ' | التصنيف: ' + genres.join('، ') : '') + (language ? ' | اللغة: ' + language : '');
+            if (wantMovies || !wantSeries) {
+                const list = pickCandidates('vod', vod, genres, language);
+                remember('vod', list);
+                sb += `\n[أفلام مرشحة من السيرفر تناسب الطلب${desc}]\n` + (list.length ? list.map(it => describeItem('vod', it, vod.cats)).join('\n') : '- لا يوجد ما يطابق.') + '\n';
+            }
+            if (wantSeries) {
+                const list = pickCandidates('series', series, genres, language);
+                remember('series', list);
+                sb += `\n[مسلسلات مرشحة من السيرفر تناسب الطلب${desc}]\n` + (list.length ? list.map(it => describeItem('series', it, series.cats)).join('\n') : '- لا يوجد ما يطابق.') + '\n';
+            }
+        }
+
+        // أسماء الأقسام تساعد في الأسئلة العامة ("هل عندكم أفلام تركية؟")
+        const catType = type === 'movie' ? 'vod' : type === 'series' ? 'series' : wantLive ? 'live' : 'vod';
+        const catNames = Object.values(byType[catType].cats).filter(Boolean).slice(0, 40);
+        if (catNames.length) sb += `\n- أقسام ${catType === 'vod' ? 'الأفلام' : catType === 'series' ? 'المسلسلات' : 'القنوات'} في السيرفر: ${catNames.join('، ')}.\n`;
+        return { context: sb, known, byType };
+    }
+
+    const TAG_RE = /\[\[\s*(movie|series|channel)\s*:\s*([^\]\s]+)\s*\]\]/gi;
+
+    function cardsFromReply(raw, known, byType) {
+        const movies = [], series = [], channels = [];
+        const seen = new Set();
+        let m;
+        TAG_RE.lastIndex = 0;
+        while ((m = TAG_RE.exec(raw)) && seen.size < 8) {
+            const tag = m[1].toLowerCase(), id = m[2].trim(), key = tag + ':' + id;
+            if (seen.has(key)) continue;
+            let hit = known[key];
+            if (!hit) {
+                // متابعة على رد سابق ("شغلها"): الوسم لعمل ذُكر من قبل
+                const t = tag === 'movie' ? 'vod' : tag === 'series' ? 'series' : 'live';
+                const it = byType[t].items.find(x => itemId(t, x) === id);
+                if (it) hit = { type: t, item: it };
+            }
+            if (!hit) continue;
+            seen.add(key);
+            if (hit.type === 'vod') movies.push(hit.item);
+            else if (hit.type === 'series') series.push(hit.item);
+            else channels.push(hit.item);
+        }
+        return { movies, series, channels: groupAndFormatChannels(channels) };
+    }
+
+    function stripTags(raw) {
+        return raw.replace(TAG_RE, '').replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // ملاحظة أمنية: مفتاح Gemini على الخادم فقط، والطلبات تمر عبر Cloud Function (generateAiReply)،
+    // وفيها أيضاً تعليمات المساعد وإعدادات النموذج (العقل المشترك مع مشغل أندرويد).
+    function getAiCallable() {
+        if (typeof functions === 'undefined' || !functions) {
+            throw new Error('خدمة المساعد الذكي غير متاحة حالياً في هذه الصفحة.');
+        }
+        return functions.httpsCallable('generateAiReply', { timeout: 70000 });
+    }
+
+    // مهلة واضحة بدل انتظار مفتوح إن تأخر السيرفر أو انقطع الاتصال
+    async function callAi(payload, timeoutMs) {
+        const aiCallable = getAiCallable();
+        let timeoutId = null;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('انتهت المهلة أثناء انتظار رد المساعد.')), timeoutMs || 60000);
+        });
+        try {
+            const result = await Promise.race([aiCallable(payload), timeoutPromise]);
+            return (result && result.data) || {};
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
+    }
+
+    async function askAssistant(question) {
+        const intent = await understandQuestion(question);
+        const { context, known, byType } = await buildServerContext(question, intent);
+        const data = await callAi({
+            mode: 'answer',
+            question,
+            context,
+            history: conversationHistory.slice(-12),
+            useSearch: intent.intent === 'sports' || intent.intent === 'info'
+        }, 60000);
+        const raw = String(data.text || '').trim();
+        if (!raw) throw new Error('لم يتم استلام رد من النموذج');
+        let text = stripTags(raw);
+        const remaining = typeof data.remaining === 'number' ? data.remaining : 99;
+        if (remaining <= 5) {
+            text += '\n\n' + (remaining === 0 ? 'ℹ️ هذا آخر سؤال متاح لك اليوم، ويتجدد الحد غداً.' : `ℹ️ متبقٍ لك اليوم ${remaining} أسئلة.`);
+        }
+        return { raw, text, cards: cardsFromReply(raw, known, byType), sources: Array.isArray(data.sources) ? data.sources : [] };
+    }
+
+    function sourcesHtml(sources) {
+        if (!sources.length) return '';
+        return '<div class="ai-msg-sources"><span class="ai-src-title"><i class="fas fa-globe"></i> المصادر:</span>' +
+            sources.map(s => {
+                let host = '';
+                try { host = new URL(s.uri).hostname.replace(/^www\./, ''); } catch (e) { }
+                const label = s.title || host || 'مصدر';
+                const safeUri = /^https?:\/\//i.test(s.uri) ? s.uri : '#';
+                return `<a class="ai-src-chip" href="${escHtml(safeUri)}" target="_blank" rel="noopener noreferrer">${escHtml(label).slice(0, 40)}</a>`;
+            }).join('') + '</div>';
     }
 
     // تحويل أي خطأ تقني إلى رسالة ودية بالعربية. الرسائل الخام (مثل
@@ -497,346 +775,14 @@
         if (/unauthenticated|مسجلاً للدخول/i.test(raw)) {
             return 'يرجى تسجيل الدخول أولاً لاستخدام مساعد الميزو.';
         }
+        if (/resource-exhausted/i.test(String(err && err.code)) || /الحد اليومي|الحد المسموح/.test(raw)) {
+            return /[\u0600-\u06FF]/.test(raw) ? raw + ' 🙏' : 'مساعد الميزو وصل للحد المسموح من الطلبات حالياً. أعد المحاولة بعد قليل. 🙏';
+        }
+        if (/طويل جداً/.test(raw)) return raw;
         if (/غير متاحة/.test(raw)) {
             return 'مساعد الميزو غير متاح في هذه الصفحة حالياً.';
         }
         return 'عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً.';
-    }
-
-    async function searchActiveClientServer(query) {
-        const normQuery = normalizeArabic(query);
-        const allWords = normQuery.split(' ').filter(w => w.length > 1);
-        const meaningfulWords = allWords.filter(w => !STOP_WORDS.has(w) && w.length >= 2);
-        const isSports = isSportsQuery(query);
-
-        const results = {
-            isSports,
-            movies: [],
-            series: [],
-            channels: []
-        };
-
-        try {
-            // 1. إذا كان السؤال عن رياضة أو مباريات: نركز كلياً على القنوات الرياضية دون فحص الأفلام
-            if (isSports) {
-                if (window.getAllStreamsForType) {
-                    const live = await window.getAllStreamsForType('live', 'get_live_streams').catch(() => []);
-                    if (Array.isArray(live)) {
-                        const sportsKeywords = ['bein', 'ssc', 'ad sport', 'alkass', 'on time', 'sport', 'رياضية', 'كورة', 'starz'];
-                        let matched = [];
-                        // إذا سأل العميل عن قناة معينة برقمها أو اسمها
-                        const channelWords = meaningfulWords.filter(w => sportsKeywords.some(sk => sk.includes(w) || w.includes(sk)) || /\d+/.test(w));
-                        if (channelWords.length > 0) {
-                            matched = live.filter(c => {
-                                const cName = normalizeArabic(c.name || '');
-                                return channelWords.every(cw => cName.includes(cw));
-                            });
-                        }
-                        if (matched.length === 0) {
-                            matched = live.filter(c => {
-                                const cName = normalizeArabic(c.name || '');
-                                return sportsKeywords.some(sk => cName.includes(sk));
-                            });
-                        }
-                        results.channels = groupAndFormatChannels(matched).slice(0, 4);
-                    }
-                }
-                return results;
-            }
-
-            // 2. فحص التصنيف وكلمات البحث في الأفلام والمسلسلات
-            const searchWords = meaningfulWords.length > 0 ? meaningfulWords : allWords.filter(w => w.length >= 2);
-            const detectedGenres = detectGenres(normQuery);
-            const isNightMovie = normQuery.includes('سهرة') || normQuery.includes('سهره') || normQuery.includes('الليلة') || normQuery.includes('افضل') || normQuery.includes('أفضل');
-
-            let vodCategories = [];
-            if (typeof window.getAllCategoriesForType === 'function') {
-                vodCategories = await window.getAllCategoriesForType('vod').catch(() => []);
-            }
-
-            if (window.getAllStreamsForType) {
-                const movies = await window.getAllStreamsForType('vod', 'get_vod_streams').catch(() => []);
-                if (Array.isArray(movies) && movies.length > 0) {
-                    // أ. إذا طلب المستخدم تصنيفاً معيناً (مثل أكشن، كوميدي، رعب)
-                    if (detectedGenres.length > 0) {
-                        const matchingCatIds = new Set();
-                        if (Array.isArray(vodCategories)) {
-                            vodCategories.forEach(cat => {
-                                const catNameNorm = normalizeArabic(cat.category_name || '');
-                                for (const g of detectedGenres) {
-                                    const kws = GENRE_KEYWORD_MAP[g] || [];
-                                    if (kws.some(kw => catNameNorm.includes(kw))) {
-                                        matchingCatIds.add(String(cat.category_id));
-                                    }
-                                }
-                            });
-                        }
-
-                        const genreMatches = movies.filter(m => {
-                            if (m.category_id && matchingCatIds.has(String(m.category_id))) return true;
-                            if (m.category_ids && Array.isArray(m.category_ids) && m.category_ids.some(cid => matchingCatIds.has(String(cid)))) return true;
-                            const mName = normalizeArabic(m.name || '');
-                            return detectedGenres.some(g => (GENRE_KEYWORD_MAP[g] || []).some(kw => mName.includes(kw)));
-                        });
-
-                        if (genreMatches.length > 0) {
-                            genreMatches.sort((a, b) => {
-                                const rA = parseFloat(a.rating || a.rating_5based || 0);
-                                const rB = parseFloat(b.rating || b.rating_5based || 0);
-                                if (rB !== rA) return rB - rA;
-                                return (b.stream_id || 0) - (a.stream_id || 0);
-                            });
-                            results.movies = pickVariedTop(genreMatches, 4);
-                        }
-                    }
-
-                    // ب. إذا كان البحث عن اسم عمل/فيلم محدد (مطابقة محكمة لمنع الهلوسة)
-                    if (results.movies.length === 0 && searchWords.length > 0) {
-                        const titleMatches = movies.filter(m => {
-                            const mName = normalizeArabic(m.name || '');
-                            return searchWords.every(w => mName.includes(w));
-                        });
-                        if (titleMatches.length > 0) {
-                            results.movies = titleMatches.slice(0, 4);
-                        } else if (searchWords.length >= 2) {
-                            // إذا كان العنوان مركباً، نشترط تطابق 70% على الأقل لتفادي التطابق العشوائي
-                            const strongMatches = movies.filter(m => {
-                                const mName = normalizeArabic(m.name || '');
-                                const count = searchWords.filter(w => mName.includes(w)).length;
-                                return (count / searchWords.length) >= 0.7;
-                            });
-                            if (strongMatches.length > 0) {
-                                results.movies = strongMatches.slice(0, 4);
-                            }
-                        }
-                    }
-
-                    // ج. إذا كان السؤال عام عن فيلم سهرة أو أفضل فيلم
-                    if (results.movies.length === 0 && isNightMovie) {
-                        const topRatedMovies = [...movies].sort((a, b) => {
-                            const rA = parseFloat(a.rating || a.rating_5based || 0);
-                            const rB = parseFloat(b.rating || b.rating_5based || 0);
-                            if (rB !== rA) return rB - rA;
-                            return (b.stream_id || 0) - (a.stream_id || 0);
-                        });
-                        results.movies = pickVariedTop(topRatedMovies, 4);
-                    }
-                }
-            }
-
-            // 3. فحص المسلسلات إذا لم تكن هناك أفلام مطابقة
-            if (window.getAllStreamsForType && results.movies.length === 0) {
-                const series = await window.getAllStreamsForType('series', 'get_series').catch(() => []);
-                if (Array.isArray(series) && series.length > 0) {
-                    if (searchWords.length > 0) {
-                        const seriesMatches = series.filter(s => {
-                            const sName = normalizeArabic(s.name || '');
-                            return searchWords.every(w => sName.includes(w));
-                        });
-                        if (seriesMatches.length > 0) {
-                            results.series = seriesMatches.slice(0, 4);
-                        } else if (searchWords.length >= 2) {
-                            const strongMatches = series.filter(s => {
-                                const sName = normalizeArabic(s.name || '');
-                                const count = searchWords.filter(w => sName.includes(w)).length;
-                                return (count / searchWords.length) >= 0.7;
-                            });
-                            if (strongMatches.length > 0) {
-                                results.series = strongMatches.slice(0, 4);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4. فحص قنوات البث المباشر العامة إذا طُلبت صراحة
-            if (window.getAllStreamsForType && (normQuery.includes('قناة') || normQuery.includes('شغل') || normQuery.includes('بث'))) {
-                const live = await window.getAllStreamsForType('live', 'get_live_streams').catch(() => []);
-                if (Array.isArray(live)) {
-                    const matched = live.filter(c => {
-                        const cName = normalizeArabic(c.name || '');
-                        return searchWords.some(w => cName.includes(w));
-                    });
-                    results.channels = groupAndFormatChannels(matched).slice(0, 3);
-                }
-            }
-        } catch (e) {
-            console.warn('[AlMeZ0 AI] Error searching client server data', e);
-        }
-
-        return results;
-    }
-
-    // ملاحظة أمنية: لم يعد المساعد يستخدم مفتاح Gemini API من المتصفح مطلقاً.
-    // الطلبات تمر عبر Cloud Function آمنة (generateAiReply) يبقى فيها المفتاح
-    // على الخادم فقط، بنفس أسلوب دالة إشعارات واتساب.
-    function getAiCallable() {
-        if (typeof functions === 'undefined' || !functions) {
-            throw new Error('خدمة المساعد الذكي غير متاحة حالياً في هذه الصفحة.');
-        }
-        return functions.httpsCallable('generateAiReply');
-    }
-
-    // مهلة زمنية واضحة بدل انتظار مفتوح بلا نهاية إن تأخر السيرفر أو انقطع الاتصال،
-    // فكان المستخدم يرى المؤشر يدور طويلاً دون أي رسالة مفهومة
-    const AI_REQUEST_TIMEOUT_MS = 35000;
-
-    async function callAiWithTimeout(payload) {
-        const aiCallable = getAiCallable();
-        let timeoutId = null;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => {
-                reject(new Error('انتهت المهلة أثناء انتظار رد المساعد. تحقق من اتصال الإنترنت وحاول مجدداً.'));
-            }, AI_REQUEST_TIMEOUT_MS);
-        });
-
-        try {
-            const result = await Promise.race([aiCallable(payload), timeoutPromise]);
-            const replyText = (result && result.data && result.data.text) || '';
-            if (!replyText) throw new Error('لم يتم استلام رد من النموذج');
-            return replyText;
-        } finally {
-            if (timeoutId) clearTimeout(timeoutId);
-        }
-    }
-
-    // =========================================================================
-    // 3. استدعاء Google Gemini 2.5 / 1.5 Flash عبر Cloud Function آمنة
-    // =========================================================================
-    async function requestGeminiAi(userMessage, serverContext) {
-        const configuredModel = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.5-flash";
-        const systemPrompt = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.systemInstruction) || "";
-
-        // صياغة السياق المستخرج من سيرفر العميل الحالي بدقة تامة وبدون أي هلوسة
-        let contextText = '';
-        if (serverContext.isSports) {
-            contextText += `[سياق رياضي ومباريات اليوم]:\n`;
-            if (serverContext.channels && serverContext.channels.length > 0) {
-                contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
-            }
-            contextText += `[توجيه حاسم لمباريات اليوم والرياضة]: العميل يسأل عن مباريات كرة قدم أو بطولة أو فريق. استخدم بحث جوجل المباشر (Google Search) للوصول إلى تفاصيل المباراة الحقيقية اليوم: الموعد الدقيق بتوقيت ليبيا/مصر (GMT+2) ومكة (GMT+3)، البطولة، والمعلق، و**الأهم القناة الناقلة المحددة لهذه المباراة خصيصاً** (مثل beIN Sports 1 أو beIN Sports 2 أو SSC 1). اذكر القناة الناقلة المخصصة بدقة واختصار، وممنوع منعاً باتاً ذكر أي أفلام أو مسلسلات!\n`;
-        } else {
-            contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
-            if (serverContext.movies && serverContext.movies.length > 0) {
-                contextText += `- أفلام متوفرة في سيرفر العميل مطابقة للطلب:\n${serverContext.movies.map((m, idx) => `  ${idx + 1}. "${m.name}" (التقييم: ${m.rating || 'ممتاز'}, المعرف: ${m.stream_id})`).join('\n')}\n`;
-                contextText += `[توجيه صارم لمنع الهلوسة]: رشّح للعميل حصرياً من قائمة الأفلام المذكورة أعلاه المتوفرة في سيرفره، واذكر له نبذة عنها، ولا ترشح أي فيلم آخر غير موجود في هذه القائمة حتى يتطابق كلامك تماماً مع كروت التشغيل المعروضة أمامه بالأسفل!\n`;
-            } else if (serverContext.series && serverContext.series.length > 0) {
-                contextText += `- مسلسلات متوفرة في سيرفر العميل مطابقة للطلب:\n${serverContext.series.map((s, idx) => `  ${idx + 1}. "${s.name}" (التقييم: ${s.rating || 'ممتاز'}, المعرف: ${s.series_id})`).join('\n')}\n`;
-                contextText += `[توجيه صارم لمنع الهلوسة]: رشّح للعميل حصرياً من قائمة المسلسلات المذكورة أعلاه المتوفرة في سيرفره، ولا ترشح أي مسلسل خارج هذه القائمة!\n`;
-            } else if (serverContext.channels && serverContext.channels.length > 0) {
-                contextText += `- قنوات بث مباشر متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
-            } else {
-                contextText += `- هذا العمل المحدد غير متوفر حالياً داخل سيرفر العميل.\n`;
-                contextText += `[توجيه صارم لمنع الهلوسة]: العميل سأل عن عمل محدد غير موجود في السيرفر. استخدم معلوماتك أو بحث الويب (Google Search) لتقديم نبذة حقيقية وموجزة جداً وصحيحة عنه (سنة الإنتاج، القصة المختصرة)، وأبلغه بصراحة ولباقة أنه غير متوفر حالياً في السيرفر. يمنع تماماً ترشيح أي أفلام أخرى عشوائية أو الادعاء بأنه موجود!\n`;
-            }
-        }
-
-        const promptWithContext = `${contextText}\nسؤال العميل: ${userMessage}`;
-
-        // مكافحة الهلوسة: نمنع أداة بحث جوجل تماماً عندما يكون لدينا قائمة مطابقة مؤكدة من سيرفر
-        // العميل نفسه (أفلام أو مسلسلات فعلية)، حتى لا يمزج النموذج معلومات من الإنترنت مع قائمة
-        // يُفترض أن يلتزم بها حرفياً 100%. نُبقي البحث مفعّلاً فقط للرياضة أو حين لا توجد قائمة
-        // محلية أصلاً (كالسؤال عن عمل غير متوفر أو قنوات عامة)، حيث يكون البحث الخارجي مطلوباً فعلاً.
-        const hasStrictCatalogMatch = !serverContext.isSports &&
-            ((serverContext.movies && serverContext.movies.length > 0) ||
-             (serverContext.series && serverContext.series.length > 0));
-
-        const payload = {
-            model: configuredModel,
-            systemInstruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            contents: [
-                ...conversationHistory.slice(-6),
-                { role: "user", parts: [{ text: promptWithContext }] }
-            ],
-            generationConfig: {
-                temperature: 0.9,
-                maxOutputTokens: 650
-            }
-        };
-
-        if (!hasStrictCatalogMatch) {
-            payload.tools = [{ googleSearch: {} }];
-        }
-
-        try {
-            return await callAiWithTimeout(payload);
-        } catch (err) {
-            const msg = (err && err.message) || 'فشل الاتصال بنموذج الذكاء الاصطناعي';
-            throw new Error(msg);
-        }
-    }
-
-    async function requestGeminiAiAudio(base64Audio, mimeType, serverContext) {
-        const configuredModel = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.model) || "gemini-2.5-flash";
-        const systemPrompt = (window.ALMEZ0_AI_CONFIG && window.ALMEZ0_AI_CONFIG.systemInstruction) || "";
-
-        let contextText = '';
-        if (serverContext.isSports) {
-            contextText += `[سياق رياضي ومباريات اليوم]:\n`;
-            if (serverContext.channels && serverContext.channels.length > 0) {
-                contextText += `- قنوات رياضية متوفرة في سيرفر العميل: ${serverContext.channels.map(c => `"${c.baseName}"`).join('، ')}\n`;
-            }
-            contextText += `[توجيه حاسم لمباريات اليوم والرياضة]: إذا كان صوت العميل عن مباريات كرة قدم أو رياضة، اذكر تفاصيل المباراة المقامة اليوم بدقة: التوقيت (ليبيا/مصر GMT+2 ومكة GMT+3) والقناة الناقلة المحددة لهذه المباراة خصيصاً. يمنع منعاً باتاً ذكر أي أفلام أو مسلسلات!\n`;
-        } else {
-            contextText += `[سياق محتويات سيرفر العميل الحالي]:\n`;
-            if (serverContext.movies && serverContext.movies.length > 0) {
-                contextText += `- أفلام متوفرة: ${serverContext.movies.map(m => `"${m.name}" (ID: ${m.stream_id})`).join('، ')}\n`;
-            }
-            if (serverContext.series && serverContext.series.length > 0) {
-                contextText += `- مسلسلات متوفرة: ${serverContext.series.map(s => `"${s.name}" (ID: ${s.series_id})`).join('، ')}\n`;
-            }
-            if (serverContext.channels && serverContext.channels.length > 0) {
-                contextText += `- قنوات بث مباشر: ${serverContext.channels.map(c => `"${c.baseName}" (جودات: ${c.qualities.map(q => q.quality).join('/')})`).join('، ')}\n`;
-            }
-            if (!serverContext.movies.length && !serverContext.series.length && !serverContext.channels.length) {
-                contextText += `- هذا العمل غير متوفر حالياً داخل سيرفر العميل. استخدم بحث الويب لإعطائه نبذة حقيقية مختصرة ووضّح له بلباقة عدم توفره بالسيرفر.\n`;
-            }
-        }
-
-        const audioPrompt = `استمع إلى هذا التسجيل الصوتي للعميل، وافهم سؤاله (سواء باللهجة الليبية أو العربية الفصحى أو أي لهجة عربية) وأجب عليه بدقة وود وفق إرشادات النظام، مع الاستفادة من سياق السيرفر إذا كان سؤاله يتعلق بفيلم أو مسلسل أو مباراة أو قناة:\n${contextText}`;
-
-        const payload = {
-            model: configuredModel,
-            systemInstruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            contents: [
-                ...conversationHistory.slice(-4),
-                {
-                    role: "user",
-                    parts: [
-                        { text: audioPrompt },
-                        {
-                            inlineData: {
-                                mimeType: mimeType || 'audio/webm',
-                                data: base64Audio
-                            }
-                        }
-                    ]
-                }
-            ],
-            generationConfig: {
-                temperature: 0.9,
-                maxOutputTokens: 650
-            }
-        };
-
-        // نفس منطق مكافحة الهلوسة في المسار النصي: لا بحث جوجل عند وجود مطابقة مؤكدة من كتالوج السيرفر
-        const hasStrictCatalogMatch = !serverContext.isSports &&
-            ((serverContext.movies && serverContext.movies.length > 0) ||
-             (serverContext.series && serverContext.series.length > 0));
-        if (!hasStrictCatalogMatch) {
-            payload.tools = [{ googleSearch: {} }];
-        }
-
-        try {
-            return await callAiWithTimeout(payload);
-        } catch (err) {
-            const msg = (err && err.message) || 'فشل معالجة المقطع الصوتي';
-            throw new Error(msg);
-        }
     }
 
     // =========================================================================
@@ -969,8 +915,7 @@
             ? `<div class="ai-msg-avatar user"><i class="fas fa-user"></i></div>`
             : `<div class="ai-msg-avatar"><i class="fas fa-sparkles"></i></div>`;
 
-        // تحويل أسطر النص إلى <br>
-        const formattedText = text.replace(/\n/g, '<br>');
+        const formattedText = isUser ? escHtml(text).replace(/\n/g, '<br>') : renderRichText(text);
 
         msgDiv.innerHTML = `
             ${avatarHtml}
@@ -990,138 +935,116 @@
     }
 
     // =========================================================================
-    // 5. توليد كروت التشغيل التفاعلية (Movies, Series, Channel Qualities)
+    // 5. كروت التشغيل التفاعلية (مبنية من وسوم الرد فقط)
     // =========================================================================
-    function buildInteractiveCardsHtml(serverContext) {
+    // كل قيمة من السيرفر تُهرَّب: أسماء الأعمال تأتي من لوحة Xtream وقد تحتوي أي رموز
+    function jsArg(v) {
+        return escHtml(String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+    }
+
+    function buildInteractiveCardsHtml(ctx) {
         let cards = '';
-
-        // كروت الأفلام المطابقة
-        if (serverContext.movies && serverContext.movies.length > 0) {
-            serverContext.movies.forEach(m => {
-                const cover = m.stream_icon || 'photo/logo.ico';
-                const name = (m.name || '').replace(/'/g, "\\'");
-                const ext = m.container_extension || 'mp4';
-                cards += `
-                    <div class="ai-card-item movie">
-                        <img src="${cover}" class="ai-card-poster" onerror="this.src='photo/logo.ico'" style="width:48px;height:68px;min-width:48px;max-width:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">
-                        <div class="ai-card-info">
-                            <div class="ai-card-name" title="${name}">${m.name}</div>
-                            <span class="ai-card-badge">فيلم متوفر</span>
-                        </div>
-                        <button class="ai-card-btn-play" onclick="window.AlMeZ0AI.playMovie('${m.stream_id}', '${name}', '${cover}', '${ext}')">
-                            <i class="fas fa-play"></i> تشغيل الآن
-                        </button>
+        (ctx.movies || []).forEach(m => {
+            const cover = m.stream_icon || 'photo/logo.ico';
+            const ext = m.container_extension || 'mp4';
+            cards += `
+                <div class="ai-card-item movie">
+                    <img src="${escHtml(cover)}" class="ai-card-poster" onerror="this.src='photo/logo.ico'" style="width:48px;height:68px;min-width:48px;max-width:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">
+                    <div class="ai-card-info">
+                        <div class="ai-card-name" title="${escHtml(m.name)}">${escHtml(m.name)}</div>
+                        <span class="ai-card-badge">فيلم متوفر</span>
                     </div>
-                `;
-            });
-        }
-
-        // كروت المسلسلات المطابقة
-        if (serverContext.series && serverContext.series.length > 0) {
-            serverContext.series.forEach(s => {
-                const cover = s.cover || s.stream_icon || 'photo/logo.ico';
-                const name = (s.name || '').replace(/'/g, "\\'");
-                cards += `
-                    <div class="ai-card-item series">
-                        <img src="${cover}" class="ai-card-poster" onerror="this.src='photo/logo.ico'" style="width:48px;height:68px;min-width:48px;max-width:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">
-                        <div class="ai-card-info">
-                            <div class="ai-card-name" title="${name}">${s.name}</div>
-                            <span class="ai-card-badge">مسلسل متوفر</span>
-                        </div>
-                        <button class="ai-card-btn-play" onclick="window.AlMeZ0AI.playSeries('${s.series_id}', '${name}', '${cover}')">
-                            <i class="fas fa-list"></i> عرض الحلقات
-                        </button>
+                    <button class="ai-card-btn-play" onclick="window.AlMeZ0AI.playMovie('${jsArg(m.stream_id)}', '${jsArg(m.name)}', '${jsArg(cover)}', '${jsArg(ext)}')">
+                        <i class="fas fa-play"></i> تشغيل الآن
+                    </button>
+                </div>`;
+        });
+        (ctx.series || []).forEach(s => {
+            const cover = s.cover || s.stream_icon || 'photo/logo.ico';
+            cards += `
+                <div class="ai-card-item series">
+                    <img src="${escHtml(cover)}" class="ai-card-poster" onerror="this.src='photo/logo.ico'" style="width:48px;height:68px;min-width:48px;max-width:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">
+                    <div class="ai-card-info">
+                        <div class="ai-card-name" title="${escHtml(s.name)}">${escHtml(s.name)}</div>
+                        <span class="ai-card-badge">مسلسل متوفر</span>
                     </div>
-                `;
-            });
-        }
-
-        // قنوات البث المباشر مع أزرار الجودات (أيقونات مصغرة وأنيقة جداً)
-        if (serverContext.channels && serverContext.channels.length > 0) {
-            serverContext.channels.forEach(ch => {
-                cards += `
-                    <div class="ai-channel-block">
-                        <div class="ai-channel-header">
-                            <img src="${ch.icon}" class="ai-channel-icon" onerror="this.src='photo/logo.ico'" style="width:40px;height:40px;min-width:40px;max-width:40px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,0.06);padding:3px;flex-shrink:0;">
-                            <span class="ai-channel-name">${ch.baseName}</span>
-                        </div>
-                        <div class="ai-qualities-row">
-                            <span class="ai-q-title">اختر الجودة للتشغيل:</span>
-                            <div class="ai-q-btns">
-                                ${ch.qualities.map(q => `
-                                    <button class="ai-btn-quality" onclick="window.AlMeZ0AI.playChannel('${q.id}', '${q.name.replace(/'/g, "\\'")}', '${ch.icon}')">
-                                        ${q.quality}
-                                    </button>
-                                `).join('')}
-                            </div>
+                    <button class="ai-card-btn-play" onclick="window.AlMeZ0AI.playSeries('${jsArg(s.series_id)}', '${jsArg(s.name)}', '${jsArg(cover)}')">
+                        <i class="fas fa-list"></i> عرض الحلقات
+                    </button>
+                </div>`;
+        });
+        (ctx.channels || []).forEach(ch => {
+            cards += `
+                <div class="ai-channel-block">
+                    <div class="ai-channel-header">
+                        <img src="${escHtml(ch.icon)}" class="ai-channel-icon" onerror="this.src='photo/logo.ico'" style="width:40px;height:40px;min-width:40px;max-width:40px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,0.06);padding:3px;flex-shrink:0;">
+                        <span class="ai-channel-name">${escHtml(ch.baseName)}</span>
+                    </div>
+                    <div class="ai-qualities-row">
+                        <span class="ai-q-title">اختر الجودة للتشغيل:</span>
+                        <div class="ai-q-btns">
+                            ${ch.qualities.map(q => `
+                                <button class="ai-btn-quality" onclick="window.AlMeZ0AI.playChannel('${jsArg(q.id)}', '${jsArg(q.name)}', '${jsArg(ch.icon)}')">${escHtml(q.quality)}</button>
+                            `).join('')}
                         </div>
                     </div>
-                `;
-            });
-        }
-
+                </div>`;
+        });
         return cards;
     }
 
     // =========================================================================
-    // 6. معالجة إرسال الرسالة وجلب الرد
+    // 6. إرسال الرسالة وجلب الرد
     // =========================================================================
-    async function handleSendMessage(msgText) {
-        if (!msgText || !msgText.trim()) return;
-        const text = msgText.trim();
+    let busy = false;
 
-        const inputEl = document.getElementById('aiChatInput');
-        if (inputEl) inputEl.value = '';
-
-        // 1. إظهار رسالة العميل
-        appendMessage('user', text, '', true);
-        conversationHistory.push({ role: "user", parts: [{ text }] });
-
-        // 2. إظهار مؤشر الكتابة
-        showAiStatus('جاري البحث والتحليل ⚡...');
-        const typingIndicatorHtml = `
+    function showTyping(statusText) {
+        showAiStatus(statusText);
+        const container = document.getElementById('aiChatMessages');
+        if (!container || document.getElementById('aiTypingIndicator')) return;
+        container.insertAdjacentHTML('beforeend', `
             <div class="ai-message ai-bot-message ai-typing-msg" id="aiTypingIndicator">
                 <div class="ai-msg-avatar"><i class="fas fa-sparkles"></i></div>
-                <div class="ai-msg-content">
-                    <div class="ai-typing-dots">
-                        <span></span><span></span><span></span>
-                    </div>
-                </div>
-            </div>
-        `;
-        const container = document.getElementById('aiChatMessages');
-        if (container) {
-            container.insertAdjacentHTML('beforeend', typingIndicatorHtml);
-            container.scrollTop = container.scrollHeight;
-        }
+                <div class="ai-msg-content"><div class="ai-typing-dots"><span></span><span></span><span></span></div></div>
+            </div>`);
+        container.scrollTop = container.scrollHeight;
+    }
 
+    function hideTyping() {
+        const el = document.getElementById('aiTypingIndicator');
+        if (el) el.remove();
+    }
+
+    async function answerQuestion(text) {
+        showTyping('جاري البحث في سيرفرك وتحليل طلبك ⚡...');
         try {
-            // 3. فحص سيرفر العميل الحالي لحظياً
-            const serverContext = await searchActiveClientServer(text);
-
-            // 4. استدعاء نموذج الذكاء الاصطناعي مع بحث الويب
-            const aiReply = await requestGeminiAi(text, serverContext);
-
-            // إزالة مؤشر الكتابة
-            const typingEl = document.getElementById('aiTypingIndicator');
-            if (typingEl) typingEl.remove();
-
-            // 5. تجهيز الكروت التفاعلية للتشغيل — مقتصرة على الأعمال التي ذكرها المساعد فعلاً
-            const matchedContext = filterContextToMentioned(serverContext, aiReply);
-            const actionCardsHtml = buildInteractiveCardsHtml(matchedContext);
-
-            // 6. إظهار رد الذكاء الاصطناعي مع الكروت وحفظه
-            appendMessage('model', aiReply, actionCardsHtml, true);
-            conversationHistory.push({ role: "model", parts: [{ text: aiReply }] });
-
+            const reply = await askAssistant(text);
+            hideTyping();
+            const extras = buildInteractiveCardsHtml(reply.cards) + sourcesHtml(reply.sources);
+            appendMessage('model', reply.text, extras, true);
+            // السجل يحفظ السؤال والرد معاً بعد النجاح فقط (مع الوسوم ليعرف النموذج ما اقترحه)
+            conversationHistory.push({ role: 'user', text }, { role: 'model', text: reply.raw });
+            if (conversationHistory.length > 12) conversationHistory = conversationHistory.slice(-12);
             showAiStatus('جاهز لمساعدتك ✨');
         } catch (err) {
             console.error('[AlMeZ0 AI] Error handling message:', err);
-            const typingEl = document.getElementById('aiTypingIndicator');
-            if (typingEl) typingEl.remove();
-
-            appendMessage('model', toFriendlyAiError(err), '', true);
+            hideTyping();
+            appendMessage('model', toFriendlyAiError(err), '', false);
             showAiStatus('جاهز لمساعدتك ✨');
+        }
+    }
+
+    async function handleSendMessage(msgText) {
+        if (!msgText || !msgText.trim() || busy) return;
+        const text = msgText.trim().slice(0, 1500);
+        const inputEl = document.getElementById('aiChatInput');
+        if (inputEl) inputEl.value = '';
+        busy = true;
+        try {
+            appendMessage('user', text, '', true);
+            await answerQuestion(text);
+        } finally {
+            busy = false;
         }
     }
 
@@ -1132,70 +1055,34 @@
         }
     }
 
+    // الرسالة الصوتية: تُحوَّل لنص أولاً في السيرفر (يظهر للعميل ما فهمه المساعد)، ثم تُعامل كسؤال مكتوب
     async function handleSendAudioMessage(base64Data, mimeType) {
-        if (!base64Data) return;
-
-        // 1. إظهار رسالة العميل كرسالة صوتية
-        appendMessage('user', '🎙️ رسالة صوتية مسجلة...', '', true);
-
-        // 2. إظهار مؤشر التحليل
-        showAiStatus('جاري الاستماع للصوت وتحليله ⚡...');
-        const typingIndicatorHtml = `
-            <div class="ai-message ai-bot-message ai-typing-msg" id="aiTypingIndicator">
-                <div class="ai-msg-avatar"><i class="fas fa-sparkles"></i></div>
-                <div class="ai-msg-content">
-                    <div class="ai-typing-dots">
-                        <span></span><span></span><span></span>
-                    </div>
-                </div>
-            </div>
-        `;
-        const container = document.getElementById('aiChatMessages');
-        if (container) {
-            container.insertAdjacentHTML('beforeend', typingIndicatorHtml);
-            container.scrollTop = container.scrollHeight;
-        }
-
+        if (!base64Data || busy) return;
+        busy = true;
         try {
-            // إصلاح: كان يُجرى بحث في السيرفر بنص فارغ ('') قبل معرفة محتوى الرسالة الصوتية أصلاً،
-            // فينتج سياق فارغ بلا معنى يُرسل للنموذج (سبب رئيسي لردود غير منطقية على الصوت).
-            // الآن: نرسل الصوت أولاً بسياق فارغ صراحةً، ثم نبني كروت التشغيل من نص الرد نفسه.
-            const emptyContext = { isSports: false, movies: [], series: [], channels: [] };
-
-            // إرسال الصوت للنموذج
-            const aiReply = await requestGeminiAiAudio(base64Data, mimeType, emptyContext);
-
-            // إزالة مؤشر التحليل
-            const typingEl = document.getElementById('aiTypingIndicator');
-            if (typingEl) typingEl.remove();
-
-            // البحث في سيرفر العميل بناءً على ما فهمه المساعد فعلياً من الصوت
-            let serverContext = emptyContext;
+            showTyping('جاري الاستماع للرسالة الصوتية 🎙️...');
+            let text = '';
             try {
-                serverContext = await searchActiveClientServer(aiReply);
-            } catch (e) { }
-
-            // إذا كان الرد عن الرياضة والمباريات، لا نعرض كروت أفلام
-            if (isSportsQuery(aiReply)) {
-                serverContext.movies = [];
-                serverContext.series = [];
+                const data = await callAi({ mode: 'transcribe', audio: base64Data, mimeType: mimeType || 'audio/webm' }, 45000);
+                text = String((data && data.text) || '').trim();
+            } catch (err) {
+                hideTyping();
+                console.error('[AlMeZ0 AI] transcribe error:', err);
+                appendMessage('model', toFriendlyAiError(err), '', false);
+                showAiStatus('جاهز لمساعدتك ✨');
+                return;
             }
-
-            // تجهيز كروت التشغيل وعرض الرد — مقتصرة على ما ذكره المساعد فعلاً في رده
-            const matchedContext = filterContextToMentioned(serverContext, aiReply);
-            const actionCardsHtml = buildInteractiveCardsHtml(matchedContext);
-            appendMessage('model', aiReply, actionCardsHtml, true);
-            conversationHistory.push({ role: "model", parts: [{ text: aiReply }] });
-
-            showAiStatus('جاهز لمساعدتك ✨');
-        } catch (err) {
-            console.error('[AlMeZ0 AI] Error handling audio message:', err);
-            const typingEl = document.getElementById('aiTypingIndicator');
-            if (typingEl) typingEl.remove();
-
-            let errMsg = err.message || 'يرجى المحاولة مجدداً';
-            appendMessage('model', toFriendlyAiError(err), '', true);
-            showAiStatus('جاهز لمساعدتك ✨');
+            if (!text) {
+                hideTyping();
+                appendMessage('model', 'لم أسمع كلاماً واضحاً في التسجيل 🎙️ حاول مرة أخرى وتكلم بالقرب من الميكروفون.', '', false);
+                showAiStatus('جاهز لمساعدتك ✨');
+                return;
+            }
+            hideTyping();
+            appendMessage('user', '🎙️ ' + text, '', true);
+            await answerQuestion(text.slice(0, 1500));
+        } finally {
+            busy = false;
         }
     }
 

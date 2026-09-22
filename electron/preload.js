@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startUpdateDownload: (downloadUrl) => ipcRenderer.send('start-update-download', downloadUrl),
     pauseUpdateDownload: () => ipcRenderer.send('pause-update-download'),
     resumeUpdateDownload: (downloadUrl) => ipcRenderer.send('resume-update-download', downloadUrl),
+    cancelUpdateDownload: () => ipcRenderer.send('cancel-update-download'),
     onUpdateProgress: (callback) => {
         ipcRenderer.removeAllListeners('update-download-progress');
         ipcRenderer.on('update-download-progress', (event, data) => callback(data));
@@ -30,6 +31,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateError: (callback) => {
         ipcRenderer.removeAllListeners('update-download-error');
         ipcRenderer.on('update-download-error', (event, data) => callback(data));
+    },
+    // تنزيل الأفلام والحلقات (electron/downloads.js) — يجب أن تطابق ipcMain.handle هناك
+    downloads: {
+        list: () => ipcRenderer.invoke('downloads-list'),
+        enqueue: (req) => ipcRenderer.invoke('downloads-enqueue', req),
+        pause: (id) => ipcRenderer.invoke('downloads-pause', id),
+        resume: (id) => ipcRenderer.invoke('downloads-resume', id),
+        remove: (id) => ipcRenderer.invoke('downloads-remove', id),
+        setPlaybackActive: (active) => ipcRenderer.invoke('downloads-playback', !!active),
+        chooseFolder: () => ipcRenderer.invoke('downloads-choose-folder'),
+        openFolder: () => ipcRenderer.invoke('downloads-open-folder'),
+        showFile: (id) => ipcRenderer.invoke('downloads-show-file', id),
+        onChanged: (callback) => {
+            ipcRenderer.removeAllListeners('downloads-changed');
+            ipcRenderer.on('downloads-changed', (event, data) => callback(data));
+        }
     }
 });
 

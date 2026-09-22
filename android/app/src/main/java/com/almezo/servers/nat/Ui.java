@@ -346,4 +346,28 @@ public final class Ui {
     public static int logoPlaceholder() {
         return R.drawable.almezo_logo;
     }
+
+    /** نافذة تأكيد بتصميم المشغل: عنوان ورسالة وزر تنفيذ أحمر وزر تراجع. */
+    public static void confirm(android.app.Activity a, String title, String message, String yesText, Runnable onYes) {
+        NatDialog dialog = new NatDialog(a);
+        dialog.setContentView(R.layout.nat_dialog_confirm);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        widenDialogCard(dialog, R.id.confirm_card, 600);
+        ((android.widget.TextView) dialog.findViewById(R.id.confirm_title)).setText(title);
+        ((android.widget.TextView) dialog.findViewById(R.id.confirm_message)).setText(message);
+        ((android.widget.TextView) dialog.findViewById(R.id.confirm_btn_yes_text)).setText(yesText);
+        View yes = dialog.findViewById(R.id.confirm_btn_yes);
+        View no = dialog.findViewById(R.id.confirm_btn_no);
+        BaseActivity.applyFocusScale(yes, 1.08f);
+        BaseActivity.applyFocusScale(no, 1.08f);
+        yes.setOnClickListener(v -> {
+            dialog.dismiss();
+            onYes.run();
+        });
+        no.setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
+        no.requestFocus();
+    }
 }

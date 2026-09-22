@@ -2,6 +2,21 @@
 // ???? ???? ???????? ???????? (Staff Sales Dashboard)
 // =============================================
 
+/** نسخة من بيانات عملية للعرض: النصوص مُهرَّبة حتى لا يُنفَّذ HTML مكتوب داخلها. */
+function escRecordForHtml(d) {
+    if (!d || typeof d !== 'object') return d;
+    const esc = (v) => (typeof window.escapeHtml === 'function') ? window.escapeHtml(v)
+        : String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const out = {};
+    Object.keys(d).forEach(function (k) {
+        const v = d[k];
+        if (typeof v === 'string') out[k] = esc(v);
+        else if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.toDate !== 'function') out[k] = escRecordForHtml(v);
+        else out[k] = v;
+    });
+    return out;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const staffMainContent = document.getElementById('staffMainContent');
 
@@ -300,9 +315,13 @@ document.addEventListener('DOMContentLoaded', () => {
             let cashSales = 0, cashWithdrawals = 0;
             isIbrahim = currentStaffName.includes('ابراهيم');
 
+            // ما قبل آخر إقفال للحساب داخل الأرصدة الأساسية (MizoLedger)
+            const countsInBalance = (t) => !window.MizoLedger || window.MizoLedger.counts(t);
+
             if (window.allTransactionsDocs) {
                 window.allTransactionsDocs.forEach(tDoc => {
                     const tData = tDoc.data();
+                    if (!countsInBalance(tData)) return;
 
                     if (tData.type === 'sale') {
                         const p = parseFloat(tData.price) || 0;
@@ -380,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isIbrahim && window.allTransactionsDocs) {
                 window.allTransactionsDocs.forEach(tDoc => {
                     const tData = tDoc.data();
+                    if (!countsInBalance(tData)) return;
                     if (tData.type === 'sale') {
                         const p = parseFloat(tData.price) || 0;
                         const m = (tData.method || '').trim();
@@ -529,14 +549,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.rolloverUnpaidWeeklyProfit(uid);
                 }
 
-                // الاستماع لجميع العمليات لحساب الأرصدة بدقة (كما تفعل لوحة المدير)
-                if (currentGivenDocsUnsubscribe) currentGivenDocsUnsubscribe();
-                currentGivenDocsUnsubscribe = db.collection('transactions').onSnapshot(snapshot => {
-                    window.allTransactionsDocs = snapshot.docs;
-                    processBalances();
-                }, err => {
-                    console.error("Error listening to all balances:", err);
-                });
+                // العمليات لحساب الأرصدة: بعد آخر إقفال للحساب فقط (وأسبوع الربح واليوم)، وكلها إن لم
+                // يتم إقفال بعد. كان يُنزّل كل العمليات منذ أول يوم مع كل فتح لصفحة المندوب.
+                const subscribeStaffTransactions = () => {
+                    if (currentGivenDocsUnsubscribe) currentGivenDocsUnsubscribe();
+                    const now = new Date();
+                    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const weekStart = (typeof window.getLibyaWeekStart === 'function') ? window.getLibyaWeekStart() : null;
+                    const from = window.MizoLedger ? window.MizoLedger.windowStart([dayStart, weekStart]) : null;
+                    let q = db.collection('transactions');
+                    if (from) q = q.where('timestamp', '>=', firebase.firestore.Timestamp.fromDate(from));
+                    currentGivenDocsUnsubscribe = q.onSnapshot(snapshot => {
+                        window.allTransactionsDocs = snapshot.docs;
+                        processBalances();
+                    }, err => {
+                        console.error("Error listening to all balances:", err);
+                    });
+                };
+                if (!window._staffLedgerSubscribed && window.MizoLedger) {
+                    window._staffLedgerSubscribed = true;
+                    window.MizoLedger.subscribe(subscribeStaffTransactions);
+                } else {
+                    subscribeStaffTransactions();
+                }
 
                 processBalances();
             }
@@ -683,23 +718,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (data.type === 'sale') {
-                let methodDisplay = data.method || '-';
-                if ((data.method === 'ليبيانا' || data.method === 'المدار') && data.creditRecipientName) {
-                    const rName = data.creditRecipientName.split(' ')[0];
+            // نسخة مُهرَّبة للعرض فقط (الأرباح حُسبت أعلاه من البيانات الأصلية)
+            const vw = escRecordForHtml(data);
+            if (vw.type === 'sale') {
+                let methodDisplay = vw.method || '-';
+                if ((vw.method === 'ليبيانا' || vw.method === 'المدار') && vw.creditRecipientName) {
+                    const rName = vw.creditRecipientName.split(' ')[0];
                     methodDisplay += ` <br><span style="font-size:0.75rem; color:#888;">(الرصيد لـ: ${rName})</span>`;
-                } else if (data.method === 'دفع مشترك (ليبيانا + مدار)' && data.splitDetails) {
-                    const lName = data.splitDetails.libyanaRecipientName ? data.splitDetails.libyanaRecipientName.split(' ')[0] : '';
-                    const aName = data.splitDetails.almadarRecipientName ? data.splitDetails.almadarRecipientName.split(' ')[0] : '';
+                } else if (vw.method === 'دفع مشترك (ليبيانا + مدار)' && vw.splitDetails) {
+                    const lName = vw.splitDetails.libyanaRecipientName ? vw.splitDetails.libyanaRecipientName.split(' ')[0] : '';
+                    const aName = vw.splitDetails.almadarRecipientName ? vw.splitDetails.almadarRecipientName.split(' ')[0] : '';
                     methodDisplay = `<span style="font-weight:bold; color:#58a6ff;">دفع مشترك:</span><br>` +
-                        `<span style="font-size:0.75rem; color:#c084fc;">ليبيانا: ${data.splitDetails.libyanaAmount} د.ل (${lName})</span><br>` +
-                        `<span style="font-size:0.75rem; color:#81c784;">المدار: ${data.splitDetails.almadarAmount} د.ل (${aName})</span>`;
+                        `<span style="font-size:0.75rem; color:#c084fc;">ليبيانا: ${vw.splitDetails.libyanaAmount} د.ل (${lName})</span><br>` +
+                        `<span style="font-size:0.75rem; color:#81c784;">المدار: ${vw.splitDetails.almadarAmount} د.ل (${aName})</span>`;
                 }
                 let badgeText = 'مبيعة';
                 const isIbrUser = isCurrentStaffIbrahim();
-                const isDirectWithoutProduct = (data.isDirectSale || data.product === 'مبيعة مباشرة' || !data.duration);
+                const isDirectWithoutProduct = (vw.isDirectSale || vw.product === 'مبيعة مباشرة' || !vw.duration);
                 if (isIbrUser && isDirectWithoutProduct) {
-                    const m = (data.method || '').trim();
+                    const m = (vw.method || '').trim();
                     if (m === 'تحويلات مصرفية' || m.includes('مصرف')) {
                         badgeText = 'اضافة رصيد مصرفي';
                     } else if (m === 'سداد' || m.includes('سداد')) {
@@ -717,24 +754,24 @@ document.addEventListener('DOMContentLoaded', () => {
                   <tr>
                       <td style="text-align: right;">${dateStr}</td>
                       <td><span class="badge badge-sale">${badgeText}</span></td>
-                      <td>${data.product || ''} ${data.duration ? ' - ' + data.duration : ''}</td>
-                      <td>${data.price}</td>
+                      <td>${vw.product || ''} ${vw.duration ? ' - ' + vw.duration : ''}</td>
+                      <td>${vw.price}</td>
                       <td>${methodDisplay}</td>
                       <td><button class="btn-delete-trans" onclick="deleteTransaction('${doc.id}')" title="إلغاء العملية"><i class="fas fa-trash"></i></button></td>
                   </tr>
                 `;
-            } else if (data.type === 'withdrawal') {
+            } else if (vw.type === 'withdrawal') {
                 let badgeText = 'سحب رصيد';
-                const w = (data.wallet || '').trim();
+                const w = (vw.wallet || '').trim();
                 if (w === 'كاش') badgeText = 'سحب كاش';
                 else if (w === 'حساب المصرفي' || w === 'تحويلات مصرفية' || w.includes('مصرف')) badgeText = 'سحب مصرفي';
                 else if (w === 'سداد' || w.includes('سداد')) badgeText = 'سحب سداد';
                 else if (w.toUpperCase() === 'USDT' || w.toUpperCase().includes('USDT')) badgeText = 'سحب USDT';
 
-                const debtorFirst = data.debtor ? data.debtor.split(' ')[0] : '';
-                const displayReason = data.reason || (debtorFirst ? `من: ${debtorFirst}` : '-');
-                let walletDisplay = data.wallet || '-';
-                if (debtorFirst && data.reason && data.reason !== data.debtor) {
+                const debtorFirst = vw.debtor ? vw.debtor.split(' ')[0] : '';
+                const displayReason = vw.reason || (debtorFirst ? `من: ${debtorFirst}` : '-');
+                let walletDisplay = vw.wallet || '-';
+                if (debtorFirst && vw.reason && vw.reason !== vw.debtor) {
                     walletDisplay += ` <br><span style="font-size:0.75rem; color:#888;">(من: ${debtorFirst})</span>`;
                 }
                 html += `
@@ -742,30 +779,30 @@ document.addEventListener('DOMContentLoaded', () => {
                       <td style="text-align: right;">${dateStr}</td>
                       <td><span class="badge badge-withdrawal">${badgeText}</span></td>
                       <td>${displayReason}</td>
-                      <td>${data.amount}</td>
+                      <td>${vw.amount}</td>
                       <td>${walletDisplay}</td>
                       <td><button class="btn-delete-trans" onclick="deleteTransaction('${doc.id}')" title="إلغاء العملية"><i class="fas fa-trash"></i></button></td>
                   </tr>
                 `;
-            } else if (data.type === 'debt_transfer') {
-                const debtorFirst = data.debtor ? data.debtor.split(' ')[0] : '';
+            } else if (vw.type === 'debt_transfer') {
+                const debtorFirst = vw.debtor ? vw.debtor.split(' ')[0] : '';
                 const convFactor = (window.currentStaffRules && window.currentStaffRules.transfers && !isNaN(window.currentStaffRules.transfers.debtCreditFactor))
                     ? Number(window.currentStaffRules.transfers.debtCreditFactor)
                     : 0.75;
-                const rawVal = (data.originalCredit !== undefined && data.originalCredit !== null && data.originalCredit !== '')
-                    ? Number(data.originalCredit)
-                    : ((data.wallet === 'ليبيانا' || data.wallet === 'المدار') && data.amount ? Math.round(Number(data.amount) / convFactor) : Number(data.amount));
-                const transferVal = isNaN(rawVal) ? (data.originalCredit || data.amount) : (rawVal % 1 === 0 ? rawVal : rawVal.toFixed(2));
+                const rawVal = (vw.originalCredit !== undefined && vw.originalCredit !== null && vw.originalCredit !== '')
+                    ? Number(vw.originalCredit)
+                    : ((vw.wallet === 'ليبيانا' || vw.wallet === 'المدار') && vw.amount ? Math.round(Number(vw.amount) / convFactor) : Number(vw.amount));
+                const transferVal = isNaN(rawVal) ? (vw.originalCredit || vw.amount) : (rawVal % 1 === 0 ? rawVal : rawVal.toFixed(2));
                 let badgeText = 'سحب رصيد';
-                const w = (data.wallet || '').trim();
+                const w = (vw.wallet || '').trim();
                 if (w === 'كاش') badgeText = 'سحب كاش';
                 else if (w === 'حساب المصرفي' || w === 'تحويلات مصرفية' || w.includes('مصرف')) badgeText = 'سحب مصرفي';
                 else if (w === 'سداد' || w.includes('سداد')) badgeText = 'سحب سداد';
                 else if (w.toUpperCase() === 'USDT' || w.toUpperCase().includes('USDT')) badgeText = 'سحب USDT';
 
-                const displayReason = data.reason || (debtorFirst ? `من: ${debtorFirst}` : '-');
-                let walletDisplay = data.wallet || '-';
-                if (debtorFirst && data.reason && data.reason !== data.debtor) {
+                const displayReason = vw.reason || (debtorFirst ? `من: ${debtorFirst}` : '-');
+                let walletDisplay = vw.wallet || '-';
+                if (debtorFirst && vw.reason && vw.reason !== vw.debtor) {
                     walletDisplay += ` <br><span style="font-size:0.75rem; color:#888;">(من: ${debtorFirst})</span>`;
                 }
                 html += `

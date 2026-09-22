@@ -220,26 +220,13 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- الأزرار العلوية المستديرة لبطاقة الدخول (الهوم ، السيرفرات المحفوظة ، نمط الجهاز) -->
+            <!-- الأزرار العلوية المستديرة لبطاقة الدخول (السيرفرات المحفوظة ، نمط الجهاز) -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="top|end"
                 android:layout_margin="16dp"
                 android:orientation="horizontal">
-
-                <ImageButton
-                    android:id="@+id/auth_btn_home"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="10dp"
-                    android:background="@drawable/nat_nav_btn_home"
-                    android:contentDescription="الرجوع للرئيسية"
-                    android:focusable="true"
-                    android:padding="12dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/fa_house"
-                    app:tint="@color/nat_nav_home" />
 
                 <FrameLayout
                     android:layout_width="wrap_content"
@@ -285,7 +272,7 @@
                     app:tint="#FF8B5CF6" />
             </LinearLayout>
 
-            <!-- زر الرجوع الدائري (.btn-home-return) أعلى يمين البطاقة -->
+            <!-- زر أعلى يمين البطاقة: هوم في خطوة الكود، ورجوع لخطوة الكود في خطوة الدخول (AuthActivity) -->
             <ImageButton
                 android:id="@+id/auth_btn_back"
                 android:layout_width="66dp"

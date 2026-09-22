@@ -618,7 +618,8 @@
             var currentEl = document.activeElement && modalEl.contains(document.activeElement) ? document.activeElement : null;
             var nextEl = null;
 
-            var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA');
+            // خانة مقفلة (وصلها الريموت ولم يُضغط عليها بعد): الأسهم تنقل منها لا داخلها
+            var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA') && !currentEl.hasAttribute('data-kbd-locked');
             if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
                 return;
             }
@@ -763,7 +764,8 @@
 
             var currentEl = document.activeElement && siteFocusables.includes(document.activeElement) ? document.activeElement : null;
 
-            var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA');
+            // خانة مقفلة (وصلها الريموت ولم يُضغط عليها بعد): الأسهم تنقل منها لا داخلها
+            var isInput = currentEl && (currentEl.tagName === 'INPUT' || currentEl.tagName === 'TEXTAREA') && !currentEl.hasAttribute('data-kbd-locked');
             if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.keyCode === 37 || e.keyCode === 39)) {
                 return;
             }
@@ -1231,7 +1233,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.2.6';
+    const CURRENT_APP_VERSION = '1.2.7';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
@@ -1398,6 +1400,12 @@
                 notes: updateNotes || versionData.notes
             });
 
+            // لا نقاطع فيلماً أو قناة تُعرض الآن: نعيد الفحص بعد دقيقة
+            if (isMediaPlaying()) {
+                setTimeout(checkInAppUpdate, 60 * 1000);
+                return;
+            }
+
             // عرض نافذة التحديث في منتصف الشاشة
             showInAppUpdateBanner(activeVersionInfo, isMandatory);
         } catch (err) {
@@ -1415,6 +1423,18 @@
                 }
             });
         } catch (e) { }
+    }
+
+    /** هل يُعرض فيديو الآن (فيلم أو حلقة أو قناة)؟ */
+    function isMediaPlaying() {
+        try {
+            const vids = document.querySelectorAll('video');
+            for (let i = 0; i < vids.length; i++) {
+                const v = vids[i];
+                if (!v.paused && !v.ended && v.readyState > 2) return true;
+            }
+        } catch (e) { }
+        return false;
     }
 
     function showInAppUpdateBanner(info, mandatoryFlag = false) {
@@ -1464,6 +1484,11 @@
                     <h2 class="inapp-center-title">${titleText}</h2>
                     <p class="inapp-center-desc">${descText}</p>
                 </div>
+                ${info.notes ? `
+                <div class="inapp-center-notes">
+                    <div class="inapp-notes-title"><i class="fas fa-list-check"></i> ما الجديد في هذا الإصدار</div>
+                    <p class="inapp-notes-text">${String(info.notes).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])).replace(/\n/g, '<br>')}</p>
+                </div>` : ''}
                 <div class="inapp-center-action-area">
                     <button type="button" class="inapp-btn-start-update" id="inappBtnStartUpdate">
                         <i class="fas fa-download"></i> تنزيل وتثبيت التحديث الآن
@@ -1489,12 +1514,19 @@
                                 <button type="button" class="inapp-btn-pause-resume" id="inappBtnPauseResume" title="إيقاف مؤقت / استئناف">
                                     <i class="fas fa-pause"></i> إيقاف مؤقت
                                 </button>
+                                ${!isMandatory ? `<button type="button" class="inapp-btn-pause-resume" id="inappBtnCancelDl" title="إلغاء التنزيل" style="color:#f87171;">
+                                    <i class="fas fa-xmark"></i> إلغاء
+                                </button>` : ''}
                             </div>
                         </div>
                     </div>
 
+                    <button type="button" class="inapp-btn-start-update hidden" id="inappBtnInstallNow" style="margin-top: 12px;">
+                        <i class="fas fa-box-open"></i> تثبيت الآن
+                    </button>
+
                     <div class="inapp-error-box hidden" id="inappErrorBox">
-                        <p class="inapp-error-msg"><i class="fas fa-exclamation-triangle"></i> تعذر إكمال التنزيل التلقائي، يرجى التأكد من اتصال الإنترنت.</p>
+                        <p class="inapp-error-msg" id="inappErrorMsg"><i class="fas fa-exclamation-triangle"></i> تعذر إكمال التنزيل التلقائي، يرجى التأكد من اتصال الإنترنت.</p>
                         <div class="inapp-error-btns">
                             <button type="button" class="inapp-btn-retry" id="inappBtnRetry"><i class="fas fa-redo-alt"></i> إعادة المحاولة</button>
                             <button type="button" class="inapp-btn-external-dl" id="inappBtnExternalDl"><i class="fas fa-external-link-alt"></i> تنزيل عبر المتصفح</button>
@@ -1559,6 +1591,9 @@
             } catch (e) { }
         });
         const btnPauseResume = overlay.querySelector('#inappBtnPauseResume');
+        const btnCancelDl = overlay.querySelector('#inappBtnCancelDl');
+        const btnInstallNow = overlay.querySelector('#inappBtnInstallNow');
+        const errorMsg = overlay.querySelector('#inappErrorMsg');
         const errorBox = overlay.querySelector('#inappErrorBox');
         const btnRetry = overlay.querySelector('#inappBtnRetry');
         const btnExternalDl = overlay.querySelector('#inappBtnExternalDl');
@@ -1656,8 +1691,13 @@
                 }
                 lastSpeedTime = now;
                 lastDownloadedBytes = downloaded;
+                let etaStr = '';
+                if (total > 0 && bytesPerSec > 0) {
+                    const sec = Math.max(0, Math.round((total - downloaded) / bytesPerSec));
+                    etaStr = sec >= 60 ? Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0') : sec + 's';
+                }
                 if (progressSpeed) {
-                    progressSpeed.innerHTML = `<i class="fas fa-arrow-down"></i> ${currentSpeedStr}`;
+                    progressSpeed.innerHTML = `<i class="fas fa-arrow-down"></i> ${currentSpeedStr}` + (etaStr ? ` · <i class="fas fa-hourglass-half"></i> ${etaStr}` : '');
                     progressSpeed.classList.remove('hidden');
                 }
             }
@@ -1694,6 +1734,7 @@
                     progressStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تنزيل التحديث داخلياً...';
                     lastSpeedTime = Date.now();
 
+                    lastDownloadedBytes = maxShownBytes;
                     if (isElectron && window.electronAPI && typeof window.electronAPI.resumeUpdateDownload === 'function') {
                         window.electronAPI.resumeUpdateDownload(downloadUrl);
                     } else if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.resumeUpdateDownload === 'function') {
@@ -1703,20 +1744,93 @@
             });
         }
 
-        function startDownload() {
+        /** أزرار "لاحقاً" و"إغلاق" تختفي أثناء التنزيل: كان إخفاء الصندوق يترك التنزيل يعمل في
+         *  الخفاء ثم يُغلق برنامج الكمبيوتر فجأة للتثبيت، ربما وسط فيلم. الإلغاء زر صريح بدلها. */
+        function setDownloadingUi(on) {
+            if (btnLater) btnLater.classList.toggle('hidden', on);
+            if (btnClose) btnClose.classList.toggle('hidden', on);
+            btnStart.classList.toggle('hidden', on);
+            progressBox.classList.toggle('hidden', !on);
+            if (on) errorBox.classList.add('hidden');
+        }
+
+        function resetPauseButton() {
+            isDownloadPaused = false;
+            if (!btnPauseResume) return;
+            btnPauseResume.innerHTML = '<i class="fas fa-pause"></i> إيقاف مؤقت';
+            btnPauseResume.style.background = 'rgba(255, 255, 255, 0.08)';
+            btnPauseResume.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            btnPauseResume.style.color = '#ffffff';
+            btnPauseResume.classList.remove('hidden');
+        }
+
+        function showError(message) {
+            isDownloadRunning = false;
+            progressBox.classList.add('hidden');
+            errorBox.classList.remove('hidden');
+            if (btnLater) btnLater.classList.remove('hidden');
+            if (btnClose) btnClose.classList.remove('hidden');
+            if (errorMsg) errorMsg.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + message;
+        }
+
+        function onDownloadDone(installText) {
+            isDownloadRunning = false;
+            setProgress(100);
+            progressStatus.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> ' + installText;
+            if (btnPauseResume) btnPauseResume.classList.add('hidden');
+            if (btnCancelDl) btnCancelDl.classList.add('hidden');
+        }
+
+        function bindNativeCallbacks() {
+            if (isElectron && window.electronAPI && typeof window.electronAPI.startUpdateDownload === 'function') {
+                window.electronAPI.onUpdateProgress((data) => {
+                    const pct = data.percent !== undefined && data.percent >= 0 ? data.percent : 0;
+                    setProgress(pct, data.downloadedBytes, data.totalBytes);
+                });
+                window.electronAPI.onUpdateComplete(() => onDownloadDone('تم اكتمال التنزيل! جاري التثبيت التلقائي...'));
+                window.electronAPI.onUpdateError((data) => {
+                    showError(data && data.install
+                        ? 'تعذر تشغيل ملف التثبيت. نزّل التحديث عبر المتصفح وثبّته يدوياً.'
+                        : 'انقطع التنزيل. اضغط "إعادة المحاولة" ليكمل من حيث توقف، أو تأكد من اتصال الإنترنت.');
+                });
+                return 'electron';
+            }
+            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.downloadAndInstallApk === 'function') {
+                window.onAndroidUpdateProgress = (data) => {
+                    const pct = data.percent !== undefined && data.percent >= 0 ? data.percent : 0;
+                    setProgress(pct, data.downloadedBytes, data.totalBytes);
+                };
+                window.onAndroidUpdateComplete = () => {
+                    onDownloadDone('تم التنزيل! جاري فتح شاشة التثبيت...');
+                    // إن أُلغيت شاشة التثبيت أو احتاج العميل للسماح بالتثبيت من الإعدادات، يعود ويضغط هنا
+                    if (btnInstallNow && typeof window.AndroidNativeBridge.installDownloadedUpdate === 'function') {
+                        btnInstallNow.classList.remove('hidden');
+                    }
+                };
+                window.onAndroidUpdateError = () => {
+                    showError('انقطع التنزيل. اضغط "إعادة المحاولة" ليكمل من حيث توقف، أو تأكد من اتصال الإنترنت.');
+                };
+                return 'android';
+            }
+            return '';
+        }
+
+        /** resume=true: إعادة المحاولة تكمل من الملف الجزئي بدل البدء من الصفر. */
+        function startDownload(resume) {
             // منع بدء تنزيلين متوازيين على نفس الملف (كل واحد بعدّاده الخاص)،
             // وهو سبب معروف لظهور تراجع مفاجئ في النسبة أثناء التحميل
             if (isDownloadRunning) return;
             isDownloadRunning = true;
 
-            resetProgressGuards();
-            btnStart.classList.add('hidden');
-            errorBox.classList.add('hidden');
-            progressBox.classList.remove('hidden');
-            setProgress(0, 0, 0);
+            if (!resume) resetProgressGuards();
+            resetPauseButton();
+            if (btnCancelDl) btnCancelDl.classList.remove('hidden');
+            if (btnInstallNow) btnInstallNow.classList.add('hidden');
+            setDownloadingUi(true);
+            if (!resume) setProgress(0, 0, 0);
             progressStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تنزيل التحديث داخلياً...';
 
-            if (typeof logActivity === 'function') {
+            if (!resume && typeof logActivity === 'function') {
                 logActivity({
                     action: 'app_inapp_update',
                     category: 'visitor',
@@ -1726,51 +1840,20 @@
                 });
             }
 
-            // 1. برمجيات الكمبيوتر (Windows Electron)
-            if (isElectron && window.electronAPI && typeof window.electronAPI.startUpdateDownload === 'function') {
-                window.electronAPI.onUpdateProgress((data) => {
-                    const pct = data.percent !== undefined && data.percent >= 0 ? data.percent : 0;
-                    setProgress(pct, data.downloadedBytes, data.totalBytes);
-                });
-
-                window.electronAPI.onUpdateComplete(() => {
-                    setProgress(100);
-                    progressStatus.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> تم اكتمال التنزيل! جاري التثبيت التلقائي...';
-                });
-
-                window.electronAPI.onUpdateError(() => {
-                    isDownloadRunning = false;
-                    progressBox.classList.add('hidden');
-                    errorBox.classList.remove('hidden');
-                });
-
-                window.electronAPI.startUpdateDownload(downloadUrl);
+            const platform = bindNativeCallbacks();
+            if (platform === 'electron') {
+                if (resume) window.electronAPI.resumeUpdateDownload(downloadUrl);
+                else window.electronAPI.startUpdateDownload(downloadUrl);
+                return;
+            }
+            if (platform === 'android') {
+                if (resume && typeof window.AndroidNativeBridge.resumeUpdateDownload === 'function') window.AndroidNativeBridge.resumeUpdateDownload();
+                else window.AndroidNativeBridge.downloadAndInstallApk(downloadUrl);
                 return;
             }
 
-            // 2. تطبيقات الأندرويد (Android Native Bridge)
-            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.downloadAndInstallApk === 'function') {
-                window.onAndroidUpdateProgress = (data) => {
-                    const pct = data.percent !== undefined && data.percent >= 0 ? data.percent : 0;
-                    setProgress(pct, data.downloadedBytes, data.totalBytes);
-                };
-
-                window.onAndroidUpdateComplete = () => {
-                    setProgress(100);
-                    progressStatus.innerHTML = '<i class="fas fa-check-circle" style="color:#22c55e;"></i> تم التنزيل! جاري فتح شاشة التثبيت...';
-                };
-
-                window.onAndroidUpdateError = () => {
-                    isDownloadRunning = false;
-                    progressBox.classList.add('hidden');
-                    errorBox.classList.remove('hidden');
-                };
-
-                window.AndroidNativeBridge.downloadAndInstallApk(downloadUrl);
-                return;
-            }
-
-            // 3. مسار احتياطي عبر المتصفح إذا لم تتوفر البيئة الأصلية
+            // مسار احتياطي عبر المتصفح إذا لم تتوفر البيئة الأصلية
+            isDownloadRunning = false;
             if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
                 window.AlMeZ0App.openExternal(downloadUrl);
             } else {
@@ -1778,8 +1861,26 @@
             }
         }
 
-        btnStart.addEventListener('click', startDownload);
-        btnRetry.addEventListener('click', startDownload);
+        function cancelDownload() {
+            if (isElectron && window.electronAPI && typeof window.electronAPI.cancelUpdateDownload === 'function') {
+                window.electronAPI.cancelUpdateDownload();
+            } else if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.cancelUpdateDownload === 'function') {
+                window.AndroidNativeBridge.cancelUpdateDownload();
+            }
+            isDownloadRunning = false;
+            resetPauseButton();
+            resetProgressGuards();
+            setDownloadingUi(false);
+        }
+
+        btnStart.addEventListener('click', () => startDownload(false));
+        btnRetry.addEventListener('click', () => startDownload(true));
+        if (btnCancelDl) btnCancelDl.addEventListener('click', cancelDownload);
+        if (btnInstallNow) btnInstallNow.addEventListener('click', () => {
+            const ok = window.AndroidNativeBridge && typeof window.AndroidNativeBridge.installDownloadedUpdate === 'function'
+                && window.AndroidNativeBridge.installDownloadedUpdate();
+            if (!ok) showError('ملف التحديث غير موجود، اضغط "إعادة المحاولة" لتنزيله.');
+        });
         btnExternalDl.addEventListener('click', () => {
             if (window.AlMeZ0App && typeof window.AlMeZ0App.openExternal === 'function') {
                 window.AlMeZ0App.openExternal(downloadUrl);

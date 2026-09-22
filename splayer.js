@@ -460,7 +460,7 @@ function playCurrentLiveNative() {
     const ext = currentStreamInfo.extension || 'm3u8';
     const streamUrl = `${host}/live/${user}/${pass}/${currentStreamInfo.id}.${ext}`;
     const isTv = document.body.classList.contains('tv-device-mode') ||
-                 (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
+        (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
 
     // إيقاف تشغيل الفيديو في متصفح الويب الداخلي مؤقتاً لتوفير موارد الرام والمعالج أثناء تشغيل مشغل ExoPlayer الأصيل
     if (window.vjsPlayer) {
@@ -1115,9 +1115,9 @@ function showToast(title, icon = 'success') {
 // عرض إشعار داخلي عائم ومضيء داخل مشغل الفيديو مباشرة للأبعاد والترجمة
 function showPlayerOsd(message, icon = 'fas fa-expand-arrows-alt', customTarget = null) {
     var target = customTarget ||
-                 document.getElementById('livePlayerWrapper') ||
-                 document.getElementById('mainPlayer') ||
-                 document.querySelector('.video-js');
+        document.getElementById('livePlayerWrapper') ||
+        document.getElementById('mainPlayer') ||
+        document.querySelector('.video-js');
 
     if (!target) {
         if (typeof showToast === 'function') showToast(message, 'info');
@@ -1158,8 +1158,8 @@ function getSavedAccounts() {
 
 function saveAccountToStorage(account) {
     let accounts = getSavedAccounts();
-    const existingIdx = accounts.findIndex(a => 
-        a.id === account.id || 
+    const existingIdx = accounts.findIndex(a =>
+        a.id === account.id ||
         (a.username && account.username && a.username.toLowerCase() === account.username.toLowerCase() && a.serverCode === account.serverCode)
     );
     if (existingIdx >= 0) {
@@ -1441,7 +1441,7 @@ function updateActiveServerBanner() {
             const sInfo = JSON.parse(localStorage.getItem('sp_server_info') || sessionStorage.getItem('sp_server_info') || '{}');
             if (sInfo.name) sName = sInfo.name;
             if (sInfo.logo) sLogo = sInfo.logo;
-        } catch(e) {}
+        } catch (e) { }
         if (state.userInfo && state.userInfo.exp_date) {
             sExp = typeof formatSubscriptionDate === 'function' ? formatSubscriptionDate(state.userInfo.exp_date) : state.userInfo.exp_date;
         }
@@ -1485,7 +1485,7 @@ async function handleServerCode() {
         const serverHostsMap = {
             "001": "http://cafott.com",
             "002": "http://nv2egy.com:80",
-            "003": "http://mar10.sbs",
+            "003": "http://mar22.sbs",
             "004": "http://pk8dkz.mvten.net",
             "005": "http://mgtv.pro",
             "006": "http://n1.new2027.xyz:80",
@@ -1705,6 +1705,36 @@ async function handleLogin() {
 }
 window.handleLogin = handleLogin;
 
+/**
+ * يغلق اتصال عناصر الفيديو بالسيرفر فوراً. dispose() وحده يزيل المشغل من الصفحة، لكن كروميوم
+ * يُبقي تنزيل عنصر الفيديو مفتوحاً حتى يُزال مصدره ويُستدعى load()، فكانت كل محاولة صيغة بديلة
+ * (mkv ثم avi ثم ts ...) تفتح اتصالاتها والسابقة ما زالت مفتوحة: 7 اتصالات بالسيرفر في ثانية
+ * واحدة عند فشل فيلم، وهذا ما يجعل لوحات Xtream تحظر الـIP.
+ */
+function mizoReleaseVideos() {
+    ['fullscreenVideoContainer', 'liveVideoContainer', 'livePlayerWrapper'].forEach(function (cid) {
+        const box = document.getElementById(cid);
+        if (!box) return;
+        box.querySelectorAll('video').forEach(function (v) {
+            try {
+                v.pause();
+                v.removeAttribute('src');
+                v.querySelectorAll('source').forEach(function (src) { src.remove(); });
+                v.load();
+            } catch (e) { }
+        });
+    });
+}
+
+/** رابط ملف فيلم أو حلقة على السيرفر، بنفس هوست playStream (يستعمله التنزيل في downloads-ui.js). */
+window.mizoStreamUrl = function (type, id, ext) {
+    const serverHostsMap = { "001": "http://cafott.com" };
+    const code = state.serverCode || sessionStorage.getItem('sp_server_code');
+    const host = (serverHostsMap[code] || localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host') || (state.hostUrls && state.hostUrls[0]) || '').replace(/\/+$/, '');
+    const folder = type === 'series' ? 'series' : 'movie';
+    return `${host}/${folder}/${encodeURIComponent(state.username)}/${encodeURIComponent(state.password)}/${id}.${ext || 'mp4'}`;
+};
+
 function playStream(id, type, extension, name, icon) {
     // توحيد المعاملات عند الاستدعاء بأي ترتيب (Normalization)
     if (id === 'live' || id === 'vod' || id === 'series') {
@@ -1715,6 +1745,9 @@ function playStream(id, type, extension, name, icon) {
         icon = name;
         extension = (type === 'live' ? 'm3u8' : 'mp4');
     }
+
+    // تنزيل يعمل؟ يُقطع اتصاله أولاً ثم يبدأ البث، فلا يلتقي اتصالان بالسيرفر (downloads-ui.js)
+    if (window.MizoDL && window.MizoDL.beforeStream(type, id, () => playStream(id, type, extension, name, icon))) return;
 
     currentStreamInfo = { id, type, extension, name, icon, mediaDetails: window.currentMediaDetails || null };
     // قائمة تشغيل القنوات: كل قنوات القسم المعروض حالياً
@@ -1770,7 +1803,7 @@ function playStream(id, type, extension, name, icon) {
     if (window.AndroidNativeBridge || (window.AlMeZ0App && window.AlMeZ0App.isAndroid)) {
         const isLive = (type === 'live');
         const isTv = document.body.classList.contains('tv-device-mode') ||
-                     (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
+            (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.isTvDevice === 'function' && window.AndroidNativeBridge.isTvDevice());
         if (window.AlMeZ0App && typeof window.AlMeZ0App.playNativeVideo === 'function') {
             const handled = window.AlMeZ0App.playNativeVideo(baseStreamUrl, name, icon, isLive, isTv);
             if (handled) return;
@@ -1822,9 +1855,17 @@ function playStream(id, type, extension, name, icon) {
         urlQueue.push(`${hostUrl}/series/${user}/${pass}/${id}`);
     }
 
+    // فيلم أو حلقة منزّلة: تُشغَّل من الجهاز بلا إنترنت وبلا اتصال بالسيرفر
+    const localFileUrl = (type !== 'live' && window.MizoDL) ? window.MizoDL.localUrl(type, id) : '';
+    if (localFileUrl) urlQueue = [localFileUrl];
+
     const preferredPlayer = localStorage.getItem('sp_preferred_player') || 'hlsjs';
 
     // تنظيف أي مشغل يعمل حالياً قبل لمس الـ DOM
+    if (window.hlsInstance) {
+        try { window.hlsInstance.stopLoad(); } catch (e) { }
+    }
+    mizoReleaseVideos();
     if (window.vjsPlayer) {
         try { window.vjsPlayer.dispose(); } catch (e) { }
         window.vjsPlayer = null;
@@ -1908,7 +1949,11 @@ function playStream(id, type, extension, name, icon) {
 
     // دالة تهيئة المشغل المختار
     function initSelectedPlayer(streamUrl) {
-        // تنظيف المشغل القديم قبل إنشاء الجديد
+        // تنظيف المشغل القديم وإغلاق اتصاله بالسيرفر قبل فتح المحاولة التالية
+        if (window.hlsInstance) {
+            try { window.hlsInstance.stopLoad(); } catch (e) { }
+        }
+        mizoReleaseVideos();
         if (window.vjsPlayer) {
             try {
                 window.vjsPlayer.dispose();
@@ -2000,9 +2045,9 @@ function playStream(id, type, extension, name, icon) {
             if (isHlsStream && typeof Hls !== 'undefined' && Hls.isSupported()) {
                 const playerEl = window.vjsPlayer.el();
                 const videoTag = (window.vjsPlayer.tech() && window.vjsPlayer.tech().el()) ||
-                                 (playerEl && playerEl.querySelector('video')) ||
-                                 document.querySelector(`#${containerSelector} video`) ||
-                                 document.getElementById(containerSelector);
+                    (playerEl && playerEl.querySelector('video')) ||
+                    document.querySelector(`#${containerSelector} video`) ||
+                    document.getElementById(containerSelector);
 
                 window.hlsInstance = new Hls({
                     enableWorker: true,
@@ -2066,7 +2111,12 @@ function playStream(id, type, extension, name, icon) {
                 // التعيين المباشر على عنصر video لتسريع وتحفيز البث التدريجي فورا
                 const playerEl = window.vjsPlayer.el();
                 const videoTag = (window.vjsPlayer.tech() && window.vjsPlayer.tech().el()) || (playerEl && playerEl.querySelector('video'));
-                if (videoTag && videoTag.src !== playUrl) {
+                // المقارنة بالرابط الكامل: videoTag.src يُرجع الرابط مُطبَّعاً (مسار كامل وترميز)، فكانت
+                // المقارنة بالنص الخام تفشل دائماً ويُعاد تعيين المصدر وتحميله، فيفتح كل تشغيل
+                // اتصالين بالسيرفر لنفس الملف في اللحظة نفسها
+                let absPlayUrl = playUrl;
+                try { absPlayUrl = new URL(playUrl, window.location.href).href; } catch (e) { }
+                if (videoTag && videoTag.src !== absPlayUrl && videoTag.currentSrc !== absPlayUrl) {
                     videoTag.src = playUrl;
                     videoTag.load();
                 }
@@ -2537,7 +2587,7 @@ function playStream(id, type, extension, name, icon) {
                                     if (targetTime > 0) {
                                         player.currentTime(targetTime);
                                     }
-                                    player.play().catch(() => {});
+                                    player.play().catch(() => { });
                                 });
                             } catch (e) {
                                 console.error("Seek recovery error:", e);
@@ -2562,7 +2612,7 @@ function playStream(id, type, extension, name, icon) {
 
         // في حال حدوث خطأ عند بداية التشغيل، يتم التبديل فوراً خلال 250ms بدلاً من الانتظار ثانيتين
         const isInitialStartError = !window.vjsPlayer || !window.vjsPlayer.currentTime || window.vjsPlayer.currentTime() <= 0.5;
-        const delayMs = isInitialStartError ? 250 : 1500;
+        const delayMs = isInitialStartError ? 400 : 1500;
 
         fallbackTimer = setTimeout(() => {
             fallbackTimer = null;
@@ -2573,6 +2623,15 @@ function playStream(id, type, extension, name, icon) {
                 initSelectedPlayer(urlQueue[currentTryIndex]);
             } else {
                 console.error("تم استنفاد جميع المحاولات والروابط.");
+                if (window.hlsInstance) {
+                    try { window.hlsInstance.destroy(); } catch (e) { }
+                    window.hlsInstance = null;
+                }
+                mizoReleaseVideos();
+                if (window.vjsPlayer) {
+                    try { window.vjsPlayer.dispose(); } catch (e) { }
+                    window.vjsPlayer = null;
+                }
                 const parent = isFullscreenModal ? document.getElementById('fullscreenVideoContainer') : document.getElementById('livePlayerWrapper');
                 if (parent) {
                     parent.innerHTML = `
@@ -2931,8 +2990,8 @@ function renderProfileFields(user) {
 
     // Created At (تاريخ بدء الاشتراك)
     const rawCreated = (user.created_at !== undefined && user.created_at !== null) ? user.created_at :
-                       (user.created !== undefined && user.created !== null) ? user.created :
-                       (user.creation_date !== undefined && user.creation_date !== null) ? user.creation_date : user.start_date;
+        (user.created !== undefined && user.created !== null) ? user.created :
+            (user.creation_date !== undefined && user.creation_date !== null) ? user.creation_date : user.start_date;
     const createdEl = document.getElementById('profileCreatedAt');
     if (createdEl && rawCreated !== undefined) {
         createdEl.innerText = formatSubscriptionDate(rawCreated);
@@ -2940,8 +2999,8 @@ function renderProfileFields(user) {
 
     // Expire Date (تاريخ انتهاء الاشتراك)
     const rawExp = (user.exp_date !== undefined && user.exp_date !== null) ? user.exp_date :
-                   (user.expiration_date !== undefined && user.expiration_date !== null) ? user.expiration_date :
-                   (user.expiry_date !== undefined && user.expiry_date !== null) ? user.expiry_date : user.expire_date;
+        (user.expiration_date !== undefined && user.expiration_date !== null) ? user.expiration_date :
+            (user.expiry_date !== undefined && user.expiry_date !== null) ? user.expiry_date : user.expire_date;
     const expEl = document.getElementById('profileExpAt');
     if (expEl && rawExp !== undefined) {
         expEl.innerText = formatSubscriptionDate(rawExp);
@@ -3219,7 +3278,7 @@ async function manualRefreshCategory(type, event) {
             if (currentScreenId === 'live-screen' && type === 'live') {
                 loadCategories('get_live_categories', 'live');
             } else if (currentScreenId === 'vod-screen' &&
-                       ((type === 'vod' && state.activeTab === 'movies') || (type === 'series' && state.activeTab === 'series'))) {
+                ((type === 'vod' && state.activeTab === 'movies') || (type === 'series' && state.activeTab === 'series'))) {
                 loadCategories(type === 'vod' ? 'get_vod_categories' : 'get_series_categories', state.activeTab);
             }
         } catch (e) { }
@@ -3946,7 +4005,7 @@ function toggleLivePlayerFullscreen(forceState) {
 
         try {
             if (!document.fullscreenElement && !window.electronAPI && document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(() => {});
+                document.documentElement.requestFullscreen().catch(() => { });
             }
         } catch (e) { }
 
@@ -3965,7 +4024,7 @@ function toggleLivePlayerFullscreen(forceState) {
 
         try {
             if (!window.electronAPI && (document.fullscreenElement || document.webkitFullscreenElement)) {
-                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+                if (document.exitFullscreen) document.exitFullscreen().catch(() => { });
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         } catch (e) { }
@@ -4032,6 +4091,7 @@ document.addEventListener('click', resetCloseBtnInactivityTimer);
 
 function closeFullscreenPlayer(isFromPopState = false) {
     clearTimeout(closeBtnTimeout);
+    if (window.MizoDL) window.MizoDL.afterStream();
     if (window.vjsPlayer && currentStreamInfo && currentStreamInfo.type !== 'live') {
         try {
             const cur = window.vjsPlayer.currentTime();
@@ -4042,6 +4102,7 @@ function closeFullscreenPlayer(isFromPopState = false) {
         } catch (e) { }
     }
     exitNativeFullscreen();
+    mizoReleaseVideos();
     if (window.vjsPlayer) {
         try {
             window.vjsPlayer.pause();
@@ -4102,6 +4163,7 @@ document.addEventListener('webkitfullscreenchange', () => {
 });
 
 function closeLivePlayer(clearSaved = true) {
+    if (window.MizoDL) window.MizoDL.afterStream();
     // زر الإغلاق الأحمر في ملء الشاشة: يغلق القناة ويخرج من ملء الشاشة معاً، وكان يوقف
     // البث فقط فيبقى المستخدم أمام شاشة سوداء بملء الشاشة بلا قناة.
     const fsWrap = document.getElementById('livePlayerWrapper');
@@ -4115,6 +4177,7 @@ function closeLivePlayer(clearSaved = true) {
             toggleLivePlayerFullscreen(false);
         }
     }
+    mizoReleaseVideos();
     if (window.vjsPlayer) {
         try {
             window.vjsPlayer.pause();
@@ -4358,6 +4421,7 @@ async function showMovieDetails(movieId, name, cover, ext) {
     document.getElementById('btnWatchMovie').onclick = () => {
         playStream(movieId, 'vod', ext, name, cover);
     };
+    if (window.MizoDL) window.MizoDL.attachMovie(movieId, ext, name, cover);
 
     const host = localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host');
     const user = encodeURIComponent(state.username);
@@ -4375,6 +4439,7 @@ async function showMovieDetails(movieId, name, cover, ext) {
             document.getElementById('btnWatchMovie').onclick = () => {
                 playStream(movieId, 'vod', ext, name, cover);
             };
+            if (window.MizoDL) window.MizoDL.attachMovie(movieId, ext, name, cover);
         }
 
         // 1. استخراج الباك دروب عالي الدقة (Backdrop Path أو Movie Image أو Cover Big)
@@ -4667,6 +4732,7 @@ async function showSeriesDetails(seriesId, name, cover) {
 
                 epGrid.appendChild(epCard);
             });
+            if (window.MizoDL) window.MizoDL.attachSeason(name, seasonNum, seasonData, cover, epGrid, tabsWrapper);
         }
 
         // Create Season Tabs
@@ -5855,10 +5921,10 @@ function initTvNavigationEngine() {
 
         try {
             el.focus({ preventScroll: true });
-        } catch (e) {}
+        } catch (e) { }
         try {
             el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-        } catch (e) {}
+        } catch (e) { }
     }
 
     function clearTvFocus() {
@@ -5943,7 +6009,7 @@ function initTvNavigationEngine() {
     const ARROW_MOVE_MIN_INTERVAL_MS = 70;
 
     window.addEventListener('keydown', (e) => {
-        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','Enter'].includes(e.key)
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key)
             || (e.keyCode >= 37 && e.keyCode <= 40) || e.keyCode === 9 || e.keyCode === 13) {
             markKeyboardNav();
         }
@@ -5963,9 +6029,9 @@ function initTvNavigationEngine() {
         const activeTag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toUpperCase() : '';
         const targetTag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
         const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag) ||
-                        ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag) ||
-                        (document.activeElement && document.activeElement.isContentEditable) ||
-                        (e.target && e.target.isContentEditable);
+            ['INPUT', 'TEXTAREA', 'SELECT'].includes(targetTag) ||
+            (document.activeElement && document.activeElement.isContentEditable) ||
+            (e.target && e.target.isContentEditable);
 
         // تحكم ذكي أثناء الكتابة في حقول البحث لمنع فقدان التركيز
         if (isInput) {

@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  * - أزرار مواسم بشكل كبسولة حمراء مع أيقونة الطبقات وبادج عدد الحلقات.
  * - شريط مسلسلات رائجة من نفس تصنيف المسلسل ولغته مع بادجات التقييم الذهبية وحدود التركيز الحمراء.
  */
-public class SeriesDetailsActivity extends BaseActivity {
+public class SeriesDetailsActivity extends BaseActivity implements Downloads.Listener {
 
     private static final int EPISODE_COLUMNS = 4;
 
@@ -147,6 +147,11 @@ public class SeriesDetailsActivity extends BaseActivity {
         });
         adapter = new EpisodeAdapter();
         list.setAdapter(adapter);
+        list.setItemAnimator(null); // تحديث نسبة التنزيل على البطاقة بلا وميض
+
+        View seasonDl = findViewById(R.id.det_btn_download_season);
+        applyFocusScale(seasonDl, 1.05f);
+        seasonDl.setOnClickListener(v -> downloadSeason());
 
         setupScrollAndRecommendations();
         load();
@@ -350,6 +355,102 @@ public class SeriesDetailsActivity extends BaseActivity {
         }
     }
 
+    // ------------------------------------------------------------------ التنزيل
+
+    private Downloads.Item episodeRequest(JSONObject ep, int position) {
+        String eId = episodeId(ep);
+        JSONObject info = ep.optJSONObject("info");
+        String epNum = ep.optString("episode_num", String.valueOf(position + 1));
+        String img = info != null ? info.optString("movie_image", "") : "";
+        Downloads.Item req = new Downloads.Item();
+        req.id = "ep:" + eId;
+        req.kind = "episode";
+        req.title = name + " - " + cleanEpisodeTitle(ep.optString("title", ""), epNum, position + 1);
+        req.subtitle = "الموسم " + activeSeason + " · الحلقة " + epNum;
+        req.poster = (img != null && !img.isEmpty() && !"null".equals(img)) ? img : cover;
+        req.ext = ep.optString("container_extension", "mp4");
+        if (req.ext.isEmpty()) req.ext = "mp4";
+        req.url = api.streamUrl(Models.SERIES, eId, req.ext);
+        req.contentKey = "ep:" + eId;
+        req.seriesId = seriesId;
+        req.accountId = account.id;
+        try { req.season = Integer.parseInt(activeSeason); } catch (Exception ignored) { }
+        try { req.episode = Integer.parseInt(epNum); } catch (Exception ignored) { }
+        return req;
+    }
+
+    /** زر التنزيل على الحلقة (أو الضغط الطويل بالريموت). */
+    private void onEpisodeDownload(int position) {
+        if (position < 0 || position >= episodes.size()) return;
+        JSONObject ep = episodes.get(position);
+        Downloads dl = Downloads.get(this);
+        Downloads.Item existing = dl.find("ep:" + episodeId(ep));
+        if (existing != null) {
+            DownloadDialog.show(this, existing.id);
+            return;
+        }
+        Downloads.Item req = dl.enqueue(episodeRequest(ep, position));
+        DownloadDialog.show(this, req.id);
+    }
+
+    /** تنزيل كل حلقات الموسم المختار: تدخل الطابور وتتنزل واحدة بعد الأخرى. */
+    private void downloadSeason() {
+        if (episodes.isEmpty()) return;
+        Downloads dl = Downloads.get(this);
+        int added = 0;
+        String first = null;
+        for (int n = 0; n < episodes.size(); n++) {
+            JSONObject ep = episodes.get(n);
+            if (dl.find("ep:" + episodeId(ep)) != null) continue;
+            Downloads.Item it = dl.enqueue(episodeRequest(ep, n));
+            if (first == null) first = it.id;
+            added++;
+        }
+        if (added == 0) {
+            toast("كل حلقات الموسم " + activeSeason + " منزّلة أو في قائمة التنزيل");
+            return;
+        }
+        toast("أُضيفت " + added + " حلقة إلى التنزيل — تتنزل واحدة بعد الأخرى");
+        DownloadDialog.show(this, first);
+    }
+
+    @Override
+    public void onDownloadsChanged() {
+        if (adapter != null && !episodes.isEmpty()) adapter.notifyItemRangeChanged(0, episodes.size(), "dl");
+        paintSeasonButton();
+    }
+
+    private void paintSeasonButton() {
+        View btn = findViewById(R.id.det_btn_download_season);
+        TextView text = findViewById(R.id.det_btn_download_season_text);
+        if (btn == null) return;
+        btn.setVisibility(episodes.isEmpty() ? View.GONE : View.VISIBLE);
+        Downloads dl = Downloads.get(this);
+        int done = 0;
+        for (JSONObject ep : episodes) {
+            Downloads.Item i = dl.find("ep:" + episodeId(ep));
+            if (i != null && Downloads.DONE.equals(i.state)) done++;
+        }
+        String label;
+        if (done == 0) label = "تنزيل الموسم " + activeSeason;
+        else if (done == episodes.size()) label = "الموسم منزّل بالكامل ✓";
+        else label = "تنزيل الموسم (" + done + "/" + episodes.size() + ")";
+        text.setText(label);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Downloads.get(this).addListener(this);
+        paintSeasonButton();
+    }
+
+    @Override
+    protected void onStop() {
+        Downloads.get(this).removeListener(this);
+        super.onStop();
+    }
+
     private void selectSeason(String key) {
         activeSeason = key;
         LinearLayout tabs = findViewById(R.id.det_seasons);
@@ -375,6 +476,7 @@ public class SeriesDetailsActivity extends BaseActivity {
             }
         }
         if (adapter != null) adapter.notifyDataSetChanged();
+        paintSeasonButton();
     }
 
     static String episodeId(JSONObject ep) {
@@ -393,8 +495,11 @@ public class SeriesDetailsActivity extends BaseActivity {
             JSONObject e = episodes.get(n);
             String eId = episodeId(e);
             String t = name + " - " + cleanEpisodeTitle(e.optString("title", ""), e.optString("episode_num", ""), n + 1);
-            list.add(new PlayQueue.Entry(api.streamUrl(Models.SERIES, eId, e.optString("container_extension", "mp4")),
-                    t, cover, "ep:" + eId, eId, Models.SERIES));
+            // الحلقة المنزّلة تُشغَّل من الجهاز: بلا إنترنت وبلا اتصال بالسيرفر
+            String local = Downloads.get(this).localFile("ep:" + eId);
+            String url = local != null ? Uri.fromFile(new java.io.File(local)).toString()
+                    : api.streamUrl(Models.SERIES, eId, e.optString("container_extension", "mp4"));
+            list.add(new PlayQueue.Entry(url, t, cover, "ep:" + eId, eId, Models.SERIES));
         }
         PlayQueue.set(list, position);
         PlayQueue.Entry cur = PlayQueue.current();
@@ -542,9 +647,15 @@ public class SeriesDetailsActivity extends BaseActivity {
             final ImageView thumb;
             final TextView title, duration;
             final android.widget.ProgressBar progress;
+            final View dlBadge;
+            final ImageView dlIcon;
+            final TextView dlPct;
 
             VH(View v) {
                 super(v);
+                dlBadge = v.findViewById(R.id.ep_dl);
+                dlIcon = v.findViewById(R.id.ep_dl_icon);
+                dlPct = v.findViewById(R.id.ep_dl_pct);
                 progress = v.findViewById(R.id.ep_progress);
                 thumb = v.findViewById(R.id.ep_thumb);
                 title = v.findViewById(R.id.ep_title);
@@ -587,6 +698,45 @@ public class SeriesDetailsActivity extends BaseActivity {
                 h.progress.setVisibility(View.GONE);
             }
             h.itemView.setOnClickListener(v -> playEpisode(h.getBindingAdapterPosition()));
+            // بالريموت: الضغط الطويل على OK يفتح التنزيل. باللمس: زر الدائرة على الصورة
+            h.itemView.setOnLongClickListener(v -> {
+                onEpisodeDownload(h.getBindingAdapterPosition());
+                return true;
+            });
+            h.dlBadge.setOnClickListener(v -> onEpisodeDownload(h.getBindingAdapterPosition()));
+            bindDownloadBadge(h, ep);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull VH h, int position, @NonNull List<Object> payloads) {
+            if (payloads.contains("dl")) bindDownloadBadge(h, episodes.get(position));
+            else super.onBindViewHolder(h, position, payloads);
+        }
+
+        private void bindDownloadBadge(VH h, JSONObject ep) {
+            Downloads.Item i = Downloads.get(SeriesDetailsActivity.this).find("ep:" + episodeId(ep));
+            h.dlPct.setVisibility(View.GONE);
+            h.dlIcon.setVisibility(View.VISIBLE);
+            if (i == null) {
+                h.dlIcon.setImageResource(R.drawable.fa_download);
+                h.dlIcon.setColorFilter(0xFFFFFFFF);
+            } else if (Downloads.DONE.equals(i.state)) {
+                h.dlIcon.setImageResource(R.drawable.fa_circle_check);
+                h.dlIcon.setColorFilter(0xFF22C55E);
+            } else if (Downloads.RUNNING.equals(i.state)) {
+                h.dlIcon.setVisibility(View.GONE);
+                h.dlPct.setVisibility(View.VISIBLE);
+                h.dlPct.setText(i.percent() + "%");
+            } else if (Downloads.FAILED.equals(i.state)) {
+                h.dlIcon.setImageResource(R.drawable.fa_triangle_exclamation);
+                h.dlIcon.setColorFilter(0xFFF87171);
+            } else if (Downloads.PAUSED.equals(i.state)) {
+                h.dlIcon.setImageResource(R.drawable.fa_pause);
+                h.dlIcon.setColorFilter(0xFFF59E0B);
+            } else {
+                h.dlIcon.setImageResource(R.drawable.fa_clock);
+                h.dlIcon.setColorFilter(0xFFCBD5E1);
+            }
         }
 
         @Override

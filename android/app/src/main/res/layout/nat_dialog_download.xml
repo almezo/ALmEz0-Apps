@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- صندوق التنزيل: يتابع تنزيلاً واحداً حياً، مع مكان الحفظ وأزرار الإيقاف والإلغاء -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:layoutDirection="rtl"
+    android:padding="24dp">
+
+    <LinearLayout
+        android:layout_width="620dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/nat_bg_dialog_card"
+        android:orientation="vertical"
+        android:paddingStart="28dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="28dp"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="10dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/fa_download"
+                app:tint="@color/nat_green" />
+
+            <TextView
+                android:id="@+id/dld_heading"
+                style="@style/NatText.Black"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="التنزيل"
+                android:textAlignment="viewStart"
+                android:textSize="24sp" />
+        </LinearLayout>
+
+        <include
+            android:id="@+id/dld_card"
+            layout="@layout/nat_item_download" />
+
+        <TextView
+            android:id="@+id/dld_location"
+            style="@style/NatText.Bold"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:textAlignment="viewStart"
+            android:textColor="@color/nat_soft"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/dld_queue"
+            style="@style/NatText.Bold"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="18dp"
+            android:textAlignment="viewStart"
+            android:textColor="@color/nat_muted"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/dld_btn_all"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:background="@drawable/nat_btn_watch"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginEnd="8dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/fa_list"
+                    app:tint="#FFFFFFFF" />
+
+                <TextView
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="كل التنزيلات"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="14dp"
+                android:layout_height="1dp" />
+
+            <LinearLayout
+                android:id="@+id/dld_btn_hide"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:background="@drawable/nat_btn_secondary"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/NatText.ExtraBold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="إخفاء — يكمل في الخلفية"
+                    android:textSize="16sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

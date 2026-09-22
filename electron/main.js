@@ -197,6 +197,9 @@ if (!gotTheLock) {
         });
     }
 
+    // تنزيل الأفلام والحلقات للمشاهدة بدون إنترنت (electron/downloads.js)
+    require('./downloads').init(ipcMain, () => mainWindow);
+
     // IPC listener for toggling fullscreen on Windows (removes top titlebar and covers taskbar)
     ipcMain.on('set-fullscreen', (event, enabled) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -237,159 +240,185 @@ if (!gotTheLock) {
         } catch (e) { }
     });
 
-    // Helper for downloading files following redirects with Range resume support
-    let currentUpdateReq = null;
-    let currentUpdateStream = null;
-    let isUpdatePaused = false;
-    let updateDownloadedBytes = 0;
-    let updateTotalBytes = 0;
-    let currentUpdateUrl = '';
+    // =====================================================================
+    // تنزيل تحديث البرنامج وتثبيته
+    // ---------------------------------------------------------------------
+    // - لا يُشغَّل المثبّت إلا إذا اكتمل الملف بحجمه الكامل. كان انقطاع النت في المنتصف يُعدّ
+    //   اكتمالاً، فيُشغَّل مثبّت ناقص ويُغلق البرنامج ويبقى العميل بلا برنامج يعمل.
+    // - الاستئناف من حجم الملف الفعلي على القرص لا من عدّاد في الذاكرة: بعد الإيقاف قد تُكتب
+    //   دفعات لم يحسبها العدّاد، فيتكرر جزء من الملف عند الاستئناف ويتلف المثبّت.
+    // - مهلة 30 ثانية لأي اتصال متجمّد بدل التعليق للأبد، وإلغاء التنزيل من الصندوق.
+    // =====================================================================
+    const UPDATE_FILE = () => path.join(app.getPath('temp'), 'ALmEz0-Update-Setup.exe');
+    const UPDATE_PART = () => UPDATE_FILE() + '.part';
+    let updateReq = null;
+    let updateUrl = '';
+    let updateTotal = 0;
+    let updateState = 'idle'; // idle | running | paused | done
 
-    function downloadFileWithRedirects(url, destPath, onProgress, onComplete, onError, redirectCount = 0) {
-        if (redirectCount > 8) {
-            return onError(new Error('Too many redirects'));
-        }
-        currentUpdateUrl = url;
-        const client = url.startsWith('https') ? https : http;
-        const headers = { 'User-Agent': 'ALmEz0-App' };
-        if (updateDownloadedBytes > 0) {
-            headers['Range'] = `bytes=${updateDownloadedBytes}-`;
-        }
-
-        currentUpdateReq = client.get(url, { headers }, (res) => {
-            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                return downloadFileWithRedirects(res.headers.location, destPath, onProgress, onComplete, onError, redirectCount + 1);
-            }
-            if (res.statusCode !== 200 && res.statusCode !== 206) {
-                return onError(new Error(`HTTP ${res.statusCode}`));
-            }
-
-            if (res.statusCode === 200) {
-                updateTotalBytes = parseInt(res.headers['content-length'] || '0', 10);
-            } else if (res.statusCode === 206) {
-                const contentRange = res.headers['content-range'];
-                if (contentRange) {
-                    const match = contentRange.match(/\/(\d+)/);
-                    if (match) updateTotalBytes = parseInt(match[1], 10);
-                }
-            }
-
-            currentUpdateStream = fs.createWriteStream(destPath, { flags: updateDownloadedBytes > 0 ? 'a' : 'w' });
-
-            res.on('data', (chunk) => {
-                if (isUpdatePaused) return;
-                updateDownloadedBytes += chunk.length;
-                const percent = updateTotalBytes > 0 ? Math.min(100, Math.round((updateDownloadedBytes / updateTotalBytes) * 100)) : -1;
-                onProgress({ percent, downloadedBytes: updateDownloadedBytes, totalBytes: updateTotalBytes });
-            });
-
-            res.pipe(currentUpdateStream);
-
-            currentUpdateStream.on('finish', () => {
-                if (isUpdatePaused) return;
-                currentUpdateStream.close(() => onComplete(destPath));
-            });
-
-            currentUpdateStream.on('error', (err) => {
-                if (!isUpdatePaused) {
-                    try { fs.unlinkSync(destPath); } catch (e) {}
-                    onError(err);
-                }
-            });
-        });
-
-        currentUpdateReq.on('error', (err) => {
-            if (!isUpdatePaused) onError(err);
-        });
+    function sendUpdate(channel, data) {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data || {});
     }
 
-    // In-app updater: download EXE and run installer
-    ipcMain.on('start-update-download', (event, downloadUrl) => {
-        isUpdatePaused = false;
-        updateDownloadedBytes = 0;
-        updateTotalBytes = 0;
-        const tempExe = path.join(app.getPath('temp'), 'ALmEz0-Update-Setup.exe');
-        try { if (fs.existsSync(tempExe)) fs.unlinkSync(tempExe); } catch (e) {}
-        downloadFileWithRedirects(
-            downloadUrl,
-            tempExe,
-            (progress) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('update-download-progress', progress);
-                }
-            },
-            (filePath) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('update-download-complete', { filePath });
-                }
-                setTimeout(() => {
-                    try {
-                        const child = spawn(filePath, [], {
-                            detached: true,
-                            stdio: 'ignore'
-                        });
-                        child.unref();
-                        app.quit();
-                    } catch (e) {
-                        console.error('Failed to spawn update installer:', e);
-                    }
-                }, 800);
-            },
-            (err) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('update-download-error', { error: err ? err.message : 'Download failed' });
-                }
-            }
-        );
-    });
+    function partSize() {
+        try { return fs.statSync(UPDATE_PART()).size; } catch (e) { return 0; }
+    }
 
+    function abortUpdateRequest() {
+        if (updateReq) {
+            try { updateReq.destroy(); } catch (e) { }
+            updateReq = null;
+        }
+    }
+
+    function requestUpdate(url, from, redirects) {
+        if (redirects > 8) return failUpdate('Too many redirects');
+        const client = url.startsWith('https') ? https : http;
+        const headers = { 'User-Agent': 'ALmEz0-App', 'Accept-Encoding': 'identity' };
+        if (from > 0) headers.Range = `bytes=${from}-`;
+        const req = client.get(url, { headers }, (res) => {
+            if (req !== updateReq) { res.resume(); return; } // طلب قديم أُلغي
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                res.resume();
+                return requestUpdate(new URL(res.headers.location, url).href, from, redirects + 1);
+            }
+            let have = from;
+            let append = false;
+            if (res.statusCode === 206 && from > 0) {
+                const m = /\/(\d+)\s*$/.exec(res.headers['content-range'] || '');
+                const total = m ? parseInt(m[1], 10) : from + parseInt(res.headers['content-length'] || '0', 10);
+                // الملف الجزئي من إصدار آخر (الحجم الكلي تغيّر): نبدأ من الصفر
+                if (updateTotal > 0 && total !== updateTotal) {
+                    res.resume();
+                    try { fs.unlinkSync(UPDATE_PART()); } catch (e) { }
+                    updateTotal = 0;
+                    return requestUpdate(updateUrl, 0, 0);
+                }
+                updateTotal = total;
+                append = true;
+            } else if (res.statusCode === 200) {
+                updateTotal = parseInt(res.headers['content-length'] || '0', 10);
+                have = 0;
+            } else {
+                res.resume();
+                return failUpdate(`HTTP ${res.statusCode}`);
+            }
+
+            const out = fs.createWriteStream(UPDATE_PART(), { flags: append ? 'a' : 'w' });
+            let lastSent = 0;
+            res.on('data', (chunk) => {
+                have += chunk.length;
+                const now = Date.now();
+                if (now - lastSent > 250) {
+                    lastSent = now;
+                    sendUpdate('update-download-progress', {
+                        percent: updateTotal > 0 ? Math.min(100, Math.floor(have * 100 / updateTotal)) : -1,
+                        downloadedBytes: have, totalBytes: updateTotal
+                    });
+                }
+            });
+            res.pipe(out);
+            let ended = false;
+            const finish = (err) => {
+                if (ended) return;
+                ended = true;
+                out.end(() => {
+                    if (req !== updateReq || updateState !== 'running') return; // أُوقف أو أُلغي
+                    updateReq = null;
+                    const size = partSize();
+                    if (err || (updateTotal > 0 && size < updateTotal)) {
+                        return failUpdate(err ? err.message : 'incomplete');
+                    }
+                    completeUpdate();
+                });
+            };
+            res.on('end', () => finish(null));
+            res.on('aborted', () => finish(new Error('aborted')));
+            res.on('error', finish);
+            out.on('error', finish);
+        });
+        req.setTimeout(30000, () => req.destroy(new Error('timeout')));
+        req.on('error', (err) => {
+            if (req !== updateReq || updateState !== 'running') return;
+            updateReq = null;
+            failUpdate(err.message);
+        });
+        updateReq = req;
+    }
+
+    function failUpdate(message) {
+        updateReq = null;
+        updateState = 'idle'; // الملف الجزئي يبقى: إعادة المحاولة تكمل من حيث توقف
+        sendUpdate('update-download-error', { error: message || 'Download failed', partial: partSize() });
+    }
+
+    function completeUpdate() {
+        updateState = 'done';
+        try {
+            if (fs.existsSync(UPDATE_FILE())) fs.unlinkSync(UPDATE_FILE());
+            fs.renameSync(UPDATE_PART(), UPDATE_FILE());
+        } catch (e) {
+            return failUpdate('save failed');
+        }
+        sendUpdate('update-download-progress', { percent: 100, downloadedBytes: updateTotal, totalBytes: updateTotal });
+        sendUpdate('update-download-complete', { filePath: UPDATE_FILE() });
+        setTimeout(() => {
+            try {
+                const child = spawn(UPDATE_FILE(), [], { detached: true, stdio: 'ignore' });
+                // يُغلق البرنامج فقط بعد أن يبدأ المثبّت فعلاً، لا إن منعه مضاد فيروسات أو تلف الملف
+                child.once('spawn', () => setTimeout(() => app.quit(), 600));
+                child.on('error', (e) => { updateState = 'idle'; sendUpdate('update-download-error', { error: 'install: ' + e.message, install: true }); });
+                child.unref();
+            } catch (e) {
+                updateState = 'idle';
+                sendUpdate('update-download-error', { error: 'install: ' + e.message, install: true });
+            }
+        }, 800);
+    }
+
+    // المثبّت يُشغَّل تلقائياً بعد التنزيل، فيُقبل فقط رابط إصدارات الميزو في GitHub
+    function isTrustedUpdateUrl(u) {
+        try {
+            const x = new URL(String(u));
+            return x.protocol === 'https:' && x.hostname.toLowerCase() === 'github.com' &&
+                x.pathname.toLowerCase().startsWith('/almezo/almez0-downloads/releases/') && !x.pathname.includes('..');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function runUpdate(url, fresh) {
+        if (url && !isTrustedUpdateUrl(url)) {
+            sendUpdate('update-download-error', { error: 'Untrusted update URL' });
+            return;
+        }
+        abortUpdateRequest();
+        updateUrl = url || updateUrl;
+        if (!updateUrl) return;
+        if (fresh) {
+            try { fs.unlinkSync(UPDATE_PART()); } catch (e) { }
+            updateTotal = 0;
+        }
+        updateState = 'running';
+        requestUpdate(updateUrl, partSize(), 0);
+    }
+
+    // بدء تنزيل جديد (من زر "تنزيل وتثبيت التحديث الآن")
+    ipcMain.on('start-update-download', (event, downloadUrl) => runUpdate(downloadUrl, true));
+
+    // الإيقاف يغلق الاتصال، والاستئناف (أو إعادة المحاولة) يكمل من حجم الملف على القرص
     ipcMain.on('pause-update-download', () => {
-        isUpdatePaused = true;
-        if (currentUpdateReq) {
-            try { currentUpdateReq.destroy(); } catch (e) {}
-            currentUpdateReq = null;
-        }
-        if (currentUpdateStream) {
-            try { currentUpdateStream.end(); } catch (e) {}
-            currentUpdateStream = null;
-        }
+        if (updateState !== 'running') return;
+        updateState = 'paused';
+        abortUpdateRequest();
     });
 
-    ipcMain.on('resume-update-download', (event, downloadUrl) => {
-        if (!isUpdatePaused) return;
-        isUpdatePaused = false;
-        const tempExe = path.join(app.getPath('temp'), 'ALmEz0-Update-Setup.exe');
-        downloadFileWithRedirects(
-            downloadUrl || currentUpdateUrl,
-            tempExe,
-            (progress) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('update-download-progress', progress);
-                }
-            },
-            (filePath) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('update-download-complete', { filePath });
-                }
-                setTimeout(() => {
-                    try {
-                        const child = spawn(filePath, [], {
-                            detached: true,
-                            stdio: 'ignore'
-                        });
-                        child.unref();
-                        app.quit();
-                    } catch (e) {
-                        console.error('Failed to spawn update installer:', e);
-                    }
-                }, 800);
-            },
-            (err) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('update-download-error', { error: err ? err.message : 'Download failed' });
-                }
-            }
-        );
+    ipcMain.on('resume-update-download', (event, downloadUrl) => runUpdate(downloadUrl, false));
+
+    ipcMain.on('cancel-update-download', () => {
+        updateState = 'idle';
+        abortUpdateRequest();
+        setTimeout(() => { try { fs.unlinkSync(UPDATE_PART()); } catch (e) { } }, 300);
     });
 
     app.whenReady().then(() => {

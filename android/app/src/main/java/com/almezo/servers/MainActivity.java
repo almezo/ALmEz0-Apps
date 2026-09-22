@@ -388,157 +388,224 @@ public class MainActivity extends BridgeActivity {
             });
         }
 
+        /*
+         * تنزيل تحديث التطبيق (APK) وتثبيته.
+         * - لا يُفتح التثبيت إلا إذا اكتمل الملف بحجمه الكامل: كان انقطاع النت يُعدّ اكتمالاً فتظهر
+         *   رسالة النظام "حدثت مشكلة أثناء تحليل الحزمة".
+         * - الإيقاف يغلق الاتصال (كان يُبقيه معلّقاً فيقطعه السيرفر ويبدأ التنزيل من الصفر)،
+         *   والاستئناف وإعادة المحاولة يكملان من حجم الملف الجزئي بطلب Range.
+         * - مهلة للاتصال والقراءة بدل التعليق للأبد، وإلغاء، وتثبيت الملف المنزّل دون إعادة تنزيله.
+         */
         private volatile boolean isApkDownloadPaused = false;
         private volatile boolean isApkDownloadCancelled = false;
-        // يمنع تشغيل خيطي تنزيل متوازيين على نفس ملف APK، فلكل خيط عدّاده الخاص
-        // وكانا يرسلان تقارير تقدم متضاربة تجعل النسبة تقفز للخلف أثناء التحميل
+        // يمنع تشغيل خيطي تنزيل متوازيين على نفس الملف
         private volatile boolean isApkDownloadRunning = false;
+        private volatile String lastApkUrl = null;
+        private volatile long lastApkTotal = 0;
         private android.os.PowerManager.WakeLock apkWakeLock = null;
+
+        private java.io.File apkDir() {
+            java.io.File d = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
+            return d != null ? d : getFilesDir();
+        }
+
+        private java.io.File apkFile() {
+            return new java.io.File(apkDir(), "ALmEz0.apk");
+        }
+
+        private java.io.File apkPart() {
+            return new java.io.File(apkDir(), "ALmEz0.apk.part");
+        }
+
+        private void jsUpdate(String js) {
+            runOnUiThread(() -> {
+                if (bridge != null && bridge.getWebView() != null) bridge.getWebView().evaluateJavascript(js, null);
+            });
+        }
 
         @JavascriptInterface
         public void pauseUpdateDownload() {
-            isApkDownloadPaused = true;
+            isApkDownloadPaused = true; // الخيط يغلق الاتصال ويخرج
         }
 
         @JavascriptInterface
         public void resumeUpdateDownload() {
-            isApkDownloadPaused = false;
-            synchronized (MainActivity.this) {
-                MainActivity.this.notifyAll();
-            }
+            if (lastApkUrl != null) startApkDownload(lastApkUrl, false);
+        }
+
+        @JavascriptInterface
+        public void cancelUpdateDownload() {
+            isApkDownloadCancelled = true;
+            new Thread(() -> {
+                try { Thread.sleep(400); } catch (InterruptedException ignored) { }
+                if (!isApkDownloadRunning) apkPart().delete();
+            }).start();
+        }
+
+        /** يفتح شاشة التثبيت للملف المنزّل (بعد إلغائها أو بعد السماح بالتثبيت من الإعدادات). */
+        @JavascriptInterface
+        public boolean installDownloadedUpdate() {
+            java.io.File f = apkFile();
+            if (!f.exists() || f.length() == 0) return false;
+            runOnUiThread(() -> installDownloadedApk(f));
+            return true;
         }
 
         @JavascriptInterface
         public void downloadAndInstallApk(String apkUrl) {
             if (apkUrl == null || apkUrl.trim().isEmpty()) return;
-            if (isApkDownloadRunning) return; // تنزيل جارٍ بالفعل: نتجاهل الطلب المكرر
+            // يُقبل فقط رابط إصدارات الميزو في GitHub: الصفحة لا تستطيع تنزيل APK من أي مكان آخر
+            if (!isTrustedApkUrl(apkUrl.trim())) {
+                android.util.Log.w("MainActivity", "Rejected untrusted update URL");
+                return;
+            }
+            startApkDownload(apkUrl.trim(), true);
+        }
+
+        private boolean isTrustedApkUrl(String url) {
+            try {
+                android.net.Uri u = android.net.Uri.parse(url);
+                String path = u.getPath() == null ? "" : u.getPath();
+                return "https".equalsIgnoreCase(u.getScheme())
+                        && "github.com".equalsIgnoreCase(u.getHost())
+                        && path.toLowerCase(java.util.Locale.ROOT).startsWith("/almezo/almez0-downloads/releases/")
+                        && !path.contains("..");
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        private void startApkDownload(String apkUrl, boolean fresh) {
+            if (isApkDownloadRunning) {
+                // خيط سابق ما زال يُغلق اتصاله بعد الإيقاف: نعيد المحاولة بعد لحظة
+                if (!fresh && isApkDownloadPaused) {
+                    new Thread(() -> {
+                        try { Thread.sleep(500); } catch (InterruptedException ignored) { }
+                        startApkDownload(apkUrl, false);
+                    }).start();
+                }
+                return;
+            }
             isApkDownloadRunning = true;
             isApkDownloadPaused = false;
             isApkDownloadCancelled = false;
+            lastApkUrl = apkUrl;
+            if (fresh) {
+                apkPart().delete();
+                apkFile().delete();
+                lastApkTotal = 0;
+            }
 
             new Thread(() -> {
+                java.net.HttpURLConnection conn = null;
                 try {
-                    // Keep CPU awake in background so download never pauses or gets stuck when app is minimized
                     try {
                         android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
                         if (pm != null) {
-                            if (apkWakeLock != null && apkWakeLock.isHeld()) {
-                                apkWakeLock.release();
-                            }
+                            if (apkWakeLock != null && apkWakeLock.isHeld()) apkWakeLock.release();
                             apkWakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ALmEz0:UpdateDownload");
                             apkWakeLock.acquire(20 * 60 * 1000L);
                         }
                     } catch (Throwable ignored) { }
 
-                    java.io.File downloadDir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
-                    if (downloadDir == null) {
-                        downloadDir = getFilesDir();
-                    }
-                    java.io.File apkFile = new java.io.File(downloadDir, "ALmEz0.apk");
-                    if (apkFile.exists()) {
-                        apkFile.delete();
-                    }
+                    java.io.File part = apkPart();
+                    long have = part.exists() ? part.length() : 0;
 
-                    String currentUrl = apkUrl.trim();
-                    java.net.HttpURLConnection conn = null;
-                    int redirects = 0;
-
-                    while (redirects < 8) {
-                        java.net.URL url = new java.net.URL(currentUrl);
-                        conn = (java.net.HttpURLConnection) url.openConnection();
+                    String currentUrl = apkUrl;
+                    int code = -1;
+                    for (int redirects = 0; redirects < 8; redirects++) {
+                        conn = (java.net.HttpURLConnection) new java.net.URL(currentUrl).openConnection();
                         conn.setRequestProperty("User-Agent", "ALmEz0-Android-App");
+                        conn.setRequestProperty("Accept-Encoding", "identity");
+                        if (have > 0) conn.setRequestProperty("Range", "bytes=" + have + "-");
                         conn.setInstanceFollowRedirects(false);
-                        conn.connect();
-
-                        int code = conn.getResponseCode();
+                        conn.setConnectTimeout(20000);
+                        conn.setReadTimeout(30000);
+                        code = conn.getResponseCode();
                         if (code >= 300 && code < 400) {
                             String loc = conn.getHeaderField("Location");
-                            if (loc == null || loc.isEmpty()) break;
-                            currentUrl = loc;
                             conn.disconnect();
-                            redirects++;
-                        } else {
-                            break;
+                            if (loc == null || loc.isEmpty()) throw new java.io.IOException("redirect without location");
+                            currentUrl = new java.net.URL(new java.net.URL(currentUrl), loc).toString();
+                            continue;
                         }
+                        break;
                     }
 
-                    if (conn == null || conn.getResponseCode() != java.net.HttpURLConnection.HTTP_OK) {
-                        throw new java.io.IOException("HTTP error: " + (conn != null ? conn.getResponseCode() : -1));
-                    }
-
-                    long totalBytes = conn.getContentLengthLong();
-                    java.io.InputStream in = conn.getInputStream();
-                    java.io.FileOutputStream out = new java.io.FileOutputStream(apkFile);
-
-                    byte[] buffer = new byte[8192];
-                    int len;
-                    long downloadedBytes = 0;
-                    long lastReportTime = 0;
-
-                    while (!isApkDownloadCancelled && (len = in.read(buffer)) != -1) {
-                        while (isApkDownloadPaused && !isApkDownloadCancelled) {
-                            try {
-                                synchronized (MainActivity.this) {
-                                    MainActivity.this.wait(400);
-                                }
-                            } catch (InterruptedException ignored) {}
+                    long total;
+                    boolean append;
+                    if (code == java.net.HttpURLConnection.HTTP_PARTIAL && have > 0) {
+                        String range = conn.getHeaderField("Content-Range");
+                        long t = have + conn.getContentLengthLong();
+                        if (range != null && range.lastIndexOf('/') >= 0) {
+                            try { t = Long.parseLong(range.substring(range.lastIndexOf('/') + 1).trim()); } catch (Exception ignored) { }
                         }
+                        if (lastApkTotal > 0 && t != lastApkTotal) {
+                            // الملف الجزئي من إصدار آخر: من الصفر
+                            conn.disconnect();
+                            part.delete();
+                            lastApkTotal = 0;
+                            isApkDownloadRunning = false;
+                            startApkDownload(apkUrl, false);
+                            return;
+                        }
+                        total = t;
+                        append = true;
+                    } else if (code == java.net.HttpURLConnection.HTTP_OK) {
+                        total = conn.getContentLengthLong();
+                        have = 0;
+                        append = false;
+                    } else {
+                        throw new java.io.IOException("HTTP error: " + code);
+                    }
+                    lastApkTotal = total;
 
-                        out.write(buffer, 0, len);
-                        downloadedBytes += len;
-
-                        long now = System.currentTimeMillis();
-                        if (now - lastReportTime > 250) {
-                            lastReportTime = now;
-                            final int pct = totalBytes > 0 ? (int) ((downloadedBytes * 100) / totalBytes) : -1;
-                            final long dBytes = downloadedBytes;
-                            final long tBytes = totalBytes;
-                            runOnUiThread(() -> {
-                                if (bridge != null && bridge.getWebView() != null) {
-                                    bridge.getWebView().evaluateJavascript(
-                                        "if (typeof window.onAndroidUpdateProgress === 'function') window.onAndroidUpdateProgress({ percent: " + pct + ", downloadedBytes: " + dBytes + ", totalBytes: " + tBytes + " });",
-                                        null
-                                    );
-                                }
-                            });
+                    try (java.io.InputStream in = conn.getInputStream();
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(part, append)) {
+                        byte[] buffer = new byte[32768];
+                        int len;
+                        long lastReportTime = 0;
+                        while ((len = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, len);
+                            have += len;
+                            long now = System.currentTimeMillis();
+                            if (now - lastReportTime > 250) {
+                                lastReportTime = now;
+                                int pct = total > 0 ? (int) ((have * 100) / total) : -1;
+                                jsUpdate("if (typeof window.onAndroidUpdateProgress === 'function') window.onAndroidUpdateProgress({ percent: " + pct + ", downloadedBytes: " + have + ", totalBytes: " + total + " });");
+                            }
+                            if (isApkDownloadPaused || isApkDownloadCancelled) break;
                         }
                     }
-
-                    out.flush();
-                    out.close();
-                    in.close();
                     conn.disconnect();
+                    conn = null;
 
                     if (isApkDownloadCancelled) {
-                        if (apkFile.exists()) apkFile.delete();
+                        part.delete();
                         return;
                     }
+                    if (isApkDownloadPaused) return; // الاستئناف يكمل من حجم الملف الجزئي
 
-                    // Report 100% complete
-                    final long finalBytes = downloadedBytes;
-                    runOnUiThread(() -> {
-                        if (bridge != null && bridge.getWebView() != null) {
-                            bridge.getWebView().evaluateJavascript(
-                                "if (typeof window.onAndroidUpdateProgress === 'function') window.onAndroidUpdateProgress({ percent: 100, downloadedBytes: " + finalBytes + ", totalBytes: " + finalBytes + " });",
-                                null
-                            );
-                            bridge.getWebView().evaluateJavascript("if (typeof window.onAndroidUpdateComplete === 'function') window.onAndroidUpdateComplete();", null);
-                        }
-                        installDownloadedApk(apkFile);
-                    });
+                    if (total > 0 && part.length() < total) throw new java.io.IOException("incomplete");
+
+                    java.io.File apk = apkFile();
+                    apk.delete();
+                    if (!part.renameTo(apk)) throw new java.io.IOException("save failed");
+
+                    final long finalBytes = apk.length();
+                    jsUpdate("if (typeof window.onAndroidUpdateProgress === 'function') window.onAndroidUpdateProgress({ percent: 100, downloadedBytes: " + finalBytes + ", totalBytes: " + finalBytes + " });"
+                            + "if (typeof window.onAndroidUpdateComplete === 'function') window.onAndroidUpdateComplete();");
+                    runOnUiThread(() -> installDownloadedApk(apk));
 
                 } catch (Throwable t) {
                     android.util.Log.e("MainActivity", "APK download failed", t);
-                    final String msg = t.getMessage() != null ? t.getMessage().replace("'", "\\'") : "Download error";
-                    runOnUiThread(() -> {
-                        if (bridge != null && bridge.getWebView() != null) {
-                            bridge.getWebView().evaluateJavascript(
-                                "if (typeof window.onAndroidUpdateError === 'function') window.onAndroidUpdateError('" + msg + "');",
-                                null
-                            );
-                        }
-                    });
+                    if (isApkDownloadPaused || isApkDownloadCancelled) return;
+                    final String msg = t.getMessage() != null ? t.getMessage().replace("\\", "").replace("'", "") : "Download error";
+                    jsUpdate("if (typeof window.onAndroidUpdateError === 'function') window.onAndroidUpdateError('" + msg + "');");
                 } finally {
+                    if (conn != null) {
+                        try { conn.disconnect(); } catch (Throwable ignored) { }
+                    }
                     isApkDownloadRunning = false;
                     try {
                         if (apkWakeLock != null && apkWakeLock.isHeld()) {

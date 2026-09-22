@@ -61,6 +61,10 @@ public class DashboardActivity extends BaseActivity {
         nav.accounts.setOnClickListener(v -> AccountsDialog.show(this));
         nav.profile.setOnClickListener(v -> startActivity(new Intent(this, ProfileActivity.class)));
         nav.logout.setOnClickListener(v -> confirmLogout());
+        // التنزيلات: تفتح بلا إنترنت، وما بقي في الطابور يكمل عند فتح المشغل
+        nav.downloads.setVisibility(View.VISIBLE);
+        nav.downloads.setOnClickListener(v -> startActivity(new Intent(this, DownloadsActivity.class)));
+        Downloads.get(this).resumePending();
 
         cardLive = findViewById(R.id.card_live);
         cardMovies = findViewById(R.id.card_movies);

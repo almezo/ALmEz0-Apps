@@ -4811,17 +4811,38 @@ th.sortable-th:hover .sort-th-icon {
 }
 
 .product-summary-th-product {
-    width: 47%;
+    width: 32%;
     text-align: right;
 }
 
 .product-summary-th-qty {
-    width: 20%;
+    width: 17%;
     text-align: center;
 }
 
+.product-summary-th-points {
+    width: 12%;
+    text-align: center;
+}
+
+.product-summary-th-point-price {
+    width: 14%;
+    text-align: center;
+}
+
+.product-summary-points {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.product-summary-point-price {
+    color: #38bdf8;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 .product-summary-th-amount {
-    width: 25%;
+    width: 17%;
     text-align: center;
 }
 
@@ -9384,3 +9405,120 @@ html:not(.mz-kbd):not([data-is-tv="true"]) textarea:focus-visible,
 html:not(.mz-kbd):not([data-is-tv="true"]) select:focus-visible {
     outline: none !important;
 }
+
+/* زر "إجمالي مبيعات الشركات للفترة" فوق زري عرض المبيعات والشهر الحالي */
+.company-summary-btn-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.company-summary-btn-stack .company-summary-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+/* عنوان كل شركة داخل نافذة إجمالي مبيعات الشركات */
+.product-summary-table tr.company-summary-head td {
+    background: rgba(56, 189, 248, 0.1);
+    color: #38bdf8;
+    font-weight: 800;
+    text-align: right;
+    padding: 10px 12px;
+    border-top: 2px solid rgba(56, 189, 248, 0.35);
+}
+
+.company-summary-head-meta {
+    float: left;
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+/* وضع التعديل: زر حفظ كل التعديلات العائم */
+.admin-save-all-btn {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9000;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 18px rgba(34, 197, 94, 0.45);
+}
+
+.admin-save-all-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.admin-save-all-count {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 13px;
+}
+
+/* وضع التعديل: المنتجات المحذوفة القابلة للاسترجاع */
+.admin-restore-box {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 12px;
+    border: 1px dashed rgba(248, 113, 113, 0.45);
+    border-radius: 12px;
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.admin-restore-title {
+    width: 100%;
+    color: #f87171;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.admin-restore-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.admin-restore-date {
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+/* إقفال الحساب مع المناديب (لوحة المدير) */
+.btn-close-ledger {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.1)) !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+    color: #fbbf24 !important;
+}
+.btn-close-ledger:disabled { opacity: 0.6; cursor: wait; }
+.ledger-status-line {
+    margin: -6px 0 14px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-align: right;
+}
+.ledger-status-line i { color: #fbbf24; margin-inline-end: 6px; }

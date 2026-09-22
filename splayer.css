@@ -8017,3 +8017,211 @@ body:not(.kbd-nav) :focus-visible {
 .mz-toast.visible { opacity: 1; transform: translate(-50%, 0); }
 .mz-toast-success { border-color: rgba(16, 185, 129, 0.6); }
 .mz-toast-error { border-color: rgba(239, 68, 68, 0.65); }
+
+
+/* =====================================================================
+   التنزيلات (downloads-ui.js) — برنامج الكمبيوتر فقط
+   ===================================================================== */
+.btn-download-movie {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #374151;
+    color: #fff;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 0.2s ease;
+}
+.btn-download-movie i { color: #22c55e; }
+.btn-download-movie:hover, .btn-download-movie:focus-visible { background: #4b5563; outline: 2px solid #fff; outline-offset: 2px; }
+.btn-download-movie.is-done { border-color: rgba(34, 197, 94, 0.5); }
+
+.btn-download-season {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 12px 0;
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #374151;
+    color: #fff;
+    font-family: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+.btn-download-season i { color: #22c55e; }
+.btn-download-season:hover, .btn-download-season:focus-visible { background: #4b5563; outline: 2px solid #fff; outline-offset: 2px; }
+
+.mdl-ep-badge {
+    position: absolute;
+    top: 8px;
+    inset-inline-start: 8px;
+    z-index: 3;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    background: rgba(11, 14, 20, 0.8);
+    color: #fff;
+    font-size: 15px;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.mdl-ep-badge span { font-size: 11px; font-weight: 800; color: #38bdf8; }
+.mdl-ep-badge:hover { border-color: #fff; background: rgba(34, 197, 94, 0.3); }
+.mdl-ep-badge.is-done { color: #22c55e; }
+.mdl-ep-badge.is-paused { color: #f59e0b; }
+.mdl-ep-badge.is-failed { color: #f87171; }
+.mdl-ep-badge.is-queued { color: #cbd5e1; }
+
+.nav-btn-downloads {
+    position: relative;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.1)) !important;
+    color: #22c55e !important;
+    border-color: rgba(34, 197, 94, 0.4) !important;
+}
+.nav-btn-downloads:hover { background: linear-gradient(135deg, #22c55e, #16a34a) !important; color: #fff !important; }
+.nav-dl-count {
+    position: absolute;
+    top: -4px;
+    inset-inline-end: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #22c55e;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 18px;
+}
+.nav-dl-count.hidden { display: none; }
+
+.mdl-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    padding: 24px;
+}
+.mdl-overlay.open { display: flex; }
+.mdl-dialog, .mdl-page {
+    width: min(640px, 100%);
+    max-height: 92vh;
+    overflow: auto;
+    background: #161b22;
+    border: 1.5px solid rgba(255, 255, 255, 0.18);
+    border-radius: 24px;
+    padding: 24px 26px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
+    direction: rtl;
+    text-align: right;
+    color: #fff;
+}
+.mdl-page { width: min(980px, 100%); height: 88vh; display: flex; flex-direction: column; }
+.mdl-head { display: flex; align-items: center; gap: 10px; font-size: 1.5rem; font-weight: 900; margin-bottom: 16px; }
+.mdl-head i, .mdl-page-title i { color: #22c55e; }
+.mdl-line { font-size: 0.9rem; font-weight: 700; color: #cbd5e1; margin: 4px 0; }
+.mdl-line i { color: #f59e0b; margin-inline-end: 6px; }
+.mdl-muted { color: #94a3b8; }
+.mdl-sep { margin: 0 8px; color: #64748b; }
+.mdl-foot { display: flex; gap: 14px; margin-top: 18px; }
+.mdl-foot-btn {
+    flex: 1;
+    height: 48px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: #374151;
+    color: #fff;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+.mdl-foot-main { background: #e50914; border-color: #e50914; }
+.mdl-foot-btn:hover, .mdl-foot-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.mdl-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: #111620;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+}
+.mdl-poster { width: 70px; height: 105px; object-fit: cover; border-radius: 10px; flex-shrink: 0; background: #0b0e14; }
+.mdl-info { flex: 1; min-width: 0; }
+.mdl-title { font-size: 1.1rem; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mdl-sub { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-top: 2px; }
+.mdl-status { font-size: 0.85rem; font-weight: 700; margin-top: 8px; }
+.mdl-bar { height: 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.15); margin-top: 8px; overflow: hidden; }
+.mdl-bar-fill { height: 100%; background: #22c55e; border-radius: 6px; transition: width 0.4s ease; }
+.mdl-bar-fill.indeterminate { width: 40% !important; animation: mdl-slide 1.2s linear infinite; }
+@keyframes mdl-slide { from { transform: translateX(150%); } to { transform: translateX(-250%); } }
+.mdl-stats { font-size: 0.8rem; font-weight: 700; color: #cbd5e1; margin-top: 7px; }
+.mdl-actions { display: flex; gap: 10px; flex-shrink: 0; }
+.mdl-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 17px;
+    cursor: pointer;
+}
+.mdl-btn:hover, .mdl-btn:focus-visible { background: rgba(34, 197, 94, 0.2); border-color: #fff; outline: none; }
+.mdl-btn-danger { color: #f87171; }
+.mdl-btn-play { color: #22c55e; }
+
+.mdl-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mdl-page-title { font-size: 1.8rem; font-weight: 900; display: flex; align-items: center; gap: 12px; }
+.mdl-page-tools { display: flex; gap: 10px; }
+.mdl-tool {
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #374151;
+    color: #fff;
+    font-family: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+.mdl-tool i { color: #f59e0b; margin-inline-end: 6px; }
+.mdl-tool-close i { color: #fff; margin: 0; }
+.mdl-tool:hover, .mdl-tool:focus-visible { background: #4b5563; outline: 2px solid #fff; outline-offset: 2px; }
+.mdl-page-sub { font-size: 0.9rem; font-weight: 700; color: #94a3b8; margin: 10px 0 16px; line-height: 1.8; }
+.mdl-page-sub i { color: #f59e0b; }
+.mdl-page-list { flex: 1; overflow-y: auto; padding-inline-end: 4px; }
+.mdl-empty { text-align: center; color: #94a3b8; padding: 60px 20px; font-weight: 800; font-size: 1.2rem; }
+.mdl-empty i { display: block; font-size: 3rem; margin-bottom: 14px; opacity: 0.5; }
+.mdl-empty small { display: block; margin-top: 8px; font-size: 0.9rem; font-weight: 600; }
+
+/* مساعد الميزو: قوائم الرد ومصادر البحث */
+.ai-msg-text .ai-msg-list { margin: 4px 0; padding-inline-start: 18px; }
+.ai-msg-text .ai-msg-list li { margin: 3px 0; line-height: 1.6; }
+.ai-msg-text .ai-msg-gap { height: 6px; }
+.ai-msg-text strong { color: #fff; font-weight: 800; }
+.ai-msg-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.ai-msg-sources .ai-src-title { font-size: 11px; opacity: .7; }
+.ai-src-chip { font-size: 11px; padding: 3px 9px; border-radius: 12px; background: rgba(255,255,255,.08); color: #9ecbff; text-decoration: none; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-src-chip:hover, .ai-src-chip:focus { background: rgba(255,255,255,.16); }

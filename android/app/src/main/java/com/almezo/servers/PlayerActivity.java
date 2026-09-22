@@ -1317,6 +1317,10 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         videoUrl = videoUrl.trim();
+        // يوقف أي تنزيل ويغلق اتصاله قبل أن يفتح المشغل اتصاله بالسيرفر
+        if (!countedOpen) { countedOpen = true; openPlayers++; }
+        playerVisible = true;
+        syncDownloadPause();
 
         PlayQueue.Entry cur = PlayQueue.current();
         if (getIntent().getBooleanExtra("queue", false) && cur != null && videoUrl.equals(cur.url)) {
@@ -1354,8 +1358,9 @@ public class PlayerActivity extends AppCompatActivity {
                     .setConnectTimeoutMs(25000)
                     .setReadTimeoutMs(25000);
 
+            // DefaultDataSource: الروابط تمر عبر مصدر HTTP نفسه، والملفات المنزّلة (file://) تُقرأ من الجهاز
             DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
-                    .setDataSourceFactory(httpDataSourceFactory);
+                    .setDataSourceFactory(new androidx.media3.datasource.DefaultDataSource.Factory(this, httpDataSourceFactory));
 
             // مخزن مؤقت واحد لكل الأجهزة بلا تفرقة بين ضعيف وقوي
             DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
@@ -1465,7 +1470,7 @@ public class PlayerActivity extends AppCompatActivity {
                          * المحاولة الثانية بعد وصول بيانات الفيلم. لم تكن هناك أي إعادة محاولة لغير
                          * البث المباشر، فنجرّب بقية الامتدادات المعروفة بصمت قبل إظهار أي خطأ.
                          */
-                        if (!isLiveStream && videoUrl != null && vodExtTried < VOD_EXTENSIONS.length) {
+                        if (!isLiveStream && videoUrl != null && !videoUrl.startsWith("file:") && vodExtTried < VOD_EXTENSIONS.length) {
                             int dot = videoUrl.lastIndexOf('.');
                             int slash = videoUrl.lastIndexOf('/');
                             if (dot > slash && slash > 0) {
@@ -1722,6 +1727,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (resumeChip != null) resumeChip.setVisibility(View.GONE);
         videoUrl = e.url;
         contentKey = e.key;
+        syncDownloadPause();
         resumeChecked = false;
         isRetried = false;
         if (tvTitle != null) tvTitle.setText(e.title);
@@ -1853,6 +1859,34 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * أثناء البث من السيرفر يتوقف التنزيل حتى لا يصبح للعميل اتصالان باللوحة (تحظر الـIP)،
+     * ويكمل بعد إغلاق المشغل. تشغيل ملف منزّل لا يتصل بالسيرفر فلا يوقف شيئاً.
+     */
+    private boolean playerVisible;
+    /** عدد المشغلات المفتوحة: التنزيل لا يكمل ما دام أي مشغل يبث من السيرفر. */
+    private static int openPlayers;
+    private boolean countedOpen;
+
+    private void syncDownloadPause() {
+        boolean streaming = playerVisible && videoUrl != null && !videoUrl.startsWith("file:");
+        com.almezo.servers.nat.Downloads.get(this).setPlaybackActive(streaming);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        playerVisible = true;
+        syncDownloadPause();
+    }
+
+    @Override
+    protected void onStop() {
+        // لا نستأنف التنزيل هنا: اتصال المشغل بالسيرفر يبقى مفتوحاً حتى release() في onDestroy،
+        // والاستئناف قبله يجعل للعميل اتصالين في نفس اللحظة
+        super.onStop();
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -1892,5 +1926,12 @@ public class PlayerActivity extends AppCompatActivity {
         } catch (Throwable t) {
             Log.w(TAG, "Error during onDestroy", t);
         }
+        // بعد تحرير المشغل وإغلاق اتصاله: يكمل التنزيل بعد مهلة قصيرة
+        playerVisible = false;
+        final android.content.Context app = getApplicationContext();
+        if (countedOpen) { countedOpen = false; openPlayers--; }
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (openPlayers == 0) com.almezo.servers.nat.Downloads.get(app).setPlaybackActive(false);
+        }, 1000);
     }
 }

@@ -100,7 +100,6 @@ public class AuthActivity extends BaseActivity {
             return false;
         });
 
-        View btnHome = findViewById(R.id.auth_btn_home);
         View btnSaved = findViewById(R.id.auth_btn_saved_accounts);
         View btnDevice = findViewById(R.id.auth_btn_device);
         TextView badge = findViewById(R.id.auth_saved_badge);
@@ -108,11 +107,10 @@ public class AuthActivity extends BaseActivity {
         View sFb = findViewById(R.id.auth_social_fb);
         View sWa = findViewById(R.id.auth_social_wa);
 
-        for (View v : new View[]{btnHome, btnSaved, btnDevice, sCall, sFb, sWa}) {
+        for (View v : new View[]{btnSaved, btnDevice, sCall, sFb, sWa}) {
             if (v != null) applyFocusScale(v, 1.12f);
         }
 
-        if (btnHome != null) btnHome.setOnClickListener(v -> exitToHome());
         if (btnSaved != null) btnSaved.setOnClickListener(v -> AccountsDialog.show(this));
         if (btnDevice instanceof ImageButton) ((ImageButton) btnDevice).setImageResource(DeviceModeDialog.iconFor(this));
         if (btnDevice != null) btnDevice.setOnClickListener(v -> DeviceModeDialog.show(this));
@@ -148,9 +146,18 @@ public class AuthActivity extends BaseActivity {
         return e != null && e.getAction() == KeyEvent.ACTION_DOWN && e.getKeyCode() == KeyEvent.KEYCODE_ENTER;
     }
 
+    private void setBackButton(int icon, String description) {
+        ImageButton back = findViewById(R.id.auth_btn_back);
+        if (back == null) return;
+        back.setImageResource(icon);
+        back.setContentDescription(description);
+    }
+
     private void showCodeStep() {
         stepLogin.setVisibility(View.GONE);
         stepCode.setVisibility(View.VISIBLE);
+        // زر واحد أعلى البطاقة بدل زري رجوع وهوم كانا يفعلان نفس الشيء هنا
+        setBackButton(R.drawable.fa_house, "الرجوع للرئيسية");
         logo.setImageResource(R.drawable.almezo_logo);
         title.setText("مشغل الميزو - ALmEz0");
         // لا نفتح لوحة المفاتيح تلقائياً: التركيز على الزر، والحقل يُفتح عند اختيار المستخدم له
@@ -160,6 +167,7 @@ public class AuthActivity extends BaseActivity {
     private void showLoginStep() {
         stepCode.setVisibility(View.GONE);
         stepLogin.setVisibility(View.VISIBLE);
+        setBackButton(R.drawable.fa_arrow_right, "الرجوع لكود السيرفر");
         logo.setImageResource(server.logoRes);
         title.setText(server.name);
         // التركيز على زر الدخول لا على حقل الاسم، فلا تقفز لوحة المفاتيح فور ظهور الشاشة
