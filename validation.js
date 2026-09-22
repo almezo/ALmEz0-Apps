@@ -16,7 +16,8 @@
  */
 function validateLibyanNumber(num) {
     // إزالة المسافات الزائدة
-    const cleaned = num.replace(/\s/g, '');
+    // الأرقام العربية (٠٩١...) من كيبورد عربي تُحوَّل لأرقام إنجليزية
+    const cleaned = String(num || '').replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0)).replace(/\s/g, '');
 
     // التحقق من أن الحقل ليس فارغاً
     if (cleaned.length === 0) {
@@ -73,8 +74,8 @@ function validateName(name) {
  */
 function validateAge(age) {
     const ageNum = parseInt(age);
-    if (isNaN(ageNum) || ageNum < 10 || ageNum > 100) {
-        return { valid: false, error: '❌ الرجاء إدخال عمر صحيح (بين 10 و 100 سنة)' };
+    if (isNaN(ageNum) || ageNum < 12 || ageNum > 80) {
+        return { valid: false, error: '❌ اختر عمرك من القائمة' };
     }
     return { valid: true, error: '' };
 }
@@ -87,6 +88,9 @@ function validateAge(age) {
 function validateCity(city) {
     if (!city || city.trim().length < 2) {
         return { valid: false, error: '❌ الرجاء إدخال اسم المدينة (حرفين على الأقل)' };
+    }
+    if (city.trim().length > 40) {
+        return { valid: false, error: '❌ اسم المدينة طويل جداً' };
     }
     return { valid: true, error: '' };
 }

@@ -573,6 +573,23 @@ public final class AiAssistantDialog {
             BaseActivity.applyFocusScale(h.btnDelete, 1.15f);
 
             h.itemView.setOnClickListener(v -> listener.onSelect(s));
+            // الريموت: أعلى/أسفل بين المحادثات نفسها (لا بين أزرار المسح المصطفة في عمود واحد)،
+            // وزر المسح بالسهم الجانبي من المحادثة، ومنه السهم الآخر يعيد للمحادثة.
+            h.itemView.setOnKeyListener((v, keyCode, e) -> {
+                if (e.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) { h.btnDelete.requestFocus(); return true; }
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) return focusRow(h.getBindingAdapterPosition() - 1);
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) return focusRow(h.getBindingAdapterPosition() + 1);
+                return false;
+            });
+            h.btnDelete.setOnKeyListener((v, keyCode, e) -> {
+                if (e.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) { h.itemView.requestFocus(); return true; }
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) return true;
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) return focusRow(h.getBindingAdapterPosition() - 1);
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) return focusRow(h.getBindingAdapterPosition() + 1);
+                return false;
+            });
             h.btnDelete.setOnClickListener(v -> {
                 int pos = h.getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION && pos < list.size()) {
@@ -585,6 +602,29 @@ public final class AiAssistantDialog {
         @Override
         public int getItemCount() {
             return list.size();
+        }
+
+        private RecyclerView recycler;
+
+        @Override
+        public void onAttachedToRecyclerView(@NonNull RecyclerView rv) {
+            recycler = rv;
+        }
+
+        /** تركيز صف المحادثة رقم pos. خارج القائمة: يُترك للبحث الافتراضي (رأس السجل مثلاً). */
+        private boolean focusRow(int pos) {
+            if (recycler == null || pos < 0 || pos >= list.size()) return false;
+            RecyclerView.ViewHolder vh = recycler.findViewHolderForAdapterPosition(pos);
+            if (vh != null) {
+                vh.itemView.requestFocus();
+            } else {
+                recycler.scrollToPosition(pos);
+                recycler.post(() -> {
+                    RecyclerView.ViewHolder later = recycler.findViewHolderForAdapterPosition(pos);
+                    if (later != null) later.itemView.requestFocus();
+                });
+            }
+            return true;
         }
     }
 
@@ -665,6 +705,12 @@ public final class AiAssistantDialog {
             h.userContainer.setVisibility(View.GONE);
             h.botContainer.setVisibility(View.VISIBLE);
 
+            // أثناء التحميل: النقاط وحدها بجانب الأيقونة بلا فقاعة (مثل نسخة الكمبيوتر)، والفقاعة مع الرد
+            if (h.bubble != null) {
+                h.bubble.setBackgroundResource(m.pending ? 0 : R.drawable.nat_bg_ai_bot_msg);
+                int pad = (int) (h.itemView.getResources().getDisplayMetrics().density * (m.pending ? 6 : 16));
+                h.bubble.setPadding(pad, pad, pad, pad);
+            }
             if (m.pending) {
                 h.botText.setVisibility(View.GONE);
                 if (h.loadingView != null) {
@@ -769,6 +815,7 @@ public final class AiAssistantDialog {
         final View userContainer, botContainer, sourcesBox;
         final TextView userText, botText;
         final LinearLayout cards, sources;
+        final View bubble;
         final View loadingView, dot1, dot2, dot3;
         private final List<ObjectAnimator> runningAnimators = new ArrayList<>();
 
@@ -780,6 +827,7 @@ public final class AiAssistantDialog {
             botText = v.findViewById(R.id.ai_msg_bot_text);
             cards = v.findViewById(R.id.ai_msg_cards);
             sources = v.findViewById(R.id.ai_msg_sources);
+            bubble = v.findViewById(R.id.ai_msg_bot_bubble);
             sourcesBox = v.findViewById(R.id.ai_msg_sources_box);
 
             loadingView = v.findViewById(R.id.ai_msg_loading_view);

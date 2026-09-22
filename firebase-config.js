@@ -398,8 +398,17 @@ async function registerWithFirebaseAuth(phone, password, userData) {
     const userCredential = await auth.createUserWithEmailAndPassword(syntheticEmail, password);
     const uid = userCredential.user.uid;
 
-    // حفظ الملف الشخصي في Firestore باستخدام uid كمعرّف الوثيقة
-    await saveUserToFirestore(userData, uid);
+    // حفظ الملف الشخصي في Firestore باستخدام uid كمعرّف الوثيقة. إعادة المحاولة عند انقطاع لحظي،
+    // لأن الحساب أُنشئ فعلاً: فشل الحفظ يترك حساباً بلا ملف (يُكمَل لاحقاً من نفس النموذج)
+    for (let attempt = 1; ; attempt++) {
+        try {
+            await saveUserToFirestore(userData, uid);
+            break;
+        } catch (e) {
+            if (attempt >= 3 || (e && e.code === 'permission-denied')) throw e;
+            await new Promise(r => setTimeout(r, 1200 * attempt));
+        }
+    }
 
     return uid;
 }
@@ -1810,6 +1819,37 @@ window.MizoLedger = (function () {
         if (e.target !== reopening) unlock(e.target);
     }, true);
 
+    // أزرار الأرقام وزر المسح في الريموت تكتب مباشرة في الخانة المقفلة بلا كيبورد (مثل شاشة رقم
+    // السيرفر في المشغل). القفل (للقراءة فقط) كان يمنعها، فيضطر المستخدم لفتح الكيبورد.
+    function typeIntoLocked(el, digit) {
+        if (!('value' in el)) return false;
+        var v = String(el.value || '');
+        if (digit === null) {
+            if (!v) return true;
+            v = v.slice(0, -1);
+        } else {
+            var max = parseInt(el.getAttribute('maxlength'), 10);
+            if (max > 0 && v.length >= max) return true;
+            v += digit;
+        }
+        el.value = v;
+        try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) { }
+        return true;
+    }
+
+    window.addEventListener('keydown', function (e) {
+        var el = document.activeElement;
+        if (!el || !el.hasAttribute || !el.hasAttribute('data-kbd-locked')) return;
+        var k = e.keyCode;
+        var digit = (k >= 48 && k <= 57 && !e.shiftKey) ? String(k - 48) : (k >= 96 && k <= 105) ? String(k - 96)
+            : (/^[0-9]$/.test(e.key || '') ? e.key : '');
+        if (digit || k === 8 || e.key === 'Backspace') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            typeIntoLocked(el, digit || null);
+        }
+    }, true);
+
     // OK / Enter على خانة مقفلة: تُفتح للكتابة بدل إرسال النموذج
     window.addEventListener('keydown', function (e) {
         var el = document.activeElement;
@@ -1819,5 +1859,140 @@ window.MizoLedger = (function () {
             e.stopImmediatePropagation();
             openForTyping(el);
         }
+    }, true);
+})();
+
+// =============================================
+// خانة الكتابة تبقى ظاهرة فوق الكيبورد الذي يظهر على الشاشة
+// =============================================
+// أندرويد: الصفحة تصغر عند فتح الكيبورد، لكن نوافذ الموقع (تسجيل الدخول، إنشاء الحساب...) ثابتة
+// ولها تمرير داخلي، والمتصفح يحرّك الصفحة لا محتوى النافذة، فتبقى الخانات السفلية تحت الكيبورد.
+// كمبيوتر اللمس: كيبورد ويندوز يظهر فوق البرنامج دون أن تصغر الشاشة، فنعرف مكانه من
+// VirtualKeyboard API إن توفرت، وإلا نرفع الخانة للثلث العلوي عند الضغط عليها باللمس.
+// هنا ننقل الخانة للمساحة الظاهرة عبر كل حاويات التمرير، مثل شاشة رقم السيرفر في المشغل.
+(function () {
+    var TEXT_TYPES = ['', 'text', 'search', 'email', 'tel', 'password', 'number', 'url'];
+    var padded = null, padOld = '';
+    var maxViewport = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    var vkHeight = 0;
+    var lastPointerType = '';
+
+    function isEditable(el) {
+        if (!el || !el.tagName) return false;
+        if (el.tagName === 'TEXTAREA') return true;
+        if (el.tagName === 'INPUT') return TEXT_TYPES.indexOf((el.getAttribute('type') || '').toLowerCase()) !== -1;
+        return el.isContentEditable === true;
+    }
+
+    function scrollers(el) {
+        var out = [];
+        for (var p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+            var oy = getComputedStyle(p).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight + 1) out.push(p);
+        }
+        return out;
+    }
+
+    function unpad() {
+        if (padded) { padded.style.paddingBottom = padOld; padded = null; }
+    }
+
+    /** ينقل الخانة لتكون فوق visibleBottom (حوالي ثلث المساحة الظاهرة). */
+    function reveal(el, visibleBottom) {
+        if (!el || !el.getBoundingClientRect) return;
+        var r = el.getBoundingClientRect();
+        if (r.top >= 8 && r.bottom <= visibleBottom - 16) return;
+        var delta = r.top - Math.max(12, visibleBottom * 0.3);
+        var list = scrollers(el);
+        // الحاوية لا تكفي للتمرير (نافذة قصيرة): مساحة مؤقتة بأسفلها بقدر الكيبورد
+        if (delta > 0 && !padded) {
+            var host = list[0] || (el.closest && el.closest('.modal-content, .modal, form'));
+            var gap = window.innerHeight - visibleBottom;
+            if (host && gap > 0) {
+                padded = host;
+                padOld = host.style.paddingBottom;
+                host.style.paddingBottom = (parseFloat(getComputedStyle(host).paddingBottom) + gap) + 'px';
+                list = scrollers(el);
+            }
+        }
+        for (var i = 0; i < list.length && Math.abs(delta) > 1; i++) {
+            var before = list[i].scrollTop;
+            list[i].scrollTop = before + delta;
+            delta -= (list[i].scrollTop - before);
+        }
+        if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+    }
+
+    function visibleBottom() {
+        var vv = window.visualViewport;
+        var bottom = vv ? vv.height + vv.offsetTop : window.innerHeight;
+        if (vkHeight > 0) bottom = Math.min(bottom, window.innerHeight - vkHeight);
+        return bottom;
+    }
+
+    function keyboardOpen() {
+        var vv = window.visualViewport;
+        var h = vv ? vv.height : window.innerHeight;
+        return vkHeight > 0 || h < maxViewport * 0.85;
+    }
+
+    function revealActive(delay) {
+        setTimeout(function () {
+            var el = document.activeElement;
+            if (isEditable(el) && keyboardOpen()) reveal(el, visibleBottom());
+        }, delay);
+    }
+
+    function onViewportChange() {
+        var vv = window.visualViewport;
+        var h = vv ? vv.height : window.innerHeight;
+        if (!keyboardOpen()) {
+            // إغلاق الكيبورد أو تكبير النافذة: يتجدد المرجع وتُزال المساحة المؤقتة
+            maxViewport = Math.max(maxViewport, h);
+            unpad();
+            return;
+        }
+        revealActive(60);
+    }
+
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewportChange);
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', function () {
+        setTimeout(function () {
+            maxViewport = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        }, 700);
+    });
+
+    // كيبورد ويندوز على أجهزة اللمس (برنامج الكمبيوتر): يخبرنا المتصفح بمكانه وحجمه
+    var isElectron = !!(window.electronAPI) || /Electron/i.test(navigator.userAgent || '');
+    if (isElectron && navigator.virtualKeyboard) {
+        try {
+            navigator.virtualKeyboard.overlaysContent = true;
+            navigator.virtualKeyboard.addEventListener('geometrychange', function (e) {
+                vkHeight = (e.target && e.target.boundingRect) ? e.target.boundingRect.height : 0;
+                if (vkHeight > 0) revealActive(30); else unpad();
+            });
+        } catch (e) { }
+    }
+
+    document.addEventListener('pointerdown', function (e) { lastPointerType = e.pointerType || ''; }, true);
+
+    document.addEventListener('focusin', function (e) {
+        if (!isEditable(e.target)) return;
+        // الكيبورد مفتوح أصلاً (انتقال بين الخانات أو فتحه بـ OK): انقل الخانة
+        revealActive(350);
+        // احتياط لكمبيوتر اللمس بلا VirtualKeyboard API: الخانة للثلث العلوي عند اللمس
+        if (isElectron && lastPointerType === 'touch' && !navigator.virtualKeyboard) {
+            var el = e.target;
+            setTimeout(function () {
+                if (document.activeElement === el) reveal(el, window.innerHeight * 0.55);
+            }, 350);
+        }
+    }, true);
+
+    document.addEventListener('focusout', function () {
+        setTimeout(function () {
+            if (!isEditable(document.activeElement)) unpad();
+        }, 200);
     }, true);
 })();

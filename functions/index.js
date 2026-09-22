@@ -11,6 +11,19 @@ exports.sendWhatsAppNotification = onCall(async (request) => {
 
     const message = String((request.data && request.data.message) || "").slice(0, 1000);
     if (!message.trim()) throw new HttpsError("invalid-argument", "الرسالة فارغة.");
+    // حد يومي لكل حساب: كان أي عميل مسجّل يستطيع إغراق رقم المدير برسائل بلا حد
+    if (request.auth.uid !== "7Rfvdr6GpwPcY9uDQwX0fIuWeRv1") {
+        const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+        const day = new Date(Date.now() + 2 * 3600 * 1000).toISOString().slice(0, 10);
+        const ref = fs().collection("wa_usage").doc(request.auth.uid + "_" + day);
+        const n = await fs().runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            const c = (snap.exists ? snap.data().count : 0) || 0;
+            if (c < 25) tx.set(ref, { uid: request.auth.uid, day: day, count: FieldValue.increment(1) }, { merge: true });
+            return c;
+        });
+        if (n >= 25) throw new HttpsError("resource-exhausted", "تم تجاوز الحد اليومي للإشعارات.");
+    }
     const API_KEY = "6716065";
     const ADMIN_PHONE = "218945772649";
     const url = `https://api.callmebot.com/whatsapp.php?phone=${ADMIN_PHONE}&text=${encodeURIComponent(message)}&apikey=${API_KEY}`;

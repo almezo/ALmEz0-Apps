@@ -2490,7 +2490,7 @@ function injectModals() {
         '      <p class="modal-subtitle">أدخل رقم هاتفك ورقمك السري للدخول إلى حسابك</p>',
         '      <div class="input-group">',
         '        <label for="loginPhone">رقم الهاتف (ليبيانا / المدار):</label>',
-        '        <input type="tel" id="loginPhone" placeholder="مثال: 0912345678" maxlength="10" dir="ltr">',
+        '        <input type="tel" id="loginPhone" placeholder="مثال: 0912345678" maxlength="10" dir="ltr" inputmode="numeric" autocomplete="tel">',
         '        <p id="loginPhoneError" class="error-msg"></p>',
         '      </div>',
         '      <div class="input-group">',
@@ -2519,26 +2519,39 @@ function injectModals() {
         '      <div class="form-row">',
         '        <div class="input-group">',
         '          <label for="regFirstName">الاسم الأول:</label>',
-        '          <input type="text" id="regFirstName" placeholder="مثال: أحمد">',
+        '          <input type="text" id="regFirstName" placeholder="مثال: أحمد" maxlength="50" autocomplete="given-name">',
+        '          <p id="regFirstNameError" class="error-msg"></p>',
         '        </div>',
         '        <div class="input-group">',
         '          <label for="regLastName">اللقب:</label>',
-        '          <input type="text" id="regLastName" placeholder="مثال: محمد">',
+        '          <input type="text" id="regLastName" placeholder="مثال: محمد" maxlength="50" autocomplete="family-name">',
+        '          <p id="regLastNameError" class="error-msg"></p>',
         '        </div>',
         '      </div>',
         '      <div class="form-row">',
         '        <div class="input-group">',
         '          <label for="regAge">العمر:</label>',
-        '          <input type="number" id="regAge" placeholder="مثال: 25" min="10" max="100">',
+        '          <select id="regAge" class="auth-select"><option value="">اختر عمرك</option></select>',
+        '          <p id="regAgeError" class="error-msg"></p>',
         '        </div>',
-        '        <div class="input-group">',
-        '          <label for="regCity">المدينة:</label>',
-        '          <input type="text" id="regCity" placeholder="مثال: طرابلس">',
+        '        <div class="input-group city-picker">',
+        '          <label for="regCityBtn">المدينة:</label>',
+        '          <input type="hidden" id="regCity">',
+        '          <button type="button" id="regCityBtn" class="auth-select city-picker-btn" aria-haspopup="listbox"><span id="regCityLabel">اختر مدينتك</span><i class="fas fa-chevron-down"></i></button>',
+        '          <p id="regCityError" class="error-msg"></p>',
         '        </div>',
+        '      </div>',
+        '      <div class="city-picker-panel" id="regCityPanel" role="listbox" aria-label="مدن ليبيا">',
+        '        <input type="text" id="regCitySearch" class="city-search" placeholder="🔍 ابحث عن مدينتك..." autocomplete="off">',
+        '        <div class="city-list" id="regCityList"></div>',
+        '      </div>',
+        '      <div class="input-group" id="regCityOtherWrap" style="display:none;">',
+        '        <label for="regCityOther">اكتب اسم مدينتك:</label>',
+        '        <input type="text" id="regCityOther" placeholder="اسم المدينة" maxlength="40">',
         '      </div>',
         '      <div class="input-group">',
         '        <label for="regPhone">رقم الهاتف (ليبيانا / المدار):</label>',
-        '        <input type="tel" id="regPhone" placeholder="مثال: 0912345678" maxlength="10" dir="ltr">',
+        '        <input type="tel" id="regPhone" placeholder="مثال: 0912345678" maxlength="10" dir="ltr" inputmode="numeric" autocomplete="tel">',
         '        <small class="note-text">⚠️ تأكد أن الرقم مرتبط بواتساب لسهولة التواصل</small>',
         '        <p id="regPhoneError" class="error-msg"></p>',
         '      </div>',
@@ -2764,6 +2777,7 @@ function injectModals() {
     document.getElementById('tabRegisterBtn').addEventListener('click', function () { switchAuthTab('register'); });
     document.getElementById('switchToRegister').addEventListener('click', function () { switchAuthTab('register'); });
     document.getElementById('switchToLogin').addEventListener('click', function () { switchAuthTab('login'); });
+    setupRegistrationPickers();
 
     // ربط أزرار إظهار/إخفاء الرقم السري
     document.getElementById('toggleLoginPass').addEventListener('click', function () {
@@ -4039,6 +4053,8 @@ function switchAuthTab(tab) {
     var lockoutBanner = document.getElementById('loginLockoutBanner');
 
     // مسح رسائل الخطأ عند التبديل
+    if (typeof clearRegFieldErrors === 'function') clearRegFieldErrors();
+    if (typeof closeCityPicker === 'function') closeCityPicker(false);
     var errors = ['loginPhoneError', 'loginPasswordError', 'loginGeneralError', 'regPhoneError', 'regPasswordError', 'regPasswordConfirmError', 'regGeneralError'];
     errors.forEach(function (id) {
         var el = document.getElementById(id);
@@ -4080,11 +4096,20 @@ function openLoginModal(defaultTab) {
     var tab = defaultTab || 'login';
 
     // مسح جميع حقول الإدخال
-    var fields = ['loginPhone', 'loginPassword', 'regFirstName', 'regLastName', 'regAge', 'regCity', 'regPhone', 'regPassword', 'regPasswordConfirm'];
+    var fields = ['loginPhone', 'loginPassword', 'regFirstName', 'regLastName', 'regAge', 'regCity', 'regCityOther', 'regPhone', 'regPassword', 'regPasswordConfirm'];
     fields.forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.value = '';
     });
+    setupRegistrationPickers();
+    var cityLabel = document.getElementById('regCityLabel');
+    if (cityLabel) cityLabel.textContent = 'اختر مدينتك';
+    var cityBtn = document.getElementById('regCityBtn');
+    if (cityBtn) cityBtn.classList.remove('has-value');
+    var cityOtherWrap = document.getElementById('regCityOtherWrap');
+    if (cityOtherWrap) cityOtherWrap.style.display = 'none';
+    closeCityPicker(false);
+    clearRegFieldErrors();
 
     // مسح رسائل الخطأ
     var errors = ['loginPhoneError', 'loginPasswordError', 'loginGeneralError', 'regPhoneError', 'regPasswordError', 'regPasswordConfirmError', 'regGeneralError'];
@@ -4234,8 +4259,11 @@ function getAuthErrorMessage(code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
         case 'auth/invalid-credential':
-        case 'auth/too-many-requests':
             return '❌ هناك خطأ في رقم الهاتف أو الرقم السري.';
+        case 'auth/too-many-requests':
+            return '⏳ محاولات كثيرة متتالية. انتظر بضع دقائق ثم حاول مجدداً.';
+        case 'auth/weak-password':
+            return '❌ الرقم السري ضعيف، استعمل 6 خانات على الأقل.';
         case 'auth/invalid-email':
             return '❌ صيغة رقم الهاتف غير صالحة.';
         case 'auth/user-disabled':
@@ -4251,7 +4279,7 @@ function getAuthErrorMessage(code) {
  * معالج زر تسجيل الدخول
  */
 async function handleLogin() {
-    var phone = document.getElementById('loginPhone').value.trim().replace(/\s+/g, '');
+    var phone = toLatinDigits(document.getElementById('loginPhone').value).trim().replace(/\s+/g, '');
     var password = document.getElementById('loginPassword').value.trim();
     var errEl = document.getElementById('loginGeneralError');
     var phoneErrEl = document.getElementById('loginPhoneError');
@@ -4561,6 +4589,187 @@ async function handleLogin() {
 // معالجة تسجيل حساب جديد عبر Firebase Authentication
 // =============================================
 
+
+// =============================================
+// نموذج التسجيل: قائمة العمر وقائمة مدن ليبيا
+// =============================================
+// مدن ليبيا مرتبة من الأشهر (حسب عدد السكان والشهرة) إلى الأقل، ثم "مدينة أخرى" لمن لم يجد مدينته.
+var LIBYA_CITIES = [
+    'طرابلس', 'بنغازي', 'مصراتة', 'الزاوية', 'البيضاء', 'زليتن', 'الخمس', 'سبها', 'طبرق', 'غريان',
+    'ترهونة', 'صبراتة', 'درنة', 'سرت', 'أجدابيا', 'زوارة', 'المرج', 'بني وليد', 'تاجوراء', 'جنزور',
+    'الزنتان', 'صرمان', 'العجيلات', 'مسلاتة', 'يفرن', 'نالوت', 'الجميل', 'رقدالين', 'القره بوللي', 'قصر الأخيار',
+    'العزيزية', 'السواني', 'قصر بن غشير', 'ورشفانة', 'الماية', 'جادو', 'الرجبان', 'كاباو', 'الأصابعة', 'مزدة',
+    'تيجي', 'بدر', 'غدامس', 'درج', 'القلعة', 'ككلة', 'الرياينة', 'الرحيبات', 'بئر الغنم', 'الحرابة',
+    'أبوكماش', 'زلطن', 'رأس اجدير', 'تاورغاء', 'الشويرف', 'القريات', 'هون', 'ودان', 'سوكنة', 'زلة',
+    'الفقهاء', 'مرادة', 'أوباري', 'مرزق', 'غات', 'براك الشاطئ', 'إدري', 'القرضة', 'تمنهنت', 'سمنو',
+    'الزيغن', 'تراغن', 'أم الأرانب', 'القطرون', 'مجدول', 'زويلة', 'تمسة', 'الغريفة', 'جرمة', 'تساوة',
+    'الكفرة', 'تازربو', 'ربيانة', 'جالو', 'أوجلة', 'جخرة', 'مرادة', 'البريقة', 'راس لانوف', 'بن جواد',
+    'النوفلية', 'الجغبوب', 'القبة', 'شحات', 'سوسة', 'الأبرق', 'مسة', 'قندولة', 'توكرة', 'العقورية',
+    'قمينس', 'سلوق', 'الأبيار', 'الرجمة', 'سيدي خليفة', 'بطة', 'عين مارة', 'مرتوبة', 'أم الرزم', 'التميمي',
+    'امساعد', 'البردي', 'كمبوت', 'الجبل الأخضر', 'الجفرة', 'الشاطئ', 'وادي الحياة', 'وادي عتبة', 'البوانيس'
+].filter(function (c, i, a) { return a.indexOf(c) === i; });
+var OTHER_CITY = 'مدينة أخرى';
+
+function toLatinDigits(s) {
+    return String(s == null ? '' : s)
+        .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+        .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+}
+
+function normalizeCityText(s) {
+    return String(s || '').trim().toLowerCase()
+        .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ');
+}
+
+/** قائمة العمر: "30 سنة - 1996" مع حساب سنة الميلاد من السنة الحالية. */
+function fillRegAgeSelect() {
+    var sel = document.getElementById('regAge');
+    if (!sel || sel.options.length > 1) return;
+    var year = new Date().getFullYear();
+    var html = '<option value="">اختر عمرك</option>';
+    for (var age = 12; age <= 80; age++) {
+        html += '<option value="' + age + '">' + age + ' سنة - ' + (year - age) + '</option>';
+    }
+    sel.innerHTML = html;
+}
+
+function renderCityList(filter) {
+    var list = document.getElementById('regCityList');
+    if (!list) return;
+    var q = normalizeCityText(filter);
+    var cities = LIBYA_CITIES.filter(function (c) { return !q || normalizeCityText(c).indexOf(q) !== -1; });
+    var html = cities.map(function (c) {
+        return '<button type="button" class="city-option" data-city="' + c + '">' + c + '</button>';
+    }).join('');
+    html += '<button type="button" class="city-option city-option-other" data-city="' + OTHER_CITY + '"><i class="fas fa-pen"></i> ' + OTHER_CITY + '</button>';
+    if (!cities.length) html = '<div class="city-empty">لا توجد مدينة بهذا الاسم</div>' + html;
+    list.innerHTML = html;
+}
+
+function openCityPicker() {
+    var panel = document.getElementById('regCityPanel');
+    if (!panel) return;
+    var search = document.getElementById('regCitySearch');
+    if (search) search.value = '';
+    renderCityList('');
+    panel.classList.add('open');
+    var first = panel.querySelector('.city-option');
+    // التركيز على أول مدينة (لا على البحث) حتى لا يفتح الكيبورد تلقائياً على الهاتف والتلفاز
+    if (first) setTimeout(function () { try { first.focus(); } catch (e) { } }, 30);
+}
+
+function closeCityPicker(focusBack) {
+    var panel = document.getElementById('regCityPanel');
+    if (panel) panel.classList.remove('open');
+    if (focusBack) {
+        var btn = document.getElementById('regCityBtn');
+        if (btn) try { btn.focus(); } catch (e) { }
+    }
+}
+
+function selectCity(city) {
+    var hidden = document.getElementById('regCity');
+    var label = document.getElementById('regCityLabel');
+    var otherWrap = document.getElementById('regCityOtherWrap');
+    var btn = document.getElementById('regCityBtn');
+    if (!hidden) return;
+    hidden.value = city;
+    if (label) label.textContent = city;
+    if (btn) btn.classList.add('has-value');
+    if (otherWrap) otherWrap.style.display = city === OTHER_CITY ? 'block' : 'none';
+    var err = document.getElementById('regCityError');
+    if (err) { err.style.display = 'none'; err.innerText = ''; }
+    closeCityPicker(city !== OTHER_CITY);
+    if (city === OTHER_CITY) {
+        var other = document.getElementById('regCityOther');
+        if (other) setTimeout(function () { try { other.focus(); } catch (e) { } }, 30);
+    }
+}
+
+/** المدينة المختارة، أو المكتوبة يدوياً عند اختيار "مدينة أخرى". */
+function getSelectedCity() {
+    var v = (document.getElementById('regCity') || {}).value || '';
+    if (v === OTHER_CITY) return ((document.getElementById('regCityOther') || {}).value || '').trim();
+    return v;
+}
+
+function setupRegistrationPickers() {
+    fillRegAgeSelect();
+    var btn = document.getElementById('regCityBtn');
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+        var panel = document.getElementById('regCityPanel');
+        if (panel && panel.classList.contains('open')) closeCityPicker(false); else openCityPicker();
+    });
+    var list = document.getElementById('regCityList');
+    if (list) list.addEventListener('click', function (e) {
+        var opt = e.target.closest ? e.target.closest('.city-option') : null;
+        if (opt) selectCity(opt.getAttribute('data-city'));
+    });
+    var search = document.getElementById('regCitySearch');
+    if (search) search.addEventListener('input', function () { renderCityList(search.value); });
+    var panel = document.getElementById('regCityPanel');
+    if (panel) panel.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeCityPicker(true);
+        }
+    });
+    // الأرقام العربية تظهر إنجليزية فوراً أثناء كتابة رقم الهاتف
+    ['regPhone', 'loginPhone'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', function () {
+            var v = toLatinDigits(el.value);
+            if (v !== el.value) el.value = v;
+        });
+    });
+    var age = document.getElementById('regAge');
+    if (age) age.addEventListener('change', function () {
+        var err = document.getElementById('regAgeError');
+        if (err) { err.style.display = 'none'; err.innerText = ''; }
+    });
+}
+
+function showFieldError(id, msg) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerText = msg;
+    el.style.display = 'block';
+}
+
+function clearRegFieldErrors() {
+    ['regFirstNameError', 'regLastNameError', 'regAgeError', 'regCityError'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.innerText = ''; }
+    });
+}
+
+/**
+ * حساب أُنشئ في Firebase Auth دون ملف شخصي (انقطع الاتصال بعد إنشائه): يُسجَّل الدخول بنفس الرقم
+ * السري ويُحفظ الملف. الرقم السري يثبت أنه صاحب الحساب. يعيد true إن اكتمل التسجيل.
+ */
+async function completeOrphanRegistration(phone, password, userData) {
+    var user = await loginWithFirebaseAuth(phone, password);
+    var profile = await fetchUserProfile(user.uid);
+    if (profile) {
+        await logoutUser().catch(function () { });
+        return false;
+    }
+    await saveUserToFirestore(userData, user.uid);
+    currentAuthUser = Object.assign({ uid: user.uid }, userData);
+    if (typeof sendRegistrationNotification === 'function') sendRegistrationNotification(userData);
+    updateHeaderLoginState();
+    closeLoginModal();
+    showToast('مرحباً ' + userData.firstName + '! تم إكمال تسجيل حسابك بنجاح ✅', 'success');
+    if (sessionStorage.getItem('almezo_redirect_to_player') === '1') {
+        sessionStorage.removeItem('almezo_redirect_to_player');
+        setTimeout(function () { window.location.href = 'player.html'; }, 600);
+    }
+    return true;
+}
+
 /**
  * معالج زر إنشاء حساب جديد
  * يتحقق من صحة البيانات، يُنشئ حساب Firebase Auth،
@@ -4570,8 +4779,8 @@ async function handleRegistration() {
     var firstName = document.getElementById('regFirstName').value.trim();
     var lastName = document.getElementById('regLastName').value.trim();
     var age = document.getElementById('regAge').value.trim();
-    var city = document.getElementById('regCity').value.trim();
-    var phone = document.getElementById('regPhone').value.trim().replace(/\s+/g, '');
+    var city = getSelectedCity();
+    var phone = toLatinDigits(document.getElementById('regPhone').value).trim().replace(/\s+/g, '');
     var password = document.getElementById('regPassword').value.trim();
     var passwordConfirm = document.getElementById('regPasswordConfirm').value.trim();
     var errEl = document.getElementById('regGeneralError');
@@ -4584,33 +4793,31 @@ async function handleRegistration() {
     phoneErrEl.style.display = 'none';
     if (passErrEl) passErrEl.style.display = 'none';
     if (passConfirmErrEl) passConfirmErrEl.style.display = 'none';
+    clearRegFieldErrors();
 
-    // === التحقق من جميع الحقول ===
+    // === التحقق من جميع الحقول (كل خطأ يظهر تحت خانته) ===
     var nameResult = validateName(firstName);
     if (!nameResult.valid) {
-        errEl.innerText = 'الاسم الأول: ' + nameResult.error;
-        errEl.style.display = 'block';
+        showFieldError('regFirstNameError', nameResult.error);
         return;
     }
 
     nameResult = validateName(lastName);
     if (!nameResult.valid) {
-        errEl.innerText = 'اللقب: ' + nameResult.error;
-        errEl.style.display = 'block';
+        showFieldError('regLastNameError', nameResult.error);
         return;
     }
 
     var ageResult = validateAge(age);
     if (!ageResult.valid) {
-        errEl.innerText = ageResult.error;
-        errEl.style.display = 'block';
+        showFieldError('regAgeError', ageResult.error);
         return;
     }
 
     var cityResult = validateCity(city);
     if (!cityResult.valid) {
-        errEl.innerText = cityResult.error;
-        errEl.style.display = 'block';
+        showFieldError('regCityError', document.getElementById('regCity').value === OTHER_CITY
+            ? '❌ اكتب اسم مدينتك (حرفين على الأقل)' : '❌ اختر مدينتك من القائمة');
         return;
     }
 
@@ -4647,11 +4854,12 @@ async function handleRegistration() {
 
     var btn = document.getElementById('confirmRegBtn');
     var originalText = btn.innerHTML;
+    var userData = null;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسجيل...';
     btn.disabled = true;
 
     try {
-        var userData = { firstName, lastName, age, city, phone };
+        userData = { firstName, lastName, age, city, phone };
 
         // === 1. إنشاء حساب Firebase Auth وحفظ الملف الشخصي في Firestore ===
         // registerWithFirebaseAuth في firebase-config.js:
@@ -4725,6 +4933,14 @@ async function handleRegistration() {
     } catch (error) {
         // تحويل أكواد خطأ Firebase إلى رسائل عربية
         if (error.code === 'auth/email-already-in-use') {
+            // الحساب موجود: قد يكون تسجيلاً سابقاً انقطع قبل حفظ البيانات. بنفس الرقم السري نكمله.
+            var completed = false;
+            try { completed = await completeOrphanRegistration(phone, password, userData); } catch (e2) { }
+            if (completed) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                return;
+            }
             phoneErrEl.innerText = '⚠️ هذا الرقم مسجل مسبقاً يرجى التبديل لتسجيل الدخول.';
             phoneErrEl.style.display = 'block';
         } else {

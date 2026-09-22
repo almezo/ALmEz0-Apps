@@ -75,7 +75,15 @@ service cloud.firestore {
 
         // التحقق من صيغة رقم الهاتف: نص من 10 أرقام بالضبط
         request.resource.data.phone is string &&
-        request.resource.data.phone.size() == 10;
+        request.resource.data.phone.size() == 10 &&
+        // الرقم في الملف = رقم الحساب نفسه (البريد الداخلي <الرقم>@almezo-servers.com)، فلا يُسجَّل ملف برقم عميل آخر
+        request.auth.token.email == request.resource.data.phone + '@almezo-servers.com' &&
+        request.resource.data.firstName is string && request.resource.data.firstName.size() >= 2 && request.resource.data.firstName.size() <= 50 &&
+        request.resource.data.lastName is string && request.resource.data.lastName.size() >= 2 && request.resource.data.lastName.size() <= 50 &&
+        request.resource.data.age is string && request.resource.data.age.matches('^[0-9]{2}$') &&
+        request.resource.data.city is string && request.resource.data.city.size() >= 2 && request.resource.data.city.size() <= 40 &&
+        request.resource.data.source is string && request.resource.data.source.size() <= 20 &&
+        request.resource.data.registeredAt == request.time;
     }
 
     match /transactions/{transactionId} {
