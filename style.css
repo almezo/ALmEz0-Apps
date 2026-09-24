@@ -9654,7 +9654,7 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
 /* أسفل أزرار المدير والمناديب (bottom:90px) حتى لا يختفي خلفها */
 .mz-notif-fab {
     position: fixed;
-    bottom: 26px;
+    bottom: 90px;
     right: 20px;
     width: 46px;
     height: 46px;
@@ -9669,12 +9669,24 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
     cursor: pointer;
     z-index: 1001;
     box-shadow: 0 4px 16px rgba(239, 68, 68, 0.5), 0 0 14px rgba(248, 113, 113, 0.35);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: box-shadow 0.2s ease;
+    animation: notifPulseGlow 2.5s infinite ease-in-out;
 }
 .mz-notif-fab:hover, .mz-notif-fab:focus-visible {
     transform: translateY(-3px) scale(1.06);
     box-shadow: 0 8px 24px rgba(239, 68, 68, 0.7), 0 0 18px rgba(248, 113, 113, 0.5);
     outline: none;
+    animation: none;
+}
+@keyframes notifPulseGlow {
+    0%, 100% {
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.5), 0 0 14px rgba(248, 113, 113, 0.35);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 6px 22px rgba(239, 68, 68, 0.75), 0 0 18px rgba(248, 113, 113, 0.6);
+        transform: scale(1.05);
+    }
 }
 .mz-notif-badge {
     position: absolute;
@@ -9695,7 +9707,7 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
 }
 .mz-notif-badge.hidden { display: none; }
 @media (max-width: 768px) {
-    .mz-notif-fab { bottom: 20px; right: 14px; width: 44px; height: 44px; }
+    .mz-notif-fab { bottom: 85px; right: 14px; width: 44px; height: 44px; }
 }
 
 .mz-notif-panel {
