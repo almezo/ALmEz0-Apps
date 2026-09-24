@@ -69,6 +69,15 @@ public class IntroActivity extends BaseActivity {
         } else if (toHome) {
             ((android.widget.TextView) findViewById(R.id.intro_title)).setText("سيرفرات الميزو");
             ((android.widget.TextView) findViewById(R.id.intro_sub)).setText("ALmEz0 SERVERS");
+        } else {
+            // افتتاحية المشغل: مكعب الميزو، كما في نسخة الكمبيوتر والموقع
+            android.widget.ImageView logo = findViewById(R.id.intro_logo);
+            logo.setImageResource(R.drawable.mizo_cube);
+            int size = (int) (getResources().getDisplayMetrics().density * 190);
+            android.view.ViewGroup.LayoutParams lp = logo.getLayoutParams();
+            lp.width = size;
+            lp.height = size;
+            logo.setLayoutParams(lp);
         }
         // احتياط إن لم تصل إشارة ظهور النافذة
         ui.postDelayed(this::startIntro, 1500);
