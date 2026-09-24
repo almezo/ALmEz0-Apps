@@ -1049,6 +1049,53 @@ function checkDeviceLockout() {
 }
 
 /**
+ * السيرفر هو مرجع الحظر (دالة loginGuard): يعدّ المحاولات ببصمة الجهاز وعنوان IP ورقم الهاتف
+ * معاً، فلا يتجاوزه أحد بمسح بيانات المتصفح أو بنافذة خفية أو بتبديل المتصفح. وما يُحفظ هنا
+ * نسخة للعرض الفوري وللعمل عند انقطاع الاتصال.
+ */
+async function serverLoginGuard(action, phone) {
+    try {
+        if (typeof functions === 'undefined' || !functions) return null;
+        const res = await functions.httpsCallable('loginGuard')({
+            action: action,
+            phone: phone || '',
+            hw: getHardwareFingerprint(),
+            device: getClientDeviceInfo()
+        });
+        const data = (res && res.data) || null;
+        if (data) cacheLockoutLocally(data, phone);
+        return data;
+    } catch (e) {
+        console.warn('loginGuard call failed:', e && e.message);
+        return null;
+    }
+}
+window.serverLoginGuard = serverLoginGuard;
+
+/** حفظ ما قاله السيرفر محلياً ليعمل العدّاد وشاشة الحظر فوراً. */
+function cacheLockoutLocally(data, phone) {
+    try {
+        const key = getLockoutStorageKey();
+        if (data.locked && data.remainingSeconds > 0) {
+            const payload = {
+                tierIndex: data.tierIndex || 0,
+                durationSeconds: data.durationSeconds || (data.remainingSeconds || 60),
+                lockedUntil: Date.now() + (data.remainingSeconds * 1000),
+                attempts: 3,
+                phone: phone || '',
+                hw: getHardwareFingerprint()
+            };
+            localStorage.setItem(key, JSON.stringify(payload));
+            sessionStorage.setItem(key, JSON.stringify(payload));
+        } else if (data.attempts !== undefined) {
+            const payload = { tierIndex: data.tierIndex || 0, attempts: data.attempts || 0, phone: phone || '' };
+            localStorage.setItem(key, JSON.stringify(payload));
+            sessionStorage.setItem(key, JSON.stringify(payload));
+        }
+    } catch (e) { }
+}
+
+/**
  * تسجيل محاولة فاشلة وتفعيل مدة الحظر المناسبة إذا بلغت 3 محاولات
  */
 function recordFailedAttemptAndLockout(phone) {
@@ -1078,24 +1125,7 @@ function recordFailedAttemptAndLockout(phone) {
             localStorage.setItem(key, JSON.stringify(lockPayload));
             sessionStorage.setItem(key, JSON.stringify(lockPayload));
 
-            // حفظ الحظر في Firestore للمزامنة والتحكم الإداري
-            if (typeof db !== 'undefined' && db) {
-                try {
-                    db.collection('security_lockouts').doc(lockPayload.hw).set({
-                        hw: lockPayload.hw,
-                        phone: phone || '',
-                        ip: lockPayload.ip || '',
-                        lockedUntil: lockedUntil,
-                        durationSeconds: durationSeconds,
-                        formattedDuration: formatDurationArabic(durationSeconds),
-                        tier: tierIndex + 1,
-                        status: 'active',
-                        device: getClientDeviceInfo(),
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true }).catch(function () { });
-                } catch (ce) { }
-            }
+            // الحفظ في قاعدة البيانات يتولاه السيرفر (loginGuard)، فالقواعد تمنع كتابة الأجهزة
 
             return {
                 lockedNow: true,
@@ -1190,31 +1220,30 @@ function unlockUiImmediately(showBanner = true) {
  */
 let lockoutUnsubscribeRef = null;
 
+/**
+ * متابعة حالة الحظر: الجهاز لم يعد يقرأ سجل الحظر مباشرة (صار للمدير وحده حفاظاً على
+ * خصوصية الأرقام وعناوين IP)، فيسأل السيرفر كل 20 ثانية ما دام محظوراً، فيرتفع الحظر
+ * تلقائياً خلال ثوانٍ من رفعك له في اللوحة.
+ */
 function listenToDeviceLockoutUpdates() {
     try {
-        if (typeof db === 'undefined' || !db) return;
-        const hw = getHardwareFingerprint();
-        if (!hw) return;
-
-        if (lockoutUnsubscribeRef) {
-            try { lockoutUnsubscribeRef(); } catch (e) { }
-            lockoutUnsubscribeRef = null;
-        }
-
-        lockoutUnsubscribeRef = db.collection('security_lockouts').doc(hw).onSnapshot(function (doc) {
-            if (doc && doc.exists) {
-                const data = doc.data();
-                if (data.status === 'lifted_by_admin') {
-                    console.log('🔓 [Realtime SOC] Lockout lifted by admin for device:', hw);
-                    const isCurrentlyLocked = checkDeviceLockout().isLocked || (typeof lockoutCountdownInterval !== 'undefined' && lockoutCountdownInterval !== null);
-                    unlockUiImmediately(isCurrentlyLocked);
+        if (lockoutPollTimer) return;
+        lockoutPollTimer = setInterval(async function () {
+            try {
+                var local = checkDeviceLockout();
+                var counting = (typeof lockoutCountdownInterval !== 'undefined' && lockoutCountdownInterval !== null);
+                if (!local.isLocked && !counting) return;
+                var state = (typeof serverLoginGuard === 'function') ? await serverLoginGuard('check', '') : null;
+                if (state && !state.locked) {
+                    resetDeviceLockout();
+                    unlockUiImmediately(true);
                 }
-            }
-        }, function (err) {
-            console.warn('⚠️ [Realtime SOC] Lockout listener error:', err);
-        });
+            } catch (e) { }
+        }, 20000);
     } catch (e) { }
 }
+
+var lockoutPollTimer = null;
 
 // تشغيل المستمع اللحظي تلقائياً
 if (typeof window !== 'undefined') {
@@ -1233,65 +1262,20 @@ if (typeof window !== 'undefined') {
  */
 async function syncLockoutFromCloud() {
     try {
-        if (typeof db === 'undefined' || !db) return;
-        const hw = getHardwareFingerprint();
         listenToDeviceLockoutUpdates();
-
-        // 1. الفحص بواسطة بصمة الجهاز (Hardware Fingerprint)
-        const docSnap = await db.collection('security_lockouts').doc(hw).get();
-        if (docSnap.exists) {
-            const data = docSnap.data();
-            const now = Date.now();
-
-            if (data.status === 'lifted_by_admin') {
-                const isCurrentlyLocked = checkDeviceLockout().isLocked || (typeof lockoutCountdownInterval !== 'undefined' && lockoutCountdownInterval !== null);
-                unlockUiImmediately(isCurrentlyLocked);
-                return;
+        // السيرفر يعرف حظر هذا الجهاز ببصمته وعنوان IP معاً، حتى لو كان الحظر فُرض من متصفح آخر
+        const state = await serverLoginGuard('check', '');
+        if (!state) return;
+        if (state.locked && state.remainingSeconds > 0) {
+            const errEl = document.getElementById('loginGeneralError');
+            const btn = document.getElementById('confirmLoginBtn');
+            if (typeof startLockoutCountdown === 'function') {
+                startLockoutCountdown(state.remainingSeconds, errEl, btn, state.formattedDuration, state.tierIndex || 0);
             }
-
-            // إذا كان هناك حظر نشط للجهاز سارياً تم فرضه من متصفح آخر
-            if (data.status === 'active' && data.lockedUntil && now < data.lockedUntil) {
-                const key = getLockoutStorageKey();
-                localStorage.setItem(key, JSON.stringify(data));
-                sessionStorage.setItem(key, JSON.stringify(data));
-
-                const remaining = Math.ceil((data.lockedUntil - now) / 1000);
-                const errEl = document.getElementById('loginGeneralError');
-                const btn = document.getElementById('confirmLoginBtn');
-                if (typeof startLockoutCountdown === 'function') {
-                    startLockoutCountdown(remaining, errEl, btn, data.formattedDuration, (data.tier || 1) - 1);
-                }
-                return;
-            }
-        }
-
-        // 2. الفحص الاحتياطي بواسطة الـ Public IP عبر المتصفحات
-        const ip = (cachedClientIpData && cachedClientIpData.ip) ? cachedClientIpData.ip : '';
-        if (ip) {
-            try {
-                const ipSnap = await db.collection('security_lockouts')
-                    .where('ip', '==', ip)
-                    .where('status', '==', 'active')
-                    .limit(1)
-                    .get();
-
-                if (!ipSnap.empty) {
-                    const ipData = ipSnap.docs[0].data();
-                    const now = Date.now();
-                    if (ipData.lockedUntil && now < ipData.lockedUntil) {
-                        const key = getLockoutStorageKey();
-                        localStorage.setItem(key, JSON.stringify(ipData));
-                        sessionStorage.setItem(key, JSON.stringify(ipData));
-
-                        const remaining = Math.ceil((ipData.lockedUntil - now) / 1000);
-                        const errEl = document.getElementById('loginGeneralError');
-                        const btn = document.getElementById('confirmLoginBtn');
-                        if (typeof startLockoutCountdown === 'function') {
-                            startLockoutCountdown(remaining, errEl, btn, ipData.formattedDuration, (ipData.tier || 1) - 1);
-                        }
-                    }
-                }
-            } catch (ipErr) { }
+        } else {
+            const wasLocked = checkDeviceLockout().isLocked;
+            resetDeviceLockout();
+            if (wasLocked) unlockUiImmediately(true);
         }
     } catch (e) { }
 }
@@ -1299,33 +1283,20 @@ async function syncLockoutFromCloud() {
 /**
  * دالة تحكم المدير لرفع الحظر عن أي جهاز / رقم فوراً ومزامنته لحظياً
  */
-async function adminLiftDeviceLockout(hw, phone) {
-    if (!hw) throw new Error('معرف الجهاز غير محدد');
+async function adminLiftDeviceLockout(hw, phone, ip) {
+    if (!hw && !phone && !ip) throw new Error('معرف الجهاز غير محدد');
 
-    // 1. تصفير الحظر المحلي للجهاز فوراً بدون انتظار
+    // 1. تصفير الحظر المحلي فوراً (إن كان المدير على نفس الجهاز)
     try {
         resetDeviceLockout();
         unlockUiImmediately();
         localStorage.setItem('almezo_lockout_lifted_signal', JSON.stringify({ hw: hw, time: Date.now() }));
     } catch (e) { }
 
-    // 2. تحديث وثيقة الحظر في Firestore للمزامنة اللحظية لكافة الأجهزة
-    if (typeof db !== 'undefined' && db) {
-        try {
-            await db.collection('security_lockouts').doc(hw).set({
-                status: 'lifted_by_admin',
-                lockedUntil: 0,
-                durationSeconds: 0,
-                liftedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                liftedBy: (typeof currentAuthUser !== 'undefined' && currentAuthUser) ? (currentAuthUser.firstName || 'Admin') : 'Admin'
-            }, { merge: true });
-        } catch (dbErr) {
-            // لا نبتلع الخطأ: رفع الحظر فعلياً هو هذه الكتابة وحدها (الجهاز المحظور يقرأها)،
-            // وكان فشلها يُعرض على المدير نجاحاً بينما يبقى الجهاز محظوراً.
-            console.warn('تعذر تحديث وثيقة الحظر السحابية:', dbErr);
-            throw dbErr;
-        }
-    }
+    // 2. رفع الحظر في السيرفر: يشمل بصمة الجهاز وعنوان IP ورقم الهاتف معاً
+    if (typeof functions === 'undefined' || !functions) throw new Error('خدمة رفع الحظر غير متاحة في هذه الصفحة');
+    const res = await functions.httpsCallable('liftLockout')({ hw: hw || '', phone: phone || '', ip: ip || '' });
+    if (!res || !res.data || !res.data.ok) throw new Error('تعذر رفع الحظر من السيرفر');
 
     // 3. تسجيل حركة إدارية في سجل الرصد
     if (typeof logActivity === 'function') {
@@ -2374,8 +2345,8 @@ window.MizoLedger = (function () {
         badge.classList.toggle('hidden', n === 0);
     }
 
-    function render(list) {
-        var box = document.getElementById('mzNotifList');
+    function render(list, box) {
+        box = box || document.getElementById('mzNotifList');
         if (!box) return;
         if (!list.length) {
             box.innerHTML = '<div class="mz-notif-empty"><i class="fas fa-bell-slash"></i><span>لا توجد إشعارات خلال آخر 30 يوماً</span></div>';
@@ -2388,7 +2359,8 @@ window.MizoLedger = (function () {
             var isSec = n.kind === 'security_alert';
             var icon = isSec ? 'fa-triangle-exclamation' : (n.type === 'promo' ? 'fa-fire' : (n.type === 'update' ? 'fa-rocket' : (n.type === 'product' ? 'fa-sparkles' : 'fa-bullhorn')));
             var link = /^https?:\/\//i.test(n.actionUrl || '') ? n.actionUrl : '';
-            return '<div class="mz-notif-item' + (isNew ? ' is-new' : '') + (isSec ? ' is-sec' : '') + '">' +
+            return '<div class="mz-notif-item' + (isNew ? ' is-new' : '') + (isSec ? ' is-sec' : '') + '" tabindex="0"' +
+                (link ? ' data-link="' + esc(link) + '"' : '') + '>' +
                 '<div class="mz-notif-ic"><i class="fas ' + icon + '"></i></div>' +
                 '<div class="mz-notif-body">' +
                 '<div class="mz-notif-title">' + esc(n.title || '') + '</div>' +
@@ -2410,8 +2382,64 @@ window.MizoLedger = (function () {
         render(list);
         if (list.length) setSeen(list[0].timestamp || Date.now());
         paintBadge(list);
-        var close = document.getElementById('mzNotifClose');
-        if (close) try { close.focus(); } catch (e) { }
+        // التركيز على أول إشعار ليبدأ التنقل بالريموت من القائمة مباشرة
+        var first = document.querySelector('#mzNotifList .mz-notif-item') || document.getElementById('mzNotifClose');
+        if (first) try { first.focus(); } catch (e) { }
+    }
+
+    /** عناصر النافذة التي يصلها الريموت بالترتيب: زر الإغلاق ثم الإشعارات. */
+    function panelFocusables() {
+        var panel = document.getElementById('mzNotifPanel');
+        if (!panel) return [];
+        return [].slice.call(panel.querySelectorAll('.mz-notif-close, .mz-notif-item'));
+    }
+
+    /**
+     * الريموت داخل نافذة الإشعارات: بدون هذا كانت الأسهم تخرج من النافذة إلى بطاقات الصفحة
+     * خلفها، والقائمة لا تتحرك، فلا يستطيع المستخدم قراءة إشعاراته إلا بالماوس.
+     */
+    function onPanelKey(e) {
+        var panel = document.getElementById('mzNotifPanel');
+        if (!panel || !panel.classList.contains('open')) return;
+        var code = e.keyCode;
+        var items = panelFocusables();
+        if (!items.length) return;
+        var idx = items.indexOf(document.activeElement);
+
+        // رجوع / خروج
+        if (e.key === 'Escape' || code === 27 || code === 4 || code === 8) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            closePanel();
+            return;
+        }
+        // أعلى وأسفل: تنقل داخل القائمة فقط
+        if (code === 38 || code === 40) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var next = idx < 0 ? 0 : idx + (code === 40 ? 1 : -1);
+            if (next < 0) next = 0;
+            if (next >= items.length) next = items.length - 1;
+            items[next].focus();
+            if (items[next].scrollIntoView) items[next].scrollIntoView({ block: 'nearest' });
+            return;
+        }
+        // يمين ويسار: لا شيء خارج النافذة
+        if (code === 37 || code === 39) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return;
+        }
+        // OK: فتح رابط الإشعار إن وُجد، أو إغلاق النافذة من زر الإغلاق
+        if (code === 13 || code === 23 || code === 66) {
+            var el = document.activeElement;
+            if (el && el.classList && el.classList.contains('mz-notif-item')) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var link = el.getAttribute('data-link');
+                if (link) window.open(link, '_blank', 'noopener');
+            }
+        }
     }
 
     function closePanel() {
@@ -2430,6 +2458,9 @@ window.MizoLedger = (function () {
         btn.title = 'الإشعارات';
         btn.setAttribute('aria-label', 'الإشعارات');
         btn.innerHTML = '<i class="fas fa-bell"></i><span class="mz-notif-badge hidden" id="mzNotifBadge"></span>';
+        // يبدأ مخفياً حتى نعرف من المستخدم: المدير يقرأ إشعاراته من زر لوحته، وغيره يراه.
+        // بدون ذلك كان الزر يومض ثم يختفي عند المدير مع كل تحديث للصفحة.
+        btn.style.display = 'none';
         btn.addEventListener('click', openPanel);
         document.body.appendChild(btn);
 
@@ -2448,19 +2479,64 @@ window.MizoLedger = (function () {
         document.body.appendChild(panel);
         panel.addEventListener('click', function (e) { if (e.target === panel) closePanel(); });
         document.getElementById('mzNotifClose').addEventListener('click', closePanel);
-        window.addEventListener('keydown', function (e) {
-            if ((e.key === 'Escape' || e.keyCode === 27) && panel.classList.contains('open')) {
-                e.preventDefault();
-                closePanel();
-            }
-        });
+        window.addEventListener('keydown', onPanelKey, true);
+
+        hideForAdmin();
 
         // العدّاد: عند الفتح، ثم كل خمس دقائق
         setTimeout(function () { fetchNotifications().then(paintBadge); }, 3000);
         setInterval(function () { fetchNotifications().then(paintBadge); }, 5 * 60 * 1000);
     }
 
-    window.MizoNotifCenter = { open: openPanel, close: closePanel, refresh: function () { return fetchNotifications().then(paintBadge); } };
+    /** عرض نفس السجل داخل حاوية أخرى (تبويب "الإشعارات الواردة" في لوحة المدير). */
+    async function renderInto(el) {
+        if (!el) return;
+        el.innerHTML = '<div class="mz-notif-empty">جاري جلب الإشعارات...</div>';
+        var list = await fetchNotifications();
+        render(list, el);
+        if (list.length) setSeen(list[0].timestamp || Date.now());
+        paintBadge(list);
+    }
+
+    async function unread() {
+        var list = await fetchNotifications();
+        return unreadCount(list);
+    }
+
+    /** المدير يقرأ إشعاراته من زر الإشعارات في لوحته، فلا داعي لجرس إضافي عنده. */
+    function hideForAdmin() {
+        var decided = false;
+        function apply(isAdmin) {
+            decided = true;
+            var btn = document.getElementById('mzNotifBtn');
+            if (btn) btn.style.display = isAdmin ? 'none' : '';
+        }
+        // صفحة بلا Firebase أو تأخر في معرفة المستخدم: يظهر الزر بعد ثانيتين
+        setTimeout(function () { if (!decided) apply(false); }, 2000);
+        try {
+            if (!window.firebase || !firebase.auth) return;
+            firebase.auth().onAuthStateChanged(function (u) {
+                if (!u) return apply(false);
+                if (u.uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1') return apply(true);
+                try {
+                    if (typeof currentAuthUser !== 'undefined' && currentAuthUser && currentAuthUser.role === 'admin') return apply(true);
+                } catch (e) { }
+                var db2 = store();
+                if (!db2) return apply(false);
+                db2.collection('admins').doc(u.uid).get()
+                    .then(function (doc) { apply(!!(doc && doc.exists)); })
+                    .catch(function () { apply(false); });
+            });
+        } catch (e) { }
+    }
+
+    window.MizoNotifCenter = {
+        open: openPanel,
+        close: closePanel,
+        renderInto: renderInto,
+        unread: unread,
+        refresh: function () { return fetchNotifications().then(paintBadge); }
+    };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
     else build();

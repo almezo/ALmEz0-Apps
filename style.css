@@ -9651,9 +9651,10 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
 .alerts-open-monitor:hover { background: rgba(34,197,94,.26); color: #fff; }
 
 /* ===== زر الإشعارات لجميع المستخدمين (أسفل يمين) ===== */
+/* أسفل أزرار المدير والمناديب (bottom:90px) حتى لا يختفي خلفها */
 .mz-notif-fab {
     position: fixed;
-    bottom: 90px;
+    bottom: 26px;
     right: 20px;
     width: 46px;
     height: 46px;
@@ -9666,7 +9667,7 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 999;
+    z-index: 1001;
     box-shadow: 0 4px 16px rgba(239, 68, 68, 0.5), 0 0 14px rgba(248, 113, 113, 0.35);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -9694,7 +9695,7 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
 }
 .mz-notif-badge.hidden { display: none; }
 @media (max-width: 768px) {
-    .mz-notif-fab { bottom: 85px; right: 14px; }
+    .mz-notif-fab { bottom: 20px; right: 14px; width: 44px; height: 44px; }
 }
 
 .mz-notif-panel {
@@ -9748,3 +9749,41 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
 .mz-notif-link:hover { text-decoration: underline; }
 .mz-notif-empty { padding: 28px; text-align: center; color: #94a3b8; font-size: .9rem; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .mz-notif-empty i { font-size: 1.6rem; opacity: .6; }
+
+/* ===== تبويبا نافذة الإشعارات في لوحة المدير (إرسال / وارد) ===== */
+.broadcast-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.broadcast-tab {
+    position: relative;
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.18s;
+}
+.broadcast-tab:hover, .broadcast-tab:focus-visible { background: rgba(255, 255, 255, 0.1); color: #fff; outline: none; }
+.broadcast-tab.active { background: linear-gradient(135deg, rgba(34,197,94,.26), rgba(22,163,74,.16)); border-color: rgba(34,197,94,.55); color: #fff; }
+.broadcast-tab-badge {
+    position: absolute; top: -6px; inset-inline-end: -6px; min-width: 20px; height: 20px; padding: 0 5px;
+    border-radius: 10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; border: 2px solid #0f1622;
+}
+.broadcast-tab-badge.hidden { display: none; }
+#broadcastInboxView .mz-notif-list { max-height: 58vh; padding: 0; }
+
+/* تذييل الإرسال يختفي في تبويب "الإشعارات الواردة" (التنسيق الأصلي يستعمل !important) */
+.broadcast-modal-footer.bc-footer-hidden { display: none !important; }
+
+/* تركيز الريموت داخل نافذة الإشعارات */
+.mz-notif-item:focus, .mz-notif-item:focus-visible {
+    outline: none;
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 18px rgba(34, 197, 94, 0.35);
+    transform: scale(1.01);
+}
+.mz-notif-item { transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }

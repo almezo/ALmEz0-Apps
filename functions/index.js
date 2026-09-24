@@ -777,5 +777,273 @@ exports.cleanupActivityLogs = onSchedule({ schedule: "30 2 * * *", timeZone: "Af
         oldUsage.docs.forEach((doc) => b.delete(doc.ref));
         await b.commit();
     }
-    logger.info("activity logs cleanup", { removed: removed });
+    let lockouts = 0;
+    try { lockouts = await guardCleanup(db); } catch (e) { logger.warn("lockout cleanup failed", { error: e.message }); }
+    logger.info("activity logs cleanup", { removed: removed, lockouts: lockouts });
+});
+
+// =============================================
+// الحظر التصاعدي من السيرفر (حماية تسجيل الدخول)
+// =============================================
+// كان العدّ والحظر في متصفح العميل: من يمسح بيانات الموقع أو يفتح نافذة خفية أو يبدّل المتصفح
+// يتجاوزه فوراً، وكتابة الحظر في قاعدة البيانات كانت تفشل أصلاً (القواعد تسمح للمدير وحده)،
+// فلم تكن تظهر لك أي أجهزة محظورة. الآن السيرفر هو من يعدّ ويحظر، بثلاثة مفاتيح معاً:
+// بصمة الجهاز، وعنوان IP، ورقم الهاتف المستهدف. والسلّم كما هو: 3 محاولات ثم
+// دقيقة ← 5 ← 10 ← 30 ← 60 دقيقة ← 24 ساعة.
+const GUARD_TIERS_SECONDS = [60, 300, 600, 1800, 3600, 86400];
+const GUARD_MAX_ATTEMPTS = 3;
+
+function guardFormatDuration(seconds) {
+    if (seconds < 60) return seconds + " ثانية";
+    if (seconds === 60) return "دقيقة واحدة";
+    if (seconds < 3600) return Math.floor(seconds / 60) + " دقائق";
+    if (seconds === 3600) return "ساعة واحدة";
+    if (seconds < 86400) return Math.floor(seconds / 3600) + " ساعات";
+    return "24 ساعة (يوم كامل)";
+}
+
+function guardKeys(d, ip) {
+    const clean = (v, n) => String(v == null ? "" : v).replace(/[^\w.:@-]/g, "").slice(0, n);
+    // المفاتيح: بصمة الجهاز وعنوان IP فقط. لا نحظر برقم الهاتف وحده، وإلا استطاع شخص أن
+    // يحظر رقم عميل آخر عمداً بمحاولات فاشلة باسمه. الرقم يُحفظ للعرض في اللوحة فقط.
+    const keys = [];
+    const hw = clean(d.hw, 40);
+    if (hw) keys.push("hw_" + hw);
+    if (ip) keys.push("ip_" + clean(ip, 45).replace(/[.:]/g, "_"));
+    return keys;
+}
+
+async function guardRead(db, keys) {
+    if (!keys.length) return [];
+    const snaps = await db.getAll(...keys.map((k) => db.collection("security_lockouts").doc(k)));
+    return snaps.map((s, i) => ({ key: keys[i], ref: s.ref, data: s.exists ? s.data() : null }));
+}
+
+/**
+ * حالة الحظر لهذا الطلب: أقوى حظر ساري بين مفاتيحه (جهاز، IP، رقم).
+ * lift = رفع المدير للحظر يُلغي السريان.
+ */
+function guardActive(rows, now) {
+    let best = null;
+    for (const r of rows) {
+        const d = r.data;
+        if (!d || d.status === "lifted_by_admin") continue;
+        const until = Number(d.lockedUntil) || 0;
+        if (until > now && (!best || until > best.until)) {
+            best = { until: until, tier: Number(d.tier) || 1, durationSeconds: Number(d.durationSeconds) || 60, key: r.key };
+        }
+    }
+    return best;
+}
+
+exports.loginGuard = onCall(async (request) => {
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const db = fs();
+    const d = request.data || {};
+    const ip = logClientIp(request);
+    const now = Date.now();
+    const action = d.action === "fail" ? "fail" : (d.action === "success" ? "success" : "check");
+    const keys = guardKeys(d, ip);
+    if (!keys.length) return { locked: false, remainingSeconds: 0, attempts: 0, remainingAttempts: GUARD_MAX_ATTEMPTS };
+
+    const rows = await guardRead(db, keys);
+
+    // نجاح الدخول: تصفير العدّ لهذه المفاتيح (السلّم يعود للبداية)
+    if (action === "success") {
+        const batch = db.batch();
+        rows.forEach((r) => {
+            if (r.data) batch.set(r.ref, { attempts: 0, lockedUntil: 0, status: "cleared", tier: 0, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        });
+        await batch.commit();
+        return { locked: false, remainingSeconds: 0, attempts: 0, remainingAttempts: GUARD_MAX_ATTEMPTS };
+    }
+
+    const active = guardActive(rows, now);
+    if (active) {
+        return {
+            locked: true,
+            remainingSeconds: Math.ceil((active.until - now) / 1000),
+            durationSeconds: active.durationSeconds,
+            formattedDuration: guardFormatDuration(active.durationSeconds),
+            tierIndex: Math.max(0, active.tier - 1),
+            attempts: GUARD_MAX_ATTEMPTS,
+            remainingAttempts: 0
+        };
+    }
+
+    if (action === "check") {
+        const attempts = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.attempts)) || 0));
+        return { locked: false, remainingSeconds: 0, attempts: attempts, remainingAttempts: Math.max(0, GUARD_MAX_ATTEMPTS - attempts) };
+    }
+
+    // محاولة فاشلة: زيادة العدّاد على كل المفاتيح، والحظر عند بلوغ الحد
+    const attempts = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.attempts)) || 0)) + 1;
+    const tierIndex = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.tierIndex)) || 0));
+    const device = logSanitizeDevice(d.device, ip);
+    const batch = db.batch();
+
+    if (attempts >= GUARD_MAX_ATTEMPTS) {
+        const durationSeconds = GUARD_TIERS_SECONDS[Math.min(tierIndex, GUARD_TIERS_SECONDS.length - 1)];
+        const lockedUntil = now + durationSeconds * 1000;
+        rows.forEach((r) => {
+            batch.set(r.ref, {
+                key: r.key,
+                hw: String(d.hw || "").slice(0, 40),
+                phone: String(d.phone || "").slice(0, 20),
+                ip: ip,
+                device: device,
+                attempts: 0,
+                tierIndex: Math.min(tierIndex + 1, GUARD_TIERS_SECONDS.length - 1),
+                tier: tierIndex + 1,
+                durationSeconds: durationSeconds,
+                formattedDuration: guardFormatDuration(durationSeconds),
+                lockedUntil: lockedUntil,
+                status: "active",
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+        });
+        await batch.commit();
+        return {
+            locked: true,
+            lockedNow: true,
+            remainingSeconds: durationSeconds,
+            durationSeconds: durationSeconds,
+            formattedDuration: guardFormatDuration(durationSeconds),
+            tierIndex: tierIndex,
+            attempts: GUARD_MAX_ATTEMPTS,
+            remainingAttempts: 0
+        };
+    }
+
+    rows.forEach((r) => {
+        batch.set(r.ref, {
+            key: r.key,
+            hw: String(d.hw || "").slice(0, 40),
+            phone: String(d.phone || "").slice(0, 20),
+            ip: ip,
+            device: device,
+            attempts: attempts,
+            tierIndex: tierIndex,
+            status: "counting",
+            updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+    });
+    await batch.commit();
+    return { locked: false, attempts: attempts, remainingAttempts: GUARD_MAX_ATTEMPTS - attempts, tierIndex: tierIndex };
+});
+
+/** رفع الحظر من لوحة المدير: يرفع كل مفاتيح الجهاز (بصمة، IP، رقم) دفعة واحدة. */
+exports.liftLockout = onCall(async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const db = fs();
+    const uid = request.auth.uid;
+    const isAdmin = uid === AI_ADMIN_UID || (await db.collection("admins").doc(uid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "هذه العملية للمدير فقط.");
+
+    const d = request.data || {};
+    const hw = String(d.hw || "").slice(0, 40);
+    const phone = String(d.phone || "").slice(0, 20);
+    const ip = String(d.ip || "").slice(0, 45);
+    const refs = [];
+    if (hw) refs.push("hw_" + hw.replace(/[^\w-]/g, ""));
+    if (ip) refs.push("ip_" + ip.replace(/[.:]/g, "_"));
+
+    if (!refs.length) throw new HttpsError("invalid-argument", "لا يوجد جهاز محدد.");
+
+    const batch = db.batch();
+    refs.forEach((k) => {
+        batch.set(db.collection("security_lockouts").doc(k), {
+            status: "lifted_by_admin",
+            lockedUntil: 0,
+            attempts: 0,
+            tierIndex: 0,
+            liftedAt: FieldValue.serverTimestamp(),
+            liftedBy: uid
+        }, { merge: true });
+    });
+    await batch.commit();
+    return { ok: true, lifted: refs.length };
+});
+
+/** تنظيف سجلات الحظر المنتهية (أقدم من 30 يوماً) مع تنظيف السجلات اليومي. */
+async function guardCleanup(db) {
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const snap = await db.collection("security_lockouts").where("lockedUntil", "<", cutoff).limit(300).get();
+    if (snap.empty) return 0;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    return snap.size;
+}
+
+// =============================================
+// إشعار تلقائي عند صدور نسخة جديدة من البرنامج
+// =============================================
+// يفحص version.json كل ساعة. عند تغيّر رقم النسخة يُنشئ إشعاراً عاماً واحداً، فيصل تلقائياً
+// إلى شريط إشعارات أندرويد (عبر pushBroadcastNotification)، ويظهر داخل الموقع وبرنامج
+// الكمبيوتر وفي سجل الإشعارات. آخر نسخة أُعلن عنها محفوظة حتى لا يتكرر الإشعار.
+/** يقارن رقمي نسخة: 1 إن كان a أحدث، -1 إن كان أقدم، 0 إن تساويا. */
+function versionCompare(a, b) {
+    const pa = String(a).split(".").map((n) => parseInt(n, 10) || 0);
+    const pb = String(b).split(".").map((n) => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const x = pa[i] || 0, y = pb[i] || 0;
+        if (x !== y) return x > y ? 1 : -1;
+    }
+    return 0;
+}
+
+const VERSION_SOURCES = [
+    "https://almezo.store/version.json",
+    "https://raw.githubusercontent.com/almezo/ALmEz0-Downloads/main/version.json"
+];
+
+exports.announceNewVersion = onSchedule({ schedule: "15 * * * *", timeZone: "Africa/Tripoli" }, async () => {
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const db = fs();
+
+    let info = null;
+    for (const url of VERSION_SOURCES) {
+        try {
+            const res = await fetch(url + "?t=" + Date.now(), { cache: "no-store" });
+            if (!res.ok) continue;
+            info = await res.json();
+            if (info && info.version) break;
+        } catch (e) { }
+    }
+    if (!info || !info.version) {
+        logger.warn("version check failed: no source reachable");
+        return;
+    }
+
+    const version = String(info.version).slice(0, 20);
+    const stateRef = db.collection("systemSettings").doc("versionAnnounce");
+    const state = await stateRef.get();
+    const last = state.exists ? String(state.data().version || "") : "";
+    // أحدث فقط: لو تعذّر الوصول للموقع وقرأنا مصدراً احتياطياً قديماً، لا نعلن نسخة أقدم
+    if (last && versionCompare(version, last) <= 0) return;
+
+    const mandatory = String(info.minSupportedVersion || "") === version;
+    const now = Date.now();
+    const notes = String(info.notes || "").slice(0, 240);
+    await db.collection("broadcast_notifications").add({
+        type: "update",
+        title: "🚀 تحديث جديد: نسخة " + version + (mandatory ? " (إلزامي)" : ""),
+        message: notes || "صدرت نسخة جديدة من تطبيق وبرنامج سيرفرات الميزو. حدّث الآن لتحصل على آخر المزايا.",
+        actionUrl: "https://almezo.store/app-details.html",
+        image: "",
+        timestamp: now,
+        createdAt: FieldValue.serverTimestamp(),
+        senderUid: "system",
+        active: true,
+        pending: false,
+        scheduledFor: 0,
+        targetUid: "",
+        kind: "app_update",
+        appVersion: version
+    });
+    await stateRef.set({ version: version, announcedAt: now, mandatory: mandatory }, { merge: true });
+    logger.info("new version announced", { version: version, mandatory: mandatory });
 });

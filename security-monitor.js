@@ -551,7 +551,7 @@
                                 <i class="fas fa-eye"></i> التفاصيل
                             </button>
                             ${(log.action === 'client_locked_out' || log.action === 'lockout_attempt' || (log.details && log.details.tier)) && hwFp ? `
-                                <button type="button" class="btn-lift-ban" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone || '')})" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
+                                <button type="button" class="btn-lift-ban" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone || '')}, ${jsArg(ipAddress || '')})" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
                                     <i class="fas fa-unlock-alt"></i> رفع الحظر
                                 </button>
                             ` : ''}
@@ -750,7 +750,7 @@
                             ${userPhone ? ` | الهاتف: <span style="color:#69f0ae; font-family:monospace;">${escapeHtml(userPhone)}</span>` : ''}
                         </div>
                     </div>
-                    <button type="button" class="btn-lift-ban" style="padding:9px 18px; font-size:0.9rem;" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone)})">
+                    <button type="button" class="btn-lift-ban" style="padding:9px 18px; font-size:0.9rem;" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone)}, ${jsArg(log.publicIp || '')})">
                         <i class="fas fa-unlock-alt"></i> رفع الحظر فوراً
                     </button>
                 </div>
@@ -777,7 +777,7 @@
     /**
      * تنفيذ رفع الحظر الأمني عن جهاز أو رقم من قبل المدير
      */
-    window.liftLockoutAction = async function (hw, phone) {
+    window.liftLockoutAction = async function (hw, phone, ip) {
         if (!hw || hw === 'غير متوفر') {
             if (typeof showToast === 'function') showToast('⚠️ لا يمكن تحديد بصمة الجهاز لهذا السجل', 'error');
             return;
@@ -791,7 +791,8 @@
             // رفع الحظر فعلياً = الكتابة في السحابة، فالجهاز المحظور يقرأ حالته منها.
             // (تصفير التخزين المحلي هنا كان يمسّ متصفح المدير نفسه لا الجهاز المحظور.)
             if (typeof adminLiftDeviceLockout !== 'function') throw new Error('دالة رفع الحظر غير محمّلة');
-            await adminLiftDeviceLockout(hw, phone);
+            // يرفع الحظر عن مفاتيحه الثلاثة في السيرفر: بصمة الجهاز، وعنوان IP، ورقم الهاتف
+            await adminLiftDeviceLockout(hw, phone, ip || '');
 
             if (typeof showToast === 'function') {
                 showToast(`✅ تم رفع الحظر الأمني عن الجهاز (${hw}) بنجاح`, 'success', 5000);

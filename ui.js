@@ -329,9 +329,6 @@ function checkFABMode() {
             fabContainerLeft.appendChild(purchasesFab);
             fabContainerLeft.appendChild(usersIntelFab);
 
-            // عدّاد التنبيهات غير المقروءة على زر السجل
-            setTimeout(function () { if (window.refreshAdminAlertsBadge) window.refreshAdminAlertsBadge(); }, 2500);
-            setInterval(function () { if (window.refreshAdminAlertsBadge) window.refreshAdminAlertsBadge(); }, 5 * 60 * 1000);
 
         } else if (user.role === 'staff') {
             // زر المندوبين (يسار)
@@ -561,6 +558,21 @@ function injectBroadcastModalHtml() {
                 <span class="close-modal" onclick="closeBroadcastModal()" style="cursor:pointer; font-size: 26px; color: #94a3b8;">&times;</span>
             </div>
             <div class="modal-body broadcast-modal-body">
+                <div class="broadcast-tabs">
+                    <button type="button" class="broadcast-tab active" id="bcTabSend" onclick="switchBroadcastTab('send')">
+                        <i class="fas fa-paper-plane"></i> إرسال إشعار
+                    </button>
+                    <button type="button" class="broadcast-tab" id="bcTabInbox" onclick="switchBroadcastTab('inbox')">
+                        <i class="fas fa-inbox"></i> الإشعارات الواردة
+                        <span class="broadcast-tab-badge hidden" id="bcInboxBadge"></span>
+                    </button>
+                </div>
+
+                <div id="broadcastInboxView" style="display:none;">
+                    <div class="mz-notif-list" id="adminInboxList"></div>
+                </div>
+
+                <div id="broadcastSendView">
                 <div class="broadcast-info-banner">
                     <i class="fas fa-info-circle"></i>
                     <span>سيصل هذا الإشعار فوراً لشريط الإشعارات في أجهزة العملاء (أندرويد، كمبيوتر، متصفح) مع تنبيه مرئي وصوتي فور الإرسال.</span>
@@ -662,6 +674,8 @@ function injectBroadcastModalHtml() {
                         <div class="empty-state-sm" style="color: #64748b; text-align: center; padding: 10px;">جاري جلب السجل...</div>
                     </div>
                 </div>
+
+                </div>
             </div>
 
             <div class="modal-footer broadcast-modal-footer">
@@ -681,104 +695,24 @@ function injectBroadcastModalHtml() {
     });
 }
 
-/**
- * سجل الإشعارات والتنبيهات الأمنية الموجّهة للمدير وحده.
- * مصدره broadcast_notifications حيث targetUid = المدير (يكتبها السيرفر عند كل حدث خطير).
- */
-window.openAdminAlertsModal = async function () {
-    let modal = document.getElementById('adminAlertsModal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'adminAlertsModal';
-        modal.className = 'modal alerts-modal';
-        modal.innerHTML = '\
-            <div class="modal-content alerts-modal-content">\
-                <div class="alerts-modal-header">\
-                    <h3><i class="fas fa-bell"></i> سجل الإشعارات والتنبيهات الأمنية</h3>\
-                    <button type="button" class="alerts-close-btn" onclick="closeAdminAlertsModal()"><i class="fas fa-times"></i></button>\
-                </div>\
-                <div class="alerts-list" id="adminAlertsList"><div class="alerts-loading">جاري جلب السجل...</div></div>\
-                <div class="alerts-modal-footer">\
-                    <button type="button" class="alerts-open-monitor" onclick="window.location.href=\'security-monitor.html\'"><i class="fas fa-shield-halved"></i> فتح غرفة المراقبة</button>\
-                </div>\
-            </div>';
-        document.body.appendChild(modal);
-        modal.addEventListener('click', function (e) { if (e.target === modal) closeAdminAlertsModal(); });
+/** التبويبان داخل نافذة الإشعارات: إرسال إشعار جديد، أو قراءة الإشعارات الواردة إليك. */
+window.switchBroadcastTab = function (tab) {
+    const sendView = document.getElementById('broadcastSendView');
+    const inboxView = document.getElementById('broadcastInboxView');
+    const tabSend = document.getElementById('bcTabSend');
+    const tabInbox = document.getElementById('bcTabInbox');
+    const footer = document.querySelector('#broadcastNotificationModal .broadcast-modal-footer');
+    const isInbox = tab === 'inbox';
+    if (sendView) sendView.style.display = isInbox ? 'none' : 'block';
+    if (inboxView) inboxView.style.display = isInbox ? 'block' : 'none';
+    if (footer) footer.classList.toggle('bc-footer-hidden', isInbox);
+    if (tabSend) tabSend.classList.toggle('active', !isInbox);
+    if (tabInbox) tabInbox.classList.toggle('active', isInbox);
+    if (isInbox && window.MizoNotifCenter && window.MizoNotifCenter.renderInto) {
+        window.MizoNotifCenter.renderInto(document.getElementById('adminInboxList'));
+        const badge = document.getElementById('bcInboxBadge');
+        if (badge) { badge.classList.add('hidden'); badge.textContent = ''; }
     }
-    modal.style.display = 'flex';
-    await loadAdminAlerts();
-};
-
-window.closeAdminAlertsModal = function () {
-    const modal = document.getElementById('adminAlertsModal');
-    if (modal) modal.style.display = 'none';
-};
-
-async function loadAdminAlerts() {
-    const listEl = document.getElementById('adminAlertsList');
-    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
-    if (!listEl || !firestore) return;
-    try {
-        const me = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : '';
-        const snap = await firestore.collection('broadcast_notifications')
-            .where('targetUid', '==', me)
-            .orderBy('timestamp', 'desc')
-            .limit(60)
-            .get();
-        if (snap.empty) {
-            listEl.innerHTML = '<div class="alerts-empty">لا توجد تنبيهات. كل شيء هادئ ✅</div>';
-            markAdminAlertsSeen(0);
-            return;
-        }
-        let html = '';
-        snap.forEach(doc => {
-            const d = doc.data() || {};
-            const when = d.timestamp ? new Date(d.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : '';
-            const isSec = d.kind === 'security_alert';
-            html += `
-                <div class="alert-item ${isSec ? 'sec' : ''}">
-                    <div class="alert-item-icon"><i class="fas ${isSec ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i></div>
-                    <div class="alert-item-body">
-                        <div class="alert-item-title">${escNotifH(d.title || '')}</div>
-                        <div class="alert-item-msg">${escNotifH(d.message || '')}</div>
-                        <div class="alert-item-time">${escNotifH(when)}</div>
-                    </div>
-                </div>`;
-        });
-        listEl.innerHTML = html;
-        markAdminAlertsSeen(snap.docs[0].data().timestamp || 0);
-    } catch (e) {
-        console.error('alerts load failed', e);
-        listEl.innerHTML = '<div class="alerts-empty">تعذر جلب السجل</div>';
-    }
-}
-
-/** عدّاد التنبيهات غير المقروءة على الزر. */
-function markAdminAlertsSeen(ts) {
-    try { localStorage.setItem('almezo_alerts_seen_ts', String(ts || Date.now())); } catch (e) { }
-    const badge = document.getElementById('adminAlertsBadge');
-    if (badge) { badge.classList.add('hidden'); badge.textContent = ''; }
-}
-
-window.refreshAdminAlertsBadge = async function () {
-    const badge = document.getElementById('adminAlertsBadge');
-    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
-    if (!badge || !firestore) return;
-    try {
-        const me = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : '';
-        if (!me) return;
-        let seen = 0;
-        try { seen = parseInt(localStorage.getItem('almezo_alerts_seen_ts') || '0', 10) || 0; } catch (e) { }
-        const snap = await firestore.collection('broadcast_notifications')
-            .where('targetUid', '==', me)
-            .orderBy('timestamp', 'desc')
-            .limit(30)
-            .get();
-        let unread = 0;
-        snap.forEach(doc => { if ((doc.data().timestamp || 0) > seen) unread++; });
-        badge.textContent = unread > 9 ? '9+' : String(unread);
-        badge.classList.toggle('hidden', unread === 0);
-    } catch (e) { }
 };
 
 window.openBroadcastModal = function () {
@@ -786,8 +720,17 @@ window.openBroadcastModal = function () {
     const modal = document.getElementById('broadcastNotificationModal');
     if (modal) {
         modal.style.display = 'flex';
+        switchBroadcastTab('send');
         updateBroadcastPreview();
         loadBroadcastHistory();
+        if (window.MizoNotifCenter && window.MizoNotifCenter.unread) {
+            window.MizoNotifCenter.unread().then(function (n) {
+                const badge = document.getElementById('bcInboxBadge');
+                if (!badge) return;
+                badge.textContent = n > 9 ? '9+' : String(n);
+                badge.classList.toggle('hidden', !n);
+            });
+        }
     }
 };
 
@@ -4636,7 +4579,15 @@ async function handleLogin() {
     if (phoneErrEl) { phoneErrEl.style.display = 'none'; phoneErrEl.innerText = ''; }
     if (passErrEl) { passErrEl.style.display = 'none'; passErrEl.innerText = ''; }
 
-    // 1. الفحص الاستباقي للحظر المؤقت للجهاز والـ IP
+    // 1. الفحص الاستباقي للحظر: السيرفر هو المرجع (يشمل الجهاز والـIP والرقم)
+    if (typeof serverLoginGuard === 'function') {
+        var serverState = await serverLoginGuard('check', phone);
+        if (serverState && serverState.locked && serverState.remainingSeconds > 0) {
+            startLockoutCountdown(serverState.remainingSeconds, errEl, btn, serverState.formattedDuration, serverState.tierIndex || 0);
+            showToast('⛔ الجهاز محظور مؤقتاً من تسجيل الدخول متبقي: ' + formatLockoutSeconds(serverState.remainingSeconds), 'error', 4000);
+            return;
+        }
+    }
     if (typeof checkDeviceLockout === 'function') {
         var lockStatus = checkDeviceLockout();
         if (lockStatus.isLocked && lockStatus.remainingSeconds > 0) {
@@ -4677,6 +4628,10 @@ async function handleLogin() {
         var lockResult = { lockedNow: false, attempts: 1, remainingAttempts: 2, tierIndex: 0, formattedDuration: 'دقيقة واحدة', remainingSeconds: 60 };
         if (typeof recordFailedAttemptAndLockout === 'function') {
             lockResult = recordFailedAttemptAndLockout(phone);
+        }
+        if (typeof serverLoginGuard === 'function') {
+            var srv = await serverLoginGuard('fail', phone);
+            if (srv) lockResult = Object.assign(lockResult, srv, { lockedNow: !!srv.lockedNow });
         }
 
         if (lockResult.lockedNow) {
@@ -4727,6 +4682,10 @@ async function handleLogin() {
         var lockResultPass = { lockedNow: false, attempts: 1, remainingAttempts: 2, tierIndex: 0, formattedDuration: 'دقيقة واحدة', remainingSeconds: 60 };
         if (typeof recordFailedAttemptAndLockout === 'function') {
             lockResultPass = recordFailedAttemptAndLockout(phone);
+        }
+        if (typeof serverLoginGuard === 'function') {
+            var srvPass = await serverLoginGuard('fail', phone);
+            if (srvPass) lockResultPass = Object.assign(lockResultPass, srvPass, { lockedNow: !!srvPass.lockedNow });
         }
 
         if (lockResultPass.lockedNow) {
@@ -4785,10 +4744,11 @@ async function handleLogin() {
             currentAuthUser = { uid: firebaseUser.uid, phone: phone };
         }
 
-        // تصفير الحظر والمحاولات الفاشلة للجهاز عند النجاح
+        // تصفير الحظر والمحاولات الفاشلة عند النجاح (محلياً وفي السيرفر)
         if (typeof resetDeviceLockout === 'function') {
             resetDeviceLockout();
         }
+        if (typeof serverLoginGuard === 'function') serverLoginGuard('success', phone);
         if (lockoutCountdownInterval) {
             clearInterval(lockoutCountdownInterval);
             lockoutCountdownInterval = null;
@@ -4875,6 +4835,10 @@ async function handleLogin() {
         var lockResult = { lockedNow: false, attempts: 1, remainingAttempts: 2, tierIndex: 0, formattedDuration: 'دقيقة واحدة', durationSeconds: 60, remainingSeconds: 60 };
         if (typeof recordFailedAttemptAndLockout === 'function') {
             lockResult = recordFailedAttemptAndLockout(phone);
+        }
+        if (typeof serverLoginGuard === 'function') {
+            var srv = await serverLoginGuard('fail', phone);
+            if (srv) lockResult = Object.assign(lockResult, srv, { lockedNow: !!srv.lockedNow });
         }
 
         if (lockResult.lockedNow) {

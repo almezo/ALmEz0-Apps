@@ -73,8 +73,13 @@ public final class BroadcastNotifier {
     /** فحص متزامن: يُستدعى من خيط خلفي فقط. */
     static void checkNow(Context context) {
         try {
+            // الإشعارات العامة فقط (targetUid فارغ). بدون هذا المرشّح كان الفحص الدوري يعرض
+            // الإشعارات الشخصية لعملاء آخرين (تنبيه انتهاء اشتراك، تنبيه أمني للمدير)، كما أن
+            // قواعد قاعدة البيانات ترفض الآن أي استعلام قد يشمل إشعاراً شخصياً لغير صاحبه.
             JSONArray rows = new JSONArray(post(queryUrl(),
                     "{\"structuredQuery\":{\"from\":[{\"collectionId\":\"broadcast_notifications\"}],"
+                            + "\"where\":{\"fieldFilter\":{\"field\":{\"fieldPath\":\"targetUid\"},"
+                            + "\"op\":\"EQUAL\",\"value\":{\"stringValue\":\"\"}}},"
                             + "\"orderBy\":[{\"field\":{\"fieldPath\":\"timestamp\"},\"direction\":\"DESCENDING\"}],"
                             + "\"limit\":5}}"));
             List<JSONObject> fresh = new ArrayList<>();
@@ -86,6 +91,9 @@ public final class BroadcastNotifier {
                 if (f == null) continue;
                 long ts = longField(f, "timestamp");
                 if (ts <= 0 || now - ts > WINDOW_MS) continue;
+                // إشعار مجدول لم يحن وقته بعد: لا يُعرض قبل موعده
+                if (ts > now + 60_000L) continue;
+                if (f.has("pending") && f.getJSONObject("pending").optBoolean("booleanValue", false)) continue;
                 if (f.has("active") && !f.getJSONObject("active").optBoolean("booleanValue", true)) continue;
                 String name = doc.optString("name");
                 String id = name.substring(name.lastIndexOf('/') + 1);
