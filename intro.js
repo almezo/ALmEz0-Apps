@@ -38,6 +38,12 @@
             '.mizo-intro-logo{width:160px;height:160px;object-fit:contain;opacity:0;',
             'transform:scale(.4) rotate(-10deg);animation:mizoIntroLogo .75s cubic-bezier(.34,1.56,.64,1) forwards}',
             '@keyframes mizoIntroLogo{to{opacity:1;transform:scale(1) rotate(0)}}',
+            // مكعب الميزو: أكبر قليلاً مع وهج أخضر نابض يناسب تصميمه
+            '.mizo-intro-logo.mizo-intro-cube{width:190px;height:190px;',
+            'filter:drop-shadow(0 0 22px rgba(52,240,138,.55));animation:mizoIntroLogo .75s cubic-bezier(.34,1.56,.64,1) forwards,',
+            'mizoCubeGlow 2.4s .8s ease-in-out infinite}',
+            '@keyframes mizoCubeGlow{0%,100%{filter:drop-shadow(0 0 18px rgba(52,240,138,.45))}',
+            '50%{filter:drop-shadow(0 0 30px rgba(52,240,138,.85))}}',
             '.mizo-intro-title{margin-top:10px;font-size:46px;font-weight:900;color:#fff;opacity:0;',
             'transform:translateY(30px);text-shadow:0 0 18px rgba(34,197,94,.5);',
             'animation:mizoIntroRise .5s .45s cubic-bezier(.16,1,.3,1) forwards}',
@@ -73,7 +79,8 @@
         injectStyles();
         var isServer = mode === 'server';
         var isHome = mode !== 'player';
-        var logoSrc = isServer && opts.logo ? opts.logo : 'photo/logo.ico';
+        // افتتاحية المشغل تعرض مكعب الميزو، والصفحة الرئيسية شعار الموقع
+        var logoSrc = isServer && opts.logo ? opts.logo : (isHome ? 'photo/logo.ico' : 'photo/mizo-cube.webp');
         var titleText = isServer ? (opts.name || 'جارٍ الاتصال') : (isHome ? 'سيرفرات الميزو' : 'مشغل الميزو');
         var subText = isServer ? 'جارٍ الاتصال بالسيرفر' : (isHome ? 'ALmEz0 SERVERS' : 'ALmEz0 PLAYER');
         // غطاء الإقلاع المرسوم في HTML يظهر مع أول بكسل، فنستعمله بدل إنشاء غطاء
@@ -91,7 +98,7 @@
             '  <div class="mizo-intro-logo-box">' +
             '    <span class="mizo-intro-ring r1"></span>' +
             '    <span class="mizo-intro-ring r2"></span>' +
-            '    <img class="mizo-intro-logo" src="' + logoSrc + '" alt="ALmEz0">' +
+            '    <img class="mizo-intro-logo' + (isHome || isServer ? '' : ' mizo-intro-cube') + '" src="' + logoSrc + '" alt="ALmEz0" onerror="this.onerror=null;this.src=&quot;photo/mizo-cube.png&quot;">' +
             '  </div>' +
             '  <div class="mizo-intro-title">' + titleText + '</div>' +
             '  <div class="mizo-intro-sub">' + subText + '</div>' +

@@ -70,7 +70,7 @@
         })();
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=4078.0">
+    <link rel="stylesheet" href="style.css?v=4085.0">
     <!-- تنسيق غطاء الإقلاع هنا لا في سمة style على العنصر: يُقرأ قبل جسم الصفحة فيُرسم
          الغطاء مع أول بكسل كما كان، دون تنسيق مضمّن (تحذير no-inline-styles). -->
     <style>
@@ -199,7 +199,10 @@
                 <h3>الأجهزة الإلكترونية</h3>
             </a>
             <a href="player.html" class="main-category-card web-player" id="mainWebPlayerCard" onclick="return (typeof handlePlayerCardClick === 'function' ? handlePlayerCardClick(event) : true)">
-                <div class="web-player-icon-wrapper"><i class="fas fa-tv"></i></div>
+                <div class="web-player-icon-wrapper mizo-cube-wrap">
+                    <img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"
+                         onerror="this.onerror=null;this.src='photo/mizo-cube.png';">
+                </div>
                 <h3 dir="rtl">مشغل الميزو - ALmEz0</h3>
             </a>
         </div>
@@ -251,11 +254,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
     <!-- سكربتات الموقع -->
     <script src="screen-adapter.js?v=4070.0"></script>
-    <script src="intro.js?v=1"></script>
-    <script src="app-bridge.js?v=4070.0.1"></script>
-    <script src="firebase-config.js?v=4079.0"></script>
+    <script src="intro.js?v=2.0"></script>
+    <script src="app-bridge.js?v=4081.0"></script>
+    <script src="firebase-config.js?v=4085.0"></script>
     <script src="validation.js?v=4078.0"></script>
-    <script src="ui.js?v=4078.0"></script>
+    <script src="ui.js?v=4085.0"></script>
     <script src="whatsapp.js?v=4070.0"></script>
     <script>
         function openPlayerExclusiveModal() {

@@ -1185,6 +1185,7 @@ async function deleteAccount(accId) {
 
     const updated = accounts.filter(a => a.id !== accId);
     localStorage.setItem('sp_accounts', JSON.stringify(updated));
+    if (window.MizoSubs) window.MizoSubs.remove(accId);   // لا تنبيهات عن سيرفر حذفه العميل
     if (typeof updateSavedAccountsBadge === 'function') {
         updateSavedAccountsBadge();
     }
@@ -1646,6 +1647,7 @@ async function handleLogin() {
             };
 
             saveAccountToStorage(accountObj);
+            if (window.MizoSubs) window.MizoSubs.sync(accountObj);   // تاريخ الانتهاء لتنبيهات التجديد
             localStorage.removeItem('sp_logged_out');
             localStorage.setItem('sp_active_acc_id', accountId);
 
@@ -2909,6 +2911,16 @@ async function loadProfileData() {
                 state.userInfo = data.user_info;
                 sessionStorage.setItem('sp_user', JSON.stringify(data.user_info));
                 renderProfileFields(data.user_info);
+                // تاريخ الانتهاء تغيّر (تجديد أو إيقاف): يُحدَّث في حساب العميل
+                try {
+                    const accId = localStorage.getItem('sp_active_acc_id');
+                    const acc = (typeof getSavedAccounts === 'function' ? getSavedAccounts() : []).find(a => a.id === accId);
+                    if (acc && window.MizoSubs) {
+                        acc.userInfo = data.user_info;
+                        if (typeof saveAccountToStorage === 'function') saveAccountToStorage(acc);
+                        window.MizoSubs.sync(acc);
+                    }
+                } catch (e) { }
             }
         } catch (err) {
             console.warn('Profile refresh error:', err);
@@ -6339,3 +6351,159 @@ if (document.readyState === 'loading') {
     initTvNavigationEngine();
     initVodScrollHandler();
 }
+
+// =============================================
+// تنبيهات قرب انتهاء اشتراك العميل (محلي + من السيرفر)
+// =============================================
+// تاريخ الانتهاء يأتي من لوحة السيرفر إلى الجهاز فقط، فنحفظه في حساب العميل ليستطيع السيرفر
+// إرسال التنبيهات قبل أسبوع و3 أيام ويوم وعند الانتهاء حتى والبرنامج مغلق (دالة
+// subscriptionExpiryReminders). وهنا أيضاً فحص محلي عند فتح المشغل لمن لا يفتح البرنامج كثيراً
+// أو ليس مسجّلاً في الموقع. الحسابات التجريبية (مدتها أقل من أسبوع) لا تُحفظ إطلاقاً.
+window.MizoSubs = (function () {
+    var DAY = 24 * 60 * 60 * 1000;
+    var SEEN_KEY = 'almezo_sub_alerts';
+    var STAGES = [
+        { key: 'd7', days: 7, title: 'اشتراكك ينتهي بعد أسبوع ⏳', body: function (s) { return 'اشتراك ' + s + ' ينتهي بعد 7 أيام. جدّد الآن حتى لا تنقطع المشاهدة.'; } },
+        { key: 'd3', days: 3, title: 'اشتراكك ينتهي بعد 3 أيام ⏳', body: function (s) { return 'اشتراك ' + s + ' ينتهي بعد 3 أيام. تواصل معنا للتجديد.'; } },
+        { key: 'd1', days: 1, title: 'اشتراكك ينتهي غداً ⚠️', body: function (s) { return 'اشتراك ' + s + ' ينتهي غداً. جدّده اليوم لتستمر المشاهدة بلا انقطاع.'; } },
+        { key: 'd0', days: 0, title: 'انتهى اشتراكك ❌', body: function (s) { return 'انتهى اشتراك ' + s + '. تواصل معنا للتجديد واستعادة القنوات والأفلام.'; } }
+    ];
+
+    function db() {
+        try { return window.db || (window.firebase && firebase.firestore ? firebase.firestore() : null); } catch (e) { return null; }
+    }
+
+    function me() {
+        try {
+            var u = (window.firebase && firebase.auth) ? firebase.auth().currentUser : null;
+            return u ? u.uid : '';
+        } catch (e) { return ''; }
+    }
+
+    function toMs(v) {
+        var n = parseInt(v, 10);
+        if (!n || isNaN(n)) return 0;
+        return n < 1e11 ? n * 1000 : n; // ثوانٍ أم ميلي ثانية
+    }
+
+    /** تجريبي: مدة الاشتراك كاملة أقل من أسبوع. لا يُحفظ في قاعدة البيانات، وله تنبيه محلي فقط. */
+    function isTrial(info) {
+        var exp = toMs(info && (info.exp_date || info.expiry_date || info.expiration_date));
+        var created = toMs(info && (info.created_at || info.created));
+        if (!exp) return false;
+        if (!created) return false;
+        return (exp - created) < 7 * DAY;
+    }
+
+    /** يحفظ (أو يحدّث) اشتراك هذا السيرفر في حساب العميل. */
+    function sync(acc) {
+        try {
+            var uid = me();
+            var store = db();
+            if (!uid || !store || !acc) return;
+            var info = acc.userInfo || {};
+            var exp = toMs(info.exp_date || info.expiry_date || info.expiration_date);
+            if (!exp || isTrial(info)) return;   // غير محدود أو تجريبي: لا يُحفظ
+            var profile = window.currentAuthUser || {};
+            store.collection('user_subscriptions').doc(uid + '_' + String(acc.id || '').slice(0, 60)).set({
+                uid: uid,
+                name: [profile.firstName, profile.lastName].filter(Boolean).join(' ') || '',
+                phone: profile.phone || '',
+                serverName: String(acc.serverName || 'الميزو').slice(0, 60),
+                username: String(acc.username || '').slice(0, 60),
+                expiresAt: exp,
+                status: String(info.status || ''),
+                updatedAt: Date.now()
+            }, { merge: true }).catch(function () { });
+        } catch (e) { }
+    }
+
+    /** يحذف اشتراك سيرفر حذفه العميل من قوائم التشغيل، فلا تصله تنبيهات عنه. */
+    function remove(accId) {
+        try {
+            var uid = me(), store = db();
+            if (!uid || !store || !accId) return;
+            store.collection('user_subscriptions').doc(uid + '_' + String(accId).slice(0, 60)).delete().catch(function () { });
+        } catch (e) { }
+    }
+
+    function seenStages() {
+        try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}; } catch (e) { return {}; }
+    }
+
+    function markStage(key) {
+        try {
+            var all = seenStages();
+            all[key] = Date.now();
+            // تنظيف ما مضى عليه 120 يوماً
+            Object.keys(all).forEach(function (k) { if (Date.now() - all[k] > 120 * DAY) delete all[k]; });
+            localStorage.setItem(SEEN_KEY, JSON.stringify(all));
+        } catch (e) { }
+    }
+
+    function notify(title, message) {
+        try {
+            if (typeof window.showGlobalBroadcastBanner === 'function') {
+                window.showGlobalBroadcastBanner({ id: 'sub_' + Date.now(), type: 'general', title: title, message: message, timestamp: Date.now() });
+                return;
+            }
+        } catch (e) { }
+        try {
+            if (window.AndroidNativeBridge && window.AndroidNativeBridge.showNotification) {
+                window.AndroidNativeBridge.showNotification(title, message, '');
+            } else if (window.electronAPI && window.electronAPI.showNotification) {
+                window.electronAPI.showNotification(title, message);
+            } else if (typeof showToast === 'function') {
+                showToast(title + ' — ' + message, 'warning', 6000);
+            }
+        } catch (e) { }
+    }
+
+    /** فحص محلي لكل السيرفرات المحفوظة عند فتح المشغل: تنبيه واحد لكل مرحلة لكل سيرفر. */
+    function checkLocal() {
+        try {
+            var accounts = (typeof getSavedAccounts === 'function') ? getSavedAccounts() : [];
+            var seen = seenStages();
+            var shown = 0;
+            accounts.forEach(function (acc) {
+                var info = acc.userInfo || {};
+                var exp = toMs(info.exp_date || info.expiry_date || info.expiration_date);
+                if (!exp) return;
+                var daysLeft = Math.ceil((exp - Date.now()) / DAY);
+                if (daysLeft > 7 || daysLeft < -30) return;
+                var stage = null;
+                for (var i = 0; i < STAGES.length; i++) {
+                    var st = STAGES[i];
+                    if (st.days === 0 ? daysLeft <= 0 : daysLeft === st.days) { stage = st; break; }
+                }
+                if (!stage) return;
+                var key = acc.id + '_' + stage.key + '_' + exp;
+                if (seen[key]) return;
+                markStage(key);
+                var name = acc.serverName || 'الميزو';
+                // تنبيه واحد في المرة حتى لا تتراكم على الشاشة
+                if (shown === 0) notify(stage.title, stage.body(name));
+                shown++;
+            });
+        } catch (e) { }
+    }
+
+    /** عند فتح المشغل: فحص محلي، ورفع تواريخ كل السيرفرات المحفوظة مرة كل 12 ساعة. */
+    function init() {
+        setTimeout(function () {
+            checkLocal();
+            try {
+                var last = parseInt(localStorage.getItem('almezo_subs_synced') || '0', 10) || 0;
+                if (Date.now() - last < 12 * 60 * 60 * 1000 || !me()) return;
+                localStorage.setItem('almezo_subs_synced', String(Date.now()));
+                var accounts = (typeof getSavedAccounts === 'function') ? getSavedAccounts() : [];
+                accounts.forEach(sync);
+            } catch (e) { }
+        }, 6000);
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+
+    return { sync: sync, remove: remove, checkLocal: checkLocal, isTrial: isTrial, init: init };
+})();

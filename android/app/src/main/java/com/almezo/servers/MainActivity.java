@@ -301,6 +301,25 @@ public class MainActivity extends BridgeActivity {
         }
 
         /**
+         * اشتراك الجهاز في موضوع خاص بالعميل (u_UID) ليستقبل إشعاراته الشخصية، مثل تنبيه قرب
+         * انتهاء اشتراكه، حتى والتطبيق مغلق. يُستدعى من الموقع عند تسجيل الدخول والخروج.
+         */
+        @JavascriptInterface
+        public void setUserTopic(String uid, boolean subscribe) {
+            try {
+                if (uid == null || !uid.matches("[A-Za-z0-9]{6,64}")) return;
+                String topic = "u_" + uid;
+                if (subscribe) {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic(topic);
+                } else {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic(topic);
+                }
+            } catch (Throwable t) {
+                android.util.Log.w("MainActivity", "setUserTopic failed", t);
+            }
+        }
+
+        /**
          * جلسة Firebase لحساب الموقع (رمز التحديث)، يرسلها firebase-config.js عند معرفة المستخدم المسجّل،
          * ليتصل بها مساعد الميزو في المشغل الأصلي بدالة الذكاء الاصطناعي الآمنة.
          */

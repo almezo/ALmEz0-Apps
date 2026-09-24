@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setFullScreen: (enabled) => ipcRenderer.send('set-fullscreen', enabled),
     isFullScreen: () => ipcRenderer.invoke('is-fullscreen'),
     openExternal: (url) => ipcRenderer.send('open-external', url),
+    // زرّا النافذة في الصفحة (ملء الشاشة يخفي شريط عنوان ويندوز)
+    minimizeWindow: () => ipcRenderer.send('window-minimize'),
+    closeWindow: () => ipcRenderer.send('window-close'),
+    getSystemLocale: () => ipcRenderer.invoke('system-locale'),
     showNotification: (title, message) => ipcRenderer.send('show-notification', { title, message }),
     startUpdateDownload: (downloadUrl) => ipcRenderer.send('start-update-download', downloadUrl),
     pauseUpdateDownload: () => ipcRenderer.send('pause-update-download'),

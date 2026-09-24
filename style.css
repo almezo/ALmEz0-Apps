@@ -9547,3 +9547,204 @@ html:not(.mz-kbd):not([data-is-tv="true"]) select:focus-visible {
 .city-option-other { grid-column: 1 / -1; color: #fbbf24; }
 .city-empty { grid-column: 1 / -1; text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 6px; }
 @media (max-width: 480px) { .city-list { grid-template-columns: repeat(2, 1fr); } }
+
+/* ===== إشعارات: صورة، جدولة، وتقرير من رآها ===== */
+.broadcast-image-row, .broadcast-schedule-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.broadcast-img-btn { padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #e2e8f0; font-family: inherit; font-size: .9rem; cursor: pointer; }
+.broadcast-img-btn:hover { background: rgba(255,255,255,.14); }
+.broadcast-img-btn.danger { color: #fca5a5; border-color: rgba(248,113,113,.4); }
+.broadcast-img-note { font-size: .82rem; color: #94a3b8; }
+.broadcast-radio { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: #e2e8f0; cursor: pointer; }
+.preview-image { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; margin-inline-end: 10px; }
+.notif-state { display: inline-block; margin-top: 4px; font-size: .78rem; color: #94a3b8; }
+.notif-state.seen { cursor: pointer; }
+.notif-state.seen:hover { color: #fff; }
+.notif-state.pending { color: #fbbf24; }
+.intel-notifs-report { padding: 12px; }
+.intel-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.intel-table th, .intel-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid rgba(255,255,255,.07); color: #e2e8f0; }
+.intel-table th { color: #94a3b8; font-weight: 700; font-size: .8rem; }
+.intel-mini-btn { padding: 5px 10px; border-radius: 7px; border: 1px solid rgba(34,197,94,.4); background: rgba(34,197,94,.12); color: #86efac; font-family: inherit; font-size: .8rem; cursor: pointer; }
+.intel-mini-btn:hover { background: rgba(34,197,94,.24); }
+.intel-sub-title { margin: 16px 0 8px; color: #fff; font-size: .95rem; }
+.intel-note { margin-top: 10px; font-size: .8rem; color: #64748b; }
+.intel-loading, .intel-empty { padding: 18px; text-align: center; color: #94a3b8; }
+
+/* ===== أزرار النافذة في برنامج الكمبيوتر (ملء الشاشة بلا شريط عنوان) ===== */
+.mz-window-controls {
+    position: fixed;
+    top: 0;
+    inset-inline-end: auto;
+    right: 0;
+    left: auto;
+    z-index: 2147483000;
+    display: flex;
+    gap: 2px;
+    direction: ltr;
+}
+.mz-window-controls.mz-left { right: auto; left: 0; flex-direction: row-reverse; }
+.mz-win-btn {
+    width: 46px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: rgba(10, 13, 18, 0.55);
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.mz-win-btn:hover, .mz-win-btn:focus-visible { background: rgba(255, 255, 255, 0.14); color: #fff; outline: none; }
+.mz-win-btn.mz-win-close:hover, .mz-win-btn.mz-win-close:focus-visible { background: #e81123; color: #fff; }
+body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { padding-top: 4px; }
+
+/* ===== شعار مكعب الميزو في بطاقة المشغل ===== */
+/* الوهج الأخضر بالكود لا داخل الصورة: أنظف حواف، وحجم أقل، ويتفاعل مع التركيز */
+.main-category-card.web-player .web-player-icon-wrapper.mizo-cube-wrap {
+    background: transparent;
+    padding: 0;
+    width: 86px;
+    height: 86px;
+}
+.mizo-cube-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 14px rgba(52, 240, 138, 0.45)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+    transition: filter 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.main-category-card.web-player:hover .mizo-cube-img,
+.main-category-card.web-player:focus .mizo-cube-img,
+.main-category-card.web-player:focus-visible .mizo-cube-img {
+    filter: drop-shadow(0 0 22px rgba(52, 240, 138, 0.75)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
+    transform: translateY(-2px);
+}
+
+/* ===== سجل الإشعارات والتنبيهات الأمنية (للمدير) ===== */
+.floating-btn.alerts-fab { position: relative; background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff; }
+.alerts-fab-badge { position: absolute; top: -4px; inset-inline-end: -4px; min-width: 20px; height: 20px; padding: 0 5px;
+    border-radius: 10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 800; display: flex;
+    align-items: center; justify-content: center; border: 2px solid #0a0d12; }
+.alerts-fab-badge.hidden { display: none; }
+.alerts-modal { align-items: center; justify-content: center; }
+.alerts-modal-content { width: min(620px, 94vw); max-height: 86vh; display: flex; flex-direction: column;
+    background: linear-gradient(160deg, #111826, #0a0e15); border: 1px solid rgba(255,255,255,.1); border-radius: 18px; overflow: hidden; }
+.alerts-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.08); }
+.alerts-modal-header h3 { margin: 0; font-size: 1.02rem; color: #fff; }
+.alerts-close-btn { background: transparent; border: 0; color: #94a3b8; font-size: 1.05rem; cursor: pointer; }
+.alerts-close-btn:hover { color: #fff; }
+.alerts-list { overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.alert-item { display: flex; gap: 10px; padding: 11px 12px; border-radius: 12px; background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07); }
+.alert-item.sec { border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
+.alert-item-icon { color: #fbbf24; font-size: 1.05rem; padding-top: 2px; }
+.alert-item.sec .alert-item-icon { color: #f87171; }
+.alert-item-title { color: #fff; font-weight: 700; font-size: .93rem; }
+.alert-item-msg { color: #cbd5e1; font-size: .84rem; margin-top: 3px; line-height: 1.6; }
+.alert-item-time { color: #64748b; font-size: .76rem; margin-top: 4px; }
+.alerts-empty, .alerts-loading { padding: 26px; text-align: center; color: #94a3b8; font-size: .9rem; }
+.alerts-modal-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08); text-align: center; }
+.alerts-open-monitor { padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(34,197,94,.45);
+    background: rgba(34,197,94,.14); color: #86efac; font-family: inherit; font-size: .88rem; cursor: pointer; }
+.alerts-open-monitor:hover { background: rgba(34,197,94,.26); color: #fff; }
+
+/* ===== زر الإشعارات لجميع المستخدمين (أسفل يمين) ===== */
+.mz-notif-fab {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 46px;
+    height: 46px;
+    border: 1.5px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: #fff;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 999;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.5), 0 0 14px rgba(248, 113, 113, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mz-notif-fab:hover, .mz-notif-fab:focus-visible {
+    transform: translateY(-3px) scale(1.06);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.7), 0 0 18px rgba(248, 113, 113, 0.5);
+    outline: none;
+}
+.mz-notif-badge {
+    position: absolute;
+    top: -4px;
+    inset-inline-start: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #fbbf24;
+    color: #1f2937;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #0a0d12;
+}
+.mz-notif-badge.hidden { display: none; }
+@media (max-width: 768px) {
+    .mz-notif-fab { bottom: 85px; right: 14px; }
+}
+
+.mz-notif-panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 5, 10, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000000;
+    padding: 16px;
+}
+.mz-notif-panel.open { display: flex; }
+.mz-notif-card {
+    width: min(560px, 96vw);
+    max-height: 84vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(160deg, #111826, #090d14);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.mz-notif-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.mz-notif-head h3 { margin: 0; font-size: 1rem; color: #fff; }
+.mz-notif-head i { color: #f87171; }
+.mz-notif-close { background: transparent; border: 0; color: #94a3b8; font-size: 1.05rem; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.mz-notif-close:hover, .mz-notif-close:focus-visible { color: #fff; background: rgba(255,255,255,.1); outline: none; }
+.mz-notif-list { overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+.mz-notif-item { display: flex; gap: 10px; padding: 12px; border-radius: 13px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); }
+.mz-notif-item.is-new { background: rgba(34,197,94,.09); border-color: rgba(34,197,94,.35); }
+.mz-notif-item.is-sec { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.4); }
+.mz-notif-ic { color: #38bdf8; font-size: 1.05rem; padding-top: 2px; }
+.mz-notif-item.is-sec .mz-notif-ic { color: #f87171; }
+.mz-notif-body { min-width: 0; flex: 1; }
+.mz-notif-title { color: #fff; font-weight: 700; font-size: .94rem; }
+.mz-notif-msg { color: #cbd5e1; font-size: .85rem; margin-top: 4px; line-height: 1.65; word-break: break-word; }
+.mz-notif-img { display: block; width: 100%; max-height: 150px; object-fit: cover; border-radius: 10px; margin-top: 8px; }
+.mz-notif-time { color: #64748b; font-size: .76rem; margin-top: 6px; }
+.mz-notif-new { color: #4ade80; font-weight: 700; }
+.mz-notif-link { display: inline-block; margin-top: 8px; font-size: .82rem; color: #9ecbff; text-decoration: none; }
+.mz-notif-link:hover { text-decoration: underline; }
+.mz-notif-empty { padding: 28px; text-align: center; color: #94a3b8; font-size: .9rem; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mz-notif-empty i { font-size: 1.6rem; opacity: .6; }

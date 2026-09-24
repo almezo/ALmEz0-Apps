@@ -1233,7 +1233,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.2.9';
+    const CURRENT_APP_VERSION = '1.3.0';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {
@@ -2266,13 +2266,14 @@
                         <button type="button" class="push-close-btn" id="btnClosePushBanner" title="إغلاق">&times;</button>
                     </div>
                 </div>
+                ${notif.image ? `<div class="push-banner-image"><img src="${safeEsc(notif.image)}" alt=""></div>` : ''}
                 <div class="push-banner-content">
                     <h4 class="push-notif-title">${safeEsc(notif.title)}</h4>
                     <p class="push-notif-body">${safeEsc(notif.message)}</p>
                 </div>
                 ${notif.actionUrl ? `
                 <div class="push-banner-actions">
-                    <a href="${safeEsc(notif.actionUrl)}" class="push-action-btn" id="btnPushAction">
+                    <a href="${safeEsc(notif.actionUrl)}" class="push-action-btn" id="btnPushAction" onclick="if(window.mzMarkBroadcastClicked)window.mzMarkBroadcastClicked('${safeEsc(notif.id || '')}')">
                         <i class="fas fa-external-link-alt"></i> فتح الرابط / التفاصيل
                     </a>
                 </div>
@@ -2356,6 +2357,8 @@
                 .push-close-btn:hover {
                     color: #fff;
                 }
+                .push-banner-image { margin: 0 0 10px; border-radius: 12px; overflow: hidden; }
+                .push-banner-image img { display: block; width: 100%; max-height: 190px; object-fit: cover; }
                 .push-notif-title {
                     color: #fff;
                     font-size: 14.5px;
@@ -2419,42 +2422,8 @@
             return null;
         }
 
-        const timer = setInterval(() => {
-            attempts++;
-            const firestore = getFirestore();
-
-            if (firestore) {
-                clearInterval(timer);
-                window._almezoBroadcastListenerActive = true;
-                try {
-                    firestore.collection('broadcast_notifications')
-                        .orderBy('timestamp', 'desc')
-                        .limit(1)
-                        .onSnapshot(snapshot => {
-                            if (!snapshot || snapshot.empty) return;
-
-                            const doc = snapshot.docs[0];
-                            const data = doc.data();
-                            data.id = doc.id;
-
-                            const notifTs = parseInt(data.timestamp || '0', 10);
-                            const now = Date.now();
-                            const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
-
-                            // مرة واحدة فقط لكل جهاز، سواء أغلقه العميل أم اختفى وحده
-                            if ((now - notifTs < FORTY_EIGHT_HOURS) && !window.mzBroadcastAlreadySeen(doc.id, notifTs)) {
-                                showBroadcastPushBanner(data);
-                            }
-                        }, err => {
-                            console.warn('[BroadcastNotif] Listener error:', err);
-                        });
-                } catch (e) {
-                    console.warn('[BroadcastNotif] Setup failed:', e);
-                }
-            } else if (attempts >= maxAttempts) {
-                clearInterval(timer);
-            }
-        }, 600);
+        // الطابور والتأجيل أثناء المشاهدة وتسجيل من رآه: في firebase-config.js (مشترك مع الموقع)
+        if (window.mzSubscribeBroadcasts) window.mzSubscribeBroadcasts(showBroadcastPushBanner);
     }
 
     // تنظيف أي إعدادات أو أنماط متبقية من استوديو التعديل القديم
@@ -2488,3 +2457,48 @@
     window.AlMeZ0App.screen = window.AlMeZ0Screen || null;
 })();
 
+
+// =============================================
+// أزرار النافذة في برنامج الكمبيوتر (ملء الشاشة)
+// =============================================
+// البرنامج يفتح بملء الشاشة بلا شريط عنوان ويندوز، فيحتاج زرّيه داخل الصفحة: تصغير لشريط
+// المهام وإغلاق. بلا زر تكبير لأن النافذة ملء الشاشة أصلاً. موضعهما يتبع لغة نظام المستخدم:
+// يسار في الأنظمة العربية (RTL) ويمين في الإنجليزية، كما يفعل ويندوز نفسه.
+(function () {
+    var api = window.electronAPI;
+    if (!api || !api.closeWindow) return;
+    // المشغل له شريطه وأزراره وزر الرجوع، فلا نضع الزرّين فوقه
+    if (/player\.html/i.test(location.pathname)) return;
+
+    function place(locale) {
+        var rtl = /^(ar|he|fa|ur|ps|sd|ug|yi)\b/i.test(String(locale || ''));
+        var bar = document.getElementById('mzWindowControls');
+        if (bar) bar.classList.toggle('mz-left', rtl);
+    }
+
+    function build() {
+        if (document.getElementById('mzWindowControls')) return;
+        var bar = document.createElement('div');
+        bar.id = 'mzWindowControls';
+        bar.className = 'mz-window-controls';
+        bar.innerHTML =
+            '<button type="button" class="mz-win-btn" id="mzWinMin" title="تصغير إلى شريط المهام" aria-label="تصغير">' +
+            '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="1" y="5.4" width="10" height="1.2" fill="currentColor"/></svg></button>' +
+            '<button type="button" class="mz-win-btn mz-win-close" id="mzWinClose" title="إغلاق البرنامج" aria-label="إغلاق">' +
+            '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" stroke="currentColor" stroke-width="1.4" fill="none"/></svg></button>';
+        document.body.appendChild(bar);
+        document.getElementById('mzWinMin').addEventListener('click', function () { api.minimizeWindow(); });
+        document.getElementById('mzWinClose').addEventListener('click', function () { api.closeWindow(); });
+        document.body.classList.add('mz-desktop-fullscreen');
+
+        if (api.getSystemLocale) {
+            try { api.getSystemLocale().then(place).catch(function () { place(navigator.language); }); }
+            catch (e) { place(navigator.language); }
+        } else {
+            place(navigator.language);
+        }
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
+    else build();
+})();

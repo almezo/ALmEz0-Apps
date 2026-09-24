@@ -372,6 +372,8 @@ if (!getApps().length) initializeApp();
 exports.pushBroadcastNotification = onDocumentCreated("broadcast_notifications/{notificationId}", async (event) => {
     const doc = event.data ? event.data.data() : null;
     if (!doc || doc.active === false) return;
+    // المجدول يُرسَل في وقته من sendScheduledNotifications، والشخصي يُرسَل لموضوع صاحبه وحده
+    if (doc.pending === true || doc.targetUid) return;
 
     const ts = Number(doc.timestamp) || Date.now();
     const message = {
@@ -453,4 +455,327 @@ exports.logTransactionDeleted = onDocumentDeletedWithAuthContext("transactions/{
         createdAt: Date.now(),
         timestamp: FieldValue.serverTimestamp()
     });
+});
+
+// =============================================
+// الإشعارات المجدولة
+// =============================================
+// إشعار يُكتب بـ pending=true وscheduledFor لا يظهر للعملاء. هذه الدالة تعمل كل خمس دقائق،
+// فتفتح كل إشعار حان وقته (pending=false) فيصل فوراً لكل الأجهزة، ويُرسل Push لأندرويد.
+exports.sendScheduledNotifications = onSchedule({ schedule: "*/5 * * * *", timeZone: "Africa/Tripoli" }, async () => {
+    const { getFirestore: fs } = require("firebase-admin/firestore");
+    const now = Date.now();
+    const snap = await fs().collection("broadcast_notifications")
+        .where("pending", "==", true)
+        .where("scheduledFor", "<=", now)
+        .limit(20)
+        .get();
+    if (snap.empty) return;
+
+    for (const doc of snap.docs) {
+        const d = doc.data() || {};
+        // وقت الظهور = وقت الإرسال الفعلي، حتى تبدأ نافذة الـ48 ساعة من الآن
+        await doc.ref.update({ pending: false, timestamp: now, sentAt: now });
+        try {
+            await getMessaging().send({
+                topic: "broadcast",
+                data: {
+                    id: doc.id,
+                    title: String(d.title || "سيرفرات الميزو"),
+                    message: String(d.message || ""),
+                    actionUrl: String(d.actionUrl || ""),
+                    ts: String(now)
+                },
+                android: { priority: "high", ttl: 48 * 60 * 60 * 1000 }
+            });
+        } catch (err) {
+            logger.error("scheduled push failed", { id: doc.id, error: err.message });
+        }
+        logger.info("scheduled notification sent", { id: doc.id, title: d.title });
+    }
+});
+
+// =============================================
+// تنبيهات قرب انتهاء اشتراك العميل
+// =============================================
+// المشغل يحفظ لكل سيرفر عند العميل سطراً في user_subscriptions (تاريخ الانتهاء واسم السيرفر).
+// هذه الدالة تعمل يومياً 10 صباحاً بتوقيت ليبيا وترسل: قبل أسبوع، وقبل 3 أيام، وقبل يوم، وعند
+// الانتهاء. كل مرحلة ترسل مرة واحدة فقط (notified)، والتجريبي لا يُحفظ أصلاً (المشغل يتجاهل
+// المدد الأقصر من أسبوع). الاشتراك المهجور 60 يوماً أو المنتهي منذ 30 يوماً يُحذف.
+const EXPIRY_STAGES = [
+    { key: "d7", days: 7, title: "اشتراكك ينتهي بعد أسبوع ⏳", body: (s) => `اشتراك ${s} ينتهي بعد 7 أيام. جدّد الآن حتى لا تنقطع المشاهدة.` },
+    { key: "d3", days: 3, title: "اشتراكك ينتهي بعد 3 أيام ⏳", body: (s) => `اشتراك ${s} ينتهي بعد 3 أيام. تواصل معنا للتجديد.` },
+    { key: "d1", days: 1, title: "اشتراكك ينتهي غداً ⚠️", body: (s) => `اشتراك ${s} ينتهي غداً. جدّده اليوم لتستمر المشاهدة بلا انقطاع.` },
+    { key: "d0", days: 0, title: "انتهى اشتراكك ❌", body: (s) => `انتهى اشتراك ${s}. تواصل معنا الآن للتجديد واستعادة القنوات والأفلام.` }
+];
+
+exports.subscriptionExpiryReminders = onSchedule({ schedule: "0 10 * * *", timeZone: "Africa/Tripoli" }, async () => {
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const db = fs();
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+
+    // كل الاشتراكات التي انتهت أو تنتهي خلال 8 أيام
+    const snap = await db.collection("user_subscriptions")
+        .where("expiresAt", "<=", now + 8 * DAY)
+        .limit(2000)
+        .get();
+
+    let sent = 0, removed = 0;
+    for (const doc of snap.docs) {
+        const d = doc.data() || {};
+        const expiresAt = Number(d.expiresAt) || 0;
+        const updatedAt = Number(d.updatedAt) || 0;
+
+        // اشتراك منتهٍ منذ 30 يوماً، أو لم يُفتح في المشغل منذ 60 يوماً: يُحذف
+        if (expiresAt < now - 30 * DAY || updatedAt < now - 60 * DAY) {
+            await doc.ref.delete();
+            removed++;
+            continue;
+        }
+        if (!d.uid || !expiresAt) continue;
+
+        const daysLeft = Math.ceil((expiresAt - now) / DAY);
+        const stage = EXPIRY_STAGES.find((st) => (st.days === 0 ? daysLeft <= 0 : daysLeft === st.days));
+        if (!stage) continue;
+        const notified = d.notified || {};
+        if (notified[stage.key]) continue;
+
+        const serverName = String(d.serverName || "الميزو").slice(0, 60);
+        await db.collection("broadcast_notifications").add({
+            type: "general",
+            title: stage.title,
+            message: stage.body(serverName),
+            actionUrl: "",
+            image: "",
+            timestamp: now,
+            createdAt: FieldValue.serverTimestamp(),
+            senderUid: "system",
+            active: true,
+            pending: false,
+            scheduledFor: 0,
+            // إشعار شخصي: لا يظهر إلا لصاحبه
+            targetUid: d.uid,
+            kind: "subscription_expiry"
+        });
+        try {
+            await getMessaging().send({
+                topic: "u_" + d.uid,
+                data: { id: "exp_" + doc.id + "_" + stage.key, title: stage.title, message: stage.body(serverName), actionUrl: "", ts: String(now) },
+                android: { priority: "high", ttl: 48 * 60 * 60 * 1000 }
+            });
+        } catch (err) {
+            logger.error("expiry push failed", { sub: doc.id, error: err.message });
+        }
+        await doc.ref.update({ ["notified." + stage.key]: true });
+        sent++;
+    }
+    logger.info("subscription expiry reminders", { checked: snap.size, sent: sent, removed: removed });
+});
+
+// =============================================
+// تسجيل الحركات من السيرفر (غرفة المراقبة)
+// =============================================
+// كان كل جهاز يكتب السجل بنفسه مباشرة في activity_logs، فكان بالإمكان تزوير سجلات بأي اسم،
+// أو إغراق السجل، أو تخطّي التسجيل كلياً بتعديل نسخة الموقع. الآن الكتابة من السيرفر وحده:
+// - الاسم والرقم والدور تُقرأ من حساب المرسل في قاعدة البيانات، لا مما أرسله الجهاز.
+// - عنوان IP يؤخذ من الاتصال نفسه فلا يُزوَّر.
+// - حد يومي لكل حساب وجهاز يمنع الإغراق.
+// - الأحداث الخطيرة تُرسل تنبيهاً فورياً للمدير على واتساب.
+const LOG_DAILY_LIMIT_USER = 400;      // لكل حساب مسجّل
+const LOG_DAILY_LIMIT_ANON = 120;      // لكل جهاز زائر غير مسجّل
+const LOG_ALERT_DAILY_LIMIT = 12;      // أقصى عدد تنبيهات واتساب في اليوم
+
+function logClientIp(request) {
+    try {
+        const req = request.rawRequest || {};
+        const fwd = String((req.headers && (req.headers["x-forwarded-for"] || req.headers["X-Forwarded-For"])) || "");
+        const ip = fwd.split(",")[0].trim() || req.ip || "";
+        return ip.replace(/^::ffff:/, "").slice(0, 45);
+    } catch (e) {
+        return "";
+    }
+}
+
+async function logEnforceQuota(key, limit) {
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const day = new Date(Date.now() + 2 * 3600 * 1000).toISOString().slice(0, 10);
+    const ref = fs().collection("log_usage").doc(key + "_" + day);
+    const n = await fs().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const c = (snap.exists ? snap.data().count : 0) || 0;
+        if (c < limit) tx.set(ref, { key: key, day: day, count: FieldValue.increment(1) }, { merge: true });
+        return c;
+    });
+    return n < limit;
+}
+
+/** بيانات صاحب الحركة من قاعدة البيانات نفسها، لا من الجهاز. */
+async function logResolveUser(uid) {
+    if (!uid) return { uid: "", name: "زائر غير مسجل", phone: "", role: "visitor" };
+    const { getFirestore: fs } = require("firebase-admin/firestore");
+    if (uid === AI_ADMIN_UID) return { uid: uid, name: "المدير", phone: "", role: "admin" };
+    try {
+        const [cust, adm] = await Promise.all([
+            fs().collection("customers").doc(uid).get(),
+            fs().collection("admins").doc(uid).get()
+        ]);
+        const d = cust.exists ? cust.data() : {};
+        const name = [d.firstName, d.lastName].filter(Boolean).join(" ") || d.name || (d.phone ? "عميل (" + d.phone + ")" : "مستخدم");
+        const role = adm.exists ? "admin" : (d.role === "staff" ? "staff" : "customer");
+        return { uid: uid, name: String(name).slice(0, 80), phone: String(d.phone || "").slice(0, 20), role: role };
+    } catch (e) {
+        return { uid: uid, name: "مستخدم", phone: "", role: "customer" };
+    }
+}
+
+/** تفاصيل الحركة بحدود آمنة: 40 مفتاحاً، ونصوص قصيرة، وعمق ثلاث طبقات. */
+function logTrimDetails(value, depth) {
+    const d = depth || 0;
+    if (value === null || value === undefined) return "";
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    if (typeof value === "string") return value.slice(0, 500);
+    if (Array.isArray(value)) return d >= 3 ? [] : value.slice(0, 20).map((v) => logTrimDetails(v, d + 1));
+    if (typeof value === "object") {
+        if (d >= 3) return {};
+        const out = {};
+        Object.keys(value).slice(0, 40).forEach((k) => { out[String(k).slice(0, 60)] = logTrimDetails(value[k], d + 1); });
+        return out;
+    }
+    return "";
+}
+
+function logSanitizeDevice(device, ip) {
+    const d = device && typeof device === "object" ? device : {};
+    const pick = (v, n) => String(v == null ? "" : v).slice(0, n);
+    return {
+        os: pick(d.os, 40),
+        browser: pick(d.browser, 60),
+        type: pick(d.type, 60),
+        appPlatform: pick(d.appPlatform, 20),
+        screen: pick(d.screen, 20),
+        visitorId: pick(d.visitorId, 40),
+        hardwareFingerprint: pick(d.hardwareFingerprint, 40),
+        publicIp: ip,
+        country: pick(d.country, 40),
+        city: pick(d.city, 40),
+        isp: pick(d.isp, 80),
+        userAgent: pick(d.userAgent, 300)
+    };
+}
+
+/**
+ * تنبيه المدير بحدث أمني خطير عبر نظام إشعارات الميزو نفسه:
+ * إشعار شخصي موجّه له وحده يظهر داخل الموقع والبرنامج، ويصل لهاتفه عبر FCM حتى والتطبيق مغلق.
+ */
+async function logAlertAdmin(payload) {
+    try {
+        if (!(await logEnforceQuota("alerts", LOG_ALERT_DAILY_LIMIT))) return;
+        const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+        const now = Date.now();
+        const body = payload.user.name + (payload.user.phone ? " (" + payload.user.phone + ")" : "") +
+            " • " + (payload.device.type || "جهاز غير معروف") +
+            (payload.publicIp ? " • " + payload.publicIp : "") +
+            (payload.page ? " • " + payload.page : "");
+        const doc = await fs().collection("broadcast_notifications").add({
+            type: "general",
+            title: "🚨 " + String(payload.title || "حدث أمني").slice(0, 120),
+            message: body.slice(0, 240),
+            actionUrl: "",
+            image: "",
+            timestamp: now,
+            createdAt: FieldValue.serverTimestamp(),
+            senderUid: "system",
+            active: true,
+            pending: false,
+            scheduledFor: 0,
+            targetUid: AI_ADMIN_UID,
+            kind: "security_alert",
+            logAction: payload.action
+        });
+        try {
+            await getMessaging().send({
+                topic: "u_" + AI_ADMIN_UID,
+                data: { id: doc.id, title: "🚨 تنبيه أمني", message: body.slice(0, 240), actionUrl: "security-monitor.html", ts: String(now) },
+                android: { priority: "high", ttl: 24 * 60 * 60 * 1000 }
+            });
+        } catch (err) {
+            logger.warn("security alert push failed", { error: err.message });
+        }
+    } catch (err) {
+        logger.warn("security alert failed", { error: err.message });
+    }
+}
+
+exports.logEvent = onCall(async (request) => {
+    const d = request.data || {};
+    const uid = request.auth ? request.auth.uid : "";
+    const ip = logClientIp(request);
+    const device = logSanitizeDevice(d.device, ip);
+
+    // حد يومي: للحساب إن كان مسجّلاً، وإلا لبصمة جهازه
+    const quotaKey = uid ? "u_" + uid : "d_" + (device.hardwareFingerprint || device.visitorId || ip || "anon");
+    if (!(await logEnforceQuota(quotaKey, uid ? LOG_DAILY_LIMIT_USER : LOG_DAILY_LIMIT_ANON))) {
+        return { ok: false, reason: "quota" };
+    }
+
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const user = await logResolveUser(uid);
+    const severity = ["info", "warning", "danger", "success"].includes(d.severity) ? d.severity : "info";
+    const details = (d.details && typeof d.details === "object" && !Array.isArray(d.details)) ? d.details : {};
+    const payload = {
+        action: String(d.action || "unknown_action").slice(0, 80),
+        category: String(d.category || "visitor").slice(0, 30),
+        severity: severity,
+        title: String(d.title || "حركة غير معروفة").slice(0, 400),
+        details: logTrimDetails(details),
+        user: user,
+        device: device,
+        publicIp: ip,
+        hardwareFingerprint: device.hardwareFingerprint,
+        page: String(d.page || "").slice(0, 60),
+        url: String(d.url || "").slice(0, 300),
+        createdAt: Date.now(),
+        timestamp: FieldValue.serverTimestamp(),
+        clientTime: String(d.clientTime || "").slice(0, 40)
+    };
+
+    const ref = await fs().collection("activity_logs").add(payload);
+
+    // تنبيه فوري للمدير على واتساب للأحداث الخطيرة فقط
+    if (severity === "danger" && payload.category === "security") {
+        await logAlertAdmin(payload);
+    }
+    return { ok: true, id: ref.id };
+});
+
+// =============================================
+// تنظيف سجل الحركات من السيرفر (احتفاظ 60 يوماً)
+// =============================================
+// كان التنظيف يعمل من متصفح المدير فقط ويحذف ما هو أقدم من 7 أيام، فتضيع الأدلة بسرعة،
+// ولا يعمل أصلاً إن لم يفتح المدير الصفحة. الآن يعمل كل ليلة من السيرفر.
+exports.cleanupActivityLogs = onSchedule({ schedule: "30 2 * * *", timeZone: "Africa/Tripoli" }, async () => {
+    const { getFirestore: fs, Timestamp } = require("firebase-admin/firestore");
+    const db = fs();
+    const cutoff = Timestamp.fromMillis(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    let removed = 0;
+    for (let round = 0; round < 40; round++) {
+        const snap = await db.collection("activity_logs").where("timestamp", "<", cutoff).limit(450).get();
+        if (snap.empty) break;
+        const batch = db.batch();
+        snap.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+        removed += snap.size;
+        if (snap.size < 450) break;
+    }
+    // عدّادات الحدّ اليومي القديمة
+    const oldUsage = await db.collection("log_usage")
+        .where("day", "<", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10))
+        .limit(400).get();
+    if (!oldUsage.empty) {
+        const b = db.batch();
+        oldUsage.docs.forEach((doc) => b.delete(doc.ref));
+        await b.commit();
+    }
+    logger.info("activity logs cleanup", { removed: removed });
 });

@@ -571,6 +571,8 @@ async function fetchUserProfile(uid) {
         if (snapshot.exists) {
             profile = { ...profile, ...snapshot.data() };
             exists = true;
+            // ما رآه العميل من الإشعارات على أي جهاز، حتى لا تتكرر عليه
+            if (window.mzSetAccountSeenBroadcasts) window.mzSetAccountSeenBroadcasts(profile.seenBroadcasts || []);
         }
 
         try {
@@ -1354,44 +1356,80 @@ window.unlockUiImmediately = unlockUiImmediately;
 function getClientDeviceInfo() {
     try {
         const ua = navigator.userAgent || '';
+        const nav = window.navigator || {};
+        const maxTouch = nav.maxTouchPoints || 0;
+
+        // برنامج الكمبيوتر: electronAPI من ملف التمهيد هو الدليل القاطع. الاعتماد على وجود
+        // window.AlMeZ0App وحده كان خطأً: الملف نفسه يُحمَّل في متصفح الهاتف أيضاً، فكان كل
+        // زائر من الجوال يُسجَّل "برنامج كمبيوتر" ونوع جهازه يظهر خاطئاً في غرفة المراقبة.
+        const isWindowsApp = !!(window.electronAPI && window.electronAPI.isElectron) ||
+            !!(window.AlMeZ0App && window.AlMeZ0App.isElectron) ||
+            /Electron|ALmEz0-PC/i.test(ua);
+
+        // تطبيق أندرويد: جسر التطبيق الأصلي أو Capacitor في وضع أصلي فعلاً
+        const isAndroidApp = !isWindowsApp && (
+            !!window.AndroidNativeBridge ||
+            !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+            !!(window.AlMeZ0App && window.AlMeZ0App.isCapacitor && window.AlMeZ0App.isNative) ||
+            /ALmEz0-Android/i.test(ua)
+        );
+
+        // نظام التشغيل. آيباد الحديث يعرّف نفسه كـ Mac، فنميّزه باللمس.
         let os = 'غير معروف';
         if (/android/i.test(ua)) os = 'Android';
-        else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+        else if (/iphone/i.test(ua)) os = 'iOS (iPhone)';
+        else if (/ipad/i.test(ua)) os = 'iPadOS';
+        else if (/ipod/i.test(ua)) os = 'iOS';
+        else if (/mac os x|macintosh/i.test(ua)) os = maxTouch > 1 ? 'iPadOS' : 'macOS';
         else if (/windows nt 10/i.test(ua)) os = 'Windows 10/11';
         else if (/windows/i.test(ua)) os = 'Windows';
-        else if (/mac os x/i.test(ua)) os = 'macOS';
+        else if (/cros/i.test(ua)) os = 'ChromeOS';
         else if (/linux/i.test(ua)) os = 'Linux';
+        else if (isWindowsApp) os = 'Windows';
 
         let browser = 'غير معروف';
         let appPlatform = 'web'; // 'android_app' | 'windows_app' | 'web'
 
-        // فحص هل العميل داخل تطبيق أندرويد المثبت أو برنامج الكمبيوتر
-        const isAndroidApp = !!(window.AndroidNativeBridge || window.Capacitor || /Capacitor|ALmEz0-Android/i.test(ua));
-        const isWindowsApp = !!(window.AlMeZ0App || window.isElectron || /Electron|ALmEz0-PC/i.test(ua));
-
         if (isAndroidApp) {
             appPlatform = 'android_app';
             browser = 'تطبيق أندرويد (ALmEz0 App)';
+            if (os === 'غير معروف') os = 'Android';
         } else if (isWindowsApp) {
             appPlatform = 'windows_app';
             browser = 'برنامج كمبيوتر (ALmEz0 PC)';
         } else {
             if (/edg/i.test(ua)) browser = 'Microsoft Edge';
-            else if (/chrome|crios/i.test(ua) && !/opr|opera/i.test(ua)) browser = 'Chrome';
-            else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
-            else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
             else if (/opr|opera/i.test(ua)) browser = 'Opera';
+            else if (/samsungbrowser/i.test(ua)) browser = 'Samsung Internet';
+            else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+            else if (/crios/i.test(ua)) browser = 'Chrome (iPhone)';
+            else if (/chrome/i.test(ua)) browser = 'Chrome';
+            else if (/safari/i.test(ua)) browser = 'Safari';
         }
 
-        let deviceType = 'كمبيوتر (Desktop)';
-        if (isAndroidApp) {
-            deviceType = /tv|smart-tv|box/i.test(ua) ? 'شاشة / TV Box' : 'هاتف (تطبيق أندرويد)';
+        // نوع الجهاز: تلفاز، هاتف، لوحي، أو كمبيوتر
+        const isTv = /tv|smart-tv|smarttv|googletv|appletv|crkey|bravia|aft|mibox|tx9|box|philipstv|netcast|webos|tizen/i.test(ua) ||
+            !!(window.AlMeZ0Screen && window.AlMeZ0Screen.mode === 'tv') ||
+            document.body.classList.contains('tv-device-mode');
+        let deviceType;
+        if (isTv) {
+            deviceType = isAndroidApp ? 'شاشة / TV Box (تطبيق أندرويد)' : 'شاشة / TV Box';
+        } else if (/iphone/i.test(ua)) {
+            deviceType = 'آيفون (iPhone)';
+        } else if (/ipad/i.test(ua) || (/macintosh/i.test(ua) && maxTouch > 1)) {
+            deviceType = 'آيباد (iPad)';
+        } else if (/android/i.test(ua)) {
+            deviceType = /mobile/i.test(ua)
+                ? (isAndroidApp ? 'هاتف أندرويد (تطبيق ALmEz0)' : 'هاتف أندرويد (متصفح)')
+                : 'جهاز أندرويد لوحي';
         } else if (isWindowsApp) {
             deviceType = 'كمبيوتر (برنامج ALmEz0)';
-        } else if (/mobile/i.test(ua) || /android/i.test(ua) || /iphone/i.test(ua)) {
-            deviceType = 'هاتف (Mobile)';
-        } else if (/ipad|tablet/i.test(ua)) {
+        } else if (/tablet/i.test(ua)) {
             deviceType = 'جهاز لوحي (Tablet)';
+        } else if (/mobile/i.test(ua)) {
+            deviceType = 'هاتف (Mobile)';
+        } else {
+            deviceType = 'كمبيوتر (Desktop)';
         }
 
         const ipData = cachedClientIpData || {};
@@ -1488,13 +1526,34 @@ async function logActivity(logData) {
             clientTime: new Date().toISOString()
         };
 
-        // الحفظ في قاعدة البيانات
-        return db.collection('activity_logs').add(payload).then(function (docRef) {
-            console.log('📡 [Security Tracker] Logged:', payload.action, 'IP:', payload.publicIp, 'HW:', payload.hardwareFingerprint, 'ID:', docRef.id);
-            return docRef;
-        }).catch(function (err) {
-            console.warn('⚠️ [Security Tracker] Firestore log error (Check Firestore Rules):', err);
-        });
+        // الكتابة من السيرفر وحده (دالة logEvent): الاسم والدور يُقرآن من قاعدة البيانات، وعنوان
+        // IP يُؤخذ من الاتصال نفسه. الكتابة المباشرة من الأجهزة ممنوعة في القواعد، فلا يمكن
+        // تزوير سجل باسم شخص آخر ولا إغراق غرفة المراقبة.
+        try {
+            var callable = (typeof functions !== 'undefined' && functions)
+                ? functions.httpsCallable('logEvent') : null;
+            if (!callable) return;
+            return callable({
+                action: payload.action,
+                category: payload.category,
+                severity: payload.severity,
+                title: payload.title,
+                details: payload.details,
+                device: payload.device,
+                page: payload.page,
+                url: payload.url,
+                clientTime: payload.clientTime
+            }).then(function (res) {
+                var data = (res && res.data) || {};
+                if (data.ok) console.log('📡 [Security Tracker] Logged:', payload.action, 'ID:', data.id);
+                else console.warn('⚠️ [Security Tracker] Log rejected:', data.reason || 'unknown');
+                return data;
+            }).catch(function (err) {
+                console.warn('⚠️ [Security Tracker] Server log error:', err && err.message);
+            });
+        } catch (err) {
+            console.warn('⚠️ [Security Tracker] Log call failed:', err && err.message);
+        }
     } catch (err) {
         console.warn('logActivity exception:', err);
     }
@@ -1590,7 +1649,7 @@ async function logActivity(logData) {
      * كان يُحفظ آخر إشعار فقط، فحذف أحدث إشعار من لوحة المدير يُعيد إظهار الذي قبله.
      * الآن قائمة بآخر 50 معرّفاً، ويُسجَّل الإشعار لحظة ظهوره سواء أُغلق أم لا.
      */
-    window.mzBroadcastAlreadySeen = function (id, ts) {
+    window.mzBroadcastAlreadySeen = function (id, ts, peekOnly) {
         var seen = [];
         try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || []; } catch (e) { seen = []; }
         var lastId = null, lastTs = 0;
@@ -1598,7 +1657,12 @@ async function logActivity(logData) {
             lastId = localStorage.getItem('almezo_last_broadcast_id');
             lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10) || 0;
         } catch (e) { }
-        if (seen.indexOf(id) !== -1 || id === lastId || (ts && ts <= lastTs)) return true;
+        // الفحص فقط (peekOnly): بالمعرّف وحده. مقارنة الوقت تُستعمل للنسخ القديمة التي كانت
+        // تحفظ آخر إشعار فقط، ولو طبّقناها هنا لاعتبرت أي إشعار أقدم من آخر ما ظهر مرئياً،
+        // فيضيع إشعار وصل قبله في نفس الدفعة.
+        if (seen.indexOf(id) !== -1 || id === lastId) return true;
+        if (peekOnly) return false;
+        if (ts && ts <= lastTs) return true;
         seen.push(id);
         if (seen.length > 50) seen = seen.slice(-50);
         try {
@@ -1995,4 +2059,409 @@ window.MizoLedger = (function () {
             if (!isEditable(document.activeElement)) unpad();
         }, 200);
     }, true);
+})();
+
+// =============================================
+// إشعارات الموقع والبرنامج: طابور العرض، التأجيل أثناء المشاهدة، وتسجيل من رآها
+// =============================================
+// - كل إشعارات آخر 48 ساعة التي لم يرها العميل تُعرض واحداً بعد الآخر (كان آخر إشعار فقط).
+// - أثناء مشاهدة فيلم أو قناة يُؤجَّل الإشعار حتى يغلق المشغل، مثل صندوق التحديث.
+// - "رآه" تُحفظ في حساب العميل أيضاً، فلا يتكرر على أجهزته ولا يعود لو مسح بيانات البرنامج.
+// - كل ظهور وكل ضغطة تُسجَّل لتظهر للمدير في مركز ذكاء العملاء.
+(function () {
+    var SEEN_KEY = 'almezo_seen_broadcasts';
+    var DEVICE_KEY = 'almezo_device_id';
+    var WINDOW_MS = 48 * 60 * 60 * 1000;
+    var accountSeen = [];
+    var queue = [];
+    var showing = false;
+    var deferTimer = null;
+
+    function store() {
+        try { return window.db || (window.firebase && firebase.firestore ? firebase.firestore() : null); } catch (e) { return null; }
+    }
+
+    function deviceId() {
+        var id = '';
+        try {
+            id = localStorage.getItem(DEVICE_KEY) || '';
+            if (!id) {
+                id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+                localStorage.setItem(DEVICE_KEY, id);
+            }
+        } catch (e) { id = 'd0'; }
+        return id;
+    }
+
+    function deviceLabel() {
+        var ua = navigator.userAgent || '';
+        if (/Electron/i.test(ua)) return 'برنامج الكمبيوتر';
+        if (window.AndroidNativeBridge || /Android/i.test(ua)) return /TV|BRAVIA|AFT|MiBOX|TX9/i.test(ua) ? 'تلفاز أندرويد' : 'هاتف أندرويد';
+        if (/iPhone|iPad/i.test(ua)) return 'آيفون / آيباد';
+        if (/Windows/i.test(ua)) return 'متصفح ويندوز';
+        return 'متصفح';
+    }
+
+    function currentUser() {
+        try {
+            var u = (window.firebase && firebase.auth) ? firebase.auth().currentUser : null;
+            if (!u) return null;
+            var p = window.currentAuthUser || {};
+            return {
+                uid: u.uid,
+                name: [p.firstName, p.lastName].filter(Boolean).join(' ') || '',
+                phone: p.phone || (u.email || '').split('@')[0] || ''
+            };
+        } catch (e) { return null; }
+    }
+
+    /** قائمة ما رآه هذا الجهاز. */
+    function deviceSeen() {
+        try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || []; } catch (e) { return []; }
+    }
+
+    /** ما رآه العميل على أي جهاز (يُقرأ من حسابه مرة واحدة). */
+    window.mzSetAccountSeenBroadcasts = function (list) {
+        accountSeen = Array.isArray(list) ? list : [];
+    };
+
+    // أندرويد: اشتراك الجهاز في موضوع العميل ليستقبل إشعاراته الشخصية والتطبيق مغلق
+    function syncUserTopic(uid, on) {
+        try {
+            if (window.AndroidNativeBridge && window.AndroidNativeBridge.setUserTopic) {
+                window.AndroidNativeBridge.setUserTopic(uid, !!on);
+            }
+        } catch (e) { }
+    }
+    try {
+        if (window.firebase && firebase.auth) {
+            var lastTopicUid = '';
+            firebase.auth().onAuthStateChanged(function (u) {
+                if (u && u.uid) {
+                    lastTopicUid = u.uid;
+                    syncUserTopic(u.uid, true);
+                } else if (lastTopicUid) {
+                    syncUserTopic(lastTopicUid, false);
+                    lastTopicUid = '';
+                    accountSeen = [];
+                }
+            });
+        }
+    } catch (e) { }
+
+    function alreadySeen(id, ts) {
+        if (accountSeen.indexOf(id) !== -1) return true;
+        // الفحص القديم على مستوى الجهاز (يشمل المعرّفات المحفوظة سابقاً)
+        return window.mzBroadcastAlreadySeen ? window.mzBroadcastAlreadySeen(id, ts, true) : deviceSeen().indexOf(id) !== -1;
+    }
+
+    /** يسجّل الإشعار مرئياً: على الجهاز، وفي حساب العميل، وفي سجل المشاهدات للمدير. */
+    function markSeen(notif) {
+        if (window.mzBroadcastAlreadySeen) window.mzBroadcastAlreadySeen(notif.id, notif.timestamp);
+        if (accountSeen.indexOf(notif.id) === -1) accountSeen.push(notif.id);
+        var db = store();
+        var user = currentUser();
+        if (!db || !user) return;
+        try {
+            var FV = firebase.firestore.FieldValue;
+            db.collection('customers').doc(user.uid).update({
+                seenBroadcasts: FV.arrayUnion(notif.id)
+            }).catch(function () { });
+            db.collection('notification_views').doc(notif.id + '_' + user.uid).set({
+                notificationId: notif.id,
+                notificationTitle: String(notif.title || '').slice(0, 120),
+                uid: user.uid,
+                name: user.name,
+                phone: user.phone,
+                device: deviceLabel(),
+                seenAt: Date.now(),
+                clicked: false
+            }, { merge: true }).then(function () {
+                db.collection('broadcast_notifications').doc(notif.id).update({ seenCount: FV.increment(1) }).catch(function () { });
+            }).catch(function () { });
+        } catch (e) { }
+    }
+
+    /** يسجّل ضغط العميل على الإشعار. */
+    window.mzMarkBroadcastClicked = function (id) {
+        var db = store(), user = currentUser();
+        if (!db || !user || !id) return;
+        try {
+            var FV = firebase.firestore.FieldValue;
+            db.collection('notification_views').doc(id + '_' + user.uid)
+                .set({ notificationId: id, uid: user.uid, clicked: true, clickedAt: Date.now() }, { merge: true })
+                .then(function () {
+                    db.collection('broadcast_notifications').doc(id).update({ clickCount: FV.increment(1) }).catch(function () { });
+                }).catch(function () { });
+        } catch (e) { }
+    };
+
+    /** مشاهدة جارية: فيديو أو صوت يعمل الآن (الإشعار يُؤجَّل حتى ينتهي). */
+    function busyWatching() {
+        try {
+            var media = document.querySelectorAll('video, audio');
+            for (var i = 0; i < media.length; i++) {
+                var m = media[i];
+                if (!m.paused && !m.ended && m.readyState > 2 && m.currentTime > 0) return true;
+            }
+            if (window.AlMeZ0App && window.AlMeZ0App.isNativePlayerOpen) return true;
+        } catch (e) { }
+        return false;
+    }
+
+    function pump(show) {
+        if (showing || !queue.length) return;
+        if (busyWatching()) {
+            // المشاهدة جارية: نعيد المحاولة كل 20 ثانية حتى يُغلق المشغل
+            if (!deferTimer) deferTimer = setInterval(function () { pump(show); }, 20000);
+            return;
+        }
+        if (deferTimer) { clearInterval(deferTimer); deferTimer = null; }
+        var notif = queue.shift();
+        if (Date.now() - (notif.timestamp || 0) > WINDOW_MS) return pump(show);
+        showing = true;
+        markSeen(notif);
+        try { show(notif); } catch (e) { }
+        // الإشعار التالي بعد اختفاء الحالي (30 ثانية) بفاصل قصير
+        setTimeout(function () {
+            showing = false;
+            pump(show);
+        }, 33000);
+    }
+
+    /**
+     * يشترك في الإشعارات ويستدعي show(notif) لكل إشعار لم يره العميل، واحداً بعد الآخر.
+     * يُستدعى من صفحات الموقع (ui.js) ومن المشغل (app-bridge.js).
+     */
+    window.mzSubscribeBroadcasts = function (show) {
+        if (window._almezoBroadcastListenerActive) return;
+        var attempts = 0;
+        var timer = setInterval(function () {
+            attempts++;
+            var db = store();
+            if (!db) {
+                if (attempts >= 40) clearInterval(timer);
+                return;
+            }
+            clearInterval(timer);
+            window._almezoBroadcastListenerActive = true;
+            try {
+                db.collection('broadcast_notifications')
+                    .orderBy('timestamp', 'desc')
+                    .limit(8)
+                    .onSnapshot(function (snap) {
+                        if (!snap || snap.empty) return;
+                        var fresh = [];
+                        snap.forEach(function (doc) {
+                            var data = doc.data() || {};
+                            data.id = doc.id;
+                            var ts = parseInt(data.timestamp || '0', 10);
+                            if (data.active === false || data.pending === true) return;
+                            // إشعار شخصي (تنبيه انتهاء الاشتراك): لصاحبه فقط
+                            if (data.targetUid) {
+                                var me = currentUser();
+                                if (!me || me.uid !== data.targetUid) return;
+                            }
+                            if (!ts || Date.now() - ts > WINDOW_MS) return;
+                            if (alreadySeen(doc.id, ts)) return;
+                            fresh.push(data);
+                        });
+                        // الأقدم أولاً حتى يقرأها العميل بترتيب إرسالها
+                        fresh.sort(function (a, b) { return a.timestamp - b.timestamp; });
+                        fresh.forEach(function (n) {
+                            for (var i = 0; i < queue.length; i++) if (queue[i].id === n.id) return;
+                            queue.push(n);
+                        });
+                        pump(show);
+                    }, function (err) {
+                        console.warn('[BroadcastNotif] Listener error:', err);
+                    });
+            } catch (e) {
+                console.warn('[BroadcastNotif] Setup failed:', e);
+            }
+        }, 500);
+    };
+})();
+
+// =============================================
+// زر الإشعارات لجميع المستخدمين (أسفل يمين الشاشة)
+// =============================================
+// جرس أحمر يظهر لكل من يفتح الموقع أو البرنامج، وعليه عدّاد ما لم يُقرأ. بداخله سجل إشعارات
+// آخر 30 يوماً: الإشعارات العامة، وتنبيهات قرب انتهاء الاشتراك الخاصة بالعميل، وللمدير
+// تنبيهاته الأمنية أيضاً. ما يخص عميلاً بعينه لا يقرؤه غيره (قواعد قاعدة البيانات).
+(function () {
+    var SEEN_KEY = 'almezo_notifcenter_seen';
+    var WINDOW_DAYS = 30;
+    var cache = [];
+
+    function store() {
+        try { return window.db || (window.firebase && firebase.firestore ? firebase.firestore() : null); } catch (e) { return null; }
+    }
+
+    function myUid() {
+        try {
+            var u = (window.firebase && firebase.auth) ? firebase.auth().currentUser : null;
+            return u ? u.uid : '';
+        } catch (e) { return ''; }
+    }
+
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (m) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+        });
+    }
+
+    function seenTs() {
+        try { return parseInt(localStorage.getItem(SEEN_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+    }
+
+    function setSeen(ts) {
+        try { localStorage.setItem(SEEN_KEY, String(ts || Date.now())); } catch (e) { }
+    }
+
+    /** الإشعارات التي تخص هذا المستخدم: العامة + الموجّهة له. */
+    async function fetchNotifications() {
+        var db = store();
+        if (!db) return [];
+        var since = Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
+        var uid = myUid();
+        var out = [];
+        var seenIds = {};
+
+        function push(doc) {
+            var d = doc.data() || {};
+            if (seenIds[doc.id]) return;
+            if (d.pending === true || d.active === false) return;
+            var ts = parseInt(d.timestamp || '0', 10);
+            if (!ts || ts < since) return;
+            seenIds[doc.id] = 1;
+            d.id = doc.id;
+            out.push(d);
+        }
+
+        try {
+            // العامة: تُرسل بـ targetUid فارغ من لوحة الإدارة
+            var pub = await db.collection('broadcast_notifications')
+                .where('targetUid', '==', '')
+                .orderBy('timestamp', 'desc').limit(40).get();
+            pub.forEach(push);
+        } catch (e) { }
+
+        if (uid) {
+            try {
+                var mine = await db.collection('broadcast_notifications')
+                    .where('targetUid', '==', uid)
+                    .orderBy('timestamp', 'desc').limit(40).get();
+                mine.forEach(push);
+            } catch (e) { }
+        }
+
+        out.sort(function (a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+        cache = out.slice(0, 60);
+        return cache;
+    }
+
+    function unreadCount(list) {
+        var s = seenTs();
+        return list.filter(function (n) { return (n.timestamp || 0) > s; }).length;
+    }
+
+    function paintBadge(list) {
+        var badge = document.getElementById('mzNotifBadge');
+        if (!badge) return;
+        var n = unreadCount(list || cache);
+        badge.textContent = n > 9 ? '9+' : String(n);
+        badge.classList.toggle('hidden', n === 0);
+    }
+
+    function render(list) {
+        var box = document.getElementById('mzNotifList');
+        if (!box) return;
+        if (!list.length) {
+            box.innerHTML = '<div class="mz-notif-empty"><i class="fas fa-bell-slash"></i><span>لا توجد إشعارات خلال آخر 30 يوماً</span></div>';
+            return;
+        }
+        var s = seenTs();
+        box.innerHTML = list.map(function (n) {
+            var when = n.timestamp ? new Date(n.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : '';
+            var isNew = (n.timestamp || 0) > s;
+            var isSec = n.kind === 'security_alert';
+            var icon = isSec ? 'fa-triangle-exclamation' : (n.type === 'promo' ? 'fa-fire' : (n.type === 'update' ? 'fa-rocket' : (n.type === 'product' ? 'fa-sparkles' : 'fa-bullhorn')));
+            var link = /^https?:\/\//i.test(n.actionUrl || '') ? n.actionUrl : '';
+            return '<div class="mz-notif-item' + (isNew ? ' is-new' : '') + (isSec ? ' is-sec' : '') + '">' +
+                '<div class="mz-notif-ic"><i class="fas ' + icon + '"></i></div>' +
+                '<div class="mz-notif-body">' +
+                '<div class="mz-notif-title">' + esc(n.title || '') + '</div>' +
+                (n.image ? '<img class="mz-notif-img" src="' + esc(n.image) + '" alt="">' : '') +
+                '<div class="mz-notif-msg">' + esc(n.message || '') + '</div>' +
+                '<div class="mz-notif-time">' + esc(when) + (isNew ? ' • <span class="mz-notif-new">جديد</span>' : '') + '</div>' +
+                (link ? '<a class="mz-notif-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">فتح الرابط</a>' : '') +
+                '</div></div>';
+        }).join('');
+    }
+
+    async function openPanel() {
+        var panel = document.getElementById('mzNotifPanel');
+        if (!panel) return;
+        panel.classList.add('open');
+        var box = document.getElementById('mzNotifList');
+        if (box) box.innerHTML = '<div class="mz-notif-empty">جاري جلب الإشعارات...</div>';
+        var list = await fetchNotifications();
+        render(list);
+        if (list.length) setSeen(list[0].timestamp || Date.now());
+        paintBadge(list);
+        var close = document.getElementById('mzNotifClose');
+        if (close) try { close.focus(); } catch (e) { }
+    }
+
+    function closePanel() {
+        var panel = document.getElementById('mzNotifPanel');
+        if (panel) panel.classList.remove('open');
+        var btn = document.getElementById('mzNotifBtn');
+        if (btn) try { btn.focus(); } catch (e) { }
+    }
+
+    function build() {
+        if (document.getElementById('mzNotifBtn')) return;
+        var btn = document.createElement('button');
+        btn.id = 'mzNotifBtn';
+        btn.type = 'button';
+        btn.className = 'mz-notif-fab';
+        btn.title = 'الإشعارات';
+        btn.setAttribute('aria-label', 'الإشعارات');
+        btn.innerHTML = '<i class="fas fa-bell"></i><span class="mz-notif-badge hidden" id="mzNotifBadge"></span>';
+        btn.addEventListener('click', openPanel);
+        document.body.appendChild(btn);
+
+        var panel = document.createElement('div');
+        panel.id = 'mzNotifPanel';
+        panel.className = 'mz-notif-panel';
+        panel.setAttribute('dir', 'rtl');
+        panel.innerHTML =
+            '<div class="mz-notif-card">' +
+            '  <div class="mz-notif-head">' +
+            '    <h3><i class="fas fa-bell"></i> الإشعارات</h3>' +
+            '    <button type="button" class="mz-notif-close" id="mzNotifClose" aria-label="إغلاق"><i class="fas fa-times"></i></button>' +
+            '  </div>' +
+            '  <div class="mz-notif-list" id="mzNotifList"></div>' +
+            '</div>';
+        document.body.appendChild(panel);
+        panel.addEventListener('click', function (e) { if (e.target === panel) closePanel(); });
+        document.getElementById('mzNotifClose').addEventListener('click', closePanel);
+        window.addEventListener('keydown', function (e) {
+            if ((e.key === 'Escape' || e.keyCode === 27) && panel.classList.contains('open')) {
+                e.preventDefault();
+                closePanel();
+            }
+        });
+
+        // العدّاد: عند الفتح، ثم كل خمس دقائق
+        setTimeout(function () { fetchNotifications().then(paintBadge); }, 3000);
+        setInterval(function () { fetchNotifications().then(paintBadge); }, 5 * 60 * 1000);
+    }
+
+    window.MizoNotifCenter = { open: openPanel, close: closePanel, refresh: function () { return fetchNotifications().then(paintBadge); } };
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
+    else build();
 })();

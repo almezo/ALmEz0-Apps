@@ -83,9 +83,12 @@ if (!gotTheLock) {
 
         // فتح البرنامج دائماً بوضعية النافذة المكبّرة بالكامل (Maximized) بدل نافذة صغيرة في المنتصف،
         // مع إظهار النافذة فقط بعد التكبير لتفادي أي وميض بصري لحجمها الأصلي الصغير أولاً
+        // ملء الشاشة دائماً (الموقع والمشغل): بلا شريط عنوان ويندوز ويغطي شريط المهام، ويُغلق
+        // ويُصغَّر من زرّي الصفحة نفسها (window-minimize / window-close).
         mainWindow.once('ready-to-show', () => {
             try {
                 mainWindow.maximize();
+                mainWindow.setFullScreen(true);
             } catch (e) { }
             mainWindow.show();
         });
@@ -151,15 +154,10 @@ if (!gotTheLock) {
             }
         });
 
-        // Auto-fullscreen when ALmEz0 Player (player.html) is loaded, and exit fullscreen when returning to index.html
+        // كل صفحات البرنامج بملء الشاشة، لا المشغل وحده
         mainWindow.webContents.on('did-finish-load', () => {
             try {
-                const currentURL = (mainWindow.webContents.getURL() || '').toLowerCase();
-                if (currentURL.includes('player.html')) {
-                    mainWindow.setFullScreen(true);
-                } else if (currentURL.includes('index.html')) {
-                    mainWindow.setFullScreen(false);
-                }
+                if (!mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
             } catch (e) { }
         });
 
@@ -205,6 +203,20 @@ if (!gotTheLock) {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.setFullScreen(!!enabled);
         }
+    });
+
+    // زرّا النافذة داخل الصفحة (بديل شريط عنوان ويندوز المخفي في ملء الشاشة)
+    ipcMain.on('window-minimize', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+    });
+
+    ipcMain.on('window-close', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+    });
+
+    // لغة نظام المستخدم: مواضع أزرار النافذة في ويندوز تنقلب مع اللغات من اليمين لليسار
+    ipcMain.handle('system-locale', () => {
+        try { return app.getLocale() || ''; } catch (e) { return ''; }
     });
 
     ipcMain.handle('is-fullscreen', () => {

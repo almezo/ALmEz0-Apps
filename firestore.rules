@@ -44,7 +44,9 @@ service cloud.firestore {
       allow update: if isAdmin() || (
         request.auth != null && 
         request.auth.uid == customerId && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authVersion'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authVersion', 'seenBroadcasts']) &&
+        (!('seenBroadcasts' in request.resource.data) ||
+          (request.resource.data.seenBroadcasts is list && request.resource.data.seenBroadcasts.size() <= 80))
       );
       allow delete: if false;
 
@@ -108,20 +110,14 @@ service cloud.firestore {
     }
 
     match /activity_logs/{logId} {
-      // السماح بالقراءة والحذف للمدير العام فقط
+      // السجل يُكتب من السيرفر وحده (دالة logEvent)، فلا يستطيع أي جهاز تزوير حركة أو إغراق السجل
       allow read, delete: if isAdmin();
-      // إنشاء السجلات متاح للجميع (الزوار أيضاً: محاولات الدخول الفاشلة)، لكن بشكل وحجم محددين:
-      // كان أي شخص يستطيع كتابة سجلات بلا حد أو بحجم كبير، أو ينتحل صفة المدير في صفحة الأمان.
-      allow create: if
-        request.resource.data.keys().hasOnly(['action', 'category', 'severity', 'title', 'details', 'user',
-          'device', 'publicIp', 'hardwareFingerprint', 'page', 'url', 'createdAt', 'timestamp', 'clientTime']) &&
-        request.resource.data.action is string && request.resource.data.action.size() <= 80 &&
-        request.resource.data.title is string && request.resource.data.title.size() <= 400 &&
-        request.resource.data.details is map && request.resource.data.details.size() <= 40 &&
-        request.resource.data.timestamp == request.time &&
-        (!('user' in request.resource.data) || !(request.resource.data.user.role == 'admin') || isAdmin());
-      // منع التعديل على السجلات لضمان عدم التلاعب بها (Immutable Audit Trail)
-      allow update: if false;
+      allow create, update: if false;
+    }
+
+    // عدّادات الحدّ اليومي للتسجيل (السيرفر فقط)
+    match /log_usage/{usageId} {
+      allow read, write: if false;
     }
 
     match /security_lockouts/{lockoutId} {
@@ -176,8 +172,46 @@ service cloud.firestore {
 
     // إشعارات وتنبيهات المدير العامة لجميع مستخدمي التطبيق والموقع
     match /broadcast_notifications/{notificationId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      // الإشعار العام للجميع، والإشعار الشخصي (تنبيه انتهاء الاشتراك) لصاحبه وحده
+      allow read: if !('targetUid' in resource.data) || resource.data.targetUid == null ||
+        resource.data.targetUid == '' ||
+        isAdmin() || (request.auth != null && resource.data.targetUid == request.auth.uid);
+      allow create, delete: if isAdmin();
+      // العميل المسجّل يزيد عدّاد المشاهدة أو الضغط بواحد فقط، ولا يغيّر نص الإشعار
+      allow update: if isAdmin() || (
+        request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenCount', 'clickCount']) &&
+        request.resource.data.get('seenCount', 0) <= resource.data.get('seenCount', 0) + 1 &&
+        request.resource.data.get('clickCount', 0) <= resource.data.get('clickCount', 0) + 1
+      );
+    }
+
+    // سجل من رأى كل إشعار ومن ضغط عليه (يظهر للمدير في مركز ذكاء العملاء)
+    match /notification_views/{viewId} {
+      allow read, delete: if isAdmin();
+      allow create, update: if request.auth != null &&
+        viewId.split('_')[1] == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['notificationId', 'notificationTitle', 'uid', 'name', 'phone',
+          'device', 'seenAt', 'clicked', 'clickedAt']) &&
+        request.resource.data.notificationId is string && request.resource.data.notificationId.size() <= 60 &&
+        (!('notificationTitle' in request.resource.data) || request.resource.data.notificationTitle.size() <= 150) &&
+        (!('name' in request.resource.data) || request.resource.data.name.size() <= 60) &&
+        (!('device' in request.resource.data) || request.resource.data.device.size() <= 40);
+    }
+
+    // اشتراكات العميل في المشغل (اسم السيرفر وتاريخ الانتهاء) لتنبيهات قرب الانتهاء
+    match /user_subscriptions/{subId} {
+      allow read: if isAdmin() || (request.auth != null && subId.split('_')[0] == request.auth.uid);
+      allow create, update, delete: if request.auth != null && subId.split('_')[0] == request.auth.uid &&
+        (request.method == 'delete' || (
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'serverName', 'username', 'expiresAt',
+            'status', 'updatedAt', 'notified', 'fcmTopic']) &&
+          request.resource.data.serverName is string && request.resource.data.serverName.size() <= 60 &&
+          request.resource.data.username is string && request.resource.data.username.size() <= 60 &&
+          request.resource.data.expiresAt is number
+        ));
     }
   }
 }

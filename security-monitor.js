@@ -7,6 +7,9 @@
 (function () {
     const ADMIN_TARGET_UID = '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1';
 
+    // كان البث الحي محصوراً بآخر 500 حركة لتقليل التكلفة، وبزيادة الزوار صارت حركات اليوم
+    // تُقصى من الشاشة. الحدّ الآن أوسع بكثير، ويمكن رفعه من هنا.
+    const LIVE_LOGS_LIMIT = 3000;
     let allLogs = [];
     let currentFilterCategory = 'all';
     let currentSearchQuery = '';
@@ -105,7 +108,7 @@
         if (typeof db === 'undefined' || !db) return;
 
         // استماع فوري لأحدث 500 سجل فقط لضمان سرعة الصفحة وعدم وجود تكلفة
-        const logsRef = db.collection('activity_logs').orderBy('timestamp', 'desc').limit(500);
+        const logsRef = db.collection('activity_logs').orderBy('timestamp', 'desc').limit(LIVE_LOGS_LIMIT);
 
         logsUnsubscribe = logsRef.onSnapshot(function (snapshot) {
             const rulesAlertEl = document.getElementById('socRulesAlert');
@@ -277,7 +280,7 @@
                 .where('timestamp', '>=', start)
                 .where('timestamp', '<', end)
                 .orderBy('timestamp', 'desc')
-                .limit(1000)
+                .limit(5000)
                 .get();
             const list = [];
             snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
@@ -289,6 +292,51 @@
             if (dayLogsLoading === key) dayLogsLoading = null;
             renderLogsTable();
         }
+    }
+
+    /**
+     * بيانات جهاز السجل. السجلات القديمة قد تحمل نوعاً خاطئاً أو ناقصاً (كان كل من يفتح
+     * الموقع من متصفح يُسجَّل "برنامج كمبيوتر")، فنستنتجها من بصمة المتصفح المحفوظة معها.
+     */
+    function deviceOf(log) {
+        const d = Object.assign({}, log.device || {});
+        const ua = d.userAgent || '';
+        const unknown = (v) => !v || v === 'غير معروف' || v === 'غير متوفر';
+        if (ua) {
+            const isApp = d.appPlatform === 'android_app' || /ALmEz0-Android|Capacitor/i.test(ua);
+            const isPc = d.appPlatform === 'windows_app' || /Electron|ALmEz0-PC/i.test(ua);
+            const isTv = /tv|smart-tv|smarttv|googletv|crkey|bravia|aft|mibox|tx9|box|webos|tizen/i.test(ua);
+            if (unknown(d.os)) {
+                if (/android/i.test(ua)) d.os = 'Android';
+                else if (/iphone/i.test(ua)) d.os = 'iOS (iPhone)';
+                else if (/ipad/i.test(ua)) d.os = 'iPadOS';
+                else if (/windows nt 10/i.test(ua)) d.os = 'Windows 10/11';
+                else if (/windows/i.test(ua)) d.os = 'Windows';
+                else if (/mac os x|macintosh/i.test(ua)) d.os = 'macOS';
+                else if (/linux/i.test(ua)) d.os = 'Linux';
+            }
+            // النوع: يُعاد استنتاجه متى ناقض بصمة المتصفح
+            const uaSaysPhone = /iphone/i.test(ua) || (/android/i.test(ua) && /mobile/i.test(ua));
+            const uaSaysTablet = /ipad/i.test(ua) || /tablet/i.test(ua);
+            if (unknown(d.type) || (uaSaysPhone && /كمبيوتر/.test(d.type || '')) || (uaSaysTablet && /كمبيوتر/.test(d.type || ''))) {
+                if (isTv) d.type = 'شاشة / TV Box';
+                else if (/iphone/i.test(ua)) d.type = 'آيفون (iPhone)';
+                else if (/ipad/i.test(ua)) d.type = 'آيباد (iPad)';
+                else if (/android/i.test(ua)) d.type = /mobile/i.test(ua) ? 'هاتف أندرويد' : 'جهاز أندرويد لوحي';
+                else if (/mobile/i.test(ua)) d.type = 'هاتف (Mobile)';
+                else d.type = isPc ? 'كمبيوتر (برنامج ALmEz0)' : 'كمبيوتر (Desktop)';
+            }
+            if (unknown(d.browser)) {
+                if (isApp) d.browser = 'تطبيق أندرويد (ALmEz0 App)';
+                else if (isPc) d.browser = 'برنامج كمبيوتر (ALmEz0 PC)';
+                else if (/edg/i.test(ua)) d.browser = 'Microsoft Edge';
+                else if (/samsungbrowser/i.test(ua)) d.browser = 'Samsung Internet';
+                else if (/firefox|fxios/i.test(ua)) d.browser = 'Firefox';
+                else if (/crios|chrome/i.test(ua)) d.browser = 'Chrome';
+                else if (/safari/i.test(ua)) d.browser = 'Safari';
+            }
+        }
+        return d;
     }
 
     function getFilteredLogs() {
@@ -320,6 +368,16 @@
                 if (!log.user || log.user.role !== 'customer') return false;
             } else if (currentFilterCategory === 'visitor') {
                 if (log.user && log.user.role !== 'visitor') return false;
+            } else if (currentFilterCategory === 'sales') {
+                // المبيعات والطلبات وعمليات الشراء
+                const isSales = log.category === 'sales' || log.category === 'order' ||
+                    (log.action && /sale|order|purchase|transaction|invoice|balance/i.test(log.action));
+                if (!isSales) return false;
+            } else if (currentFilterCategory === 'auth') {
+                // تسجيل الدخول والخروج وتغيير كلمة المرور
+                const isAuth = log.category === 'auth' ||
+                    (log.action && /login|logout|register|password|session/i.test(log.action));
+                if (!isAuth) return false;
             }
 
             // 2. فلترة البحث النصي
@@ -417,8 +475,11 @@
             const sevBadge = getSeverityBadge(log.severity, log.action);
 
             // تفاصيل الجهاز والـ IP وبصمة العتاد
-            const device = log.device || {};
-            const deviceTypeIcon = (device.type && device.type.includes('هاتف')) ? 'fa-mobile-alt' : ((device.type && device.type.includes('لوحي')) ? 'fa-tablet-alt' : 'fa-desktop');
+            const device = deviceOf(log);
+            const t = device.type || '';
+            const deviceTypeIcon = /تلفاز|شاشة|TV/i.test(t) ? 'fa-tv'
+                : (/هاتف|آيفون|iPhone/i.test(t) ? 'fa-mobile-alt'
+                    : (/لوحي|آيباد|iPad/i.test(t) ? 'fa-tablet-alt' : 'fa-desktop'));
             const osText = device.os || 'غير معروف';
             const browserText = device.browser || '';
             const ipAddress = log.publicIp || device.publicIp || '';
@@ -904,24 +965,9 @@
         }
     }
     async function autoCleanupOldLogs() {
-        try {
-            const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
-            // دفعات من 400: فايربيز يرفض أي دفعة فوق 500 عملية، فكان وجود أكثر من 500 سجل
-            // قديم يُفشل التنظيف كله في كل مرة بصمت، وتتراكم السجلات بلا نهاية.
-            let removed = 0;
-            for (let round = 0; round < 50; round++) {
-                const snapshot = await db.collection('activity_logs').where('timestamp', '<', sevenDaysAgo).limit(400).get();
-                if (snapshot.empty) break;
-                const batch = db.batch();
-                snapshot.docs.forEach(doc => batch.delete(doc.ref));
-                await batch.commit();
-                removed += snapshot.size;
-                if (snapshot.size < 400) break;
-            }
-            if (removed) console.log(`Auto-cleanup: Removed ${removed} old logs.`);
-        } catch (err) {
-            console.error('Error auto-clearing old logs:', err);
-        }
+        // التنظيف انتقل إلى السيرفر: دالة cleanupActivityLogs تعمل كل ليلة وتحتفظ بـ60 يوماً،
+        // فلم يعد يعتمد على فتح المدير للصفحة، ولم تعد الأدلة تُحذف بعد أسبوع.
+        return;
     }
 
     // =============================================

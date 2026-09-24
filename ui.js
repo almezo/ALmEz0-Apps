@@ -329,6 +329,10 @@ function checkFABMode() {
             fabContainerLeft.appendChild(purchasesFab);
             fabContainerLeft.appendChild(usersIntelFab);
 
+            // عدّاد التنبيهات غير المقروءة على زر السجل
+            setTimeout(function () { if (window.refreshAdminAlertsBadge) window.refreshAdminAlertsBadge(); }, 2500);
+            setInterval(function () { if (window.refreshAdminAlertsBadge) window.refreshAdminAlertsBadge(); }, 5 * 60 * 1000);
+
         } else if (user.role === 'staff') {
             // زر المندوبين (يسار)
             const staffDashboardBtn = document.createElement('button');
@@ -590,6 +594,33 @@ function injectBroadcastModalHtml() {
                     </div>
 
                     <div class="broadcast-field-group full-width">
+                        <label class="broadcast-label">
+                            <i class="fas fa-image"></i> صورة الإشعار (اختياري - تظهر داخل الموقع والبرنامج):
+                        </label>
+                        <div class="broadcast-image-row">
+                            <input type="file" id="broadcastNotifImageFile" accept="image/*" style="display:none;" onchange="pickBroadcastImage(this)">
+                            <button type="button" class="broadcast-img-btn" onclick="document.getElementById('broadcastNotifImageFile').click()">
+                                <i class="fas fa-upload"></i> اختر صورة من جهازك
+                            </button>
+                            <button type="button" class="broadcast-img-btn danger" id="broadcastImgClear" style="display:none;" onclick="clearBroadcastImage()">
+                                <i class="fas fa-times"></i> إزالة الصورة
+                            </button>
+                            <span class="broadcast-img-note" id="broadcastImgNote"></span>
+                        </div>
+                    </div>
+
+                    <div class="broadcast-field-group full-width">
+                        <label class="broadcast-label">
+                            <i class="fas fa-clock"></i> وقت الإرسال:
+                        </label>
+                        <div class="broadcast-schedule-row">
+                            <label class="broadcast-radio"><input type="radio" name="bcWhen" value="now" checked onchange="toggleBroadcastSchedule()"> إرسال فوري</label>
+                            <label class="broadcast-radio"><input type="radio" name="bcWhen" value="later" onchange="toggleBroadcastSchedule()"> إرسال مجدول</label>
+                            <input type="datetime-local" id="broadcastNotifSchedule" class="broadcast-input" style="display:none; max-width:240px;">
+                        </div>
+                    </div>
+
+                    <div class="broadcast-field-group full-width">
                         <label for="broadcastNotifActionUrl" class="broadcast-label">
                             <i class="fas fa-link"></i> رابط الوجهة (اختياري - يفتح عند الضغط على الإشعار):
                         </label>
@@ -610,6 +641,7 @@ function injectBroadcastModalHtml() {
                             <span class="preview-time">الآن</span>
                         </div>
                         <div class="preview-body-row">
+                            <img id="previewImage" class="preview-image" style="display:none;" alt="">
                             <div class="preview-text-block">
                                 <h4 id="previewTitle" class="preview-title">تحديث جديد لتطبيق الميزو متاح الآن!</h4>
                                 <p id="previewMessage" class="preview-message">يتضمن التحديث الجديد سرعة تشغيل فائقة وتحديثات للأفلام والمسلسلات.</p>
@@ -648,6 +680,106 @@ function injectBroadcastModalHtml() {
         }
     });
 }
+
+/**
+ * سجل الإشعارات والتنبيهات الأمنية الموجّهة للمدير وحده.
+ * مصدره broadcast_notifications حيث targetUid = المدير (يكتبها السيرفر عند كل حدث خطير).
+ */
+window.openAdminAlertsModal = async function () {
+    let modal = document.getElementById('adminAlertsModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'adminAlertsModal';
+        modal.className = 'modal alerts-modal';
+        modal.innerHTML = '\
+            <div class="modal-content alerts-modal-content">\
+                <div class="alerts-modal-header">\
+                    <h3><i class="fas fa-bell"></i> سجل الإشعارات والتنبيهات الأمنية</h3>\
+                    <button type="button" class="alerts-close-btn" onclick="closeAdminAlertsModal()"><i class="fas fa-times"></i></button>\
+                </div>\
+                <div class="alerts-list" id="adminAlertsList"><div class="alerts-loading">جاري جلب السجل...</div></div>\
+                <div class="alerts-modal-footer">\
+                    <button type="button" class="alerts-open-monitor" onclick="window.location.href=\'security-monitor.html\'"><i class="fas fa-shield-halved"></i> فتح غرفة المراقبة</button>\
+                </div>\
+            </div>';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeAdminAlertsModal(); });
+    }
+    modal.style.display = 'flex';
+    await loadAdminAlerts();
+};
+
+window.closeAdminAlertsModal = function () {
+    const modal = document.getElementById('adminAlertsModal');
+    if (modal) modal.style.display = 'none';
+};
+
+async function loadAdminAlerts() {
+    const listEl = document.getElementById('adminAlertsList');
+    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+    if (!listEl || !firestore) return;
+    try {
+        const me = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : '';
+        const snap = await firestore.collection('broadcast_notifications')
+            .where('targetUid', '==', me)
+            .orderBy('timestamp', 'desc')
+            .limit(60)
+            .get();
+        if (snap.empty) {
+            listEl.innerHTML = '<div class="alerts-empty">لا توجد تنبيهات. كل شيء هادئ ✅</div>';
+            markAdminAlertsSeen(0);
+            return;
+        }
+        let html = '';
+        snap.forEach(doc => {
+            const d = doc.data() || {};
+            const when = d.timestamp ? new Date(d.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : '';
+            const isSec = d.kind === 'security_alert';
+            html += `
+                <div class="alert-item ${isSec ? 'sec' : ''}">
+                    <div class="alert-item-icon"><i class="fas ${isSec ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i></div>
+                    <div class="alert-item-body">
+                        <div class="alert-item-title">${escNotifH(d.title || '')}</div>
+                        <div class="alert-item-msg">${escNotifH(d.message || '')}</div>
+                        <div class="alert-item-time">${escNotifH(when)}</div>
+                    </div>
+                </div>`;
+        });
+        listEl.innerHTML = html;
+        markAdminAlertsSeen(snap.docs[0].data().timestamp || 0);
+    } catch (e) {
+        console.error('alerts load failed', e);
+        listEl.innerHTML = '<div class="alerts-empty">تعذر جلب السجل</div>';
+    }
+}
+
+/** عدّاد التنبيهات غير المقروءة على الزر. */
+function markAdminAlertsSeen(ts) {
+    try { localStorage.setItem('almezo_alerts_seen_ts', String(ts || Date.now())); } catch (e) { }
+    const badge = document.getElementById('adminAlertsBadge');
+    if (badge) { badge.classList.add('hidden'); badge.textContent = ''; }
+}
+
+window.refreshAdminAlertsBadge = async function () {
+    const badge = document.getElementById('adminAlertsBadge');
+    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+    if (!badge || !firestore) return;
+    try {
+        const me = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : '';
+        if (!me) return;
+        let seen = 0;
+        try { seen = parseInt(localStorage.getItem('almezo_alerts_seen_ts') || '0', 10) || 0; } catch (e) { }
+        const snap = await firestore.collection('broadcast_notifications')
+            .where('targetUid', '==', me)
+            .orderBy('timestamp', 'desc')
+            .limit(30)
+            .get();
+        let unread = 0;
+        snap.forEach(doc => { if ((doc.data().timestamp || 0) > seen) unread++; });
+        badge.textContent = unread > 9 ? '9+' : String(unread);
+        badge.classList.toggle('hidden', unread === 0);
+    } catch (e) { }
+};
 
 window.openBroadcastModal = function () {
     injectBroadcastModalHtml();
@@ -688,6 +820,97 @@ window.updateBroadcastPreview = function () {
     badgeEl.innerText = typeLabels[type] || '📢 إشعار';
     previewTitle.innerText = (titleEl && titleEl.value.trim()) || 'سيرفرات الميزو - ALmEz0';
     previewMessage.innerText = (msgEl && msgEl.value.trim()) || 'معاينة نص الإشعار كما سيظهر في شريط إشعارات هاتف وجهاز العميل...';
+
+    const previewImg = document.getElementById('previewImage');
+    if (previewImg) {
+        if (window._broadcastImageData) {
+            previewImg.src = window._broadcastImageData;
+            previewImg.style.display = 'block';
+        } else {
+            previewImg.removeAttribute('src');
+            previewImg.style.display = 'none';
+        }
+    }
+};
+
+// صورة الإشعار: تُصغَّر وتُضغط في المتصفح ثم تُحفظ داخل وثيقة الإشعار نفسها، فلا نحتاج خدمة
+// تخزين مدفوعة. الحد الأقصى لوثيقة Firestore ميجابايت واحد، ونبقى تحت 150 كيلوبايت.
+window._broadcastImageData = '';
+
+window.pickBroadcastImage = function (input) {
+    const file = input && input.files && input.files[0];
+    const note = document.getElementById('broadcastImgNote');
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+        showToast('اختر ملف صورة', 'warning');
+        return;
+    }
+    if (note) note.textContent = 'جاري تجهيز الصورة...';
+    const reader = new FileReader();
+    reader.onload = function () {
+        const img = new Image();
+        img.onload = function () {
+            const maxW = 900;
+            const scale = Math.min(1, maxW / img.width);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            let quality = 0.82, data = canvas.toDataURL('image/jpeg', quality);
+            while (data.length > 150000 && quality > 0.35) {
+                quality -= 0.12;
+                data = canvas.toDataURL('image/jpeg', quality);
+            }
+            if (data.length > 150000) {
+                if (note) note.textContent = '';
+                showToast('الصورة كبيرة جداً، جرّب صورة أصغر', 'error');
+                return;
+            }
+            window._broadcastImageData = data;
+            const clearBtn = document.getElementById('broadcastImgClear');
+            if (clearBtn) clearBtn.style.display = '';
+            if (note) note.textContent = 'تم تجهيز الصورة (' + Math.round(data.length / 1024) + ' كيلوبايت)';
+            updateBroadcastPreview();
+        };
+        img.onerror = function () {
+            if (note) note.textContent = '';
+            showToast('تعذر قراءة الصورة', 'error');
+        };
+        img.src = reader.result;
+    };
+    reader.onerror = function () {
+        if (note) note.textContent = '';
+        showToast('تعذر قراءة الملف', 'error');
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+};
+
+window.clearBroadcastImage = function () {
+    window._broadcastImageData = '';
+    const clearBtn = document.getElementById('broadcastImgClear');
+    if (clearBtn) clearBtn.style.display = 'none';
+    const note = document.getElementById('broadcastImgNote');
+    if (note) note.textContent = '';
+    updateBroadcastPreview();
+};
+
+window.toggleBroadcastSchedule = function () {
+    const later = document.querySelector('input[name="bcWhen"]:checked');
+    const input = document.getElementById('broadcastNotifSchedule');
+    const btn = document.getElementById('btnSendBroadcast');
+    const isLater = later && later.value === 'later';
+    if (input) {
+        input.style.display = isLater ? '' : 'none';
+        if (isLater && !input.value) {
+            const d = new Date(Date.now() + 60 * 60 * 1000);
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            input.value = d.toISOString().slice(0, 16);
+        }
+    }
+    if (btn) btn.innerHTML = isLater
+        ? '<i class="fas fa-clock"></i> جدولة الإشعار'
+        : '<i class="fas fa-paper-plane"></i> إرسال الإشعار لجميع الأجهزة الآن';
 };
 
 window.sendBroadcastNotification = async function () {
@@ -723,7 +946,28 @@ window.sendBroadcastNotification = async function () {
 
     // كانت confirm() الافتراضية حين لا تُحمَّل مكتبة SweetAlert (الصفحة الرئيسية وتطبيق أندرويد)،
     // فتظهر بتصميم النظام. نافذة الموقع المصمّمة دائماً.
-    const confirmed = await showConfirm(`سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو (${title})، هل تريد المتابعة؟`, { title: 'تأكيد إرسال الإشعار', okText: 'نعم، أرسل الآن', danger: false });
+    // وقت الإرسال: فوري أو مجدول
+    const whenEl = document.querySelector('input[name="bcWhen"]:checked');
+    const isScheduled = whenEl && whenEl.value === 'later';
+    let sendAt = 0;
+    if (isScheduled) {
+        const schedEl = document.getElementById('broadcastNotifSchedule');
+        sendAt = schedEl && schedEl.value ? new Date(schedEl.value).getTime() : 0;
+        if (!sendAt || isNaN(sendAt)) {
+            showToast('حدد تاريخ ووقت الإرسال', 'warning');
+            if (schedEl) schedEl.focus();
+            return;
+        }
+        if (sendAt < Date.now() + 60000) {
+            showToast('اختر وقتاً بعد دقيقة على الأقل من الآن', 'warning');
+            return;
+        }
+    }
+
+    const whenText = isScheduled
+        ? 'سيُرسل هذا الإشعار تلقائياً في ' + new Date(sendAt).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' })
+        : 'سيتم إرسال هذا الإشعار فوراً لجميع أجهزة وعملاء سيرفرات الميزو';
+    const confirmed = await showConfirm(`${whenText} (${title})، هل تريد المتابعة؟`, { title: isScheduled ? 'تأكيد جدولة الإشعار' : 'تأكيد إرسال الإشعار', okText: isScheduled ? 'نعم، جدوله' : 'نعم، أرسل الآن', danger: false });
     if (!confirmed) return;
 
     if (sendBtn) {
@@ -745,11 +989,34 @@ window.sendBroadcastNotification = async function () {
             timestamp: Date.now(),
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             senderUid: currentUser ? currentUser.uid : 'admin',
-            active: true
+            active: true,
+            // فارغ = إشعار عام للجميع. الإشعار الشخصي يحمل معرّف صاحبه (تنبيه اشتراك أو تنبيه أمني)
+            targetUid: '',
+            image: window._broadcastImageData || '',
+            // المجدول: لا يظهر للعملاء إلا بعد أن ترسله الدالة المجدولة في وقته
+            scheduledFor: isScheduled ? sendAt : 0,
+            pending: isScheduled
         };
+        if (isScheduled) notifDoc.timestamp = sendAt;
 
         await firestore.collection('broadcast_notifications').add(notifDoc);
 
+        if (isScheduled) {
+            showAlert('سيُرسل الإشعار تلقائياً في موعده المحدد، حتى لو كانت لوحة الإدارة مغلقة. يمكنك حذفه من السجل قبل موعده لإلغائه.', 'success', 'تمت الجدولة بنجاح! ⏰');
+            clearBroadcastImage();
+            if (titleEl) titleEl.value = '';
+            if (msgEl) msgEl.value = '';
+            if (urlEl) urlEl.value = '';
+            updateBroadcastPreview();
+            loadBroadcastHistory();
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                toggleBroadcastSchedule();
+            }
+            return;
+        }
+
+        clearBroadcastImage();
         showAlert('يصل فوراً إلى شريط إشعارات أجهزة أندرويد حتى والتطبيق مغلق، ويظهر لكل من يفتح الموقع أو برنامج الكمبيوتر الآن. (أجهزة أندرويد بلا خدمات Google Play تستلمه خلال 15 دقيقة.)', 'success', 'تم الإرسال بنجاح! 📢');
 
         if (titleEl) titleEl.value = '';
@@ -796,12 +1063,16 @@ window.loadBroadcastHistory = async function () {
             const data = doc.data();
             const dateStr = data.timestamp ? new Date(data.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : 'غير محدد';
             const typeBadge = data.type === 'update' ? '🚀 تحديث' : (data.type === 'promo' ? '🔥 عرض' : (data.type === 'product' ? '✨ منتج' : '📢 عام'));
+            const stateBadge = data.pending
+                ? `<span class="notif-state pending">⏰ مجدول: ${new Date(data.scheduledFor || data.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' })}</span>`
+                : `<span class="notif-state seen" title="عدد من رأى الإشعار (اضغط للتفاصيل)" onclick="openNotificationViewers('${safeEsc(doc.id)}', '${safeEsc(String(data.title || '').replace(/'/g, ''))}')">👁️ ${Number(data.seenCount || 0)} شاهدوه · ${Number(data.clickCount || 0)} ضغطوا</span>`;
 
             html += `
                 <div class="history-notif-item">
                     <div class="history-notif-info">
                         <span class="history-notif-title">${typeBadge} - ${safeEsc(data.title || '')}</span>
                         <span class="history-notif-time">${dateStr} | ${safeEsc(String(data.message || '').substring(0, 50))}${String(data.message || '').length > 50 ? '...' : ''}</span>
+                        ${stateBadge}
                     </div>
                     <button type="button" class="btn-delete-notif" onclick="deleteBroadcastNotification('${safeEsc(doc.id)}')" title="حذف هذا الإشعار">
                         <i class="fas fa-trash-alt"></i>
@@ -893,6 +1164,9 @@ window.openUsersIntelModal = function () {
                     <button type="button" class="intel-tab-btn" id="tabBtnPlayer" onclick="switchUsersIntelTab('player')">
                         <i class="fas fa-tv"></i> مستخدمو المشغل وسيرفرات IPTV (<span id="intelCountPlayer">0</span>)
                     </button>
+                    <button type="button" class="intel-tab-btn" id="tabBtnNotifs" onclick="openNotificationsReport()">
+                        <i class="fas fa-bell"></i> من رأى الإشعارات
+                    </button>
                 </div>
 
                 <div class="users-intel-toolbar">
@@ -966,6 +1240,98 @@ window.closeUsersIntelModal = function () {
     usersIntelCustomersUnsub = null;
     usersIntelLogsUnsub = null;
 };
+
+/**
+ * تقرير الإشعارات: لكل إشعار عدد من رآه ومن ضغط عليه، والضغط عليه يعرض أسماءهم.
+ * المصدر: notification_views (يكتبه جهاز العميل لحظة ظهور الإشعار عنده).
+ */
+window.openNotificationsReport = async function () {
+    const box = document.getElementById('usersIntelBody');
+    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+    if (!box || !firestore) return;
+    document.querySelectorAll('.intel-tab-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('tabBtnNotifs');
+    if (btn) btn.classList.add('active');
+    box.innerHTML = '<div class="intel-loading">جاري جلب تقرير الإشعارات...</div>';
+    try {
+        const snap = await firestore.collection('broadcast_notifications').orderBy('timestamp', 'desc').limit(20).get();
+        if (snap.empty) {
+            box.innerHTML = '<div class="intel-empty">لا توجد إشعارات مرسلة بعد</div>';
+            return;
+        }
+        let rows = '';
+        snap.forEach(doc => {
+            const d = doc.data() || {};
+            const when = d.timestamp ? new Date(d.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+            const state = d.pending ? '<span style="color:#fbbf24;">⏰ مجدول</span>' : '<span style="color:#22c55e;">تم الإرسال</span>';
+            rows += `<tr>
+                <td>${escNotifH(d.title || '')}</td>
+                <td>${escNotifH(when)}</td>
+                <td>${state}</td>
+                <td style="font-weight:800;">${Number(d.seenCount || 0)}</td>
+                <td style="font-weight:800;">${Number(d.clickCount || 0)}</td>
+                <td><button type="button" class="intel-mini-btn" onclick="openNotificationViewers('${escNotifH(doc.id)}')">عرض الأسماء</button></td>
+            </tr>`;
+        });
+        box.innerHTML = `
+            <div class="intel-notifs-report">
+                <table class="intel-table">
+                    <thead><tr><th>الإشعار</th><th>التاريخ</th><th>الحالة</th><th>شاهدوه</th><th>ضغطوا</th><th></th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <p class="intel-note">تُحتسب المشاهدة لكل عميل مسجّل دخوله ظهر له الإشعار في الموقع أو البرنامج. زوار الموقع غير المسجّلين لا تُسجَّل أسماؤهم.</p>
+                <div id="notifViewersBox"></div>
+            </div>`;
+    } catch (e) {
+        console.error('notifications report failed', e);
+        box.innerHTML = '<div class="intel-empty">تعذر جلب التقرير</div>';
+    }
+};
+
+window.openNotificationViewers = async function (notifId) {
+    const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+    if (!firestore || !notifId) return;
+    let target = document.getElementById('notifViewersBox');
+    if (!target) {
+        await window.openNotificationsReport();
+        target = document.getElementById('notifViewersBox');
+        if (!target) return;
+    }
+    target.innerHTML = '<div class="intel-loading">جاري جلب الأسماء...</div>';
+    try {
+        const snap = await firestore.collection('notification_views').where('notificationId', '==', notifId).limit(300).get();
+        if (snap.empty) {
+            target.innerHTML = '<div class="intel-empty">لم يرَ هذا الإشعار أي عميل مسجّل بعد</div>';
+            return;
+        }
+        const list = [];
+        snap.forEach(doc => list.push(doc.data() || {}));
+        list.sort((a, b) => (b.seenAt || 0) - (a.seenAt || 0));
+        let rows = '';
+        list.forEach(v => {
+            rows += `<tr>
+                <td>${escNotifH(v.name || 'عميل')}</td>
+                <td dir="ltr">${escNotifH(v.phone || '')}</td>
+                <td>${escNotifH(v.device || '')}</td>
+                <td>${v.seenAt ? escNotifH(new Date(v.seenAt).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' })) : '-'}</td>
+                <td>${v.clicked ? '✅ ضغط عليه' : '—'}</td>
+            </tr>`;
+        });
+        target.innerHTML = `
+            <h4 class="intel-sub-title">من رأى هذا الإشعار (${list.length})</h4>
+            <table class="intel-table">
+                <thead><tr><th>الاسم</th><th>الهاتف</th><th>الجهاز</th><th>وقت الظهور</th><th>الضغط</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    } catch (e) {
+        console.error('viewers failed', e);
+        target.innerHTML = '<div class="intel-empty">تعذر جلب الأسماء</div>';
+    }
+};
+
+function escNotifH(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
 
 window.switchUsersIntelTab = function (tab) {
     usersIntelActiveTab = tab;
@@ -1602,13 +1968,14 @@ window.showGlobalBroadcastBanner = function (notif) {
                     <button type="button" class="push-close-btn" id="btnClosePushBanner" title="إغلاق">&times;</button>
                 </div>
             </div>
+            ${notif.image ? `<div class="push-banner-image"><img src="${safeEsc(notif.image)}" alt=""></div>` : ''}
             <div class="push-banner-content">
                 <h4 class="push-notif-title">${safeEsc(notif.title)}</h4>
                 <p class="push-notif-body">${safeEsc(notif.message)}</p>
             </div>
             ${notif.actionUrl ? `
             <div class="push-banner-actions">
-                <a href="${safeEsc(notif.actionUrl)}" class="push-action-btn" id="btnPushAction">
+                <a href="${safeEsc(notif.actionUrl)}" class="push-action-btn" id="btnPushAction" onclick="if(window.mzMarkBroadcastClicked)window.mzMarkBroadcastClicked('${safeEsc(notif.id || '')}')">
                     <i class="fas fa-external-link-alt"></i> فتح الرابط / التفاصيل
                 </a>
             </div>
@@ -1633,6 +2000,17 @@ window.showGlobalBroadcastBanner = function (notif) {
             }
             .almezo-push-banner.visible {
                 transform: translateX(-50%) translateY(0);
+            }
+            .push-banner-image {
+                margin: 0 0 10px;
+                border-radius: 12px;
+                overflow: hidden;
+            }
+            .push-banner-image img {
+                display: block;
+                width: 100%;
+                max-height: 190px;
+                object-fit: cover;
             }
             .push-banner-inner {
                 background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(9, 13, 20, 0.98));
@@ -1754,43 +2132,10 @@ window.initBroadcastNotificationListener = function () {
         return null;
     }
 
-    let attempts = 0;
-    const timer = setInterval(() => {
-        attempts++;
-        const firestore = getFirestore();
-
-        if (firestore) {
-            clearInterval(timer);
-            window._almezoBroadcastListenerActive = true;
-            try {
-                firestore.collection('broadcast_notifications')
-                    .orderBy('timestamp', 'desc')
-                    .limit(1)
-                    .onSnapshot(snapshot => {
-                        if (!snapshot || snapshot.empty) return;
-
-                        const doc = snapshot.docs[0];
-                        const data = doc.data();
-                        data.id = doc.id;
-
-                        const notifTs = parseInt(data.timestamp || '0', 10);
-                        const now = Date.now();
-                        const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
-
-                        // مرة واحدة فقط لكل جهاز، سواء أغلقه العميل أم اختفى وحده
-                        if ((now - notifTs < FORTY_EIGHT_HOURS) && !window.mzBroadcastAlreadySeen(doc.id, notifTs)) {
-                            window.showGlobalBroadcastBanner(data);
-                        }
-                    }, err => {
-                        console.warn('[BroadcastNotif] Listener error:', err);
-                    });
-            } catch (e) {
-                console.warn('[BroadcastNotif] Setup failed:', e);
-            }
-        } else if (attempts >= 40) {
-            clearInterval(timer);
-        }
-    }, 500);
+    // الطابور والتأجيل أثناء المشاهدة وتسجيل من رآه: في firebase-config.js (مشترك مع المشغل)
+    window.mzSubscribeBroadcasts(function (notif) {
+        window.showGlobalBroadcastBanner(notif);
+    });
 };
 
 if (document.readyState === 'loading') {
@@ -1942,7 +2287,7 @@ function renderHomeCards() {
             // === القسم متوقف: يبان بس معطل مع رسالة "غير متوفر حالياً"، مع الحفاظ على نفس كلاس التصميم/التوسيط الأصلي ===
             var disabledMedia = card.image
                 ? '<img src="' + card.image + '" alt="' + card.name + '" class="category-card-img" style="filter:grayscale(1); opacity:0.5;">'
-                : (isPlayer ? '<div class="web-player-icon-wrapper" style="opacity:0.5;"><i class="fas fa-tv"></i></div>' : '');
+                : (isPlayer ? '<div class="web-player-icon-wrapper mizo-cube-wrap" style="opacity:0.5;"><img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"></div>' : '');
             var disabledClassKey = isPlayer ? 'web-player' : key; // يحافظ على كلاس web-player عشان قاعدة التوسيط في style.css تفضل شغالة
             html += '\
             <div class="main-category-card ' + disabledClassKey + ' disabled-card" title="هذا القسم متوقف حالياً" style="cursor:not-allowed; pointer-events:none; opacity:0.75;">\
@@ -1954,7 +2299,7 @@ function renderHomeCards() {
             // === كارت مشغل الميزو: يحتفظ بمنطق التحقق من تسجيل الدخول الخاص به ===
             var playerMedia = card.image
                 ? '<img src="' + card.image + '" alt="' + card.name + '" class="category-card-img">'
-                : '<div class="web-player-icon-wrapper"><i class="fas fa-tv"></i></div>';
+                : '<div class="web-player-icon-wrapper mizo-cube-wrap"><img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"></div>';
             html += '\
             <a href="' + link + '" class="main-category-card web-player" id="mainWebPlayerCard" onclick="return handlePlayerCardClick(event)">\
                 ' + playerMedia + '\
