@@ -2403,14 +2403,16 @@ window.MizoLedger = (function () {
             } catch (e) { }
 
             // إذا كان المستخدم هو المدير العام، نجلب تنبيهاته الأمنية الخاصة من admin_security_alerts
-            var me = currentUser();
-            var isAdm = (uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || (me && me.role === 'admin'));
-            if (isAdm) {
-                try {
+            try {
+                var usr = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+                var isAdm = (uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || (usr && usr.role === 'admin'));
+                if (isAdm) {
                     var secAlerts = await db.collection('admin_security_alerts')
                         .orderBy('timestamp', 'desc').limit(40).get();
                     secAlerts.forEach(push);
-                } catch (e) { }
+                }
+            } catch (e) {
+                console.warn('[mzNotifs] Error loading admin security alerts:', e);
             }
         }
 
@@ -2447,13 +2449,29 @@ window.MizoLedger = (function () {
             box.innerHTML = '<div class="mz-notif-empty"><i class="fas fa-bell-slash"></i><span>لا توجد إشعارات خلال آخر 30 يوماً</span></div>';
             return;
         }
+
+        var isAdm = (function () {
+            try {
+                var u = (window.firebase && firebase.auth) ? firebase.auth().currentUser : null;
+                var usr = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+                return (u && u.uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1') || (usr && usr.role === 'admin');
+            } catch (e) { return false; }
+        })();
+        var canDelete = (box.id === 'adminInboxList') || isAdm;
+
         var s = seenTs();
         box.innerHTML = list.map(function (n) {
             var when = n.timestamp ? new Date(n.timestamp).toLocaleString('ar-LY', { dateStyle: 'short', timeStyle: 'short' }) : '';
             var isNew = (n.timestamp || 0) > s;
-            var isSec = n.kind === 'security_alert';
+            var isSec = (n.kind === 'security_alert');
             var icon = isSec ? 'fa-triangle-exclamation' : (n.type === 'promo' ? 'fa-fire' : (n.type === 'update' ? 'fa-rocket' : (n.type === 'product' ? 'fa-sparkles' : 'fa-bullhorn')));
             var link = /^https?:\/\//i.test(n.actionUrl || '') ? n.actionUrl : '';
+            var deleteBtn = canDelete ? (
+                '<button type="button" class="mz-notif-del-btn" onclick="event.stopPropagation(); window.mzDeleteNotification(\'' + esc(n.id) + '\', \'' + (isSec ? 'security' : 'broadcast') + '\');" title="حذف هذا الإشعار نهائياً (ينحذف من جميع الأجهزة)">' +
+                '<i class="fas fa-trash-alt"></i>' +
+                '</button>'
+            ) : '';
+
             return '<div class="mz-notif-item' + (isNew ? ' is-new' : '') + (isSec ? ' is-sec' : '') + '" tabindex="0"' +
                 (link ? ' data-link="' + esc(link) + '"' : '') + '>' +
                 '<div class="mz-notif-ic"><i class="fas ' + icon + '"></i></div>' +
@@ -2463,7 +2481,9 @@ window.MizoLedger = (function () {
                 '<div class="mz-notif-msg">' + esc(n.message || '') + '</div>' +
                 '<div class="mz-notif-time">' + esc(when) + (isNew ? ' • <span class="mz-notif-new">جديد</span>' : '') + '</div>' +
                 (link ? '<a class="mz-notif-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">فتح الرابط</a>' : '') +
-                '</div></div>';
+                '</div>' +
+                deleteBtn +
+                '</div>';
         }).join('');
     }
 
@@ -2576,11 +2596,19 @@ window.MizoLedger = (function () {
         document.getElementById('mzNotifClose').addEventListener('click', closePanel);
         window.addEventListener('keydown', onPanelKey, true);
 
-        hideForAdmin();
+        updateNotifBtnVisibility();
 
-        // العدّاد: عند الفتح، ثم كل خمس دقائق
-        setTimeout(function () { fetchNotifications().then(paintBadge); }, 3000);
-        setInterval(function () { fetchNotifications().then(paintBadge); }, 5 * 60 * 1000);
+        // العدّاد: للمسجلين فقط عند الفتح، ثم كل خمس دقائق
+        setTimeout(function () {
+            if (typeof isUserLoggedIn === 'function' && isUserLoggedIn()) {
+                fetchNotifications().then(paintBadge);
+            }
+        }, 3000);
+        setInterval(function () {
+            if (typeof isUserLoggedIn === 'function' && isUserLoggedIn()) {
+                fetchNotifications().then(paintBadge);
+            }
+        }, 5 * 60 * 1000);
     }
 
     /** عرض نفس السجل داخل حاوية أخرى (تبويب "الإشعارات الواردة" في لوحة المدير). */
@@ -2598,32 +2626,120 @@ window.MizoLedger = (function () {
         return unreadCount(list);
     }
 
-    /** المدير يقرأ إشعاراته من زر الإشعارات في لوحته، فلا داعي لجرس إضافي عنده. */
-    function hideForAdmin() {
-        var decided = false;
-        function apply(isAdmin) {
-            decided = true;
-            var btn = document.getElementById('mzNotifBtn');
-            if (btn) btn.style.display = isAdmin ? 'none' : '';
-        }
-        // صفحة بلا Firebase أو تأخر في معرفة المستخدم: يظهر الزر بعد ثانيتين
-        setTimeout(function () { if (!decided) apply(false); }, 2000);
+    /**
+     * حذف الإشعار نهائياً (خاص بالمدير):
+     * - إذا كان من broadcast_notifications: يُحذف من قاعدة البيانات ويختفي فوراً من جميع العملاء.
+     * - إذا كان من admin_security_alerts: يُحذف من جدول تنبيهات المدير.
+     */
+    window.mzDeleteNotification = async function (id, kind) {
+        if (!id) return;
+        var isSec = (kind === 'security' || kind === 'security_alert');
+        var promptMsg = isSec
+            ? 'هل أنت متأكد من حذف هذا التنبيه الأمني؟'
+            : 'هل أنت متأكد من رغبتك في حذف هذا الإشعار؟ سيتم حذفه من قاعدة البيانات ومن جميع أجهزة وتطبيقات العملاء فوراً.';
+
+        var confirmed = false;
         try {
-            if (!window.firebase || !firebase.auth) return;
-            firebase.auth().onAuthStateChanged(function (u) {
-                if (!u) return apply(false);
-                if (u.uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1') return apply(true);
-                try {
-                    if (typeof currentAuthUser !== 'undefined' && currentAuthUser && currentAuthUser.role === 'admin') return apply(true);
-                } catch (e) { }
-                var db2 = store();
-                if (!db2) return apply(false);
-                db2.collection('admins').doc(u.uid).get()
-                    .then(function (doc) { apply(!!(doc && doc.exists)); })
-                    .catch(function () { apply(false); });
-            });
+            if (typeof showConfirm === 'function') {
+                confirmed = await showConfirm(promptMsg, { title: 'حذف الإشعار' });
+            } else if (typeof Swal !== 'undefined') {
+                var res = await Swal.fire({
+                    title: 'حذف الإشعار نهائياً؟',
+                    text: promptMsg,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'نعم، احذف',
+                    cancelButtonText: 'إلغاء',
+                    background: '#141820',
+                    color: '#fff'
+                });
+                confirmed = res && res.isConfirmed;
+            } else {
+                confirmed = confirm(promptMsg);
+            }
+        } catch (e) {
+            confirmed = confirm(promptMsg);
+        }
+        if (!confirmed) return;
+
+        try {
+            var db = store();
+            if (!db) throw new Error('قاعدة البيانات غير متصلة');
+            var collName = isSec ? 'admin_security_alerts' : 'broadcast_notifications';
+            await db.collection(collName).doc(id).delete();
+
+            if (typeof showToast === 'function') {
+                showToast('تم حذف الإشعار نهائياً من جميع الأجهزة', 'success');
+            } else if (typeof showAlert === 'function') {
+                showAlert('تم حذف الإشعار نهائياً من جميع الأجهزة', 'success');
+            }
+
+            // تحديث القوائم فوراً في كل من جرس الموقع ولوحة المدير
+            var refreshedList = await fetchNotifications();
+            paintBadge(refreshedList);
+            var bellBox = document.getElementById('mzNotifList');
+            if (bellBox) render(refreshedList, bellBox);
+            var adminBox = document.getElementById('adminInboxList');
+            if (adminBox) render(refreshedList, adminBox);
+            if (typeof loadBroadcastHistory === 'function') {
+                loadBroadcastHistory();
+            }
+        } catch (err) {
+            console.error('Delete notification failed:', err);
+            var errMsg = 'تعذر حذف الإشعار: ' + (err.message || 'خطأ في الاتصال');
+            if (typeof showToast === 'function') showToast(errMsg, 'error');
+            else alert(errMsg);
+        }
+    };
+
+    /**
+     * التحكم بظهور زر الإشعارات (الجرس):
+     * - الزائر غير مسجل الدخول: مخفي تماماً
+     * - العميل مسجل الدخول: ظاهر ومعه العداد
+     * - المدير العام: مخفي (لديه مركز الإشعارات الخاص به في لوحة المدير)
+     */
+    function updateNotifBtnVisibility() {
+        var btn = document.getElementById('mzNotifBtn');
+        if (!btn) return;
+
+        var loggedIn = false;
+        try {
+            if (typeof isUserLoggedIn === 'function') loggedIn = isUserLoggedIn();
+            else if (window.firebase && firebase.auth && firebase.auth().currentUser) loggedIn = true;
         } catch (e) { }
+
+        if (!loggedIn) {
+            btn.style.display = 'none';
+            return;
+        }
+
+        var u = (window.firebase && firebase.auth) ? firebase.auth().currentUser : null;
+        var usr = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        var uid = u ? u.uid : (usr ? usr.uid : '');
+        var isAdmin = (uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1') || (usr && usr.role === 'admin');
+
+        if (isAdmin) {
+            btn.style.display = 'none';
+            return;
+        }
+
+        // عميل مسجّل دخوله: يظهر الجرس
+        btn.style.display = '';
     }
+
+    window.mzUpdateNotifBellVisibility = updateNotifBtnVisibility;
+
+    // المراقبة الحية لحالة تسجيل الدخول لتحديث ظهور الجرس فوراً
+    try {
+        if (window.firebase && firebase.auth) {
+            firebase.auth().onAuthStateChanged(function (u) {
+                updateNotifBtnVisibility();
+                if (u) {
+                    fetchNotifications().then(paintBadge);
+                }
+            });
+        }
+    } catch (e) { }
 
     window.MizoNotifCenter = {
         open: openPanel,

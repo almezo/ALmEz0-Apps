@@ -301,6 +301,7 @@
     function toggle() {
         var next = isEnglish() ? 'ar' : 'en';
         try { localStorage.setItem(KEY, next); } catch (e) { }
+        try { apply(); } catch (e) { }
         var reload = function () { window.location.reload(); };
         try {
             if (window.MizoIntro && typeof window.MizoIntro.show === 'function') {

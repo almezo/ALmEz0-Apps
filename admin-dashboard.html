@@ -2104,6 +2104,21 @@
                 <span class="close-modal" onclick="closeBroadcastModal()">&times;</span>
             </div>
             <div class="modal-body broadcast-modal-body">
+                <div class="broadcast-tabs">
+                    <button type="button" class="broadcast-tab active" id="bcTabSend" onclick="switchBroadcastTab('send')">
+                        <i class="fas fa-paper-plane"></i> إرسال إشعار
+                    </button>
+                    <button type="button" class="broadcast-tab" id="bcTabInbox" onclick="switchBroadcastTab('inbox')">
+                        <i class="fas fa-inbox"></i> الإشعارات الواردة
+                        <span class="broadcast-tab-badge hidden" id="bcInboxBadge"></span>
+                    </button>
+                </div>
+
+                <div id="broadcastInboxView" style="display:none;">
+                    <div class="mz-notif-list" id="adminInboxList"></div>
+                </div>
+
+                <div id="broadcastSendView">
                 <div class="broadcast-info-banner">
                     <i class="fas fa-info-circle"></i>
                     <span>سيصل هذا الإشعار فوراً لشريط الإشعارات في أجهزة العملاء (أندرويد، كمبيوتر، متصفح) مع تنبيه مرئي وصوتي فور الإرسال.</span>
@@ -2176,6 +2191,7 @@
                     <div id="broadcastHistoryList" class="broadcast-history-list">
                         <div class="empty-state-sm">جاري جلب السجل...</div>
                     </div>
+                </div>
                 </div>
             </div>
 

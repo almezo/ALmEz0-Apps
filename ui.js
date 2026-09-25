@@ -1039,6 +1039,11 @@ window.deleteBroadcastNotification = async function (docId) {
                 await firestore.collection('broadcast_notifications').doc(docId).delete();
                 showToast('تم حذف الإشعار', 'info');
                 loadBroadcastHistory();
+                if (typeof window.mzRefreshBellNotifs === 'function') window.mzRefreshBellNotifs();
+                var adminBox = document.getElementById('adminInboxList');
+                if (adminBox && window.MizoNotifCenter && window.MizoNotifCenter.renderInto) {
+                    window.MizoNotifCenter.renderInto(adminBox);
+                }
             }
         } catch (e) {
             console.error('Delete notification failed', e);
