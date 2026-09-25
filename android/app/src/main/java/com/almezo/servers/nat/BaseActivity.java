@@ -101,10 +101,17 @@ public abstract class BaseActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        BroadcastNotifier.setAppForeground(true);
         // إشعارات المدير تصل والمستخدم داخل المشغل الأصلي أيضاً، لا في صفحة الويب وحدها
         BroadcastNotifier.checkAsync(this);
         BroadcastNotifier.schedule(this);
         enterImmersive();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        BroadcastNotifier.setAppForeground(false);
     }
 
     @Override

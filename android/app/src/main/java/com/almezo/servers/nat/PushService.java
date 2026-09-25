@@ -41,6 +41,11 @@ public class PushService extends FirebaseMessagingService {
         if (id == null || id.isEmpty()) {
             id = "alert_" + (ts > 0 ? ts : System.currentTimeMillis());
         }
+        if (BroadcastNotifier.isAppForeground()) {
+            // المستخدم داخل التطبيق بالفعل والواجهة تعرض البانر الداخلي: نسجل الإشعار كمرئي فقط دون عرضه في شريط النظام
+            BroadcastNotifier.markSeen(this, id, ts);
+            return;
+        }
         if (BroadcastNotifier.markSeen(this, id, ts)) {
             BroadcastNotifier.show(this, id, title, body, actionUrl);
         }

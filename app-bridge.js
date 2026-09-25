@@ -2199,13 +2199,10 @@
             try { navigator.vibrate([120, 60, 120]); } catch (e) { }
         }
 
-        // 1. Android Native System Tray Notification (Hardware StatusBar)
+        // 1. Android Native: تسجيل الإشعار كمرئي في السجل الأصلي فقط دون تكراره في شريط الإشعارات
         try {
-            // بالمعرّف: التطبيق الأصلي يجلب الإشعارات بنفسه أيضاً، فيمنع ظهور الإشعار مرتين
             if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showBroadcastNotification === 'function' && notif.id) {
                 window.AndroidNativeBridge.showBroadcastNotification(String(notif.id), String(notif.timestamp || 0), notif.title || '', notif.message || '', notif.actionUrl || '');
-            } else if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showNotification === 'function') {
-                window.AndroidNativeBridge.showNotification(notif.title, notif.message, notif.actionUrl || '');
             }
         } catch (e) { }
 

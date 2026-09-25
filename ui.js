@@ -1899,10 +1899,10 @@ window.showGlobalBroadcastBanner = function (notif) {
         try { navigator.vibrate([120, 60, 120]); } catch (e) { }
     }
 
-    // إرسال إشعار لشريط إشعارات أندرويد (العتاد الأصلي)
+    // تسجيل الإشعار كمرئي في نظام أندرويد فقط لمنع ظهوره في الخلفية، دون تكراره في شريط الإشعارات
     try {
-        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showNotification === 'function') {
-            window.AndroidNativeBridge.showNotification(notif.title, notif.message, notif.actionUrl || '');
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.showBroadcastNotification === 'function' && notif.id) {
+            window.AndroidNativeBridge.showBroadcastNotification(String(notif.id), String(notif.timestamp || 0), notif.title || '', notif.message || '', notif.actionUrl || '');
         }
     } catch (e) { }
 

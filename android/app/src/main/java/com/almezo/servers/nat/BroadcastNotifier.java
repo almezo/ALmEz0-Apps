@@ -58,6 +58,15 @@ public final class BroadcastNotifier {
 
     private static volatile long lastCheckAt = 0;
     private static volatile boolean scheduled = false;
+    private static volatile boolean appForeground = false;
+
+    public static void setAppForeground(boolean foreground) {
+        appForeground = foreground;
+    }
+
+    public static boolean isAppForeground() {
+        return appForeground;
+    }
 
     private BroadcastNotifier() { }
 
@@ -143,6 +152,10 @@ public final class BroadcastNotifier {
     }
 
     public static void show(Context context, String id, String title, String message, String actionUrl) {
+        if (appForeground) {
+            // المستخدم داخل التطبيق بالفعل والواجهة تعرض البانر الداخلي: لا داعي لتكرار الإشعار في شريط الحالة
+            return;
+        }
         try {
             NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager == null) return;

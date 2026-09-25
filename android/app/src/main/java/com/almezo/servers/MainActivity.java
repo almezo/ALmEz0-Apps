@@ -85,6 +85,24 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) { }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        com.almezo.servers.nat.BroadcastNotifier.setAppForeground(true);
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.cancelAll();
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        com.almezo.servers.nat.BroadcastNotifier.setAppForeground(false);
+    }
+
     private long lastBackPressAt = 0;
 
     /**
@@ -357,13 +375,16 @@ public class MainActivity extends BridgeActivity {
         public void showBroadcastNotification(String id, String ts, String title, String message, String actionUrl) {
             long t = 0;
             try { t = Long.parseLong(ts); } catch (Exception ignored) { }
-            if (com.almezo.servers.nat.BroadcastNotifier.markSeen(MainActivity.this, id, t)) {
-                com.almezo.servers.nat.BroadcastNotifier.show(MainActivity.this, id, title, message, actionUrl);
-            }
+            // تسجيل الإشعار كمرئي في السجل الأصلي لمنع ظهوره في الخلفية، دون إظهاره في شريط النظام
+            com.almezo.servers.nat.BroadcastNotifier.markSeen(MainActivity.this, id, t);
         }
 
         @JavascriptInterface
         public void showNotification(String title, String message, String actionUrl) {
+            if (com.almezo.servers.nat.BroadcastNotifier.isAppForeground()) {
+                // المستخدم داخل التطبيق بالفعل والواجهة تعرض البانر الداخلي: لا داعي لتكرار الإشعار في شريط الحالة
+                return;
+            }
             runOnUiThread(() -> {
                 try {
                     NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
