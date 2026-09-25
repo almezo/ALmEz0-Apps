@@ -229,7 +229,7 @@ if (!gotTheLock) {
     });
 
     ipcMain.on('window-close', () => {
-        if (!mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
     });
 
     // لغة نظام المستخدم: مواضع أزرار النافذة في ويندوز تنقلب مع اللغات من اليمين لليسار

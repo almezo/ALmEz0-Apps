@@ -48,9 +48,24 @@ exports.sendWhatsAppNotification = onCall(async (request) => {
 // =============================================
 // النماذج المسموحة للمساعد (السريعة الرخيصة فقط) والحد اليومي لكل حساب.
 // كل سؤال للمساعد = طلبان تقريباً، فالحد 80 طلباً ≈ 40 سؤالاً يومياً. المدير بلا حد.
-const AI_ALLOWED_MODELS = new Set(["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"]);
+const AI_ALLOWED_MODELS = new Set([
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-latest"
+]);
 const AI_DAILY_LIMIT = 80;
 const AI_ADMIN_UID = "7Rfvdr6GpwPcY9uDQwX0fIuWeRv1";
+
+function getRotatedGeminiKeys(rawVal) {
+    const keys = String(rawVal || "").split(/[\s,;]+/).map(k => k.trim()).filter(Boolean);
+    if (!keys.length) return [];
+    if (keys.length === 1) return keys;
+    // تدوير عشوائي لتوزيع الأحمال وتفادي حظر الدقيقة مجاناً
+    const startIdx = Math.floor(Math.random() * keys.length);
+    return keys.slice(startIdx).concat(keys.slice(0, startIdx));
+}
 
 async function enforceAiDailyLimit(uid, kind) {
     if (uid === AI_ADMIN_UID) return AI_DAILY_LIMIT;
@@ -139,44 +154,55 @@ function aiUnderstandPrompt(question, prev) {
         + "Message: " + question;
 }
 
-async function aiCallGemini(apiKey, models, body) {
+async function aiCallGemini(apiKeyRaw, models, body) {
+    const keys = getRotatedGeminiKeys(apiKeyRaw);
+    if (!keys.length) throw new Error("لم يتم ضبط مفتاح Gemini API في السيرفر.");
+    const modelList = Array.from(new Set(models));
     let lastError = null;
-    for (const m of Array.from(new Set(models))) {
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            if (!res.ok) {
-                const errJson = await res.json().catch(() => ({}));
-                lastError = new Error(errJson.error ? errJson.error.message : `HTTP ${res.status}`);
-                // 404 نموذج غير موجود، 5xx ضغط مؤقت: جرّب النموذج التالي
-                if (res.status === 404 || res.status >= 500) continue;
-                throw lastError;
+
+    for (const m of modelList) {
+        for (const key of keys) {
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) {
+                    const errJson = await res.json().catch(() => ({}));
+                    const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
+                    lastError = new Error(errMsg);
+                    // 404 (موديل غير متوفر)، 429 (تجاوز كوتة الدقيقة أو الطلبات)، 5xx (ضغط سيرفر جوجل مؤقت):
+                    // ننتقل للمفتاح التالي أو الموديل التالي تلقائياً دون التوقف (لا كسر للوب)!
+                    if (res.status === 404 || res.status === 429 || res.status >= 500) {
+                        logger.warn(`Gemini fallback [model: ${m}, status: ${res.status}]: ${errMsg}`);
+                        continue;
+                    }
+                    throw lastError;
+                }
+                const data = await res.json();
+                const candidate = data.candidates && data.candidates[0];
+                const text = candidate && candidate.content && candidate.content.parts
+                    ? candidate.content.parts.filter((p) => !p.thought).map((p) => p.text || "").join("").trim() : "";
+                if (!text) { lastError = new Error("empty reply"); continue; }
+                const chunks = (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
+                const seen = new Set();
+                const sources = [];
+                for (const ch of chunks) {
+                    const web = ch && ch.web;
+                    if (!web || !web.uri || seen.has(web.uri)) continue;
+                    seen.add(web.uri);
+                    sources.push({ title: web.title || "", uri: web.uri });
+                    if (sources.length >= 6) break;
+                }
+                return { text, sources };
+            } catch (err) {
+                lastError = err;
+                logger.warn(`Gemini call error on model ${m}: ${err && err.message}`);
             }
-            const data = await res.json();
-            const candidate = data.candidates && data.candidates[0];
-            const text = candidate && candidate.content && candidate.content.parts
-                ? candidate.content.parts.filter((p) => !p.thought).map((p) => p.text || "").join("").trim() : "";
-            if (!text) { lastError = new Error("empty reply"); continue; }
-            const chunks = (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
-            const seen = new Set();
-            const sources = [];
-            for (const ch of chunks) {
-                const web = ch && ch.web;
-                if (!web || !web.uri || seen.has(web.uri)) continue;
-                seen.add(web.uri);
-                sources.push({ title: web.title || "", uri: web.uri });
-                if (sources.length >= 6) break;
-            }
-            return { text, sources };
-        } catch (err) {
-            lastError = err;
-            if (/quota|rate limit|resource[_ ]?exhausted|\b429\b/i.test(String(err && err.message))) break;
         }
     }
-    throw lastError || new Error("no model");
+    throw lastError || new Error("تعذر استلام رد من أي نموذج ذكاء اصطناعي.");
 }
 
 function aiThrowFriendly(err) {
@@ -212,13 +238,30 @@ async function aiHandleMode(request, apiKey) {
         const prev = String(d.prev || "").slice(0, 2500);
         if (!question.trim()) throw new HttpsError("invalid-argument", "السؤال فارغ.");
         await enforceAiDailyLimit(uid, "aux");
-        const r = await aiCallGemini(apiKey, ["gemini-2.5-flash-lite", "gemini-2.5-flash"], {
-            contents: [{ role: "user", parts: [{ text: aiUnderstandPrompt(question, prev) }] }],
-            generationConfig: { temperature: 0, maxOutputTokens: 600, responseMimeType: "application/json", responseSchema: AI_INTENT_SCHEMA, thinkingConfig: { thinkingBudget: 0 } }
-        });
-        let intent = {};
-        try { const a = r.text.indexOf("{"), b = r.text.lastIndexOf("}"); intent = JSON.parse(r.text.slice(a, b + 1)); } catch (e) { }
-        return { intent };
+        try {
+            const r = await aiCallGemini(apiKey, [
+                "gemini-2.5-flash-lite",
+                "gemini-2.0-flash-lite",
+                "gemini-2.0-flash",
+                "gemini-2.5-flash"
+            ], {
+                contents: [{ role: "user", parts: [{ text: aiUnderstandPrompt(question, prev) }] }],
+                generationConfig: {
+                    temperature: 0,
+                    maxOutputTokens: 600,
+                    responseMimeType: "application/json",
+                    responseSchema: AI_INTENT_SCHEMA,
+                    thinkingConfig: { thinkingBudget: 0 }
+                }
+            });
+            let intent = {};
+            try { const a = r.text.indexOf("{"), b = r.text.lastIndexOf("}"); intent = JSON.parse(r.text.slice(a, b + 1)); } catch (e) { }
+            return { intent };
+        } catch (e) {
+            // لا نوقف العميل إذا تعذر الفهم بالذكاء الاصطناعي بسبب ضغط الحصة، بل نرجع كائن فارغ ليعتمد على التخمين المحلي السريع
+            logger.warn("فهم السؤال بالذكاء الاصطناعي تعذر، الاعتماد على التخمين المحلي:", e && e.message);
+            return { intent: {} };
+        }
     }
     if (d.mode === "transcribe") {
         const audio = String(d.audio || "");
@@ -227,7 +270,7 @@ async function aiHandleMode(request, apiKey) {
         await enforceAiDailyLimit(uid, "aux");
         let text = "";
         try {
-            const r = await aiCallGemini(apiKey, ["gemini-2.5-flash", "gemini-2.0-flash"], {
+            const r = await aiCallGemini(apiKey, ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"], {
                 contents: [{ role: "user", parts: [
                     { text: "اكتب نص هذا التسجيل الصوتي حرفياً كما قاله المتحدث (غالباً بلهجة عربية ليبية أو غيرها)، دون أي إضافة أو شرح. أسماء الأفلام والقنوات الأجنبية اكتبها بحروفها الإنجليزية الأصلية. إن كان التسجيل صامتاً أو غير مفهوم فأعد نصاً فارغاً." },
                     { inlineData: { mimeType: mime, data: audio } }
@@ -252,12 +295,20 @@ async function aiHandleMode(request, apiKey) {
     const body = {
         systemInstruction: { parts: [{ text: aiSystemPrompt() }] },
         contents,
-        // نموذج تفكير: ميزانية التفكير تُحسب من الحد، فنتركه واسعاً ونضبط التفكير
-        generationConfig: { temperature: 0.7, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 1024 } }
+        generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2048,
+            thinkingConfig: { thinkingBudget: d.useSearch ? 512 : 0 }
+        }
     };
-    // بحث جوجل حصته اليومية صغيرة: فقط لما يحتاج معلومة حية
     if (d.useSearch === true) body.tools = [{ googleSearch: {} }];
-    const r = await aiCallGemini(apiKey, ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"], body);
+    const r = await aiCallGemini(apiKey, [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite",
+        "gemini-flash-latest"
+    ], body);
     return { text: r.text, sources: r.sources, remaining };
 }
 
@@ -288,73 +339,22 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
     await enforceAiDailyLimit(request.auth.uid, "main");
 
     const apiKey = GEMINI_API_KEY.value();
-    // النموذج الاحتياطي القديم gemini-1.5-flash أُوقف من جوجل ولم يعد موجوداً في v1beta،
-    // فكان يرجع الخطأ "models/gemini-1.5-flash is not found" ويظهر نصه الخام للمستخدم.
-    // سلسلة احتياطية حديثة ومدعومة، مع إزالة التكرار إن كان النموذج المطلوب ضمنها.
     const safeModel = AI_ALLOWED_MODELS.has(model) ? model : "gemini-2.5-flash";
     const modelsToTry = Array.from(new Set([
         safeModel,
         "gemini-2.5-flash",
         "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite",
         "gemini-flash-latest",
     ]));
-    let lastError = null;
 
-    for (const m of modelsToTry) {
-        try {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
-            const res = await fetch(apiUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ systemInstruction, contents, tools, generationConfig }),
-            });
-
-            if (!res.ok) {
-                const errJson = await res.json().catch(() => ({}));
-                const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
-                if (res.status === 404) {
-                    lastError = new Error(errMsg);
-                    continue;
-                }
-                throw new Error(errMsg);
-            }
-
-            const data = await res.json();
-            const candidate = data.candidates && data.candidates[0];
-            if (!candidate || !candidate.content || !candidate.content.parts) {
-                throw new Error("لم يتم استلام رد من النموذج");
-            }
-
-            const replyText = candidate.content.parts.map((p) => p.text || "").join("").trim();
-
-            // مصادر بحث Google التي اعتمد عليها الرد (عند تفعيل أداة البحث)، ليعرضها التطبيق
-            // روابط حقيقية تحت الإجابة. حقل إضافي لا يؤثر على العملاء الذين يقرؤون text فقط.
-            const chunks = (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
-            const seen = new Set();
-            const sources = [];
-            for (const ch of chunks) {
-                const web = ch && ch.web;
-                if (!web || !web.uri || seen.has(web.uri)) continue;
-                seen.add(web.uri);
-                sources.push({ title: web.title || "", uri: web.uri });
-                if (sources.length >= 6) break;
-            }
-            return { text: replyText, sources };
-        } catch (err) {
-            lastError = err;
-        }
+    try {
+        const r = await aiCallGemini(apiKey, modelsToTry, { systemInstruction, contents, tools, generationConfig });
+        return { text: r.text, sources: r.sources };
+    } catch (err) {
+        aiThrowFriendly(err);
     }
-
-    // التفاصيل التقنية تُسجَّل في سجلات الخادم فقط، ولا تُرسل للمستخدم أبداً
-    logger.error("خطأ في توليد رد مساعد الميزو الذكي:", lastError);
-
-    // نفاد حصة Gemini (429) كان يصل للعميل كخطأ عام فيظهر له "تحقق من اتصال الإنترنت" وهو متصل.
-    // نميّزه بكود قياسي ليعرض التطبيق والموقع رسالة صحيحة: الخدمة وصلت حدها، أعد المحاولة لاحقاً.
-    const lastMsg = String((lastError && lastError.message) || "");
-    if (/quota|rate limit|resource[_ ]?exhausted|too many requests|\b429\b/i.test(lastMsg)) {
-        throw new HttpsError("resource-exhausted", "وصل المساعد للحد المسموح من الطلبات حالياً. أعد المحاولة بعد قليل.");
-    }
-    throw new HttpsError("internal", "عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً.");
 });
 
 // =============================================

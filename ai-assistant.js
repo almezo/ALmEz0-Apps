@@ -493,19 +493,35 @@
         else if (/قناه|قنوات|channel/.test(n)) { intent = 'channel'; type = 'channel'; }
         else if (/مسلسل|حلقه|series/.test(n)) { intent = 'recommend'; type = 'series'; }
         else if (/فيلم|افلام|سهره|movie/.test(n)) { intent = 'recommend'; type = 'movie'; }
-        return { intent, type, titles: [], genres: detectGenres(n), language: '', country: '', keywords: [] };
+
+        // استخراج العناوين المحتملة مباشرة محلياً عند ذكر اسم عمل أو قناة
+        const titles = [];
+        const m = question.match(/(?:فيلم|مسلسل|قناة|قناه|عرض|شغل)\s+([a-zA-Z0-9\u0621-\u064A\s:]{2,30})/i);
+        if (m && m[1]) titles.push(m[1].trim());
+
+        return { intent, type, titles, genres: detectGenres(n), language: '', country: '', keywords: [] };
     }
 
     async function understandQuestion(question) {
+        const local = guessIntent(question);
+        const hasHistory = conversationHistory.length > 0;
+
+        // للأسئلة المباشرة الواضحة (مثل طلب فيلم سهرة، أفلام أكشن، مسلسلات، مباريات):
+        // نوفر طلب الذكاء الاصطناعي لفهم السؤال ونعتمد على التخمين المحلي فائق السرعة!
+        if (!hasHistory && (local.intent === 'recommend' || local.intent === 'sports' || local.intent === 'channel')) {
+            return local;
+        }
+
         try {
             const prev = conversationHistory.slice(-2)
                 .map(h => h.role + ': ' + String(h.text || '').slice(0, 600)).join('\n');
-            const data = await callAi({ mode: 'understand', question, prev }, 15000);
+            const data = await callAi({ mode: 'understand', question, prev }, 10000);
             if (data && data.intent && data.intent.intent) return data.intent;
         } catch (e) {
-            if (/resource-exhausted|الحد اليومي/i.test(String((e && (e.code || e.message)) || ''))) throw e;
+            // لا نوقف السؤال إطلاقاً؛ التخمين المحلي جاهز دائماً للرد بأعلى جودة
+            console.warn('تخطي فهم السؤال بالذكاء الاصطناعي واستخدام التخمين المحلي:', e && e.message);
         }
-        return guessIntent(question);
+        return local;
     }
 
     function cleanName(s) {
