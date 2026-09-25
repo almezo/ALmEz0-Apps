@@ -2278,6 +2278,54 @@ window.MizoLedger = (function () {
             } catch (e) {
                 console.warn('[BroadcastNotif] Setup failed:', e);
             }
+
+            // للمدير: مستمع حي ولحظي لجدول التنبيهات الأمنية admin_security_alerts
+            function attachAdminAlertsRealtime() {
+                var me = currentUser();
+                var currentUid = me ? me.uid : (window.firebase && firebase.auth && firebase.auth().currentUser ? firebase.auth().currentUser.uid : '');
+                var isAdm = (currentUid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || (me && me.role === 'admin'));
+                if (!isAdm || window._almezoSecAlertsRealtimeActive) return;
+                window._almezoSecAlertsRealtimeActive = true;
+                try {
+                    db.collection('admin_security_alerts')
+                        .orderBy('timestamp', 'desc')
+                        .limit(8)
+                        .onSnapshot(function (secSnap) {
+                            if (!secSnap || secSnap.empty) return;
+                            var secFresh = [];
+                            secSnap.forEach(function (doc) {
+                                var data = doc.data() || {};
+                                data.id = doc.id;
+                                var ts = parseInt(data.timestamp || '0', 10);
+                                if (data.active === false) return;
+                                if (!ts || Date.now() - ts > WINDOW_MS) return;
+                                if (alreadySeen(doc.id, ts)) return;
+                                secFresh.push(data);
+                            });
+                            if (secFresh.length > 0) {
+                                secFresh.sort(function (a, b) { return a.timestamp - b.timestamp; });
+                                secFresh.forEach(function (n) {
+                                    for (var i = 0; i < queue.length; i++) if (queue[i].id === n.id) return;
+                                    queue.push(n);
+                                });
+                                pump(show);
+                                if (typeof window.mzRefreshBellNotifs === 'function') {
+                                    window.mzRefreshBellNotifs();
+                                }
+                            }
+                        }, function (err) {
+                            console.warn('[SecAlerts] Listener notice:', err && err.message);
+                        });
+                } catch (e) { }
+            }
+            attachAdminAlertsRealtime();
+            if (window.firebase && firebase.auth) {
+                firebase.auth().onAuthStateChanged(function (u) {
+                    if (u && (u.uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || (currentUser() && currentUser().role === 'admin'))) {
+                        attachAdminAlertsRealtime();
+                    }
+                });
+            }
         }, 500);
     };
 })();
@@ -2355,7 +2403,9 @@ window.MizoLedger = (function () {
             } catch (e) { }
 
             // إذا كان المستخدم هو المدير العام، نجلب تنبيهاته الأمنية الخاصة من admin_security_alerts
-            if (uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1') {
+            var me = currentUser();
+            var isAdm = (uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || (me && me.role === 'admin'));
+            if (isAdm) {
                 try {
                     var secAlerts = await db.collection('admin_security_alerts')
                         .orderBy('timestamp', 'desc').limit(40).get();
@@ -2368,6 +2418,14 @@ window.MizoLedger = (function () {
         cache = out.slice(0, 60);
         return cache;
     }
+
+    window.mzRefreshBellNotifs = async function () {
+        try {
+            var list = await fetchNotifications();
+            paintBadge(list);
+            render(list);
+        } catch (e) { }
+    };
 
     function unreadCount(list) {
         var s = seenTs();

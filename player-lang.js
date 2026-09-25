@@ -277,18 +277,23 @@
     }
 
     function buildButton() {
-        if (document.getElementById('mizoLangBtn')) return;
-        var ai = document.getElementById('aiFloatingTrigger');
-        if (!ai || !ai.parentNode) return;
-        var btn = document.createElement('button');
-        btn.id = 'mizoLangBtn';
-        btn.type = 'button';
-        btn.className = 'lang-floating-trigger';
-        btn.setAttribute('tabindex', '0');
-        btn.innerHTML = '<span class="lang-btn-icon"><i class="fas fa-language"></i></span>' +
-            '<span class="lang-btn-label">English</span>';
-        btn.addEventListener('click', function () { toggle(); });
-        ai.parentNode.insertBefore(btn, ai.nextSibling);
+        var btn = document.getElementById('mizoLangBtn');
+        if (!btn) {
+            var ai = document.getElementById('aiFloatingTrigger');
+            if (!ai || !ai.parentNode) return;
+            btn = document.createElement('button');
+            btn.id = 'mizoLangBtn';
+            btn.type = 'button';
+            btn.className = 'lang-floating-trigger';
+            btn.setAttribute('tabindex', '0');
+            btn.innerHTML = '<span class="lang-btn-icon"><i class="fas fa-language"></i></span>' +
+                '<span class="lang-btn-label">English</span>';
+            ai.parentNode.insertBefore(btn, ai.nextSibling);
+        }
+        btn.onclick = function (e) {
+            if (e) e.preventDefault();
+            toggle();
+        };
         updateButton();
     }
 

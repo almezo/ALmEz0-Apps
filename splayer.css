@@ -6464,8 +6464,10 @@ video.aspect-4-3 {
     transform: scale(1.12);
 }
 
-/* إظهار زر مساعد الميزو فقط في الشاشة الرئيسية (Dashboard) وإخفاؤه في باقي الشاشات */
-body:not(.screen-is-dashboard) #aiFloatingTrigger {
+/* إظهار زر مساعد الميزو وزر اللغة فقط في الشاشة الرئيسية (Dashboard) وإخفاؤهما في باقي الشاشات */
+body:not(.screen-is-dashboard) #aiFloatingTrigger,
+body:not(.screen-is-dashboard) #mizoLangBtn,
+body:not(.screen-is-dashboard) .lang-floating-trigger {
     display: none !important;
 }
 
@@ -6520,7 +6522,11 @@ body:not(.screen-is-dashboard) #aiFloatingTrigger {
 
 /* إخفاء الزر العائم تلقائياً أثناء تشغيل الفيديو بالشاشة الكاملة */
 body.in-fullscreen-player .ai-floating-trigger,
-#fullscreenVideoModal:not(.hidden) ~ .ai-floating-trigger {
+body.in-fullscreen-player #mizoLangBtn,
+body.in-fullscreen-player .lang-floating-trigger,
+#fullscreenVideoModal:not(.hidden) ~ .ai-floating-trigger,
+#fullscreenVideoModal:not(.hidden) ~ #mizoLangBtn,
+#fullscreenVideoModal:not(.hidden) ~ .lang-floating-trigger {
     display: none !important;
 }
 
@@ -8270,16 +8276,17 @@ html.lang-en .time-display {
     unicode-bidi: isolate;
 }
 
-/* زر تغيير اللغة (يسار زر مساعد الميزو) */
+/* زر تغيير اللغة (يسار زر مساعد الميزو في العربية، ويمينه في الإنجليزية) */
 .lang-floating-trigger {
     position: fixed;
     bottom: 24px;
     left: 24px;
     z-index: 99999;
+    pointer-events: auto !important;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
+    gap: 9px;
+    padding: 10px 18px;
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(16, 122, 70, 0.95));
     border: 1px solid rgba(255, 255, 255, 0.35);
     border-radius: 50px;
@@ -8290,6 +8297,10 @@ html.lang-en .time-display {
     cursor: pointer;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(34, 197, 94, 0.35);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    -webkit-user-select: none;
+    user-select: none;
 }
 .lang-floating-trigger:hover,
 .lang-floating-trigger:focus-visible {
@@ -8297,9 +8308,13 @@ html.lang-en .time-display {
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.75), 0 0 30px rgba(34, 197, 94, 0.55);
     outline: none;
 }
-.lang-btn-icon { font-size: 16px; line-height: 1; }
+.lang-floating-trigger:active {
+    transform: scale(0.96);
+}
+.lang-btn-icon { font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.lang-btn-label { letter-spacing: 0.2px; }
 @media (max-width: 600px) {
-    .lang-floating-trigger { left: 14px; padding: 9px 13px; font-size: 12.5px; }
+    .lang-floating-trigger { left: 14px; padding: 9px 14px; font-size: 12.5px; }
     html.lang-en .lang-floating-trigger { left: auto; right: 14px; }
 }
 /* الساعة والتاريخ في الشريط العلوي يبقيان بترتيب LTR في الإنجليزية */

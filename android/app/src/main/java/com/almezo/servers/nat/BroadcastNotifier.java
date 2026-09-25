@@ -193,6 +193,15 @@ public final class BroadcastNotifier {
             }
             com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("broadcast")
                     .addOnFailureListener(e -> Log.w(TAG, "FCM subscribe failed", e));
+
+            // إعادة تأكيد اشتراك موضوع العميل أو المدير الخاص إن كان مسجّلاً
+            try {
+                SharedPreferences sp = context.getSharedPreferences("almezo_user_topic", Context.MODE_PRIVATE);
+                String savedUid = sp.getString("active_uid", "");
+                if (savedUid != null && !savedUid.isEmpty()) {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("u_" + savedUid);
+                }
+            } catch (Throwable ignored) { }
         } catch (Throwable t) {
             // بلا خدمات Google Play أو بلا إعداد فايربيز: يكفي الفحص الدوري
             Log.w(TAG, "FCM unavailable", t);

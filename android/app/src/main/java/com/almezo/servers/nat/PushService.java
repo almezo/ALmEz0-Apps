@@ -20,12 +20,29 @@ public class PushService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(@NonNull RemoteMessage message) {
         Map<String, String> d = message.getData();
-        if (d == null || d.isEmpty()) return;
-        String id = d.get("id");
+        String title = null;
+        String body = null;
+        String id = null;
+        String actionUrl = null;
         long ts = 0;
-        try { ts = Long.parseLong(d.get("ts")); } catch (Exception ignored) { }
+
+        if (d != null && !d.isEmpty()) {
+            id = d.get("id");
+            title = d.get("title");
+            body = d.get("message");
+            actionUrl = d.get("actionUrl");
+            try { ts = Long.parseLong(d.get("ts")); } catch (Exception ignored) { }
+        }
+        if (message.getNotification() != null) {
+            RemoteMessage.Notification n = message.getNotification();
+            if (title == null || title.isEmpty()) title = n.getTitle();
+            if (body == null || body.isEmpty()) body = n.getBody();
+        }
+        if (id == null || id.isEmpty()) {
+            id = "alert_" + (ts > 0 ? ts : System.currentTimeMillis());
+        }
         if (BroadcastNotifier.markSeen(this, id, ts)) {
-            BroadcastNotifier.show(this, id, d.get("title"), d.get("message"), d.get("actionUrl"));
+            BroadcastNotifier.show(this, id, title, body, actionUrl);
         }
     }
 

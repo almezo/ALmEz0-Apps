@@ -723,15 +723,26 @@ function showScreen(screenId, isBackNavigation = false) {
     const scrollTopBtn = document.getElementById('btnScrollTop');
     if (scrollTopBtn) scrollTopBtn.classList.add('hidden');
 
-    // إخفاء زر مساعد الميزو الذكي في شاشات تسجيل الدخول والفرعية وإظهاره حصرياً في شاشة الداشبورد
+    // إظهار وإخفاء زري مساعد الميزو الذكي وتغيير اللغة حصرياً في شاشة الداشبورد
     const aiFloatingBtn = document.getElementById('aiFloatingTrigger');
-    if (aiFloatingBtn) {
-        if (screenId === 'dashboard-screen') {
+    const mizoLangBtn = document.getElementById('mizoLangBtn');
+    if (screenId === 'dashboard-screen') {
+        if (aiFloatingBtn) {
             aiFloatingBtn.classList.remove('hidden');
             aiFloatingBtn.style.display = 'inline-flex';
-        } else {
+        }
+        if (mizoLangBtn) {
+            mizoLangBtn.classList.remove('hidden');
+            mizoLangBtn.style.display = 'inline-flex';
+        }
+    } else {
+        if (aiFloatingBtn) {
             aiFloatingBtn.classList.add('hidden');
             aiFloatingBtn.style.display = 'none';
+        }
+        if (mizoLangBtn) {
+            mizoLangBtn.classList.add('hidden');
+            mizoLangBtn.style.display = 'none';
         }
     }
 
@@ -5802,6 +5813,8 @@ function initTvNavigationEngine() {
         '.card-refresh-btn',
         '.ai-floating-trigger',
         '#aiFloatingTrigger',
+        '.lang-floating-trigger',
+        '#mizoLangBtn',
         '.nav-action-btn',
         '.cat-item',
         '.list-item',
@@ -6107,15 +6120,29 @@ function initTvNavigationEngine() {
             return;
         }
 
-        // تنقل سلس ومحسوب بين كروت الشاشة الرئيسية (البث المباشر، الأفلام، المسلسلات، وزر مساعد الميزو)
-        if (currentFocusedEl && (currentFocusedEl.classList.contains('dash-card') || currentFocusedEl.id === 'aiFloatingTrigger' || currentFocusedEl.classList.contains('ai-floating-trigger'))) {
+        // تنقل سلس ومحسوب بين كروت الشاشة الرئيسية وزري المساعد وتغيير اللغة
+        if (currentFocusedEl && (currentFocusedEl.classList.contains('dash-card') || currentFocusedEl.id === 'aiFloatingTrigger' || currentFocusedEl.id === 'mizoLangBtn' || currentFocusedEl.classList.contains('ai-floating-trigger') || currentFocusedEl.classList.contains('lang-floating-trigger'))) {
             const dashCards = Array.from(document.querySelectorAll('#dashboard-screen .dash-card'));
             const isAiBtn = currentFocusedEl.id === 'aiFloatingTrigger' || currentFocusedEl.classList.contains('ai-floating-trigger');
+            const isLangBtn = currentFocusedEl.id === 'mizoLangBtn' || currentFocusedEl.classList.contains('lang-floating-trigger');
+            const isEn = !!(window.MizoLang && window.MizoLang.isEnglish && window.MizoLang.isEnglish());
 
-            if (isAiBtn) {
+            if (isAiBtn || isLangBtn) {
                 if (e.key === 'ArrowUp' || e.keyCode === 38) {
                     e.preventDefault();
                     setFocus(dashCards[0] || document.getElementById('cardLive'));
+                    return;
+                }
+                if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+                    e.preventDefault();
+                    const targetBtn = isEn ? (isAiBtn ? document.getElementById('mizoLangBtn') : document.getElementById('aiFloatingTrigger')) : (isAiBtn ? document.getElementById('mizoLangBtn') : document.getElementById('aiFloatingTrigger'));
+                    if (targetBtn && !targetBtn.classList.contains('hidden') && targetBtn.offsetParent !== null) setFocus(targetBtn);
+                    return;
+                }
+                if (e.key === 'ArrowRight' || e.keyCode === 39) {
+                    e.preventDefault();
+                    const targetBtn = isEn ? (isLangBtn ? document.getElementById('aiFloatingTrigger') : document.getElementById('mizoLangBtn')) : (isLangBtn ? document.getElementById('aiFloatingTrigger') : document.getElementById('mizoLangBtn'));
+                    if (targetBtn && !targetBtn.classList.contains('hidden') && targetBtn.offsetParent !== null) setFocus(targetBtn);
                     return;
                 }
             } else {
@@ -6135,10 +6162,10 @@ function initTvNavigationEngine() {
                             return;
                         }
                     } else if (e.key === 'ArrowDown' || e.keyCode === 40) {
-                        const aiBtn = document.getElementById('aiFloatingTrigger');
-                        if (aiBtn && !aiBtn.classList.contains('hidden') && aiBtn.offsetParent !== null) {
+                        const targetBtn = (dashIndex === 0) ? (document.getElementById('aiFloatingTrigger') || document.getElementById('mizoLangBtn')) : (document.getElementById('mizoLangBtn') || document.getElementById('aiFloatingTrigger'));
+                        if (targetBtn && !targetBtn.classList.contains('hidden') && targetBtn.offsetParent !== null) {
                             e.preventDefault();
-                            setFocus(aiBtn);
+                            setFocus(targetBtn);
                             return;
                         }
                     } else if (e.key === 'ArrowUp' || e.keyCode === 38) {

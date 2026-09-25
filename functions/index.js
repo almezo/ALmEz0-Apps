@@ -694,24 +694,42 @@ async function purgeLegacySecurityAlerts(db) {
 
 let legacyAlertsCleaned = false;
 
+// ذاكرة مؤقتة لمنع تكرار نفس التنبيه الأمني خلال 8 ثوانٍ إن استُدعي من السيرفر والعميل معاً
+const recentAdminAlerts = new Map();
+
 /**
  * تنبيه المدير بحدث أمني خطير:
  * يُحفظ في مجموعة خاصة ومستقلة حصرياً بالمدير (admin_security_alerts) مفصولة تماماً عن إعلانات العملاء
- * ويصل لهاتفه عبر FCM حتى والتطبيق مغلق.
+ * ويصل لهاتفه عبر FCM مع الصوت والاهتزاز وشريط الإشعارات حتى والتطبيق مغلق.
  */
 async function logAlertAdmin(payload) {
     try {
-        if (!(await logEnforceQuota("alerts", LOG_ALERT_DAILY_LIMIT))) return;
-        const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
         const now = Date.now();
-        const body = payload.user.name + (payload.user.phone ? " (" + payload.user.phone + ")" : "") +
-            " • " + (payload.device.type || "جهاز غير معروف") +
+        const dedupeKey = String(payload.publicIp || "") + "_" + String((payload.user && payload.user.phone) || "") + "_" + String(payload.action || "");
+        if (dedupeKey.length > 5) {
+            const lastTime = recentAdminAlerts.get(dedupeKey);
+            if (lastTime && now - lastTime < 8000) return;
+            recentAdminAlerts.set(dedupeKey, now);
+            if (recentAdminAlerts.size > 200) {
+                const oldestCutoff = now - 60000;
+                for (const [k, v] of recentAdminAlerts.entries()) {
+                    if (v < oldestCutoff) recentAdminAlerts.delete(k);
+                }
+            }
+        }
+
+        const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+        const body = (payload.user ? payload.user.name + (payload.user.phone ? " (" + payload.user.phone + ")" : "") : "مستخدم") +
+            " • " + ((payload.device && payload.device.type) || "جهاز غير معروف") +
             (payload.publicIp ? " • " + payload.publicIp : "") +
             (payload.page ? " • " + payload.page : "");
+        const alertTitle = "🚨 " + String(payload.title || "حدث أمني").slice(0, 120);
+        const alertBody = body.slice(0, 240);
+
         const doc = await fs().collection("admin_security_alerts").add({
             type: "security",
-            title: "🚨 " + String(payload.title || "حدث أمني").slice(0, 120),
-            message: body.slice(0, 240),
+            title: alertTitle,
+            message: alertBody,
             actionUrl: "security-monitor.html",
             image: "",
             timestamp: now,
@@ -723,12 +741,33 @@ async function logAlertAdmin(payload) {
             logAction: payload.action,
             details: payload.details || {}
         });
+
         try {
             await getMessaging().send({
                 topic: "u_" + AI_ADMIN_UID,
-                data: { id: doc.id, title: "🚨 تنبيه أمني", message: body.slice(0, 240), actionUrl: "security-monitor.html", ts: String(now) },
-                android: { priority: "high", ttl: 24 * 60 * 60 * 1000 }
+                notification: {
+                    title: alertTitle,
+                    body: alertBody
+                },
+                data: {
+                    id: doc.id,
+                    title: alertTitle,
+                    message: alertBody,
+                    actionUrl: "security-monitor.html",
+                    ts: String(now)
+                },
+                android: {
+                    priority: "high",
+                    notification: {
+                        channelId: "almezo_broadcast_channel",
+                        sound: "default",
+                        defaultVibrateTimings: true,
+                        priority: "high"
+                    },
+                    ttl: 24 * 60 * 60 * 1000
+                }
             });
+            logger.info("Admin security alert dispatched via FCM", { id: doc.id, title: alertTitle });
         } catch (err) {
             logger.warn("security alert push failed", { error: err.message });
         }
@@ -954,6 +993,34 @@ exports.loginGuard = onCall(async (request) => {
             }, { merge: true });
         });
         await batch.commit();
+
+        // إشعار أمني فوري للمدير من السيرفر فور تفعيل الحظر لضمان وصوله حتى والتطبيق مغلق
+        try {
+            const alertPayload = {
+                title: "حظر أمني مؤقت (" + guardFormatDuration(durationSeconds) + ") لـ " + (d.phone || "جهاز غير معروف"),
+                action: "client_locked_out",
+                category: "security",
+                severity: "danger",
+                user: {
+                    uid: request.auth ? request.auth.uid : "",
+                    name: d.phone ? "عميل (" + d.phone + ")" : "زائر غير مسجل",
+                    phone: String(d.phone || "").slice(0, 20),
+                    role: "visitor"
+                },
+                device: device,
+                publicIp: ip,
+                page: "login",
+                details: {
+                    attemptedPhone: String(d.phone || ""),
+                    tier: tierIndex + 1,
+                    durationSeconds: durationSeconds,
+                    formattedDuration: guardFormatDuration(durationSeconds),
+                    reason: "تكرار إدخال بيانات خاطئة (Brute-Force)"
+                }
+            };
+            logAlertAdmin(alertPayload).catch((e) => logger.warn("loginGuard alert failed", { error: e.message }));
+        } catch (e) { }
+
         return {
             locked: true,
             lockedNow: true,

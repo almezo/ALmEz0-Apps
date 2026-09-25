@@ -309,9 +309,12 @@ public class MainActivity extends BridgeActivity {
             try {
                 if (uid == null || !uid.matches("[A-Za-z0-9]{6,64}")) return;
                 String topic = "u_" + uid;
+                android.content.SharedPreferences sp = getSharedPreferences("almezo_user_topic", MODE_PRIVATE);
                 if (subscribe) {
+                    sp.edit().putString("active_uid", uid).apply();
                     com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic(topic);
                 } else {
+                    sp.edit().remove("active_uid").apply();
                     com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic(topic);
                 }
             } catch (Throwable t) {
