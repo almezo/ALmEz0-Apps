@@ -3,9 +3,9 @@
 // ولا حتى معرفة أننا داخل برنامج الكمبيوتر (platform-electron).
 const { contextBridge, ipcRenderer } = require('electron');
 
-let appVersion = '1.0.88';
+let appVersion = '1.4.5';
 try {
-    appVersion = require('../package.json').version || '1.0.88';
+    appVersion = require('../package.json').version || '1.4.5';
 } catch (e) { }
 
 contextBridge.exposeInMainWorld('electronAPI', {
