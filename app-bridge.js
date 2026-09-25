@@ -2419,6 +2419,7 @@
 
     function initBroadcastNotificationListener() {
         if (window._almezoBroadcastListenerActive) return;
+        window._almezoBroadcastListenerActive = true;
         let attempts = 0;
         const maxAttempts = 30;
 

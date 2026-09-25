@@ -1871,6 +1871,7 @@ async function logActivity(logData) {
      * الآن قائمة بآخر 50 معرّفاً، ويُسجَّل الإشعار لحظة ظهوره سواء أُغلق أم لا.
      */
     window.mzBroadcastAlreadySeen = function (id, ts, peekOnly) {
+        if (!id) return true;
         var seen = [];
         try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || []; } catch (e) { seen = []; }
         var lastId = null, lastTs = 0;
@@ -1878,18 +1879,22 @@ async function logActivity(logData) {
             lastId = localStorage.getItem('almezo_last_broadcast_id');
             lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10) || 0;
         } catch (e) { }
-        // الفحص فقط (peekOnly): بالمعرّف وحده. مقارنة الوقت تُستعمل للنسخ القديمة التي كانت
-        // تحفظ آخر إشعار فقط، ولو طبّقناها هنا لاعتبرت أي إشعار أقدم من آخر ما ظهر مرئياً،
-        // فيضيع إشعار وصل قبله في نفس الدفعة.
+
+        // إذا كان المعرّف موجوداً في القائمة أو هو آخر إشعار ظهر
         if (seen.indexOf(id) !== -1 || id === lastId) return true;
+        // إذا كان وقت الإشعار أقدم من آخر إشعار تمت مشاهدته
+        if (lastTs && ts && ts <= lastTs) return true;
+
         if (peekOnly) return false;
-        if (ts && ts <= lastTs) return true;
+
+        // تسجيل الإشعار كمرئي في الذاكرة المحلية
         seen.push(id);
-        if (seen.length > 50) seen = seen.slice(-50);
+        if (seen.length > 80) seen = seen.slice(-80);
         try {
             localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
             localStorage.setItem('almezo_last_broadcast_id', id);
-            localStorage.setItem('almezo_last_broadcast_ts', String(Math.max(ts || 0, lastTs)));
+            var safeTs = parseInt(ts || '0', 10) || Date.now();
+            localStorage.setItem('almezo_last_broadcast_ts', String(Math.max(safeTs, lastTs)));
         } catch (e) { }
         return false;
     };
@@ -2398,27 +2403,65 @@ window.MizoLedger = (function () {
     } catch (e) { }
 
     function alreadySeen(id, ts) {
+        if (!id) return true;
+        // 1. فحص ذاكرة الحساب المؤقتة
         if (accountSeen.indexOf(id) !== -1) return true;
         var cur = currentUser();
         if (cur && window.currentAuthUser && Array.isArray(window.currentAuthUser.seenBroadcasts)) {
             if (window.currentAuthUser.seenBroadcasts.indexOf(id) !== -1) return true;
         }
-        // الفحص القديم على مستوى الجهاز (يشمل المعرّفات المحفوظة سابقاً)
-        return window.mzBroadcastAlreadySeen ? window.mzBroadcastAlreadySeen(id, ts, true) : deviceSeen().indexOf(id) !== -1;
+
+        // 2. فحص localStorage للجهاز فوراً
+        try {
+            var seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || [];
+            if (seen.indexOf(id) !== -1) return true;
+            var lastId = localStorage.getItem('almezo_last_broadcast_id');
+            if (lastId && lastId === id) return true;
+            var lastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10) || 0;
+            if (lastTs && ts && ts <= lastTs) return true;
+        } catch (e) { }
+
+        // 3. فحص الدالة العامة
+        return window.mzBroadcastAlreadySeen ? window.mzBroadcastAlreadySeen(id, ts, true) : false;
     }
 
-    /** يسجّل الإشعار مرئياً: على الجهاز، وفي حساب العميل، وفي سجل المشاهدات للمدير. */
+    /** يسجّل الإشعار مرئياً: على الجهاز، وفي حساب العميل/المدير، وفي سجل المشاهدات. */
     function markSeen(notif) {
+        if (!notif || !notif.id) return;
+
+        // 1. تسجيل فوري لا يقبل الشك في localStorage للجهاز
+        try {
+            var seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || [];
+            if (seen.indexOf(notif.id) === -1) {
+                seen.push(notif.id);
+                if (seen.length > 80) seen = seen.slice(-80);
+                localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+            }
+            localStorage.setItem('almezo_last_broadcast_id', notif.id);
+            var nTs = parseInt(notif.timestamp || '0', 10) || Date.now();
+            var curLastTs = parseInt(localStorage.getItem('almezo_last_broadcast_ts') || '0', 10) || 0;
+            localStorage.setItem('almezo_last_broadcast_ts', String(Math.max(nTs, curLastTs)));
+        } catch (e) { }
+
         if (window.mzBroadcastAlreadySeen) window.mzBroadcastAlreadySeen(notif.id, notif.timestamp);
         if (accountSeen.indexOf(notif.id) === -1) accountSeen.push(notif.id);
+
+        // 2. المزامنة السحابية مع الحساب
         var db = store();
         var user = currentUser();
         if (!db || !user || !user.uid) return;
         try {
             var FV = firebase.firestore.FieldValue;
-            db.collection('customers').doc(user.uid).update({
+            // حفظ في customers مع merge: true (لا تفشل حتى لو لم تكن الوثيقة موجودة)
+            db.collection('customers').doc(user.uid).set({
                 seenBroadcasts: FV.arrayUnion(notif.id)
-            }).catch(function () { });
+            }, { merge: true }).catch(function () { });
+
+            // وإذا كان حساب مدير نحفظ أيضاً في admins
+            db.collection('admins').doc(user.uid).set({
+                seenBroadcasts: FV.arrayUnion(notif.id)
+            }, { merge: true }).catch(function () { });
+
             db.collection('notification_views').doc(notif.id + '_' + user.uid).set({
                 notificationId: notif.id,
                 notificationTitle: String(notif.title || '').slice(0, 120),
@@ -2509,8 +2552,17 @@ window.MizoLedger = (function () {
                         var cData = docSnap.data() || {};
                         if (Array.isArray(cData.seenBroadcasts)) {
                             accountSeen = cData.seenBroadcasts;
+                            return;
                         }
                     }
+                    return db.collection('admins').doc(u.uid).get().then(function (aSnap) {
+                        if (aSnap.exists) {
+                            var aData = aSnap.data() || {};
+                            if (Array.isArray(aData.seenBroadcasts)) {
+                                accountSeen = aData.seenBroadcasts;
+                            }
+                        }
+                    }).catch(function () { });
                 }).catch(function () { }).finally(function () {
                     if (unsubBroadcasts) return;
                     try {

@@ -2113,6 +2113,7 @@ window.showGlobalBroadcastBanner = function (notif) {
 
 window.initBroadcastNotificationListener = function () {
     if (window._almezoBroadcastListenerActive) return;
+    window._almezoBroadcastListenerActive = true;
 
     function getFirestore() {
         try {
