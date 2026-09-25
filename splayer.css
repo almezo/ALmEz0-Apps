@@ -7781,6 +7781,7 @@ body.touch-device-mode .vod-title {
     white-space: normal !important;
     display: -webkit-box !important;
     -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
     -webkit-box-orient: vertical !important;
     overflow: hidden !important;
     margin-top: 8px !important;
