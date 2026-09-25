@@ -25,6 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -254,7 +255,7 @@ public final class BroadcastNotifier {
     }
 
     private static String post(String url, String body) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = (HttpURLConnection) URI.create(url).toURL().openConnection();
         try {
             c.setConnectTimeout(15000);
             c.setReadTimeout(20000);
