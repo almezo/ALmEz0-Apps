@@ -29,9 +29,15 @@ public final class Ui {
 
     /** نفس ساعة الترويسة في player.html: "08:47 مساءً" */
     public static String clockText() {
+        return clockText(null);
+    }
+
+    /** صيغة الوقت تتبع لغة المشغل: مساءً/صباحاً بالعربية وPM/AM بالإنجليزية. */
+    public static String clockText(android.content.Context ctx) {
         Calendar c = Calendar.getInstance();
         int h = c.get(Calendar.HOUR_OF_DAY);
-        String period = h >= 12 ? "مساءً" : "صباحاً";
+        boolean en = ctx != null && Lang.isEnglish(ctx);
+        String period = h >= 12 ? (en ? "PM" : "مساءً") : (en ? "AM" : "صباحاً");
         h = h % 12;
         if (h == 0) h = 12;
         return String.format(Locale.US, "%02d:%02d %s", h, c.get(Calendar.MINUTE), period);

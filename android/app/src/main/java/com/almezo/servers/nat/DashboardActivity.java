@@ -79,10 +79,23 @@ public class DashboardActivity extends BaseActivity {
             aiBtn.setOnClickListener(v -> AiAssistantDialog.show(this));
         }
 
+        // زر تغيير اللغة (عربي / إنجليزي): افتتاحية المشغل ثم إعادة فتحه باللغة الجديدة
+        View langBtn = findViewById(R.id.dash_btn_lang);
+        if (langBtn != null) {
+            applyFocusScale(langBtn, 1.08f);
+            android.widget.TextView langLabel = findViewById(R.id.dash_lang_label);
+            if (langLabel != null) langLabel.setText(Lang.isEnglish(this) ? "العربية" : "English");
+            langBtn.setOnClickListener(v -> {
+                Lang.setEnglish(this, !Lang.isEnglish(this));
+                IntroActivity.showPlayer(this);
+                finish();
+            });
+        }
+
         fitCardsWidth();
         setupFooter();
         cardLive.requestFocus();
-        Fx.enter(cardLive, cardMovies, cardSeries, aiBtn);
+        Fx.enter(cardLive, cardMovies, cardSeries, aiBtn, findViewById(R.id.dash_btn_lang));
         boolean accountChanged = savedInstanceState == null && getIntent().getBooleanExtra(EXTRA_ACCOUNT_CHANGED, false);
         boolean freshOpen = savedInstanceState == null && getIntent().getBooleanExtra(EXTRA_FRESH_OPEN, false);
         if (accountChanged || (freshOpen && packagesStale())) refreshAllOnOpen();

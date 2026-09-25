@@ -44,6 +44,33 @@ public abstract class BaseActivity extends AppCompatActivity {
     protected void onPostCreate(@Nullable Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
         Fx.install(getWindow());
+        installLanguage();
+    }
+
+    /**
+     * لغة الشاشة: ترجمة النصوص الثابتة واتجاه العرض. النصوص التي يضيفها الكود لاحقاً
+     * (صفوف القوائم والرسائل) تُترجم مع كل تغيّر في التخطيط، بفاصل بسيط حتى لا يثقل
+     * الأجهزة الضعيفة. بالعربية لا يُنفَّذ شيء إطلاقاً.
+     */
+    private void installLanguage() {
+        final View root = getWindow() != null ? getWindow().getDecorView() : null;
+        if (root == null) return;
+        Lang.apply(root);
+        if (!Lang.isEnglish(this)) return;
+        root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            private long last = 0;
+            @Override
+            public void onGlobalLayout() {
+                long now = System.currentTimeMillis();
+                if (now - last < 120) return;
+                last = now;
+                Lang.apply(root);
+            }
+        });
+        // المحتوى القادم من السيرفر يُبنى بعد الفتح بقليل: إعادة تطبيق بعد لحظات
+        root.postDelayed(() -> Lang.apply(root), 400);
+        root.postDelayed(() -> Lang.apply(root), 1200);
+        root.postDelayed(() -> Lang.apply(root), 2500);
     }
 
     @Override

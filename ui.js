@@ -1188,6 +1188,38 @@ window.closeUsersIntelModal = function () {
  * تقرير الإشعارات: لكل إشعار عدد من رآه ومن ضغط عليه، والضغط عليه يعرض أسماءهم.
  * المصدر: notification_views (يكتبه جهاز العميل لحظة ظهور الإشعار عنده).
  */
+/**
+ * حذف حساب عميل نهائياً: بياناته وحساب دخوله معاً (دالة deleteCustomer في السيرفر).
+ * الحذف من قاعدة البيانات وحده كان يترك حساب الدخول قائماً، فيبقى الرقم محجوزاً ولا
+ * يستطيع صاحبه التسجيل من جديد. العملية تُسجَّل في سجل الحركات ولا يمكن التراجع عنها.
+ */
+window.deleteCustomerAccount = async function (uid, name, phone) {
+    if (!uid) return;
+    const label = (name || 'هذا العميل') + (phone ? ' (' + phone + ')' : '');
+    const confirmed = await showConfirm(
+        'سيُحذف حساب ' + label + ' نهائياً: بياناته وحساب دخوله واشتراكاته المحفوظة.\n' +
+        'لا يمكن التراجع عن هذه العملية.\n\nهل أنت متأكد؟',
+        { title: 'حذف حساب عميل', okText: 'نعم، احذف نهائياً', danger: true }
+    );
+    if (!confirmed) return;
+
+    try {
+        if (typeof functions === 'undefined' || !functions) throw new Error('خدمة الحذف غير متاحة في هذه الصفحة');
+        showToast('جاري حذف الحساب...', 'info', 2000);
+        const res = await functions.httpsCallable('deleteCustomer')({ uid: uid });
+        const data = (res && res.data) || {};
+        if (!data.ok) throw new Error('تعذر حذف الحساب');
+
+        // إزالة الصف فوراً بدل انتظار تحديث القائمة
+        usersIntelCustomersCache = usersIntelCustomersCache.filter(function (c) { return c.id !== uid; });
+        renderUsersIntelContent();
+        showToast('تم حذف حساب ' + (data.name || label) + ' نهائياً', 'success', 4000);
+    } catch (e) {
+        console.error('delete customer failed', e);
+        showToast('تعذر الحذف: ' + ((e && e.message) || 'خطأ في الاتصال'), 'error', 6000);
+    }
+};
+
 window.openNotificationsReport = async function () {
     const box = document.getElementById('usersIntelBody');
     const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
@@ -1466,6 +1498,7 @@ function renderUsersIntelContent() {
                         <th>الرتبة</th>
                         <th>التسجيل</th>
                         <th style="width:34px; text-align:center;">بطاقة</th>
+                        <th style="width:34px; text-align:center;">حذف</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1528,6 +1561,11 @@ function renderUsersIntelContent() {
                     <td style="padding:6px 4px; text-align:center;">
                         <button type="button" class="intel-btn-copy" onclick="openCustomerDetailNotes(${intelJsArg(c.id)}, ${intelJsArg(fullName)}, ${intelJsArg(phone)})" title="عرض البطاقة">
                             <i class="fas fa-id-card"></i>
+                        </button>
+                    </td>
+                    <td style="padding:6px 4px; text-align:center;">
+                        <button type="button" class="intel-btn-delete" onclick="deleteCustomerAccount(${intelJsArg(c.id)}, ${intelJsArg(fullName)}, ${intelJsArg(phone)})" title="حذف الحساب نهائياً">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
                 </tr>
@@ -2111,13 +2149,28 @@ if (typeof db !== 'undefined') {
 // =============================================
 
 // القيم الافتراضية (تُستخدم عند عدم وجود الوثيقة بعد، أو لو حقل معين ناقص)
+// imageSize: حجم شعار البطاقة بالبكسل، يتحكم فيه المدير من وضع التعديل لكل بطاقة على حدة
+const DEFAULT_CARD_IMAGE_SIZE = 70;
 const DEFAULT_HOME_CARDS = {
-    iptv: { name: 'اشتراكات IPTV', image: 'photo/iptv.jpg', enabled: true },
-    smart: { name: 'تطبيقات شاشات السمارت', image: 'photo/smart.jpg', enabled: true },
-    vip: { name: 'باقات VIP (Mango)', image: 'photo/vip.jpeg', enabled: true },
-    devices: { name: 'الأجهزة الإلكترونية', image: 'photo/tvbox.jpg', enabled: true },
-    player: { name: 'مشغل الميزو - ALmEz0', image: '', enabled: true }
+    iptv: { name: 'اشتراكات IPTV', image: 'photo/iptv-badge.webp', enabled: true, imageSize: 78 },
+    smart: { name: 'تطبيقات شاشات السمارت', image: 'photo/smart-badge.webp', enabled: true, imageSize: 78 },
+    vip: { name: 'باقات VIP (Mango)', image: 'photo/vip-badge.webp', enabled: true, imageSize: 76 },
+    devices: { name: 'الأجهزة الإلكترونية', image: 'photo/devices-badge.webp', enabled: true, imageSize: 96 },
+    player: { name: 'مشغل الميزو - ALmEz0', image: '', enabled: true, imageSize: 86 }
 };
+
+/** حجم شعار بطاقة بالبكسل ضمن حدود آمنة (40 إلى 160). */
+function cardImageSize(card) {
+    var n = parseInt(card && card.imageSize, 10);
+    if (!n || isNaN(n)) n = DEFAULT_CARD_IMAGE_SIZE;
+    return Math.max(40, Math.min(160, n));
+}
+
+/** نمط الحجم المطبّق على صورة البطاقة. */
+function cardImageStyle(card) {
+    var px = cardImageSize(card);
+    return 'width:' + px + 'px; height:' + px + 'px;';
+}
 
 // الروابط ثابتة دائماً (مش قابلة للتعديل من لوحة الإدارة، فقط الاسم/الصورة/التفعيل)
 const HOME_CARD_LINKS = {
@@ -2218,6 +2271,14 @@ function renderHomeCards() {
                 </div>\
                 <input type="text" id="edit-home-name-' + key + '" value="' + escEdit(card.name || '') + '" class="edit-input" placeholder="اسم القسم">\
                 <input type="text" id="edit-home-image-' + key + '" value="' + escEdit(card.image || '') + '" class="edit-input" placeholder="رابط الصورة (اختياري للمشغل)">\
+                <div class="logo-size-row">\
+                    <div class="logo-size-preview"><img id="edit-home-preview-' + key + '" src="' + escEdit(card.image || 'photo/mizo-cube.webp') + '" alt="" style="' + cardImageStyle(card) + '"></div>\
+                    <div class="logo-size-controls">\
+                        <label for="edit-home-size-' + key + '">حجم الشعار: <b id="edit-home-size-val-' + key + '">' + cardImageSize(card) + '</b> بكسل</label>\
+                        <input type="range" id="edit-home-size-' + key + '" min="40" max="160" step="2" value="' + cardImageSize(card) + '" oninput="previewHomeCardSize(\'' + key + '\')">\
+                        <button type="button" class="logo-size-reset" onclick="resetHomeCardSize(\'' + key + '\')">إرجاع الحجم الافتراضي</button>\
+                    </div>\
+                </div>\
                 <label style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:13px; cursor:pointer;">\
                     <input type="checkbox" id="edit-home-enabled-' + key + '" ' + (isEnabled ? 'checked' : '') + ' onchange="toggleHomeReasonBox(\'' + key + '\')"> القسم مفعّل وظاهر للزوار\
                 </label>\
@@ -2229,8 +2290,8 @@ function renderHomeCards() {
         } else if (!isEnabled) {
             // === القسم متوقف: يبان بس معطل مع رسالة "غير متوفر حالياً"، مع الحفاظ على نفس كلاس التصميم/التوسيط الأصلي ===
             var disabledMedia = card.image
-                ? '<img src="' + card.image + '" alt="' + card.name + '" class="category-card-img" style="filter:grayscale(1); opacity:0.5;">'
-                : (isPlayer ? '<div class="web-player-icon-wrapper mizo-cube-wrap" style="opacity:0.5;"><img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"></div>' : '');
+                ? '<img src="' + card.image + '" alt="' + card.name + '" class="category-card-img" style="' + cardImageStyle(card) + ' filter:grayscale(1); opacity:0.5;">'
+                : (isPlayer ? '<div class="web-player-icon-wrapper mizo-cube-wrap" style="' + cardImageStyle(card) + ' opacity:0.5;"><img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"></div>' : '');
             var disabledClassKey = isPlayer ? 'web-player' : key; // يحافظ على كلاس web-player عشان قاعدة التوسيط في style.css تفضل شغالة
             html += '\
             <div class="main-category-card ' + disabledClassKey + ' disabled-card" title="هذا القسم متوقف حالياً" style="cursor:not-allowed; pointer-events:none; opacity:0.75;">\
@@ -2241,8 +2302,8 @@ function renderHomeCards() {
         } else if (isPlayer) {
             // === كارت مشغل الميزو: يحتفظ بمنطق التحقق من تسجيل الدخول الخاص به ===
             var playerMedia = card.image
-                ? '<img src="' + card.image + '" alt="' + card.name + '" class="category-card-img">'
-                : '<div class="web-player-icon-wrapper mizo-cube-wrap"><img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"></div>';
+                ? '<img src="' + card.image + '" alt="' + card.name + '" class="category-card-img" style="' + cardImageStyle(card) + '">'
+                : '<div class="web-player-icon-wrapper mizo-cube-wrap" style="' + cardImageStyle(card) + '"><img src="photo/mizo-cube.webp" alt="مشغل الميزو" class="mizo-cube-img"></div>';
             html += '\
             <a href="' + link + '" class="main-category-card web-player" id="mainWebPlayerCard" onclick="return handlePlayerCardClick(event)">\
                 ' + playerMedia + '\
@@ -2252,7 +2313,7 @@ function renderHomeCards() {
             // === الوضع العادي لباقي الكروت ===
             html += '\
             <a href="' + link + '" class="main-category-card ' + key + '">\
-                <img src="' + card.image + '" alt="' + card.name + '" class="category-card-img" onerror="this.src=\'https://via.placeholder.com/300x180/141820/4caf50?text=AlMeZ0\'">\
+                <img src="' + card.image + '" alt="' + card.name + '" class="category-card-img" style="' + cardImageStyle(card) + '" onerror="this.src=\'https://via.placeholder.com/300x180/141820/4caf50?text=AlMeZ0\'">\
                 <h3>' + card.name + '</h3>\
             </a>';
         }
@@ -2285,17 +2346,39 @@ window.toggleHomeReasonBox = function (key) {
     }
 };
 
+/** معاينة حية لحجم الشعار أثناء تحريك المنزلق في وضع التعديل. */
+window.previewHomeCardSize = function (key) {
+    var slider = document.getElementById('edit-home-size-' + key);
+    var img = document.getElementById('edit-home-preview-' + key);
+    var val = document.getElementById('edit-home-size-val-' + key);
+    if (!slider) return;
+    var px = Math.max(40, Math.min(160, parseInt(slider.value, 10) || DEFAULT_CARD_IMAGE_SIZE));
+    if (img) { img.style.width = px + 'px'; img.style.height = px + 'px'; }
+    if (val) val.textContent = px;
+    if (typeof markEditDirty === 'function') markEditDirty('home:' + key);
+};
+
+window.resetHomeCardSize = function (key) {
+    var slider = document.getElementById('edit-home-size-' + key);
+    if (!slider) return;
+    slider.value = (DEFAULT_HOME_CARDS[key] && DEFAULT_HOME_CARDS[key].imageSize) || DEFAULT_CARD_IMAGE_SIZE;
+    previewHomeCardSize(key);
+};
+
 window.saveHomeCard = async function (key, opts) {
     opts = opts || {};
     var nameInput = document.getElementById('edit-home-name-' + key);
     var imageInput = document.getElementById('edit-home-image-' + key);
     var enabledInput = document.getElementById('edit-home-enabled-' + key);
     var reasonInput = document.getElementById('edit-home-reason-' + key);
+    var sizeInput = document.getElementById('edit-home-size-' + key);
 
     var name = nameInput ? nameInput.value.trim() : '';
     var image = imageInput ? imageInput.value.trim() : '';
     var enabled = enabledInput ? enabledInput.checked : true;
     var reason = reasonInput ? reasonInput.value.trim() : '';
+    var imageSize = sizeInput ? Math.max(40, Math.min(160, parseInt(sizeInput.value, 10) || DEFAULT_CARD_IMAGE_SIZE))
+        : cardImageSize(homeCardsData[key] || DEFAULT_HOME_CARDS[key] || {});
 
     if (!name) {
         showToast('الرجاء إدخال اسم القسم', 'error');
@@ -2304,7 +2387,7 @@ window.saveHomeCard = async function (key, opts) {
 
     try {
         await db.collection('siteConfig').doc('homeCards').set({
-            [key]: { name: name, image: image, enabled: enabled, reason: reason }
+            [key]: { name: name, image: image, enabled: enabled, reason: reason, imageSize: imageSize }
         }, { merge: true });
 
         if (typeof logActivity === 'function') {
@@ -2313,7 +2396,7 @@ window.saveHomeCard = async function (key, opts) {
                 category: 'admin',
                 severity: 'warning',
                 title: 'تعديل كارت الصفحة الرئيسية: ' + name,
-                details: { cardKey: key, name: name, image: image, enabled: enabled, reason: reason }
+                details: { cardKey: key, name: name, image: image, enabled: enabled, reason: reason, imageSize: imageSize }
             });
         }
 

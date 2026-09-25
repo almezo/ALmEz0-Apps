@@ -6,7 +6,7 @@
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
-    "deploy": "firebase deploy --only functions:generateAiReply,functions:sendWhatsAppNotification,functions:pushBroadcastNotification,functions:weeklyProfitRollover,functions:logTransactionDeleted,functions:sendScheduledNotifications,functions:subscriptionExpiryReminders,functions:logEvent,functions:cleanupActivityLogs,functions:loginGuard,functions:liftLockout,functions:announceNewVersion",
+    "deploy": "firebase deploy --only functions:generateAiReply,functions:sendWhatsAppNotification,functions:pushBroadcastNotification,functions:weeklyProfitRollover,functions:logTransactionDeleted,functions:sendScheduledNotifications,functions:subscriptionExpiryReminders,functions:logEvent,functions:cleanupActivityLogs,functions:loginGuard,functions:liftLockout,functions:announceNewVersion,functions:deleteCustomer",
     "logs": "firebase functions:log"
   },
   "engines": {

@@ -1908,6 +1908,7 @@ window.MizoLedger = (function () {
 (function () {
     var TEXT_TYPES = ['', 'text', 'search', 'email', 'tel', 'password', 'number', 'url'];
     var padded = null, padOld = '';
+    var shifted = null, shiftOld = '', shiftTransition = '';
     var maxViewport = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     var vkHeight = 0;
     var lastPointerType = '';
@@ -1930,6 +1931,25 @@ window.MizoLedger = (function () {
 
     function unpad() {
         if (padded) { padded.style.paddingBottom = padOld; padded = null; }
+        if (shifted) {
+            shifted.style.transform = shiftOld;
+            shifted.style.transition = shiftTransition;
+            shifted = null;
+        }
+    }
+
+    /** ترفع النافذة الثابتة (position:fixed) التي تحوي الخانة، حين لا يوجد ما يُمرَّر. */
+    function shiftFixedHost(el, delta) {
+        var host = null;
+        for (var p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+            if (getComputedStyle(p).position === 'fixed') { host = p; break; }
+        }
+        if (!host || shifted) return;
+        shifted = host;
+        shiftOld = host.style.transform || '';
+        shiftTransition = host.style.transition || '';
+        host.style.transition = 'transform 0.18s ease';
+        host.style.transform = (shiftOld ? shiftOld + ' ' : '') + 'translateY(' + (-Math.round(delta)) + 'px)';
     }
 
     /** ينقل الخانة لتكون فوق visibleBottom (حوالي ثلث المساحة الظاهرة). */
@@ -1955,7 +1975,14 @@ window.MizoLedger = (function () {
             list[i].scrollTop = before + delta;
             delta -= (list[i].scrollTop - before);
         }
-        if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+        if (Math.abs(delta) > 1) {
+            var beforeWin = window.scrollY || document.documentElement.scrollTop || 0;
+            window.scrollBy(0, delta);
+            var afterWin = window.scrollY || document.documentElement.scrollTop || 0;
+            delta -= (afterWin - beforeWin);
+        }
+        // لا شيء قابل للتمرير (نافذة ثابتة على شاشة التلفاز مثلاً): نرفع النافذة نفسها مؤقتاً
+        if (delta > 2) shiftFixedHost(el, delta);
     }
 
     function visibleBottom() {

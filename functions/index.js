@@ -1032,7 +1032,7 @@ exports.announceNewVersion = onSchedule({ schedule: "15 * * * *", timeZone: "Afr
         type: "update",
         title: "🚀 تحديث جديد: نسخة " + version + (mandatory ? " (إلزامي)" : ""),
         message: notes || "صدرت نسخة جديدة من تطبيق وبرنامج سيرفرات الميزو. حدّث الآن لتحصل على آخر المزايا.",
-        actionUrl: "https://almezo.store/app-details.html",
+        actionUrl: "https://almezo.store",
         image: "",
         timestamp: now,
         createdAt: FieldValue.serverTimestamp(),
@@ -1046,4 +1046,76 @@ exports.announceNewVersion = onSchedule({ schedule: "15 * * * *", timeZone: "Afr
     });
     await stateRef.set({ version: version, announcedAt: now, mandatory: mandatory }, { merge: true });
     logger.info("new version announced", { version: version, mandatory: mandatory });
+});
+
+// =============================================
+// حذف حساب عميل نهائياً (من لوحة المدير)
+// =============================================
+// الحذف من قاعدة البيانات وحده لا يكفي: يبقى حساب الدخول في Firebase Auth فيستطيع صاحبه
+// تسجيل الدخول بحساب بلا بيانات، ولا يستطيع أحد التسجيل برقمه من جديد. هذه الدالة تحذف
+// الاثنين معاً، وتمنع حذف حساب المدير أو حذف المدير لنفسه، وتسجّل العملية في سجل الحركات.
+exports.deleteCustomer = onCall(async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const { getAuth } = require("firebase-admin/auth");
+    const db = fs();
+    const uid = request.auth.uid;
+    const isAdmin = uid === AI_ADMIN_UID || (await db.collection("admins").doc(uid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "هذه العملية للمدير فقط.");
+
+    const target = String((request.data && request.data.uid) || "").slice(0, 64);
+    if (!target) throw new HttpsError("invalid-argument", "لم يُحدَّد الحساب.");
+    if (target === AI_ADMIN_UID) throw new HttpsError("permission-denied", "لا يمكن حذف حساب المدير الرئيسي.");
+    if (target === uid) throw new HttpsError("permission-denied", "لا يمكنك حذف حسابك أنت.");
+    if ((await db.collection("admins").doc(target).get()).exists) {
+        throw new HttpsError("permission-denied", "هذا حساب مدير. أزل صلاحيته أولاً ثم احذفه.");
+    }
+
+    const snap = await db.collection("customers").doc(target).get();
+    const data = snap.exists ? snap.data() : {};
+    const name = [data.firstName, data.lastName].filter(Boolean).join(" ") || "بدون اسم";
+    const phone = String(data.phone || "");
+
+    // 1) حساب الدخول
+    let authDeleted = false;
+    try {
+        await getAuth().deleteUser(target);
+        authDeleted = true;
+    } catch (err) {
+        if (err && err.code !== "auth/user-not-found") {
+            logger.error("delete auth user failed", { target: target, error: err.message });
+            throw new HttpsError("internal", "تعذر حذف حساب الدخول: " + err.message);
+        }
+    }
+
+    // 2) بيانات العميل وما يتعلق به
+    await db.collection("customers").doc(target).delete();
+    try {
+        const subs = await db.collection("user_subscriptions").where("uid", "==", target).limit(50).get();
+        if (!subs.empty) {
+            const b = db.batch();
+            subs.docs.forEach((d) => b.delete(d.ref));
+            await b.commit();
+        }
+    } catch (e) { }
+
+    // 3) سجل الحركة
+    await db.collection("activity_logs").add({
+        action: "admin_delete_customer",
+        category: "admin",
+        severity: "danger",
+        title: "حذف حساب عميل نهائياً: " + name + (phone ? " (" + phone + ")" : ""),
+        details: { targetUid: target, name: name, phone: phone, city: String(data.city || ""), authDeleted: authDeleted },
+        user: { uid: uid, name: "المدير", phone: "", role: "admin" },
+        device: {},
+        publicIp: logClientIp(request),
+        hardwareFingerprint: "",
+        page: "admin",
+        url: "",
+        createdAt: Date.now(),
+        timestamp: FieldValue.serverTimestamp(),
+        clientTime: ""
+    });
+
+    return { ok: true, name: name, authDeleted: authDeleted };
 });

@@ -1729,6 +1729,10 @@ function mizoReleaseVideos() {
 }
 
 /** رابط ملف فيلم أو حلقة على السيرفر، بنفس هوست playStream (يستعمله التنزيل في downloads-ui.js). */
+
+// عدد عناصر خانة "المضاف حديثاً" في الأفلام والمسلسلات (كان 20)
+const RECENT_ITEMS_LIMIT = 50;
+
 window.mizoStreamUrl = function (type, id, ext) {
     const serverHostsMap = { "001": "http://cafott.com" };
     const code = state.serverCode || sessionStorage.getItem('sp_server_code');
@@ -3746,7 +3750,7 @@ async function fetchCategoryCounts(type, containerId) {
         const validCont = streams.filter(s => contList.includes(String(s.stream_id || s.series_id))).length;
 
         counts['all'] = streams.length;
-        counts['recent'] = Math.min(streams.length, 20);
+        counts['recent'] = Math.min(streams.length, RECENT_ITEMS_LIMIT);
         counts['favs'] = validFavs > 0 ? validFavs : (favsList.length > 0 ? favsList.length : 0);
         counts['continue'] = validCont > 0 ? validCont : (contList.length > 0 ? contList.length : 0);
 
@@ -3769,7 +3773,7 @@ async function fetchCategoryCounts(type, containerId) {
                 const text = catNameEl ? catNameEl.innerText.toLowerCase() : '';
 
                 if (text.includes('حديث') || text.includes('recent') || text.includes('added') || text.includes('جديد')) {
-                    span.innerText = Math.min(counts[catId], 20);
+                    span.innerText = Math.min(counts[catId], RECENT_ITEMS_LIMIT);
                 } else {
                     span.innerText = counts[catId];
                 }
@@ -3888,7 +3892,7 @@ async function loadStreams(action, categoryId, type) {
                 };
                 return parseAddedTime(b) - parseAddedTime(a);
             });
-            items = items.slice(0, 20);
+            items = items.slice(0, RECENT_ITEMS_LIMIT);
         }
 
         originalItemsArray = items;

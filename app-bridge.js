@@ -1197,6 +1197,10 @@
                 document.documentElement.setAttribute('data-input-mode', 'remote');
             }
 
+            // نافذة الإشعارات لها تنقلها الخاص (firebase-config.js). بدون هذا كان محرك التنقل
+            // هنا يلتقط الأسهم أولاً ويحرّك التركيز في الصفحة خلف النافذة على الشاشات وTV Box.
+            if (document.querySelector('.mz-notif-panel.open')) return;
+
             var isPlayer = isAlMeZ0PlayerEnv();
 
             if (!isPlayer) {
@@ -1233,7 +1237,7 @@
     // نظام فحص وتنبيه التحديثات الذكي داخل التطبيق (In-App Smart Updater)
     // =========================================================================
     // 4. رقم الإصدار الحالي للتطبيق
-    const CURRENT_APP_VERSION = '1.3.3';
+    const CURRENT_APP_VERSION = '1.3.4';
     const CURRENT_WINDOWS_VERSION = '1.0.88';
 
     function compareVersions(v1, v2) {

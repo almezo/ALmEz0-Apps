@@ -8227,3 +8227,80 @@ body:not(.screen-is-dashboard) .nav-btn-downloads { display: none !important; }
 .ai-msg-sources .ai-src-title { font-size: 11px; opacity: .7; }
 .ai-src-chip { font-size: 11px; padding: 3px 9px; border-radius: 12px; background: rgba(255,255,255,.08); color: #9ecbff; text-decoration: none; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-src-chip:hover, .ai-src-chip:focus { background: rgba(255,255,255,.16); }
+
+/* =========================================================
+   اللغة الإنجليزية: قلب اتجاه المشغل بالكامل إلى LTR
+   ========================================================= */
+/* عناصر مكتوب عليها dir="rtl" مباشرة في HTML تُقلب هنا، وإلا بقيت عربية الاتجاه */
+html.lang-en body,
+html.lang-en [dir="rtl"] {
+    direction: ltr;
+}
+html.lang-en .profile-card,
+html.lang-en .copyright,
+html.lang-en .modal-content,
+html.lang-en .drawer,
+html.lang-en .sidebar {
+    direction: ltr;
+    text-align: left;
+}
+/* زر المساعد في جهة وزر اللغة في الجهة المقابلة تماماً، وينقلبان مع اتجاه اللغة */
+html.lang-en .ai-floating-trigger { right: auto; left: 24px; }
+html.lang-en .lang-floating-trigger { left: auto; right: 24px; }
+
+/* شريط التحكم في الفيديو: ترتيب الأزرار ينقلب ليطابق المشغلات الإنجليزية */
+html.lang-en .sp-controls,
+html.lang-en .video-controls,
+html.lang-en .player-controls,
+html.lang-en .controls-row,
+html.lang-en .sp-bottom-bar,
+html.lang-en .sp-top-bar {
+    direction: ltr;
+    flex-direction: row;
+}
+html.lang-en .sp-progress,
+html.lang-en .progress-bar,
+html.lang-en .seek-bar,
+html.lang-en input[type="range"] {
+    direction: ltr;
+}
+html.lang-en .sp-time,
+html.lang-en .time-display {
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+/* زر تغيير اللغة (يسار زر مساعد الميزو) */
+.lang-floating-trigger {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 99999;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(16, 122, 70, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(34, 197, 94, 0.35);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lang-floating-trigger:hover,
+.lang-floating-trigger:focus-visible {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.75), 0 0 30px rgba(34, 197, 94, 0.55);
+    outline: none;
+}
+.lang-btn-icon { font-size: 16px; line-height: 1; }
+@media (max-width: 600px) {
+    .lang-floating-trigger { left: 14px; padding: 9px 13px; font-size: 12.5px; }
+    html.lang-en .lang-floating-trigger { left: auto; right: 14px; }
+}
+/* الساعة والتاريخ في الشريط العلوي يبقيان بترتيب LTR في الإنجليزية */
+html.lang-en .auto-style-36 { direction: ltr; }

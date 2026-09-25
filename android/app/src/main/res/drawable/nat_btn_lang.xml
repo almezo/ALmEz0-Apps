@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- زر تغيير اللغة في لوحة التحكم: أخضر الميزو مع إطار أبيض عند التركيز -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="29dp" />
+            <gradient android:angle="135" android:startColor="#FF22C55E" android:endColor="#FF0E7A46" />
+            <stroke android:width="2.5dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="29dp" />
+            <gradient android:angle="135" android:startColor="#FF22C55E" android:endColor="#FF0E7A46" />
+            <stroke android:width="2.5dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="29dp" />
+            <gradient android:angle="135" android:startColor="#F222C55E" android:endColor="#F20E7A46" />
+            <stroke android:width="1.5dp" android:color="#59FFFFFF" />
+        </shape>
+    </item>
+</selector>

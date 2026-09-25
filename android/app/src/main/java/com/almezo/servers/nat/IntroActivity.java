@@ -43,6 +43,14 @@ public class IntroActivity extends BaseActivity {
         a.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
+    /** افتتاحية المشغل (مكعب الميزو) ثم الدخول للمشغل: تُستعمل بعد تغيير اللغة. */
+    public static void showPlayer(android.app.Activity a) {
+        if (a == null || a.isFinishing()) return;
+        Intent i = new Intent(a, IntroActivity.class);
+        a.startActivity(i);
+        a.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+    }
+
     /** نفس الافتتاحية بنص "سيرفرات الميزو": عند فتح التطبيق وعند الخروج من المشغل. */
     public static void showHome(android.app.Activity a) {
         if (a == null || a.isFinishing()) return;
@@ -120,8 +128,8 @@ public class IntroActivity extends BaseActivity {
         sub.animate().alpha(1f).translationY(0).setStartDelay(650).setDuration(500)
                 .setInterpolator(new DecelerateInterpolator(1.8f)).start();
 
-        // الشريط يمتلئ من اليمين لليسار (اتجاه القراءة العربية)
-        bar.post(() -> bar.setPivotX(bar.getWidth()));
+        // اتجاه امتلاء الشريط يتبع لغة المشغل: من اليمين بالعربية ومن اليسار بالإنجليزية
+        bar.post(() -> bar.setPivotX(Lang.isEnglish(this) ? 0f : bar.getWidth()));
         bar.animate().scaleX(1f).setStartDelay(300).setDuration(DURATION - 450)
                 .setInterpolator(new AccelerateInterpolator(0.6f)).start();
 

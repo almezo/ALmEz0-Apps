@@ -9524,7 +9524,7 @@ html:not(.mz-kbd):not([data-is-tv="true"]) select:focus-visible {
 .ledger-status-line i { color: #fbbf24; margin-inline-end: 6px; }
 
 /* ===== نموذج التسجيل: قائمة العمر وقائمة المدن ===== */
-.input-group select.auth-select { appearance: none; -webkit-appearance: none; cursor: pointer;
+.input-group select.auth-select { -webkit-appearance: none; appearance: none; cursor: pointer;
     background-image: linear-gradient(45deg, transparent 50%, #94a3b8 50%), linear-gradient(135deg, #94a3b8 50%, transparent 50%);
     background-position: 16px 50%, 11px 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-left: 30px; }
 .input-group select.auth-select option { background: #111827; color: #fff; }
@@ -9714,8 +9714,8 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
     position: fixed;
     inset: 0;
     background: rgba(2, 5, 10, 0.72);
-    backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
     display: none;
     align-items: center;
     justify-content: center;
@@ -9799,3 +9799,105 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
     transform: scale(1.01);
 }
 .mz-notif-item { transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+
+/* ===== شعارات البطاقات الشفافة (VIP وIPTV) ===== */
+.main-category-card .category-card-img.brand-badge-img,
+.main-category-card img[src*="-badge"] {
+    background: transparent;
+    border: 0;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
+    transition: filter 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.main-category-card.iptv:hover img[src*="iptv-badge"],
+.main-category-card.iptv:focus img[src*="iptv-badge"],
+.main-category-card.iptv:focus-visible img[src*="iptv-badge"] {
+    filter: drop-shadow(0 0 18px rgba(167, 139, 250, 0.5)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
+    transform: translateY(-2px);
+}
+
+.main-category-card.smart:hover img[src*="smart-badge"],
+.main-category-card.smart:focus img[src*="smart-badge"],
+.main-category-card.smart:focus-visible img[src*="smart-badge"] {
+    filter: drop-shadow(0 0 18px rgba(148, 210, 255, 0.5)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
+    transform: translateY(-2px);
+}
+
+.main-category-card.devices:hover img[src*="devices-badge"],
+.main-category-card.devices:focus img[src*="devices-badge"],
+.main-category-card.devices:focus-visible img[src*="devices-badge"] {
+    filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.5)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
+    transform: translateY(-2px);
+}
+
+.main-category-card.vip .category-card-img.vip-badge-img,
+.main-category-card.vip img[src*="vip-badge"] {
+    background: transparent;
+    border: 0;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
+    transition: filter 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.main-category-card.vip:hover img[src*="vip-badge"],
+.main-category-card.vip:focus img[src*="vip-badge"],
+.main-category-card.vip:focus-visible img[src*="vip-badge"] {
+    filter: drop-shadow(0 0 18px rgba(167, 139, 250, 0.55)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
+    transform: translateY(-2px);
+}
+
+/* ===== التحكم في حجم شعار البطاقة (وضع تعديل المدير) ===== */
+.logo-size-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.logo-size-preview {
+    width: 92px;
+    height: 92px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.35);
+}
+.logo-size-preview img { object-fit: contain; }
+.logo-size-controls { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.logo-size-controls label { color: var(--text-secondary); font-size: 12px; }
+.logo-size-controls label b { color: #fff; }
+.logo-size-controls input[type="range"] { width: 100%; accent-color: var(--green-accent); cursor: pointer; }
+.logo-size-reset {
+    align-self: flex-start;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-family: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+}
+.logo-size-reset:hover, .logo-size-reset:focus-visible { background: rgba(255, 255, 255, 0.12); color: #fff; outline: none; }
+
+/* زر حذف حساب عميل في مركز ذكاء العملاء */
+.intel-btn-delete {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.intel-btn-delete:hover, .intel-btn-delete:focus-visible {
+    background: #ef4444;
+    color: #fff;
+    border-color: #fff;
+    outline: none;
+}

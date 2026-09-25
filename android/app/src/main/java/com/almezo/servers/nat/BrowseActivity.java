@@ -59,6 +59,9 @@ public class BrowseActivity extends BaseActivity {
     private final List<Models.Item> shown = new ArrayList<>();
     private final Set<String> favIds = new HashSet<>();
     private final Set<String> prefetched = new HashSet<>();
+    /** عدد عناصر خانة "المضافة حديثاً" (كان 20) */
+    private static final int RECENT_ITEMS_LIMIT = 50;
+
     private String activeCatId = "all";
     private String sortMode = "default";
     private boolean hideNames = false;
@@ -257,13 +260,13 @@ public class BrowseActivity extends BaseActivity {
 
     private void rebuildCategories(List<Models.Category> serverCats, Map<String, Integer> counts) {
         categories.clear();
-        categories.add(new Models.Category("all", "الكل", allItems.size(), true));
-        categories.add(new Models.Category("favs", "المفضلة", store.favorites(type).size(), true));
+        categories.add(new Models.Category("all", Lang.t(this, "الكل"), allItems.size(), true));
+        categories.add(new Models.Category("favs", Lang.t(this, "المفضلة"), store.favorites(type).size(), true));
         if (Models.LIVE.equals(type)) {
-            categories.add(new Models.Category("continue", "آخر القنوات المشاهدة", store.continueWatching(type).size(), true));
+            categories.add(new Models.Category("continue", Lang.t(this, "آخر القنوات المشاهدة"), store.continueWatching(type).size(), true));
         } else {
-            categories.add(new Models.Category("continue", "متابعة المشاهدة", store.continueWatching(type).size(), true));
-            categories.add(new Models.Category("recent", "المضافة حديثاً", Math.min(20, allItems.size()), true));
+            categories.add(new Models.Category("continue", Lang.t(this, "متابعة المشاهدة"), store.continueWatching(type).size(), true));
+            categories.add(new Models.Category("recent", Lang.t(this, "المضافة حديثاً"), Math.min(RECENT_ITEMS_LIMIT, allItems.size()), true));
         }
         if (serverCats != null) {
             for (Models.Category c : serverCats) {
@@ -301,7 +304,7 @@ public class BrowseActivity extends BaseActivity {
         } else if ("recent".equals(activeCatId)) {
             List<Models.Item> sorted = new ArrayList<>(allItems);
             Collections.sort(sorted, (a, b) -> Long.compare(b.added, a.added));
-            base.addAll(sorted.subList(0, Math.min(20, sorted.size())));
+            base.addAll(sorted.subList(0, Math.min(RECENT_ITEMS_LIMIT, sorted.size())));
         } else {
             for (Models.Item it : allItems) if (activeCatId.equals(it.categoryId)) base.add(it);
         }

@@ -18,7 +18,7 @@ public final class NavBar {
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
-            clock.setText(Ui.clockText());
+            clock.setText(Ui.clockText(clock.getContext()));
             date.setText(Ui.dateText());
             handler.postDelayed(this, 1000);
         }

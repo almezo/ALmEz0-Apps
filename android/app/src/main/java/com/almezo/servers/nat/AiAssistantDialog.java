@@ -220,6 +220,22 @@ public final class AiAssistantDialog {
          */
         chatList.setFocusable(true);
         chatList.setFocusableInTouchMode(false);
+        // القصّ يبقى مفعّلاً دائماً: أي عنصر يأخذ التركيز داخل النافذة كان يُلغي قصّ الحواف
+        // عن الحاويات الأعلى، فتظهر الرسائل خارج إطار النافذة وكأنها شفافة.
+        chatList.setClipToPadding(true);
+        chatList.getViewTreeObserver().addOnGlobalFocusChangeListener((oldFocus, newFocus) -> {
+            try {
+                chatList.setClipToPadding(true);
+                View root = d.findViewById(R.id.ai_chat_list);
+                android.view.ViewParent pp = root != null ? root.getParent() : null;
+                for (int i = 0; i < 3 && pp instanceof android.view.ViewGroup; i++) {
+                    android.view.ViewGroup g = (android.view.ViewGroup) pp;
+                    g.setClipChildren(true);
+                    g.setClipToPadding(true);
+                    pp = g.getParent();
+                }
+            } catch (Throwable ignored) { }
+        });
         chatList.setOnKeyListener((v, keyCode, e) -> {
             if (e.getAction() != KeyEvent.ACTION_DOWN) return false;
             int step = Math.max(120, chatList.getHeight() / 3);
@@ -569,8 +585,10 @@ public final class AiAssistantDialog {
             boolean isActive = activeSession[0] != null && s.id.equals(activeSession[0].id);
             h.itemView.setActivated(isActive);
 
-            BaseActivity.applyFocusScale(h.itemView, 1.03f);
-            BaseActivity.applyFocusScale(h.btnDelete, 1.15f);
+            // بلا تكبير: تكبير الصف داخل قائمة لها حواف مستديرة كان يجعله يُرسم خارج اللوحة
+            // (Fx يوقف قصّ الحواف عند التركيز)، فتبدو المحادثة وكأنها خرجت من الصفحة.
+            BaseActivity.applyFocusScale(h.itemView, 1.0f);
+            BaseActivity.applyFocusScale(h.btnDelete, 1.08f);
 
             h.itemView.setOnClickListener(v -> listener.onSelect(s));
             // الريموت: أعلى/أسفل بين المحادثات نفسها (لا بين أزرار المسح المصطفة في عمود واحد)،
