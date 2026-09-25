@@ -895,8 +895,11 @@ exports.loginGuard = onCall(async (request) => {
 
     const rows = await guardRead(db, keys);
 
-    // نجاح الدخول: تصفير العدّ لهذه المفاتيح (السلّم يعود للبداية)
+    // نجاح الدخول: تصفير العدّ لهذه المفاتيح (السلّم يعود للبداية) - يتطلب تسجيل دخول موثّق لمنع التلاعب
     if (action === "success") {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "لا يمكن تصفير الحظر دون تسجيل دخول موثّق.");
+        }
         const batch = db.batch();
         rows.forEach((r) => {
             if (r.data) batch.set(r.ref, { attempts: 0, lockedUntil: 0, status: "cleared", tier: 0, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
