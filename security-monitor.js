@@ -21,6 +21,8 @@
     let currentSelectedDate = null;
     let logsUnsubscribe = null;
     const bannedDevicesSet = new Set();
+    let allBannedDocs = [];
+    let bannedSearchQuery = '';
     let lockoutsUnsubscribe = null;
     // سجلات يوم محدد من التقويم: تُجلب باستعلام مستقل عند الطلب مع كاش محلي
     const dayLogsCache = {};
@@ -91,7 +93,7 @@
     }
 
     /**
-     * الاستماع الحي لقائمة الأجهزة المحظورة في السحابة وتحديث الشاشة فوراً
+     * الاستماع الحي لقائمة الأجهزة والمستخدمين المحظورين في السحابة وتحديث الشاشة فوراً
      */
     function startLockoutsFeed() {
         if (lockoutsUnsubscribe) {
@@ -102,6 +104,7 @@
 
         lockoutsUnsubscribe = db.collection('security_lockouts').onSnapshot(function (snapshot) {
             bannedDevicesSet.clear();
+            allBannedDocs = [];
             snapshot.forEach(doc => {
                 const data = doc.data() || {};
                 // الحظر الدائم فقط هو الذي تم بقرار يدوي من المدير
@@ -112,12 +115,52 @@
                 const hwVal = (data.hw || doc.id.replace(/^hw_/, '')).trim();
                 if (isPermanentBan && hwVal) {
                     bannedDevicesSet.add(hwVal);
+                    allBannedDocs.push({
+                        id: doc.id,
+                        hw: hwVal,
+                        reason: data.reason || 'حظر إداري دائم بقرار من المدير العام',
+                        bannedAt: data.bannedAt || null,
+                        bannedAtMillis: data.bannedAtMillis || (data.bannedAt && data.bannedAt.toMillis ? data.bannedAt.toMillis() : null),
+                        bannedBy: data.bannedBy || 'admin',
+                        status: data.status,
+                        phone: (data.phone || data.userPhone || '').trim(),
+                        userName: (data.userName || data.name || '').trim()
+                    });
                 }
             });
+
+            // ترتيب المحظورين من الأحدث إلى الأقدم
+            allBannedDocs.sort((a, b) => (b.bannedAtMillis || 0) - (a.bannedAtMillis || 0));
+
+            updateBannedCounters();
             renderLogsTable();
+
+            const bannedModal = document.getElementById('bannedUsersModal');
+            if (bannedModal && bannedModal.style.display === 'block') {
+                renderBannedModalContent();
+            }
         }, function (err) {
             console.warn('⚠️ lockouts stream warning:', err);
         });
+    }
+
+    /**
+     * تحديث شارات وعدادات المحظورين في بطاقة KPI والتبويب وزر الأداة والنافذة
+     */
+    function updateBannedCounters() {
+        const count = bannedDevicesSet.size;
+
+        const kpiCountEl = document.getElementById('kpiBannedCount');
+        if (kpiCountEl) kpiCountEl.innerText = count.toLocaleString();
+
+        const tabCountEl = document.getElementById('bannedTabCount');
+        if (tabCountEl) tabCountEl.innerText = count.toLocaleString();
+
+        const btnCountEl = document.getElementById('btnBannedCount');
+        if (btnCountEl) btnCountEl.innerText = count.toLocaleString();
+
+        const modalBadgeEl = document.getElementById('modalBannedTotalBadge');
+        if (modalBadgeEl) modalBadgeEl.innerText = `${count} محظور`;
     }
 
     // =============================================
@@ -283,6 +326,8 @@
                 adminLastTimeEl.innerText = '--';
             }
         }
+
+        updateBannedCounters();
     }
 
     // =============================================
@@ -426,6 +471,10 @@
                 const isAuth = log.category === 'auth' ||
                     (log.action && /login|logout|register|password|session/i.test(log.action));
                 if (!isAuth) return false;
+            } else if (currentFilterCategory === 'banned') {
+                // عرض حركات الأجهزة والمستخدمين المحظورين فقط
+                const cHw = (log.hardwareFingerprint || (log.device && log.device.hardwareFingerprint) || '').replace(/[^\w-]/g, '').trim();
+                if (!cHw || !bannedDevicesSet.has(cHw)) return false;
             }
 
             // 2. فلترة البحث النصي
@@ -1068,6 +1117,20 @@
             await adminBanDevice(cleanHw, 'حظر إداري دائم بقرار من المدير العام');
 
             bannedDevicesSet.add(cleanHw);
+            if (!allBannedDocs.some(d => d.hw === cleanHw)) {
+                allBannedDocs.unshift({
+                    id: 'hw_' + cleanHw,
+                    hw: cleanHw,
+                    reason: 'حظر إداري دائم بقرار من المدير العام',
+                    bannedAtMillis: Date.now(),
+                    bannedBy: 'admin',
+                    userName: userName || '',
+                    phone: '',
+                    status: 'permanent_banned'
+                });
+            }
+            updateBannedCounters();
+            renderBannedModalContent();
             renderLogsTable();
 
             if (typeof showToast === 'function') {
@@ -1107,6 +1170,9 @@
             await adminLiftDeviceLockout(cleanHw, phone || '');
 
             bannedDevicesSet.delete(cleanHw);
+            allBannedDocs = allBannedDocs.filter(d => d.hw !== cleanHw);
+            updateBannedCounters();
+            renderBannedModalContent();
             renderLogsTable();
 
             if (typeof showToast === 'function') {
@@ -1125,6 +1191,218 @@
     function closeLogDetailsModal() {
         const modal = document.getElementById('logDetailsModal');
         if (modal) modal.style.display = 'none';
+    }
+
+    // =============================================
+    // 7.1 إدارة وتفاصيل قائمة المحظورين إدارياً
+    // =============================================
+    /**
+     * إثراء بيانات الجهاز المحظور بربطها بسجلات النشاط الحالية (لإظهار الاسم والهاتف والـ IP ونوع الجهاز)
+     */
+    function enrichBannedDevice(bannedItem) {
+        const hw = bannedItem.hw;
+        let matchedLog = null;
+        for (let i = 0; i < allLogs.length; i++) {
+            const l = allLogs[i];
+            const logHw = (l.hardwareFingerprint || (l.device && l.device.hardwareFingerprint) || '').replace(/[^\w-]/g, '').trim();
+            if (logHw && logHw === hw) {
+                matchedLog = l;
+                break;
+            }
+        }
+
+        const dev = matchedLog ? deviceOf(matchedLog) : {};
+        const userName = (matchedLog && matchedLog.user && matchedLog.user.name) || bannedItem.userName || 'مستخدم / جهاز محظور';
+        const phone = (matchedLog && matchedLog.user && matchedLog.user.phone) || bannedItem.phone || '';
+        const role = (matchedLog && matchedLog.user && matchedLog.user.role) || 'visitor';
+        const ip = (matchedLog && (matchedLog.publicIp || dev.publicIp)) || '';
+        const location = [dev.city, dev.country].filter(Boolean).join(', ');
+        const os = dev.os || '';
+        const browser = dev.browser || '';
+        const appPlatform = dev.appPlatform || '';
+        const lastAction = matchedLog ? (matchedLog.title || matchedLog.action || '') : '';
+
+        return {
+            ...bannedItem,
+            userName,
+            phone,
+            role,
+            ip,
+            location,
+            os,
+            browser,
+            appPlatform,
+            lastAction
+        };
+    }
+
+    window.openBannedModal = function () {
+        const modal = document.getElementById('bannedUsersModal');
+        if (!modal) return;
+        modal.style.display = 'block';
+        updateBannedCounters();
+        renderBannedModalContent();
+        const searchInput = document.getElementById('bannedSearchInput');
+        if (searchInput) {
+            searchInput.value = bannedSearchQuery;
+            setTimeout(() => searchInput.focus(), 80);
+        }
+    };
+
+    window.closeBannedModal = function () {
+        const modal = document.getElementById('bannedUsersModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.copyHwToClipboard = function (hw) {
+        if (!hw) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(hw).then(() => {
+                if (typeof showToast === 'function') showToast('📋 تم نسخ بصمة الجهاز: ' + hw, 'success', 2500);
+            }).catch(() => {
+                prompt('انسخ بصمة الجهاز يدوياً:', hw);
+            });
+        } else {
+            prompt('انسخ بصمة الجهاز يدوياً:', hw);
+        }
+    };
+
+    function renderBannedModalContent() {
+        const grid = document.getElementById('bannedModalGrid');
+        if (!grid) return;
+
+        const q = (bannedSearchQuery || '').toLowerCase().trim();
+
+        const enrichedList = allBannedDocs.map(enrichBannedDevice);
+
+        const filtered = enrichedList.filter(item => {
+            if (!q) return true;
+            return (
+                item.hw.toLowerCase().includes(q) ||
+                (item.userName && item.userName.toLowerCase().includes(q)) ||
+                (item.phone && item.phone.toLowerCase().includes(q)) ||
+                (item.ip && item.ip.toLowerCase().includes(q)) ||
+                (item.location && item.location.toLowerCase().includes(q)) ||
+                (item.reason && item.reason.toLowerCase().includes(q)) ||
+                (item.os && item.os.toLowerCase().includes(q)) ||
+                (item.browser && item.browser.toLowerCase().includes(q))
+            );
+        });
+
+        if (filtered.length === 0) {
+            if (allBannedDocs.length === 0) {
+                grid.innerHTML = `
+                    <div class="banned-empty-state">
+                        <i class="fas fa-shield-check banned-empty-icon"></i>
+                        <h3 style="color:#fff; margin-bottom:8px; font-size:1.15rem;">لا يوجد أي مستخدم أو جهاز محظور حالياً</h3>
+                        <p style="font-size:0.86rem; color:var(--text-secondary); max-width:440px; margin:0 auto; line-height:1.6;">
+                            كافة الزوار والعملاء يتمتعون بصلاحيات الوصول الطبيعية للموقع والسيرفرات دون أي حظر إداري نشط.
+                        </p>
+                    </div>
+                `;
+            } else {
+                grid.innerHTML = `
+                    <div class="banned-empty-state">
+                        <i class="fas fa-search banned-empty-icon" style="color:#ffb300;"></i>
+                        <h3 style="color:#fff; margin-bottom:8px; font-size:1.15rem;">لم يتم العثور على نتائج مطابقة</h3>
+                        <p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.6;">
+                            لا توجد أي أجهزة محظورة تطابق كلمة البحث "<strong>${escapeHtml(q)}</strong>".
+                        </p>
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(item => {
+            const roleBadge = getRoleBadge(item.role || 'visitor');
+            const timeAgo = item.bannedAtMillis ? formatRelativeTime(item.bannedAtMillis) : 'حظر دائم';
+            const dateStr = item.bannedAtMillis ? formatDate(item.bannedAtMillis) : '';
+            const timeStr = item.bannedAtMillis ? formatTime(item.bannedAtMillis) : '';
+
+            const isApp = item.appPlatform === 'android_app' || (item.browser && item.browser.includes('أندرويد'));
+            const isWinApp = item.appPlatform === 'windows_app' || (item.browser && item.browser.includes('ويندوز'));
+
+            html += `
+                <div class="banned-card">
+                    <div class="banned-card-head">
+                        <div class="banned-user-name">
+                            <i class="fas fa-user-times" style="color:#ff5252;"></i>
+                            <span>${escapeHtml(item.userName)}</span>
+                            ${roleBadge}
+                        </div>
+                        <span class="banned-badge">
+                            <i class="fas fa-ban"></i> محظور إدارياً
+                        </span>
+                    </div>
+
+                    <div class="banned-meta-row">
+                        ${item.phone ? `
+                            <div class="banned-meta-item" style="color:#4caf50; font-family:monospace; direction:ltr;">
+                                <i class="fas fa-phone-alt"></i>
+                                <strong>${escapeHtml(item.phone)}</strong>
+                            </div>
+                        ` : ''}
+
+                        ${item.ip ? `
+                            <div class="banned-meta-item" style="color:#4fc3f7; font-family:monospace;">
+                                <i class="fas fa-globe-americas"></i>
+                                <span>${escapeHtml(item.ip)}</span>
+                                ${item.location ? `<span style="color:var(--text-secondary); font-size:0.75rem;">(${escapeHtml(item.location)})</span>` : ''}
+                            </div>
+                        ` : ''}
+
+                        ${(item.os || item.browser) ? `
+                            <div class="banned-meta-item">
+                                <i class="fas fa-laptop"></i>
+                                <span>${escapeHtml(item.os)} ${item.browser ? '• ' + escapeHtml(item.browser) : ''}</span>
+                            </div>
+                        ` : ''}
+
+                        ${isApp ? `
+                            <div class="banned-meta-item" style="color:#4ade80;">
+                                <i class="fab fa-android"></i> تطبيق أندرويد
+                            </div>
+                        ` : isWinApp ? `
+                            <div class="banned-meta-item" style="color:#38bdf8;">
+                                <i class="fab fa-windows"></i> برنامج كمبيوتر
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="banned-hw-badge" title="بصمة الجهاز الفريدة المحظورة">
+                        <div style="display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis;">
+                            <i class="fas fa-fingerprint" style="color:#7c4dff;"></i>
+                            <span style="user-select:all; word-break:break-all;">${escapeHtml(item.hw)}</span>
+                        </div>
+                        <button type="button" onclick="copyHwToClipboard(${jsArg(item.hw)})" style="background:transparent; border:none; color:#b388ff; cursor:pointer; padding:2px 6px;" title="نسخ البصمة">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+
+                    ${item.reason ? `
+                        <div class="banned-reason-box">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>السبب:</strong> ${escapeHtml(item.reason)}
+                        </div>
+                    ` : ''}
+
+                    <div class="banned-action-row">
+                        <div class="banned-time-ago">
+                            <i class="fas fa-clock"></i>
+                            <span>${timeAgo} ${dateStr ? '(' + dateStr + ' ' + timeStr + ')' : ''}</span>
+                        </div>
+
+                        <button type="button" class="btn-lift-modal" onclick="liftLockoutAction(${jsArg(item.hw)}, ${jsArg(item.phone || '')})" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
+                            <i class="fas fa-unlock-alt"></i> رفع الحظر فوراً
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        grid.innerHTML = html;
     }
 
     // =============================================
@@ -1441,6 +1719,44 @@
         // إغلاق النافذة المنبثقة
         const closeBtn1 = document.getElementById('closeDetailsModalBtn');
         if (closeBtn1) closeBtn1.addEventListener('click', closeLogDetailsModal);
+
+        // نافذة قائمة المحظورين إدارياً
+        const kpiBannedCard = document.getElementById('kpiBannedCard');
+        if (kpiBannedCard) kpiBannedCard.addEventListener('click', window.openBannedModal);
+
+        const btnOpenBanned = document.getElementById('btnOpenBannedModal');
+        if (btnOpenBanned) btnOpenBanned.addEventListener('click', window.openBannedModal);
+
+        const closeBannedBtn = document.getElementById('closeBannedModalBtn');
+        if (closeBannedBtn) closeBannedBtn.addEventListener('click', window.closeBannedModal);
+
+        const bannedSearchInput = document.getElementById('bannedSearchInput');
+        if (bannedSearchInput) {
+            bannedSearchInput.addEventListener('input', function () {
+                bannedSearchQuery = this.value;
+                renderBannedModalContent();
+            });
+        }
+
+        // إغلاق النوافذ عند النقر على الخلفية
+        window.addEventListener('click', function (e) {
+            const bannedModal = document.getElementById('bannedUsersModal');
+            if (bannedModal && e.target === bannedModal) {
+                window.closeBannedModal();
+            }
+            const detailsModal = document.getElementById('logDetailsModal');
+            if (detailsModal && e.target === detailsModal) {
+                closeLogDetailsModal();
+            }
+        });
+
+        // إغلاق النوافذ بزر Escape
+        window.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                window.closeBannedModal();
+                closeLogDetailsModal();
+            }
+        });
     }
 
     // =============================================
