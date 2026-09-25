@@ -299,6 +299,7 @@
         .soc-kpi-card-banned { border-color: rgba(255, 23, 68, 0.35); cursor: pointer; }
         .soc-kpi-card-banned:hover { border-color: #ff1744; box-shadow: 0 8px 25px rgba(255, 23, 68, 0.3); }
         .kpi-banned-value { color: #ff5252 !important; }
+        .kpi-sub-banned { color: #ff8a80; }
 
         @keyframes pulseDanger {
             0%, 100% { box-shadow: 0 0 10px rgba(244, 67, 54, 0.1); }
@@ -870,6 +871,26 @@
             text-align: right;
             border: 1px solid rgba(255, 23, 68, 0.4) !important;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 23, 68, 0.2) !important;
+        }
+
+        .banned-modal-title {
+            margin-bottom: 4px;
+        }
+
+        .banned-modal-icon {
+            color: #ff5252;
+        }
+
+        .banned-modal-badge {
+            background: rgba(255, 23, 68, 0.2);
+            border-color: #ff1744;
+            color: #ff5252;
+        }
+
+        .banned-modal-subtitle {
+            font-size: 0.84rem;
+            color: var(--text-secondary);
+            margin: 0;
         }
 
         .banned-list-header {
@@ -1591,7 +1612,7 @@
                 <div class="soc-kpi-info">
                     <h4>المستخدمين والأجهزة المحظورة</h4>
                     <div class="kpi-value kpi-banned-value" id="kpiBannedCount">0</div>
-                    <div class="kpi-sub" style="color: #ff8a80;"><i class="fas fa-external-link-alt"></i> انقر لإدارة المحظورين</div>
+                    <div class="kpi-sub kpi-sub-banned"><i class="fas fa-external-link-alt"></i> انقر لإدارة المحظورين</div>
                 </div>
             </div>
 
@@ -1713,12 +1734,12 @@
             <span class="close-btn" id="closeBannedModalBtn">&times;</span>
             <div class="banned-list-header">
                 <div>
-                    <h2 class="modal-soc-title" style="margin-bottom: 4px;">
-                        <i class="fas fa-user-slash" style="color: #ff5252;"></i>
+                    <h2 class="modal-soc-title banned-modal-title">
+                        <i class="fas fa-user-slash banned-modal-icon"></i>
                         قائمة المستخدمين والأجهزة المحظورة إدارياً
-                        <span class="logs-count-badge" style="background: rgba(255, 23, 68, 0.2); border-color: #ff1744; color: #ff5252;" id="modalBannedTotalBadge">0 محظور</span>
+                        <span class="logs-count-badge banned-modal-badge" id="modalBannedTotalBadge">0 محظور</span>
                     </h2>
-                    <p style="font-size: 0.84rem; color: var(--text-secondary); margin: 0;">
+                    <p class="banned-modal-subtitle">
                         سجل الأجهزة والمستخدمين المحظورين نهائياً من دخول وسيرفرات الموقع، مع إمكانية رفع الحظر فوراً بضغطة زر.
                     </p>
                 </div>
