@@ -2245,6 +2245,7 @@ window.MizoLedger = (function () {
             window._almezoBroadcastListenerActive = true;
             try {
                 db.collection('broadcast_notifications')
+                    .where('targetUid', '==', '')
                     .orderBy('timestamp', 'desc')
                     .limit(8)
                     .onSnapshot(function (snap) {
@@ -2352,6 +2353,15 @@ window.MizoLedger = (function () {
                     .orderBy('timestamp', 'desc').limit(40).get();
                 mine.forEach(push);
             } catch (e) { }
+
+            // إذا كان المستخدم هو المدير العام، نجلب تنبيهاته الأمنية الخاصة من admin_security_alerts
+            if (uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1') {
+                try {
+                    var secAlerts = await db.collection('admin_security_alerts')
+                        .orderBy('timestamp', 'desc').limit(40).get();
+                    secAlerts.forEach(push);
+                } catch (e) { }
+            }
         }
 
         out.sort(function (a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });

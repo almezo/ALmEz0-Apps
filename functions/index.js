@@ -665,8 +665,39 @@ function logSanitizeDevice(device, ip) {
 }
 
 /**
- * تنبيه المدير بحدث أمني خطير عبر نظام إشعارات الميزو نفسه:
- * إشعار شخصي موجّه له وحده يظهر داخل الموقع والبرنامج، ويصل لهاتفه عبر FCM حتى والتطبيق مغلق.
+ * تنظيف فوري لجميع التنبيهات الأمنية القديمة المكشوفة في broadcast_notifications
+ * وحذف أي وثيقة تحتوي على نوع security_alert أو موجهة للمدير targetUid === AI_ADMIN_UID
+ */
+async function purgeLegacySecurityAlerts(db) {
+    let deletedCount = 0;
+    try {
+        const [snapKind, snapAdmin] = await Promise.all([
+            db.collection("broadcast_notifications").where("kind", "==", "security_alert").get(),
+            db.collection("broadcast_notifications").where("targetUid", "==", AI_ADMIN_UID).get()
+        ]);
+        const toDelete = new Map();
+        snapKind.docs.forEach((d) => toDelete.set(d.id, d.ref));
+        snapAdmin.docs.forEach((d) => toDelete.set(d.id, d.ref));
+
+        if (toDelete.size > 0) {
+            const batch = db.batch();
+            toDelete.forEach((ref) => batch.delete(ref));
+            await batch.commit();
+            deletedCount = toDelete.size;
+            logger.info("Purged exposed legacy security alerts from broadcast_notifications", { count: deletedCount });
+        }
+    } catch (err) {
+        logger.error("Failed to purge legacy security alerts", { error: err.message });
+    }
+    return deletedCount;
+}
+
+let legacyAlertsCleaned = false;
+
+/**
+ * تنبيه المدير بحدث أمني خطير:
+ * يُحفظ في مجموعة خاصة ومستقلة حصرياً بالمدير (admin_security_alerts) مفصولة تماماً عن إعلانات العملاء
+ * ويصل لهاتفه عبر FCM حتى والتطبيق مغلق.
  */
 async function logAlertAdmin(payload) {
     try {
@@ -677,21 +708,20 @@ async function logAlertAdmin(payload) {
             " • " + (payload.device.type || "جهاز غير معروف") +
             (payload.publicIp ? " • " + payload.publicIp : "") +
             (payload.page ? " • " + payload.page : "");
-        const doc = await fs().collection("broadcast_notifications").add({
-            type: "general",
+        const doc = await fs().collection("admin_security_alerts").add({
+            type: "security",
             title: "🚨 " + String(payload.title || "حدث أمني").slice(0, 120),
             message: body.slice(0, 240),
-            actionUrl: "",
+            actionUrl: "security-monitor.html",
             image: "",
             timestamp: now,
             createdAt: FieldValue.serverTimestamp(),
             senderUid: "system",
             active: true,
-            pending: false,
-            scheduledFor: 0,
             targetUid: AI_ADMIN_UID,
             kind: "security_alert",
-            logAction: payload.action
+            logAction: payload.action,
+            details: payload.details || {}
         });
         try {
             await getMessaging().send({
@@ -740,6 +770,12 @@ exports.logEvent = onCall(async (request) => {
         clientTime: String(d.clientTime || "").slice(0, 40)
     };
 
+    // تنظيف تلقائي أولي للإشعارات الأمنية العالقة إن وُجدت
+    if (!legacyAlertsCleaned) {
+        legacyAlertsCleaned = true;
+        purgeLegacySecurityAlerts(fs()).catch(() => { });
+    }
+
     const ref = await fs().collection("activity_logs").add(payload);
 
     // تنبيه فوري للمدير على واتساب للأحداث الخطيرة فقط
@@ -747,6 +783,16 @@ exports.logEvent = onCall(async (request) => {
         await logAlertAdmin(payload);
     }
     return { ok: true, id: ref.id };
+});
+
+exports.cleanLegacySecurityAlerts = onCall(async (request) => {
+    const uid = request.auth ? request.auth.uid : "";
+    const { getFirestore: fs } = require("firebase-admin/firestore");
+    const db = fs();
+    const isAdmin = uid === AI_ADMIN_UID || (await db.collection("admins").doc(uid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "هذه العملية للمدير فقط.");
+    const purged = await purgeLegacySecurityAlerts(db);
+    return { ok: true, purged: purged };
 });
 
 // =============================================
@@ -757,6 +803,7 @@ exports.logEvent = onCall(async (request) => {
 exports.cleanupActivityLogs = onSchedule({ schedule: "30 2 * * *", timeZone: "Africa/Tripoli" }, async () => {
     const { getFirestore: fs, Timestamp } = require("firebase-admin/firestore");
     const db = fs();
+    await purgeLegacySecurityAlerts(db);
     const cutoff = Timestamp.fromMillis(Date.now() - 60 * 24 * 60 * 60 * 1000);
     let removed = 0;
     for (let round = 0; round < 40; round++) {
