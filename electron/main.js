@@ -47,7 +47,9 @@ if (!gotTheLock) {
             height: 820,
             minWidth: 420,
             minHeight: 640,
-            show: false, // نُظهر النافذة فقط بعد تكبيرها لتفادي وميض نافذة صغيرة قبل التكبير الكامل
+            show: false,
+            fullscreen: true,
+            fullscreenable: true,
             title: localizedAppName,
             icon: path.join(__dirname, '../photo/logo.ico'),
             autoHideMenuBar: true,
@@ -81,16 +83,15 @@ if (!gotTheLock) {
         // Hide default top menu for clean native look
         Menu.setApplicationMenu(null);
 
-        // فتح البرنامج دائماً بوضعية النافذة المكبّرة بالكامل (Maximized) بدل نافذة صغيرة في المنتصف،
-        // مع إظهار النافذة فقط بعد التكبير لتفادي أي وميض بصري لحجمها الأصلي الصغير أولاً
-        // ملء الشاشة دائماً (الموقع والمشغل): بلا شريط عنوان ويندوز ويغطي شريط المهام، ويُغلق
-        // ويُصغَّر من زرّي الصفحة نفسها (window-minimize / window-close).
+        // فتح البرنامج دائماً بملء الشاشة مع إظهاره فور الجاهزية ثم تكبيره لتفادي انكماش النافذة
         mainWindow.once('ready-to-show', () => {
             try {
+                mainWindow.show();
                 mainWindow.maximize();
                 mainWindow.setFullScreen(true);
-            } catch (e) { }
-            mainWindow.show();
+            } catch (e) {
+                try { mainWindow.show(); } catch (err) { }
+            }
         });
 
         // Load the local index.html file
@@ -205,13 +206,30 @@ if (!gotTheLock) {
         }
     });
 
-    // زرّا النافذة داخل الصفحة (بديل شريط عنوان ويندوز المخفي في ملء الشاشة)
+    // أزرار التحكم بالنافذة داخل الصفحة (بديل شريط عنوان ويندوز المخفي في ملء الشاشة)
     ipcMain.on('window-minimize', () => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
     });
 
+    ipcMain.on('window-maximize', () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        if (mainWindow.isFullScreen()) {
+            mainWindow.setFullScreen(false);
+            mainWindow.maximize();
+        } else if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
+    });
+
+    ipcMain.on('window-toggle-fullscreen', () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    });
+
     ipcMain.on('window-close', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+        if (!mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
     });
 
     // لغة نظام المستخدم: مواضع أزرار النافذة في ويندوز تنقلب مع اللغات من اليمين لليسار
@@ -221,6 +239,10 @@ if (!gotTheLock) {
 
     ipcMain.handle('is-fullscreen', () => {
         return mainWindow && !mainWindow.isDestroyed() ? mainWindow.isFullScreen() : false;
+    });
+
+    ipcMain.handle('is-maximized', () => {
+        return mainWindow && !mainWindow.isDestroyed() ? (mainWindow.isMaximized() || mainWindow.isFullScreen()) : false;
     });
 
     // IPC listener for opening external URLs from renderer

@@ -2488,12 +2488,27 @@
         bar.innerHTML =
             '<button type="button" class="mz-win-btn" id="mzWinMin" title="تصغير إلى شريط المهام" aria-label="تصغير">' +
             '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="1" y="5.4" width="10" height="1.2" fill="currentColor"/></svg></button>' +
+            '<button type="button" class="mz-win-btn" id="mzWinMax" title="تكبير / استعادة الحجم" aria-label="تكبير">' +
+            '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>' +
             '<button type="button" class="mz-win-btn mz-win-close" id="mzWinClose" title="إغلاق البرنامج" aria-label="إغلاق">' +
             '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" stroke="currentColor" stroke-width="1.4" fill="none"/></svg></button>';
         document.body.appendChild(bar);
         document.getElementById('mzWinMin').addEventListener('click', function () { api.minimizeWindow(); });
+        var maxBtn = document.getElementById('mzWinMax');
+        if (maxBtn) {
+            maxBtn.addEventListener('click', function () {
+                if (typeof api.maximizeWindow === 'function') api.maximizeWindow();
+                else if (typeof api.toggleFullScreen === 'function') api.toggleFullScreen();
+                else if (typeof api.setFullScreen === 'function') api.setFullScreen(true);
+            });
+        }
         document.getElementById('mzWinClose').addEventListener('click', function () { api.closeWindow(); });
         document.body.classList.add('mz-desktop-fullscreen');
+
+        // تأكيد وضع ملء الشاشة فور جاهزية الواجهة
+        if (typeof api.setFullScreen === 'function') {
+            try { api.setFullScreen(true); } catch (e) { }
+        }
 
         if (api.getSystemLocale) {
             try { api.getSystemLocale().then(place).catch(function () { place(navigator.language); }); }
