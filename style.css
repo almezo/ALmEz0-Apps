@@ -9808,6 +9808,7 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
     display: flex; align-items: center; justify-content: center; border: 2px solid #0f1622;
 }
 .broadcast-tab-badge.hidden { display: none; }
+#broadcastInboxView { display: none; }
 #broadcastInboxView .mz-notif-list { max-height: 58vh; padding: 0; }
 
 /* تذييل الإرسال يختفي في تبويب "الإشعارات الواردة" (التنسيق الأصلي يستعمل !important) */

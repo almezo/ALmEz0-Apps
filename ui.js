@@ -568,7 +568,7 @@ function injectBroadcastModalHtml() {
                     </button>
                 </div>
 
-                <div id="broadcastInboxView" style="display:none;">
+                <div id="broadcastInboxView">
                     <div class="mz-notif-list" id="adminInboxList"></div>
                 </div>
 
