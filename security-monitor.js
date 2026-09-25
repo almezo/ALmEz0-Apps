@@ -7,16 +7,22 @@
 (function () {
     const ADMIN_TARGET_UID = '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1';
 
-    // كان البث الحي محصوراً بآخر 500 حركة لتقليل التكلفة، وبزيادة الزوار صارت حركات اليوم
-    // تُقصى من الشاشة. الحدّ الآن أوسع بكثير، ويمكن رفعه من هنا.
-    const LIVE_LOGS_LIMIT = 3000;
+    // حد البث الحي المباشر (1500 سجل لتغطية شاملة لليوم مع الحفاظ على سرعة الريل-تايم الفائقة بفضل الترقيم)
+    const LIVE_LOGS_LIMIT = 1500;
+    const PAGE_SIZE = 50;
+    let currentPage = 1;
+    let isRefreshingFeed = false;
+    let renderDebounceTimer = null;
+    let lastTopLogId = null;
+
     let allLogs = [];
     let currentFilterCategory = 'all';
     let currentSearchQuery = '';
     let currentSelectedDate = null;
     let logsUnsubscribe = null;
-    // سجلات يوم محدد من التقويم: البث الحي يحمل آخر 500 حركة فقط، فكان اختيار يوم سابق
-    // يعرض "لا توجد حركات" رغم وجودها. يُجلب اليوم المختار باستعلام مستقل عند الطلب.
+    const bannedDevicesSet = new Set();
+    let lockoutsUnsubscribe = null;
+    // سجلات يوم محدد من التقويم: تُجلب باستعلام مستقل عند الطلب مع كاش محلي
     const dayLogsCache = {};
     let dayLogsLoading = null;
 
@@ -80,7 +86,38 @@
         setupEventListeners();
         setupDatePicker();
         startRealtimeLogsFeed();
+        startLockoutsFeed();
         autoCleanupOldLogs();
+    }
+
+    /**
+     * الاستماع الحي لقائمة الأجهزة المحظورة في السحابة وتحديث الشاشة فوراً
+     */
+    function startLockoutsFeed() {
+        if (lockoutsUnsubscribe) {
+            try { lockoutsUnsubscribe(); } catch(e){}
+            lockoutsUnsubscribe = null;
+        }
+        if (typeof db === 'undefined' || !db) return;
+
+        lockoutsUnsubscribe = db.collection('security_lockouts').onSnapshot(function (snapshot) {
+            bannedDevicesSet.clear();
+            snapshot.forEach(doc => {
+                const data = doc.data() || {};
+                // الحظر الدائم فقط هو الذي تم بقرار يدوي من المدير
+                const isPermanentBan = (
+                    (data.status === 'permanent_banned' || data.isPermanent === true || data.isBanned === true) &&
+                    data.status !== 'lifted_by_admin'
+                );
+                const hwVal = (data.hw || doc.id.replace(/^hw_/, '')).trim();
+                if (isPermanentBan && hwVal) {
+                    bannedDevicesSet.add(hwVal);
+                }
+            });
+            renderLogsTable();
+        }, function (err) {
+            console.warn('⚠️ lockouts stream warning:', err);
+        });
     }
 
     // =============================================
@@ -107,7 +144,7 @@
 
         if (typeof db === 'undefined' || !db) return;
 
-        // استماع فوري لأحدث 500 سجل فقط لضمان سرعة الصفحة وعدم وجود تكلفة
+        // استماع فوري لأحدث 1500 سجل للبث الحي
         const logsRef = db.collection('activity_logs').orderBy('timestamp', 'desc').limit(LIVE_LOGS_LIMIT);
 
         logsUnsubscribe = logsRef.onSnapshot(function (snapshot) {
@@ -128,9 +165,9 @@
             const lastSyncEl = document.getElementById('lastSyncTime');
             if (lastSyncEl) lastSyncEl.innerText = timeStr;
 
-            // تحديث الإحصائيات ورسم الجدول
+            // تحديث الإحصائيات ورسم الجدول بسلاسة فائقة
             updateKpiMetrics();
-            renderLogsTable();
+            scheduleRenderTable();
         }, function (error) {
             console.warn('⚠️ Error on activity_logs stream:', error);
 
@@ -157,6 +194,17 @@
             if (typeof showToast === 'function') {
                 showToast('⚠️ خطأ في قراءة السجلات السحابية: ' + error.message, 'error', 5000);
             }
+        });
+    }
+
+    /**
+     * جدولة رسم الجدول مع تقليل العبء باستخدام requestAnimationFrame لمنع تجميد المتصفح
+     */
+    function scheduleRenderTable() {
+        if (renderDebounceTimer) return;
+        renderDebounceTimer = requestAnimationFrame(function () {
+            renderDebounceTimer = null;
+            renderLogsTable();
         });
     }
 
@@ -401,7 +449,8 @@
             }
 
             // 3. فلترة التاريخ (عرض نتائج اليوم فقط كافتراضي)
-            const logDate = new Date(getLogMillis(log));
+            const logMillis = log._millis || (log._millis = getLogMillis(log));
+            const logDate = new Date(logMillis);
             const targetDate = selectedDayStart();
 
             const isSameDay = logDate.getFullYear() === targetDate.getFullYear() &&
@@ -424,33 +473,81 @@
                     <i class="fas fa-spinner fa-spin fa-2x" style="margin-bottom:10px; color:#b388ff;"></i>
                     <p>جاري جلب حركات اليوم المحدد...</p>
                 </td></tr>`;
+            const pagBar = document.getElementById('socPaginationBar');
+            if (pagBar) pagBar.style.display = 'none';
             return;
         }
 
         const filtered = getFilteredLogs();
+        const totalLogs = filtered.length;
 
         // تحديث شارة العدد
         const badgeEl = document.getElementById('visibleLogsBadge');
-        if (badgeEl) badgeEl.innerText = `${filtered.length} حركة`;
+        if (badgeEl) badgeEl.innerText = `${totalLogs} حركة`;
 
-        if (filtered.length === 0) {
+        const pagBar = document.getElementById('socPaginationBar');
+
+        if (totalLogs === 0) {
+            if (pagBar) pagBar.style.display = 'none';
             tbody.innerHTML = `
                 <tr>
                     <td colspan="7" style="text-align:center; padding: 45px 20px; color:var(--text-secondary);">
                         <i class="fas fa-inbox fa-3x" style="opacity:0.3; margin-bottom:10px;"></i>
                         <p style="font-size:1.05rem;">لا توجد حركات تطابق معايير البحث والفلترة المحددة</p>
-                        <p style="font-size:0.85rem; color:#7c4dff; margin-top:8px;">اضغط على زر "تجربة تسجيل حركة حية" بالأعلى لاختبار التسجيل فوراً</p>
+                        <p style="font-size:0.85rem; color:#7c4dff; margin-top:8px;">اضغط على زر "فحص أمني للرادار" بالأعلى لاختبار التسجيل فوراً</p>
                     </td>
                 </tr>
             `;
             return;
         }
 
+        // حسابات الترقيم (50 حركة في الصفحة لضمان 60 إطار في الثانية وبدون أي تجميد)
+        const totalPages = Math.max(1, Math.ceil(totalLogs / PAGE_SIZE));
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIndex = (currentPage - 1) * PAGE_SIZE;
+        const endIndex = Math.min(startIndex + PAGE_SIZE, totalLogs);
+        const pageLogs = filtered.slice(startIndex, endIndex);
+
+        // تحديث عناصر شريط الترقيم
+        if (pagBar) pagBar.style.display = 'flex';
+        const pStartEl = document.getElementById('pagStart');
+        const pEndEl = document.getElementById('pagEnd');
+        const pTotalEl = document.getElementById('pagTotal');
+        const curPageEl = document.getElementById('currentPageNum');
+        const totPageEl = document.getElementById('totalPageNum');
+        const btnFirst = document.getElementById('btnFirstPage');
+        const btnPrev = document.getElementById('btnPrevPage');
+        const btnNext = document.getElementById('btnNextPage');
+        const btnLast = document.getElementById('btnLastPage');
+
+        if (pStartEl) pStartEl.innerText = String(startIndex + 1);
+        if (pEndEl) pEndEl.innerText = String(endIndex);
+        if (pTotalEl) pTotalEl.innerText = String(totalLogs);
+        if (curPageEl) curPageEl.innerText = String(currentPage);
+        if (totPageEl) totPageEl.innerText = String(totalPages);
+        if (btnFirst) btnFirst.disabled = (currentPage <= 1);
+        if (btnPrev) btnPrev.disabled = (currentPage <= 1);
+        if (btnNext) btnNext.disabled = (currentPage >= totalPages);
+        if (btnLast) btnLast.disabled = (currentPage >= totalPages);
+
+        // كشف وصول حركة جديدة لحظية لتمييزها بنبضة إشعاعية خفيفة
+        const isFirstPage = (currentPage === 1);
+        const currentTopId = pageLogs.length > 0 ? pageLogs[0].id : null;
+        let shouldHighlightFirst = false;
+        if (isFirstPage && currentTopId && lastTopLogId && currentTopId !== lastTopLogId) {
+            shouldHighlightFirst = true;
+        }
+        if (isFirstPage && currentTopId) {
+            lastTopLogId = currentTopId;
+        }
+
         let html = '';
-        filtered.forEach((log) => {
-            const logMillis = getLogMillis(log);
-            const dateFormatted = formatDate(logMillis);
-            const timeFormatted = formatTime(logMillis);
+        pageLogs.forEach((log, index) => {
+            const logMillis = log._millis || (log._millis = getLogMillis(log));
+            const dateFormatted = log._date || (log._date = formatDate(logMillis));
+            const timeFormatted = log._time || (log._time = formatTime(logMillis));
             const relTime = formatRelativeTime(logMillis);
 
             // تحديد فئة الصف والألوان
@@ -465,6 +562,10 @@
                 rowClass = 'log-customer';
             }
 
+            if (index === 0 && shouldHighlightFirst) {
+                rowClass += ' log-row-new';
+            }
+
             // رتبة المستخدم
             const role = (log.user && log.user.role) ? log.user.role : 'visitor';
             const roleLabel = getRoleBadge(role);
@@ -474,8 +575,8 @@
             // شارة مستوى الخطورة / النشاط
             const sevBadge = getSeverityBadge(log.severity, log.action);
 
-            // تفاصيل الجهاز والـ IP وبصمة العتاد
-            const device = deviceOf(log);
+            // تفاصيل الجهاز والـ IP وبصمة العتاد (محفوظة في الذاكرة لتفادي الـ regex المتكرر)
+            const device = log._device || (log._device = deviceOf(log));
             const t = device.type || '';
             const deviceTypeIcon = /تلفاز|شاشة|TV/i.test(t) ? 'fa-tv'
                 : (/هاتف|آيفون|iPhone/i.test(t) ? 'fa-mobile-alt'
@@ -539,6 +640,20 @@
                                 <i class="fas fa-fingerprint"></i> ${escapeHtml(hwFp)}
                             </div>
                         ` : ''}
+                        ${(function () {
+                            const cHw = hwFp ? hwFp.replace(/[^\w-]/g, '').trim() : '';
+                            const isBanned = cHw && cHw !== 'غير متوفر' && bannedDevicesSet.has(cHw);
+                            if (isBanned) {
+                                return `
+                                    <div style="margin-top:3px;">
+                                        <span style="background:rgba(255,23,68,0.22); border:1px solid #ff1744; color:#ff5252; padding:2px 7px; border-radius:5px; font-size:0.72rem; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 0 10px rgba(255,23,68,0.3);">
+                                            <i class="fas fa-ban"></i> محظور إدارياً
+                                        </span>
+                                    </div>
+                                `;
+                            }
+                            return '';
+                        })()}
                     </td>
                     <td>
                         <span style="font-family:monospace; font-size:0.82rem; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;">
@@ -550,11 +665,24 @@
                             <button type="button" class="btn-view-details" onclick="openLogDetailsModal(${jsArg(log.id)})" title="عرض السجل الكامل">
                                 <i class="fas fa-eye"></i> التفاصيل
                             </button>
-                            ${(log.action === 'client_locked_out' || log.action === 'lockout_attempt' || (log.details && log.details.tier)) && hwFp ? `
-                                <button type="button" class="btn-lift-ban" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone || '')}, ${jsArg(ipAddress || '')})" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
-                                    <i class="fas fa-unlock-alt"></i> رفع الحظر
-                                </button>
-                            ` : ''}
+                            ${(function () {
+                                const cHw = hwFp ? hwFp.replace(/[^\w-]/g, '').trim() : '';
+                                if (!cHw || cHw === 'غير متوفر') return '';
+                                const isBanned = bannedDevicesSet.has(cHw);
+                                if (isBanned) {
+                                    return `
+                                        <button type="button" class="btn-lift-ban" onclick="liftLockoutAction(${jsArg(cHw)}, ${jsArg(userPhone || '')})" title="رفع الحظر الأمني عن هذا الجهاز فوراً">
+                                            <i class="fas fa-unlock-alt"></i> رفع الحظر
+                                        </button>
+                                    `;
+                                } else {
+                                    return `
+                                        <button type="button" class="btn-ban-device" onclick="banDeviceAction(${jsArg(cHw)}, ${jsArg(userName)})" title="حظر هذا الجهاز نهائياً من دخول الموقع">
+                                            <i class="fas fa-ban"></i> حظر
+                                        </button>
+                                    `;
+                                }
+                            })()}
                         </div>
                     </td>
                 </tr>
@@ -646,8 +774,44 @@
         if (action === 'player_server_failed' || action === 'iptv_login_failed') {
             return '<span class="severity-badge sev-danger"><i class="fas fa-times-circle"></i> خطأ سيرفر</span>';
         }
-        if (action === 'player_server_logout') {
+        if (action === 'player_server_logout' || action === 'iptv_logout') {
             return '<span class="severity-badge sev-info" style="border-color:#9e9e9e; background:rgba(158,158,158,0.2); color:#bdbdbd;"><i class="fas fa-sign-out-alt"></i> خروج سيرفر</span>';
+        }
+        if (action === 'player_play_channel') {
+            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-play-circle"></i> بث مباشر</span>';
+        }
+        if (action === 'player_play_movie') {
+            return '<span class="severity-badge sev-info" style="border-color:#e040fb; background:rgba(224,64,251,0.2); color:#ea80fc;"><i class="fas fa-film"></i> فيلم</span>';
+        }
+        if (action === 'player_play_series') {
+            return '<span class="severity-badge sev-info" style="border-color:#ff9100; background:rgba(255,145,0,0.2); color:#ffab40;"><i class="fas fa-tv"></i> مسلسل</span>';
+        }
+        if (action === 'player_search') {
+            return '<span class="severity-badge sev-info" style="border-color:#ba68c8; background:rgba(186,104,200,0.18); color:#e1bee7;"><i class="fas fa-search"></i> بحث مشغل</span>';
+        }
+        if (action === 'player_open') {
+            return '<span class="severity-badge sev-info" style="border-color:#00b0ff; background:rgba(0,176,255,0.2); color:#80d8ff;"><i class="fas fa-play"></i> مشغل الميزو</span>';
+        }
+        if (action === 'player_browse_live') {
+            return '<span class="severity-badge sev-info" style="border-color:#00e676; background:rgba(0,230,118,0.15); color:#b9f6ca;"><i class="fas fa-list-ol"></i> قنوات مباشر</span>';
+        }
+        if (action === 'player_browse_movies') {
+            return '<span class="severity-badge sev-info" style="border-color:#ab47bc; background:rgba(171,71,188,0.15); color:#e1bee7;"><i class="fas fa-photo-video"></i> مكتبة أفلام</span>';
+        }
+        if (action === 'player_browse_series') {
+            return '<span class="severity-badge sev-info" style="border-color:#ffa726; background:rgba(255,167,38,0.15); color:#ffe082;"><i class="fas fa-layer-group"></i> مكتبة مسلسلات</span>';
+        }
+        if (action === 'home_view') {
+            return '<span class="severity-badge sev-info" style="border-color:#38bdf8; background:rgba(56,189,248,0.15); color:#7dd3fc;"><i class="fas fa-home"></i> الرئيسية</span>';
+        }
+        if (action === 'iptv_browse') {
+            return '<span class="severity-badge sev-info" style="border-color:#29b6f6; background:rgba(41,182,246,0.15); color:#81d4fa;"><i class="fas fa-satellite-dish"></i> باقات IPTV</span>';
+        }
+        if (action === 'smart_browse') {
+            return '<span class="severity-badge sev-info" style="border-color:#26a69a; background:rgba(38,166,154,0.15); color:#80cbc4;"><i class="fas fa-tv"></i> شاشات Smart</span>';
+        }
+        if (action === 'vip_browse') {
+            return '<span class="severity-badge sev-warning" style="border-color:#ffd700; background:rgba(255,215,0,0.15); color:#ffe082;"><i class="fas fa-crown"></i> باقات VIP</span>';
         }
         if (action === 'app_download') {
             return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-download"></i> تنزيل تطبيق</span>';
@@ -670,6 +834,18 @@
         }
 
         let parts = [];
+
+        // بيانات تشغيل ومشاهدة القنوات والأفلام والمسلسلات
+        if (details.channel) parts.push(`📺 القناة: <strong style="color:#69f0ae;">${escapeHtml(details.channel)}</strong>`);
+        if (details.movie) parts.push(`🎬 الفيلم: <strong style="color:#ea80fc;">${escapeHtml(details.movie)}</strong>`);
+        if (details.series) parts.push(`🍿 المسلسل: <strong style="color:#ffab40;">${escapeHtml(details.series)}</strong>`);
+        if (details.server && (!title || !title.includes(details.server))) parts.push(`🛰️ السيرفر: <strong style="color:#80d8ff;">${escapeHtml(details.server)}</strong>`);
+        if (details.username && (!title || !title.includes(details.username))) parts.push(`👤 الاشتراك: <code style="color:#b388ff; background:rgba(179,136,255,0.12); padding:1px 5px; border-radius:4px; font-weight:bold;">${escapeHtml(details.username)}</code>`);
+        if (details.section) parts.push(`📑 القسم: <strong>${escapeHtml(details.section)}</strong>`);
+        if (details.query) parts.push(`🔍 البحث: "<strong>${escapeHtml(details.query)}</strong>"`);
+        if (details.expDate) parts.push(`📅 الانتهاء: ${escapeHtml(details.expDate)}`);
+
+        // الحظر والتنبيهات
         if (details.formattedDuration && (!title || !title.includes(details.formattedDuration))) {
             parts.push(`⏳ مدة الحظر: <strong style="color:#ff5252;">${escapeHtml(details.formattedDuration)}</strong>`);
         }
@@ -680,10 +856,17 @@
         if (details.attempts && !details.tier && (!title || !title.includes(`المحاولة ${details.attempts}`))) {
             parts.push(`🔢 المحاولة ${escapeHtml(String(details.attempts))}`);
         }
-        if (details.product) parts.push(`📦 <strong>${escapeHtml(details.product)}</strong>`);
+
+        // المنتجات والمشتريات
+        if (details.product && (!title || !title.includes(details.product))) parts.push(`📦 <strong>${escapeHtml(details.product)}</strong>`);
         if (details.duration && !details.formattedDuration) parts.push(`⏳ ${escapeHtml(details.duration)}`);
         if (details.price) parts.push(`💰 ${escapeHtml(String(details.price))} د.ل`);
         if (details.amount) parts.push(`💸 ${escapeHtml(String(details.amount))} د.ل`);
+        if (details.paymentMethod) parts.push(`💳 ${escapeHtml(details.paymentMethod)}`);
+        if (details.customerName && (!title || !title.includes(details.customerName))) parts.push(`👤 العميل: ${escapeHtml(details.customerName)}`);
+        if (details.newRole) parts.push(`🎖️ رتبة: ${escapeHtml(details.newRole)}`);
+        if (details.oldName) parts.push(`سابقاً: ${escapeHtml(details.oldName)}`);
+
         if (details.reason && details.reason !== 'رفع يدوي من لوحة تحكم الرادار الأمني') {
             let rsn = details.reason;
             if (rsn.includes('تكرار إدخال كلمة سر خاطئة 3 مرات') || rsn.includes('Brute-Force')) {
@@ -727,32 +910,109 @@
         const logMillis = getLogMillis(log);
         const timeFormatted = formatTime(logMillis);
         const dateFormatted = formatDate(logMillis);
-
-        const isLockoutLog = log.action === 'client_locked_out' || log.action === 'lockout_attempt' || (log.details && log.details.tier);
+        const hwFp = log.hardwareFingerprint || (log.device && log.device.hardwareFingerprint) || '';
+        const cleanHwFp = hwFp ? hwFp.replace(/[^\w-]/g, '').trim() : '';
+        const isHwBanned = cleanHwFp && cleanHwFp !== 'غير متوفر' && bannedDevicesSet.has(cleanHwFp);
         const userPhone = log.user && log.user.phone ? log.user.phone : '';
 
         const device = log.device || {};
         const ipAddress = log.publicIp || device.publicIp || '';
         const locationStr = [device.city, device.country].filter(Boolean).join(', ');
         const ispStr = device.isp || '';
-        const hwFp = log.hardwareFingerprint || device.hardwareFingerprint || 'غير متوفر';
 
         let lockoutControlHtml = '';
-        if (isLockoutLog && hwFp && hwFp !== 'غير متوفر') {
-            lockoutControlHtml = `
-                <div class="lockout-control-card">
-                    <div>
-                        <div style="color:#ff5252; font-weight:800; font-size:0.98rem; margin-bottom:3px; display:flex; align-items:center; gap:6px;">
-                            <i class="fas fa-user-lock fa-shake"></i> هذا الجهاز مسجل كجهاز محظور أمنياً
+        if (cleanHwFp && cleanHwFp !== 'غير متوفر') {
+            if (isHwBanned) {
+                lockoutControlHtml = `
+                    <div class="lockout-control-card" style="border-color:#ff1744; background:linear-gradient(135deg, rgba(255,23,68,0.22), rgba(0,0,0,0.55)); margin-bottom:14px;">
+                        <div>
+                            <div style="color:#ff5252; font-weight:800; font-size:0.98rem; margin-bottom:3px; display:flex; align-items:center; gap:6px;">
+                                <i class="fas fa-ban fa-shake"></i> هذا الجهاز مسجل كجهاز محظور أمنياً نهائياً من دخول الموقع
+                            </div>
+                            <div style="font-size:0.82rem; color:#cfd8dc;">
+                                بصمة الجهاز: <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(cleanHwFp)}</span>
+                                ${userPhone ? ` | الهاتف: <span style="color:#69f0ae; font-family:monospace;">${escapeHtml(userPhone)}</span>` : ''}
+                            </div>
                         </div>
-                        <div style="font-size:0.82rem; color:#cfd8dc;">
-                            بصمة الجهاز: <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(hwFp)}</span>
-                            ${userPhone ? ` | الهاتف: <span style="color:#69f0ae; font-family:monospace;">${escapeHtml(userPhone)}</span>` : ''}
-                        </div>
+                        <button type="button" class="btn-lift-ban" style="padding:9px 18px; font-size:0.9rem;" onclick="liftLockoutAction(${jsArg(cleanHwFp)}, ${jsArg(userPhone)})">
+                            <i class="fas fa-unlock-alt"></i> رفع الحظر فوراً
+                        </button>
                     </div>
-                    <button type="button" class="btn-lift-ban" style="padding:9px 18px; font-size:0.9rem;" onclick="liftLockoutAction(${jsArg(hwFp)}, ${jsArg(userPhone)}, ${jsArg(log.publicIp || '')})">
-                        <i class="fas fa-unlock-alt"></i> رفع الحظر فوراً
-                    </button>
+                `;
+            } else {
+                lockoutControlHtml = `
+                    <div class="lockout-control-card" style="border-color:#7c4dff; background:linear-gradient(135deg, rgba(124,77,255,0.12), rgba(0,0,0,0.45)); margin-bottom:14px;">
+                        <div>
+                            <div style="color:#b388ff; font-weight:800; font-size:0.98rem; margin-bottom:3px; display:flex; align-items:center; gap:6px;">
+                                <i class="fas fa-shield-alt"></i> إجراءات أمان الجهاز
+                            </div>
+                            <div style="font-size:0.82rem; color:#cfd8dc;">
+                                بصمة الجهاز: <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(cleanHwFp)}</span>
+                                ${userPhone ? ` | الهاتف: <span style="color:#69f0ae; font-family:monospace;">${escapeHtml(userPhone)}</span>` : ''}
+                            </div>
+                        </div>
+                        <button type="button" class="btn-ban-device" style="padding:9px 18px; font-size:0.9rem;" onclick="banDeviceAction(${jsArg(cleanHwFp)}, ${jsArg(log.user ? log.user.name : '')})">
+                            <i class="fas fa-ban"></i> حظر هذا الجهاز نهائياً
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        let detailsExtraHtml = '';
+        if (log.details && (typeof log.details === 'object' ? Object.keys(log.details).length > 0 : String(log.details).trim())) {
+            let innerText = '';
+            if (typeof log.details === 'object') {
+                const friendlyKeyMap = {
+                    channel: '📺 اسم القناة',
+                    movie: '🎬 اسم الفيلم',
+                    series: '🍿 اسم المسلسل',
+                    server: '🛰️ اسم السيرفر',
+                    serverName: '🛰️ اسم السيرفر',
+                    serverCode: '🔢 كود السيرفر',
+                    username: '👤 اسم المستخدم / كود الاشتراك',
+                    streamId: '🔢 معرّف البث (Stream ID)',
+                    expDate: '📅 تاريخ انتهاء الاشتراك',
+                    type: '🎯 نوع المحتوى',
+                    section: '📑 القسم المفتوح',
+                    page: '📄 اسم الصفحة',
+                    mode: '⚙️ نمط التشغيل',
+                    query: '🔍 كلمة البحث',
+                    product: '📦 اسم المنتج / الخدمة',
+                    productId: '🆔 معرّف المنتج',
+                    name: '🏷️ الاسم',
+                    price: '💰 السعر',
+                    amount: '💸 المبلغ',
+                    duration: '⏳ المدة',
+                    paymentMethod: '💳 طريقة الدفع',
+                    customerName: '👤 اسم العميل',
+                    customerId: '🆔 معرّف العميل',
+                    phone: '📞 رقم الهاتف',
+                    newRole: '🎖️ الرتبة المحددة',
+                    oldName: '📝 الاسم السابق',
+                    appName: '📱 اسم التطبيق',
+                    platform: '💻 المنصة',
+                    reason: '⚠️ السبب المسجل',
+                    attempts: '🔢 عدد المحاولات',
+                    formattedDuration: '⏳ مدة الحظر المؤقت',
+                    tier: '🪜 مستوى الحظر',
+                    alert: '🚨 نوع التنبيه',
+                    cardKey: '🔑 مفتاح البطاقة',
+                    enabled: '🔘 الحالة',
+                    portal: '🌐 البوابة'
+                };
+                innerText = Object.entries(log.details).map(([k, v]) => {
+                    const label = friendlyKeyMap[k] || k;
+                    const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                    return `<div style="margin-bottom:5px;"><strong style="color:#b388ff;">${escapeHtml(label)}:</strong> <span style="color:#cfd8dc; font-weight:600;">${escapeHtml(val)}</span></div>`;
+                }).join('');
+            } else {
+                innerText = escapeHtml(String(log.details));
+            }
+            detailsExtraHtml = `
+                <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px 14px; margin-top:12px;">
+                    <div style="color:#ffb74d; font-weight:bold; font-size:0.9rem; margin-bottom:8px;"><i class="fas fa-info-circle"></i> تفاصيل إضافية للحركة:</div>
+                    <div style="font-size:0.85rem; line-height:1.7;">${innerText}</div>
                 </div>
             `;
         }
@@ -765,9 +1025,10 @@
                 <p><strong>الهاتف:</strong> ${log.user && log.user.phone ? escapeHtml(log.user.phone) : 'غير متوفر'}</p>
                 <p><strong>التوقيت:</strong> ${dateFormatted} - ${timeFormatted}</p>
                 <p><strong>عنوان IP العام (Public IP):</strong> <span style="color:#4fc3f7; font-family:monospace; font-weight:bold; font-size:1.05rem;">${escapeHtml(ipAddress)}</span> ${locationStr ? `<span style="color:var(--text-secondary);">(${escapeHtml(locationStr)}${ispStr ? ` - ${escapeHtml(ispStr)}` : ''})</span>` : ''}</p>
-                <p><strong>بصمة الجهاز الرقمية والعتادية (Hardware ID):</strong> <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(hwFp)}</span></p>
+                <p><strong>بصمة الجهاز الرقمية والعتادية (Hardware ID):</strong> <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(cleanHwFp || hwFp)}</span></p>
                 <p><strong>الصفحة:</strong> ${escapeHtml(log.page || '—')}</p>
                 <p><strong>الجهاز والمتصفح:</strong> ${escapeHtml(log.device ? `${log.device.os} - ${log.device.browser} (${log.device.type})` : '—')}</p>
+                ${detailsExtraHtml}
             </div>
         `;
 
@@ -775,35 +1036,88 @@
     };
 
     /**
-     * تنفيذ رفع الحظر الأمني عن جهاز أو رقم من قبل المدير
+     * تنفيذ حظر جهاز نهائياً ببصمته من قبل المدير
      */
-    window.liftLockoutAction = async function (hw, phone, ip) {
+    window.banDeviceAction = async function (hw, userName) {
         if (!hw || hw === 'غير متوفر') {
             if (typeof showToast === 'function') showToast('⚠️ لا يمكن تحديد بصمة الجهاز لهذا السجل', 'error');
             return;
         }
 
-        const phoneLabel = phone ? ` ورقم الهاتف (${phone})` : '';
-        const confirmed = await showConfirm(`هل أنت متأكد من رفع الحظر الأمني عن الجهاز (${hw})${phoneLabel} فوراً؟`, { title: 'رفع الحظر' });
+        const cleanHw = hw.replace(/[^\w-]/g, '').trim();
+
+        // حماية المدير من حظر جهازه الحالي بالخطأ
+        const currentHw = (typeof getHardwareFingerprint === 'function') ? getHardwareFingerprint() : '';
+        if (currentHw && currentHw === cleanHw) {
+            const selfConfirm = await showConfirm(
+                '⚠️ تحذير أمني شديد الخطورة:\nبصمة هذا الجهاز تطابق بصمة جهازك الحالي الذي تستخدمه الآن!\nحظر جهازك سيؤدي فوراً لمنعك من دخول الموقع بالكامل.\n\nهل أنت متأكد تماماً من رغبتك في حظر جهازك الشخصي؟',
+                { title: 'تحذير: حظر جهاز المدير' }
+            );
+            if (!selfConfirm) return;
+        }
+
+        const userLabel = userName ? ` للمستخدم (${userName})` : '';
+        const confirmed = await showConfirm(
+            `هل أنت متأكد من حظر هذا الجهاز نهائياً من دخول الموقع؟\n\nالبصمة: (${cleanHw})${userLabel}\n\n⚠️ هذا الحظر دائم ومخصص لبصمة الجهاز ولن يتمكن صاحبه من فتح أي صفحة في الموقع حتى تقوم برفع الحظر عنه بنفسك.`,
+            { title: 'تأكيد حظر الجهاز نهائياً' }
+        );
         if (!confirmed) return;
 
         try {
-            // رفع الحظر فعلياً = الكتابة في السحابة، فالجهاز المحظور يقرأ حالته منها.
-            // (تصفير التخزين المحلي هنا كان يمسّ متصفح المدير نفسه لا الجهاز المحظور.)
-            if (typeof adminLiftDeviceLockout !== 'function') throw new Error('دالة رفع الحظر غير محمّلة');
-            // يرفع الحظر عن مفاتيحه الثلاثة في السيرفر: بصمة الجهاز، وعنوان IP، ورقم الهاتف
-            await adminLiftDeviceLockout(hw, phone, ip || '');
+            if (typeof adminBanDevice !== 'function') throw new Error('دالة حظر الجهاز غير محمّلة');
+            await adminBanDevice(cleanHw, 'حظر إداري دائم بقرار من المدير العام');
+
+            bannedDevicesSet.add(cleanHw);
+            renderLogsTable();
 
             if (typeof showToast === 'function') {
-                showToast(`✅ تم رفع الحظر الأمني عن الجهاز (${hw}) بنجاح`, 'success', 5000);
+                showToast(`⛔ تم حظر الجهاز (${cleanHw}) نهائياً بنجاح ومنعه من الموقع`, 'success', 5000);
+            }
+
+            const modal = document.getElementById('logDetailsModal');
+            if (modal) modal.style.display = 'none';
+        } catch (err) {
+            console.error('فشل حظر الجهاز:', err);
+            if (typeof showToast === 'function') {
+                showToast('❌ تعذر تنفيذ الحظر: ' + (err.message || 'خطأ غير معروف'), 'error', 6000);
+            }
+        }
+    };
+
+    /**
+     * تنفيذ رفع الحظر الأمني عن جهاز من قبل المدير
+     */
+    window.liftLockoutAction = async function (hw, phone) {
+        if (!hw || hw === 'غير متوفر') {
+            if (typeof showToast === 'function') showToast('⚠️ لا يمكن تحديد بصمة الجهاز لهذا السجل', 'error');
+            return;
+        }
+
+        const cleanHw = hw.replace(/[^\w-]/g, '').trim();
+
+        const phoneLabel = phone ? ` ورقم الهاتف (${phone})` : '';
+        const confirmed = await showConfirm(
+            `هل أنت متأكد من رفع الحظر الأمني عن الجهاز:\n(${cleanHw})${phoneLabel}\n\nسيعود الجهاز قادراً على فتح الموقع واستخدامه فوراً.`,
+            { title: 'تأكيد رفع الحظر عن الجهاز' }
+        );
+        if (!confirmed) return;
+
+        try {
+            if (typeof adminLiftDeviceLockout !== 'function') throw new Error('دالة رفع الحظر غير محمّلة');
+            await adminLiftDeviceLockout(cleanHw, phone || '');
+
+            bannedDevicesSet.delete(cleanHw);
+            renderLogsTable();
+
+            if (typeof showToast === 'function') {
+                showToast(`✅ تم رفع الحظر الأمني عن الجهاز (${cleanHw}) بنجاح`, 'success', 5000);
             }
             const modal = document.getElementById('logDetailsModal');
             if (modal) modal.style.display = 'none';
         } catch (err) {
-            // كان يُعرض هنا "✅ تم فك الحظر" والجهاز ما زال محظوراً فعلاً في السحابة
             console.error('فشل رفع الحظر:', err);
             if (typeof showToast === 'function') {
-                showToast('❌ لم يُرفع الحظر: ' + (err && err.message ? err.message : 'خطأ غير معروف') + ' — الجهاز ما زال محظوراً، حاول مجدداً.', 'error', 7000);
+                showToast('❌ لم يُرفع الحظر: ' + (err && err.message ? err.message : 'خطأ غير معروف'), 'error', 7000);
             }
         }
     };
@@ -833,8 +1147,10 @@
                     title: '🛰️ فحص أمني للرادار',
                     details: { test: 'فحص الاتصال اللحظي', time: new Date().toLocaleTimeString('ar-LY') }
                 });
+                currentPage = 1;
+                renderLogsTable();
                 if (typeof showToast === 'function') {
-                    showToast('✅ تم إرسال الحركة التجريبية بنجاح. راقب ظهورها في الجدول الآن.', 'success');
+                    showToast('✅ تم إرسال الحركة التجريبية بنجاح. راقب ظهورها فوراً بأعلى الجدول ⚡', 'success');
                 }
             }
         } catch (e) {
@@ -974,6 +1290,75 @@
     // =============================================
     // 11. إعداد الأحداث والتحكم
     // =============================================
+    /**
+     * تحديث فوري مباشر للرادار وسجل الحركات مع إجبار جلب من السيرفر وإلغاء الكاش
+     */
+    async function handleManualRefreshFeed() {
+        if (isRefreshingFeed) return;
+        isRefreshingFeed = true;
+
+        const btn = document.getElementById('btnRefreshFeed');
+        const icon = document.getElementById('refreshFeedIcon') || (btn ? btn.querySelector('i') : null);
+        if (btn) btn.disabled = true;
+        if (icon) icon.classList.add('fa-spin');
+
+        try {
+            // 1. إذا كان المدير يتصفح يوماً محدداً من التقويم
+            if (!isTodaySelected() && currentSelectedDate) {
+                delete dayLogsCache[currentSelectedDate];
+                await loadSelectedDay();
+            } else {
+                // 2. تحديث البث المباشر لليوم: جلب فوري من السيرفر لكسر أي كاش محلي
+                if (typeof db !== 'undefined' && db) {
+                    try {
+                        const snap = await db.collection('activity_logs')
+                            .orderBy('timestamp', 'desc')
+                            .limit(LIVE_LOGS_LIMIT)
+                            .get({ source: 'server' })
+                            .catch(() => db.collection('activity_logs').orderBy('timestamp', 'desc').limit(LIVE_LOGS_LIMIT).get());
+
+                        if (snap && !snap.empty) {
+                            allLogs = [];
+                            snap.forEach(doc => {
+                                allLogs.push({ id: doc.id, ...doc.data() });
+                            });
+                            allLogs.sort((a, b) => getLogMillis(b) - getLogMillis(a));
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Server force-fetch error:', e);
+                    }
+                }
+
+                // إعادة تفعيل المستمع اللحظي للسجلات وقائمة الحظر
+                startRealtimeLogsFeed();
+                startLockoutsFeed();
+                updateKpiMetrics();
+            }
+
+            currentPage = 1;
+            renderLogsTable();
+
+            // تحديث وقت المزامنة فوراً
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            const lastSyncEl = document.getElementById('lastSyncTime');
+            if (lastSyncEl) lastSyncEl.innerText = timeStr;
+
+            if (typeof showToast === 'function') {
+                showToast('✅ تم تحديث الرادار وسجل الحركات بنجاح 🔄', 'success', 2500);
+            }
+        } catch (err) {
+            console.error('Error during manual feed refresh:', err);
+            if (typeof showToast === 'function') {
+                showToast('⚠️ تعذر تحديث السجلات: ' + (err.message || 'خطأ غير معروف'), 'error', 4000);
+            }
+        } finally {
+            if (icon) icon.classList.remove('fa-spin');
+            if (btn) btn.disabled = false;
+            setTimeout(() => { isRefreshingFeed = false; }, 400);
+        }
+    }
+
     function setupEventListeners() {
         // تبويبات الفلاتر
         document.querySelectorAll('.soc-tab-btn').forEach(btn => {
@@ -981,6 +1366,7 @@
                 document.querySelectorAll('.soc-tab-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 currentFilterCategory = this.dataset.filter || 'all';
+                currentPage = 1;
                 renderLogsTable();
             });
         });
@@ -990,18 +1376,49 @@
         if (searchInput) {
             searchInput.addEventListener('input', function () {
                 currentSearchQuery = this.value.trim();
+                currentPage = 1;
                 renderLogsTable();
             });
         }
 
-        // زر التحديث اللحظي
+        // زر التحديث اللحظي المطور
         const btnRefresh = document.getElementById('btnRefreshFeed');
         if (btnRefresh) {
-            btnRefresh.addEventListener('click', function () {
-                startRealtimeLogsFeed();
-                showToast('تم تحديث تدفق السجلات مباشرة 🔄', 'info', 1500);
-            });
+            btnRefresh.addEventListener('click', handleManualRefreshFeed);
         }
+
+        // أزرار الترقيم السريع لجدول الرصد اللحظي
+        const btnFirst = document.getElementById('btnFirstPage');
+        if (btnFirst) btnFirst.addEventListener('click', () => { currentPage = 1; renderLogsTable(); });
+
+        const btnPrev = document.getElementById('btnPrevPage');
+        if (btnPrev) btnPrev.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderLogsTable();
+                const tbl = document.getElementById('socTable');
+                if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+
+        const btnNext = document.getElementById('btnNextPage');
+        if (btnNext) btnNext.addEventListener('click', () => {
+            const filtered = getFilteredLogs();
+            const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderLogsTable();
+                const tbl = document.getElementById('socTable');
+                if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+
+        const btnLast = document.getElementById('btnLastPage');
+        if (btnLast) btnLast.addEventListener('click', () => {
+            const filtered = getFilteredLogs();
+            currentPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+            renderLogsTable();
+        });
 
         // زر إرسال حركة تجريبية
         const btnTest = document.getElementById('btnTestLog');
@@ -1041,6 +1458,7 @@
                 locale: "ar",
                 onChange: function (selectedDates, dateStr) {
                     currentSelectedDate = dateStr || null;
+                    currentPage = 1;
                     renderLogsTable();
                     loadSelectedDay();
                 }

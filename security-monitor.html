@@ -125,10 +125,107 @@
         }
 
         .btn-refresh-feed {
-            padding: 6px 12px;
-            background: rgba(255, 255, 255, 0.06);
-            color: #fff;
+            padding: 6px 14px;
+            background: rgba(124, 77, 255, 0.18);
+            border: 1px solid rgba(124, 77, 255, 0.45);
+            color: #d1c4e9;
             border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .btn-refresh-feed:hover:not(:disabled) {
+            background: rgba(124, 77, 255, 0.35);
+            border-color: #7c4dff;
+            color: #fff;
+            box-shadow: 0 0 14px rgba(124, 77, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-refresh-feed:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* شريط الترقيم والتنقل السريع لجدول الرصد اللحظي */
+        .soc-pagination-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 18px;
+            background: rgba(15, 18, 26, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0 0 var(--radius-md) var(--radius-md);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .soc-pagination-info {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+        }
+
+        .soc-pagination-info strong {
+            color: #b388ff;
+        }
+
+        .soc-pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .soc-page-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cfd8dc;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .soc-page-btn:hover:not(:disabled) {
+            background: rgba(124, 77, 255, 0.28);
+            border-color: #7c4dff;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(124, 77, 255, 0.3);
+        }
+
+        .soc-page-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .soc-page-indicator {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            padding: 0 8px;
+        }
+
+        .soc-page-indicator strong {
+            color: #00e676;
+            font-weight: 800;
+        }
+
+        @keyframes rowPulse {
+            0% { background-color: rgba(124, 77, 255, 0.35); }
+            100% { background-color: transparent; }
+        }
+
+        .log-row-new {
+            animation: rowPulse 2.2s ease-out;
         }
 
         .pulse-dot {
@@ -617,9 +714,9 @@
             background: rgba(124, 77, 255, 0.15);
         }
 
-        .btn-lift-ban {
-            background: rgba(255, 23, 68, 0.16);
-            border: 1px solid #ff1744;
+        .btn-ban-device {
+            background: rgba(244, 67, 54, 0.16);
+            border: 1px solid #f44336;
             color: #ff5252;
             padding: 5px 10px;
             border-radius: 6px;
@@ -633,10 +730,33 @@
             white-space: nowrap;
         }
 
-        .btn-lift-ban:hover {
-            background: #ff1744;
+        .btn-ban-device:hover {
+            background: #d32f2f;
             color: #fff;
-            box-shadow: 0 0 12px rgba(255, 23, 68, 0.6);
+            box-shadow: 0 0 12px rgba(244, 67, 54, 0.6);
+            transform: translateY(-1px);
+        }
+
+        .btn-lift-ban {
+            background: rgba(76, 175, 80, 0.16);
+            border: 1px solid #4caf50;
+            color: #69f0ae;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .btn-lift-ban:hover {
+            background: #2e7d32;
+            color: #fff;
+            box-shadow: 0 0 12px rgba(76, 175, 80, 0.6);
             transform: translateY(-1px);
         }
 
@@ -1070,7 +1190,8 @@
                 font-size: 0.45rem !important;
                 width: 100% !important;
             }
-            .soc-table .btn-lift-ban {
+            .soc-table .btn-lift-ban,
+            .soc-table .btn-ban-device {
                 padding: 3px 2px !important;
                 font-size: 0.45rem !important;
                 width: 100% !important;
@@ -1110,6 +1231,24 @@
                 font-size: 0.72rem !important;
                 padding: 8px !important;
             }
+
+            .soc-pagination-bar {
+                flex-direction: column !important;
+                align-items: center !important;
+                gap: 8px !important;
+                padding: 10px !important;
+            }
+
+            .soc-pagination-controls {
+                flex-wrap: wrap !important;
+                justify-content: center !important;
+                gap: 4px !important;
+            }
+
+            .soc-page-btn {
+                padding: 5px 9px !important;
+                font-size: 0.78rem !important;
+            }
         }
     </style>
 </head>
@@ -1146,7 +1285,10 @@
             </div>
             <div class="radar-sync-box">
                 <span>آخر تحديث: <strong id="lastSyncTime" class="radar-sync-time">--:--:--</strong></span>
-                <button class="soc-action-btn btn-refresh-feed" id="btnRefreshFeed" title="تحديث مباشر"><i class="fas fa-sync-alt"></i></button>
+                <button type="button" class="soc-action-btn btn-refresh-feed" id="btnRefreshFeed" title="تحديث مباشر فوري">
+                    <i class="fas fa-sync-alt" id="refreshFeedIcon"></i>
+                    <span>تحديث فوري</span>
+                </button>
             </div>
         </div>
 
@@ -1262,6 +1404,20 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- شريط الترقيم والتنقل السريع لجدول الرصد اللحظي -->
+            <div class="soc-pagination-bar" id="socPaginationBar">
+                <div class="soc-pagination-info" id="socPaginationInfo">
+                    عرض <strong id="pagStart">0</strong> - <strong id="pagEnd">0</strong> من أصل <strong id="pagTotal">0</strong> حركة
+                </div>
+                <div class="soc-pagination-controls" id="socPaginationControls">
+                    <button type="button" class="soc-page-btn" id="btnFirstPage" title="الصفحة الأولى"><i class="fas fa-angle-double-right"></i> الأولى</button>
+                    <button type="button" class="soc-page-btn" id="btnPrevPage" title="الصفحة السابقة"><i class="fas fa-angle-right"></i> السابقة</button>
+                    <span class="soc-page-indicator">صفحة <strong id="currentPageNum">1</strong> من <strong id="totalPageNum">1</strong></span>
+                    <button type="button" class="soc-page-btn" id="btnNextPage" title="الصفحة التالية">التالية <i class="fas fa-angle-left"></i></button>
+                    <button type="button" class="soc-page-btn" id="btnLastPage" title="الصفحة الأخيرة">الأخيرة <i class="fas fa-angle-double-left"></i></button>
+                </div>
             </div>
         </div>
 

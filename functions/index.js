@@ -1068,6 +1068,37 @@ exports.loginGuard = onCall(async (request) => {
     return { locked: false, attempts: attempts, remainingAttempts: GUARD_MAX_ATTEMPTS - attempts, tierIndex: tierIndex };
 });
 
+/** حظر جهاز نهائياً ببصمته من لوحة المدير: حظر دائم لا يرتفع إلا برفع المدير له يدوياً. */
+exports.adminBanDevice = onCall(async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const db = fs();
+    const uid = request.auth.uid;
+    const isAdmin = uid === AI_ADMIN_UID || (await db.collection("admins").doc(uid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "هذه العملية للمدير فقط.");
+
+    const d = request.data || {};
+    const hw = String(d.hw || "").replace(/[^\w-]/g, "").slice(0, 40);
+    if (!hw) throw new HttpsError("invalid-argument", "بصمة الجهاز غير محددة.");
+
+    const ref = db.collection("security_lockouts").doc("hw_" + hw);
+    await ref.set({
+        key: "hw_" + hw,
+        hw: hw,
+        status: "permanent_banned",
+        isBanned: true,
+        isPermanent: true,
+        lockedUntil: 4102444800000,
+        durationSeconds: 999999999,
+        formattedDuration: "حظر دائم بقرار الإدارة",
+        bannedAt: FieldValue.serverTimestamp(),
+        reason: String(d.reason || "حظر إداري دائم بقرار من المدير العام").slice(0, 200),
+        bannedBy: uid
+    }, { merge: true });
+
+    return { ok: true, hw: hw };
+});
+
 /** رفع الحظر من لوحة المدير: يرفع كل مفاتيح الجهاز (بصمة، IP، رقم) دفعة واحدة. */
 exports.liftLockout = onCall(async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");

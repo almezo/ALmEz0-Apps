@@ -1016,6 +1016,28 @@ function getLockoutStorageKey() {
  */
 function checkDeviceLockout() {
     try {
+        const hw = getHardwareFingerprint();
+        if (hw) {
+            const banStr = localStorage.getItem('almezo_banned_hw_' + hw);
+            if (banStr) {
+                try {
+                    const b = JSON.parse(banStr);
+                    if (b && b.isBanned) {
+                        return {
+                            isLocked: true,
+                            isBanned: true,
+                            isPermanent: true,
+                            remainingSeconds: 999999999,
+                            tierIndex: 99,
+                            attempts: 3,
+                            formattedDuration: 'حظر دائم بقرار الإدارة',
+                            reason: b.reason || 'حظر إداري دائم'
+                        };
+                    }
+                } catch (e) { }
+            }
+        }
+
         const key = getLockoutStorageKey();
         const dataStr = localStorage.getItem(key) || sessionStorage.getItem(key);
         if (!dataStr) {
@@ -1281,33 +1303,130 @@ async function syncLockoutFromCloud() {
 }
 
 /**
+ * دالة تحكم المدير لحظر جهاز نهائياً ببصمته فقط (Hardware Ban)
+ * الحظر دائم ولا يُرفع تلقائياً إلا بإجراء يدوي صريح من المدير
+ */
+async function adminBanDevice(hw, reason) {
+    if (!hw || hw === 'غير متوفر') throw new Error('بصمة الجهاز غير صالحة');
+    const cleanHw = hw.replace(/[^\w-]/g, '').trim();
+    if (!cleanHw) throw new Error('بصمة الجهاز غير صالحة');
+
+    const banReason = reason || 'حظر إداري دائم بقرار من المدير العام';
+    const banPayload = {
+        key: 'hw_' + cleanHw,
+        hw: cleanHw,
+        status: 'permanent_banned',
+        isBanned: true,
+        isPermanent: true,
+        lockedUntil: 4102444800000, // سنة 2100 - حظر دائم لا ينتهي تلقائياً
+        durationSeconds: 999999999,
+        formattedDuration: 'حظر دائم بقرار الإدارة',
+        bannedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date(),
+        bannedAtMillis: Date.now(),
+        reason: banReason,
+        bannedBy: (typeof auth !== 'undefined' && auth.currentUser) ? auth.currentUser.uid : 'admin'
+    };
+
+    // 1. الكتابة المباشرة في Firestore
+    if (typeof db !== 'undefined' && db) {
+        await db.collection('security_lockouts').doc('hw_' + cleanHw).set(banPayload, { merge: true });
+    }
+
+    // 2. إذا كانت هناك دالة سحابية متوفرة
+    if (typeof functions !== 'undefined' && functions) {
+        try {
+            await functions.httpsCallable('adminBanDevice')({ hw: cleanHw, reason: banReason });
+        } catch (e) {
+            console.warn('Callable adminBanDevice warning:', e);
+        }
+    }
+
+    // 3. إذا كان المدير على نفس الجهاز
+    const myHw = getHardwareFingerprint();
+    if (myHw === cleanHw) {
+        localStorage.setItem('almezo_banned_hw_' + cleanHw, JSON.stringify({
+            isBanned: true,
+            reason: banReason,
+            bannedAt: Date.now()
+        }));
+    }
+
+    // 4. تسجيل حركة إدارية في سجل الرصد
+    if (typeof logActivity === 'function') {
+        try {
+            await logActivity({
+                action: 'admin_ban_device',
+                category: 'admin',
+                severity: 'danger',
+                title: '⛔ قام المدير بحظر جهاز (' + cleanHw + ') نهائياً من دخول الموقع',
+                details: {
+                    hw: cleanHw,
+                    type: 'permanent_hardware_ban',
+                    reason: banReason
+                }
+            });
+        } catch (logErr) {
+            console.warn('تعذر تسجيل حركة الحظر:', logErr);
+        }
+    }
+
+    return true;
+}
+
+/**
  * دالة تحكم المدير لرفع الحظر عن أي جهاز / رقم فوراً ومزامنته لحظياً
  */
 async function adminLiftDeviceLockout(hw, phone, ip) {
     if (!hw && !phone && !ip) throw new Error('معرف الجهاز غير محدد');
+    const cleanHw = hw ? hw.replace(/[^\w-]/g, '').trim() : '';
 
     // 1. تصفير الحظر المحلي فوراً (إن كان المدير على نفس الجهاز)
     try {
         resetDeviceLockout();
         unlockUiImmediately();
-        localStorage.setItem('almezo_lockout_lifted_signal', JSON.stringify({ hw: hw, time: Date.now() }));
+        if (cleanHw) {
+            localStorage.removeItem('almezo_banned_hw_' + cleanHw);
+            localStorage.setItem('almezo_lockout_lifted_signal', JSON.stringify({ hw: cleanHw, time: Date.now() }));
+        }
     } catch (e) { }
 
-    // 2. رفع الحظر في السيرفر: يشمل بصمة الجهاز وعنوان IP ورقم الهاتف معاً
-    if (typeof functions === 'undefined' || !functions) throw new Error('خدمة رفع الحظر غير متاحة في هذه الصفحة');
-    const res = await functions.httpsCallable('liftLockout')({ hw: hw || '', phone: phone || '', ip: ip || '' });
-    if (!res || !res.data || !res.data.ok) throw new Error('تعذر رفع الحظر من السيرفر');
+    // 2. رفع الحظر في Firestore مباشرة لسرعة الاستجابة اللحظية
+    if (cleanHw && typeof db !== 'undefined' && db) {
+        try {
+            await db.collection('security_lockouts').doc('hw_' + cleanHw).set({
+                status: 'lifted_by_admin',
+                isBanned: false,
+                isPermanent: false,
+                lockedUntil: 0,
+                attempts: 0,
+                tierIndex: 0,
+                liftedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date(),
+                liftedBy: (typeof auth !== 'undefined' && auth.currentUser) ? auth.currentUser.uid : 'admin'
+            }, { merge: true });
+        } catch (e) {
+            console.warn('Direct Firestore lift error:', e);
+        }
+    }
 
-    // 3. تسجيل حركة إدارية في سجل الرصد
+    // 3. رفع الحظر في السيرفر عبر Cloud Function
+    if (typeof functions !== 'undefined' && functions) {
+        try {
+            await functions.httpsCallable('liftLockout')({ hw: cleanHw, phone: phone || '', ip: ip || '' });
+        } catch (fnErr) {
+            console.warn('Callable liftLockout warning:', fnErr);
+        }
+    }
+
+    // 4. تسجيل حركة إدارية في سجل الرصد
     if (typeof logActivity === 'function') {
         try {
             await logActivity({
                 action: 'admin_lift_lockout',
                 category: 'admin',
                 severity: 'warning',
-                title: '🔓 قام المدير برفع الحظر الأمني عن جهاز (' + hw + ')' + (phone ? ' - ' + phone : ''),
+                title: '🔓 قام المدير برفع الحظر الأمني عن جهاز (' + (cleanHw || hw) + ')' + (phone ? ' - ' + phone : ''),
                 details: {
-                    hw: hw,
+                    hw: cleanHw || hw,
                     phone: phone || ''
                 }
             });
@@ -1319,6 +1438,7 @@ async function adminLiftDeviceLockout(hw, phone, ip) {
     return true;
 }
 
+window.adminBanDevice = adminBanDevice;
 window.adminLiftDeviceLockout = adminLiftDeviceLockout;
 window.syncLockoutFromCloud = syncLockoutFromCloud;
 window.listenToDeviceLockoutUpdates = listenToDeviceLockoutUpdates;
@@ -1530,9 +1650,119 @@ async function logActivity(logData) {
     }
 }
 
-// تسجيل زيارة الصفحة تلقائياً لمرة واحدة عند الدخول ومنع التكرار المزعج
+// تسجيل زيارة الصفحة تلقائياً مع تحديد عنوان وتفاصيل النشاط بدقة بالغة
 (function trackPageView() {
     try {
+        function getPageFriendlyInfo(pageName) {
+            const p = (pageName || '').toLowerCase();
+            if (p.includes('player.html')) {
+                return {
+                    title: 'فتح مشغل الميزو للبث التلفزيوني (ALmEz0 Player)',
+                    action: 'player_open',
+                    category: 'iptv',
+                    details: { page: 'مشغل IPTV', mode: 'مشغل الويب المباشر' }
+                };
+            }
+            if (p.includes('index.html') || p === '' || p === '/') {
+                return {
+                    title: 'تصفح الواجهة الرئيسية وسيرفرات العرض',
+                    action: 'home_view',
+                    category: 'visitor',
+                    details: { page: 'الرئيسية', section: 'واجهة العرض' }
+                };
+            }
+            if (p.includes('iptv.html')) {
+                return {
+                    title: 'تصفح قسم باقات واشتراكات سيرفرات IPTV',
+                    action: 'iptv_browse',
+                    category: 'visitor',
+                    details: { page: 'سيرفرات IPTV', section: 'قائمة الاشتراكات' }
+                };
+            }
+            if (p.includes('smart.html')) {
+                return {
+                    title: 'تصفح قسم شاشات وتطبيقات SMART TV',
+                    action: 'smart_browse',
+                    category: 'visitor',
+                    details: { page: 'شاشات SMART', section: 'تطبيقات الشاشات' }
+                };
+            }
+            if (p.includes('vip.html')) {
+                return {
+                    title: 'تصفح باقات واشتراكات VIP المميزة',
+                    action: 'vip_browse',
+                    category: 'visitor',
+                    details: { page: 'باقات VIP', section: 'الاشتراكات الخاصة' }
+                };
+            }
+            if (p.includes('app-details.html')) {
+                return {
+                    title: 'عرض صفحة تفاصيل وتحميل تطبيق المشغل',
+                    action: 'app_details_view',
+                    category: 'visitor',
+                    details: { page: 'تفاصيل التطبيق' }
+                };
+            }
+            if (p.includes('server-details.html')) {
+                return {
+                    title: 'عرض تفاصيل ومواصفات سيرفر IPTV',
+                    action: 'server_details_view',
+                    category: 'visitor',
+                    details: { page: 'مواصفات السيرفر' }
+                };
+            }
+            if (p.includes('vip-details.html')) {
+                return {
+                    title: 'عرض تفاصيل ومزايا باقة VIP',
+                    action: 'vip_details_view',
+                    category: 'visitor',
+                    details: { page: 'مواصفات باقة VIP' }
+                };
+            }
+            if (p.includes('devices.html')) {
+                return {
+                    title: 'تصفح قسم الأجهزة وتطبيقات TV',
+                    action: 'devices_browse',
+                    category: 'visitor',
+                    details: { page: 'قسم الأجهزة' }
+                };
+            }
+            if (p.includes('staff.html')) {
+                return {
+                    title: 'فتح لوحة المندوبين وإدارة المبيعات',
+                    action: 'staff_portal_open',
+                    category: 'staff',
+                    details: { page: 'لوحة المناديب', portal: 'المبيعات' }
+                };
+            }
+            if (p.includes('admin-dashboard.html')) {
+                return {
+                    title: 'فتح لوحة التحكم والإدارة العامة',
+                    action: 'admin_dashboard_open',
+                    category: 'admin',
+                    details: { page: 'لوحة الإدارة', portal: 'المدير العام' }
+                };
+            }
+            if (p.includes('purchases.html')) {
+                return {
+                    title: 'فتح سجل فواتير المشتريات والمخزن',
+                    action: 'purchases_view',
+                    category: 'admin',
+                    details: { page: 'فواتير المشتريات' }
+                };
+            }
+            const cleanTitle = document.title
+                .replace(/ALmEz0|سيرفرات الميزو|AlMeZ0 Servers/gi, '')
+                .replace(/[|\-–]/g, '')
+                .trim();
+            return {
+                title: 'تصفح: ' + (cleanTitle || pageName),
+                action: 'page_view',
+                category: 'visitor',
+                details: { page: pageName }
+            };
+        }
+
         async function executePageLog() {
             const pageName = window.location.pathname.split('/').pop() || 'index.html';
             // تجنب تسجيل صفحات المراقبة التلقائية لتفادي تكرار حركة المدير عند مراقبة السجلات
@@ -1554,12 +1784,13 @@ async function logActivity(logData) {
                 }
             } catch (e) { }
 
+            const pageInfo = getPageFriendlyInfo(pageName);
             logActivity({
-                action: 'page_view',
-                category: 'visitor',
+                action: pageInfo.action,
+                category: pageInfo.category,
                 severity: 'info',
-                title: 'تصفح صفحة ' + (document.title.split('|')[0] || pageName).trim(),
-                details: { page: pageName }
+                title: pageInfo.title,
+                details: pageInfo.details
             });
         }
 
@@ -1655,7 +1886,7 @@ async function logActivity(logData) {
             banner.classList.remove('visible');
             setTimeout(remove, 450);
         }
-        function startTimer() { clearTimeout(timer); timer = setTimeout(hide, ms || 30000); }
+        function startTimer() { clearTimeout(timer); timer = setTimeout(hide, ms || 5000); }
 
         var btn = banner.querySelector('.push-close-btn');
         if (btn) btn.onclick = function (e) { if (e) e.stopPropagation(); hide(); };
@@ -2149,6 +2380,10 @@ window.MizoLedger = (function () {
 
     function alreadySeen(id, ts) {
         if (accountSeen.indexOf(id) !== -1) return true;
+        var cur = currentUser();
+        if (cur && window.currentAuthUser && Array.isArray(window.currentAuthUser.seenBroadcasts)) {
+            if (window.currentAuthUser.seenBroadcasts.indexOf(id) !== -1) return true;
+        }
         // الفحص القديم على مستوى الجهاز (يشمل المعرّفات المحفوظة سابقاً)
         return window.mzBroadcastAlreadySeen ? window.mzBroadcastAlreadySeen(id, ts, true) : deviceSeen().indexOf(id) !== -1;
     }
@@ -2159,7 +2394,7 @@ window.MizoLedger = (function () {
         if (accountSeen.indexOf(notif.id) === -1) accountSeen.push(notif.id);
         var db = store();
         var user = currentUser();
-        if (!db || !user) return;
+        if (!db || !user || !user.uid) return;
         try {
             var FV = firebase.firestore.FieldValue;
             db.collection('customers').doc(user.uid).update({
@@ -2220,19 +2455,18 @@ window.MizoLedger = (function () {
         showing = true;
         markSeen(notif);
         try { show(notif); } catch (e) { }
-        // الإشعار التالي بعد اختفاء الحالي (30 ثانية) بفاصل قصير
+        // الإشعار يختفي بعد 5 ثوانٍ، وإعادة تهيئة حالة العرض بفاصل قصير (5.5 ثوانٍ)
         setTimeout(function () {
             showing = false;
             pump(show);
-        }, 33000);
+        }, 5500);
     }
 
     /**
-     * يشترك في الإشعارات ويستدعي show(notif) لكل إشعار لم يره العميل، واحداً بعد الآخر.
-     * يُستدعى من صفحات الموقع (ui.js) ومن المشغل (app-bridge.js).
+     * يشترك في الإشعارات ويستدعي show(notif) لأحدث إشعار لم يره العميل فقط، ولمدة 5 ثوانٍ.
+     * الإشعارات محجوبة تماماً عن الزوار غير المسجلين.
      */
     window.mzSubscribeBroadcasts = function (show) {
-        if (window._almezoBroadcastListenerActive) return;
         var attempts = 0;
         var timer = setInterval(function () {
             attempts++;
@@ -2242,41 +2476,81 @@ window.MizoLedger = (function () {
                 return;
             }
             clearInterval(timer);
-            window._almezoBroadcastListenerActive = true;
-            try {
-                db.collection('broadcast_notifications')
-                    .where('targetUid', '==', '')
-                    .orderBy('timestamp', 'desc')
-                    .limit(8)
-                    .onSnapshot(function (snap) {
-                        if (!snap || snap.empty) return;
-                        var fresh = [];
-                        snap.forEach(function (doc) {
-                            var data = doc.data() || {};
-                            data.id = doc.id;
-                            var ts = parseInt(data.timestamp || '0', 10);
-                            if (data.active === false || data.pending === true) return;
-                            // إشعار شخصي (تنبيه انتهاء الاشتراك): لصاحبه فقط
-                            if (data.targetUid) {
-                                var me = currentUser();
-                                if (!me || me.uid !== data.targetUid) return;
-                            }
-                            if (!ts || Date.now() - ts > WINDOW_MS) return;
-                            if (alreadySeen(doc.id, ts)) return;
-                            fresh.push(data);
-                        });
-                        // الأقدم أولاً حتى يقرأها العميل بترتيب إرسالها
-                        fresh.sort(function (a, b) { return a.timestamp - b.timestamp; });
-                        fresh.forEach(function (n) {
-                            for (var i = 0; i < queue.length; i++) if (queue[i].id === n.id) return;
-                            queue.push(n);
-                        });
-                        pump(show);
-                    }, function (err) {
-                        console.warn('[BroadcastNotif] Listener error:', err);
-                    });
-            } catch (e) {
-                console.warn('[BroadcastNotif] Setup failed:', e);
+
+            var unsubBroadcasts = null;
+
+            // الإشعارات المنبثقة مخصصة حصرياً للمستخدمين المسجلين دخولهم (الزوار ممنوعون تماماً من رؤية أي إشعارات)
+            function setupUserBroadcastListener(u) {
+                if (!u || !u.uid) return;
+                if (unsubBroadcasts) return;
+
+                // مزامنة ما رآه هذا الحساب فوراً من السحابة لضمان عدم تكرار الإشعار عبر الأجهزة
+                db.collection('customers').doc(u.uid).get().then(function (docSnap) {
+                    if (docSnap.exists) {
+                        var cData = docSnap.data() || {};
+                        if (Array.isArray(cData.seenBroadcasts)) {
+                            accountSeen = cData.seenBroadcasts;
+                        }
+                    }
+                }).catch(function () { }).finally(function () {
+                    if (unsubBroadcasts) return;
+                    try {
+                        unsubBroadcasts = db.collection('broadcast_notifications')
+                            .where('targetUid', '==', '')
+                            .orderBy('timestamp', 'desc')
+                            .limit(8)
+                            .onSnapshot(function (snap) {
+                                if (!snap || snap.empty) return;
+                                var fresh = [];
+                                snap.forEach(function (doc) {
+                                    var data = doc.data() || {};
+                                    data.id = doc.id;
+                                    var ts = parseInt(data.timestamp || '0', 10);
+                                    if (data.active === false || data.pending === true) return;
+                                    if (!ts || Date.now() - ts > WINDOW_MS) return;
+                                    if (alreadySeen(doc.id, ts)) return;
+                                    fresh.push(data);
+                                });
+
+                                if (fresh.length > 0) {
+                                    // فرز الإشعارات تنازلياً (الأحدث أولاً)
+                                    fresh.sort(function (a, b) { return (parseInt(b.timestamp, 10) || 0) - (parseInt(a.timestamp, 10) || 0); });
+                                    // إظهار الإشعار الأخير فقط للمستخدم
+                                    var latestNotif = fresh[0];
+                                    // تعليم الإشعارات القديمة كمقروءة في السحابة حتى لا تظهر كطابور لاحقاً
+                                    for (var i = 1; i < fresh.length; i++) {
+                                        markSeen(fresh[i]);
+                                    }
+                                    queue = [latestNotif];
+                                    pump(show);
+                                }
+                            }, function (err) {
+                                console.warn('[BroadcastNotif] Listener error:', err);
+                            });
+                    } catch (e) {
+                        console.warn('[BroadcastNotif] Setup failed:', e);
+                    }
+                });
+            }
+
+            // فحص المصادقة: الإشعارات تعمل فقط وفور تسجيل الدخول
+            if (window.firebase && firebase.auth) {
+                var cur = firebase.auth().currentUser;
+                if (cur && cur.uid) {
+                    setupUserBroadcastListener(cur);
+                }
+                firebase.auth().onAuthStateChanged(function (u) {
+                    if (u && u.uid) {
+                        setupUserBroadcastListener(u);
+                    } else {
+                        // خروج: إيقاف المستمع وتفريغ الطابور تماماً للزائر
+                        if (unsubBroadcasts) {
+                            try { unsubBroadcasts(); } catch (e) { }
+                            unsubBroadcasts = null;
+                        }
+                        queue = [];
+                    }
+                });
             }
 
             // للمدير: مستمع حي ولحظي لجدول التنبيهات الأمنية admin_security_alerts
@@ -2303,11 +2577,12 @@ window.MizoLedger = (function () {
                                 secFresh.push(data);
                             });
                             if (secFresh.length > 0) {
-                                secFresh.sort(function (a, b) { return a.timestamp - b.timestamp; });
-                                secFresh.forEach(function (n) {
-                                    for (var i = 0; i < queue.length; i++) if (queue[i].id === n.id) return;
-                                    queue.push(n);
-                                });
+                                secFresh.sort(function (a, b) { return (parseInt(b.timestamp, 10) || 0) - (parseInt(a.timestamp, 10) || 0); });
+                                var latestSec = secFresh[0];
+                                for (var i = 1; i < secFresh.length; i++) {
+                                    markSeen(secFresh[i]);
+                                }
+                                queue = [latestSec];
                                 pump(show);
                                 if (typeof window.mzRefreshBellNotifs === 'function') {
                                     window.mzRefreshBellNotifs();
@@ -2751,4 +3026,194 @@ window.MizoLedger = (function () {
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
     else build();
+})();
+
+// =============================================================================
+// نظام حظر الأجهزة على مستوى الموقع بالكامل (Site-Wide Hardware Ban Protection)
+// يمنع الجهاز المحظور ببصمته من دخول واستخدام الموقع نهائياً حتى يرفعه المدير يدوياً
+// =============================================================================
+(function () {
+    let siteLockdownObserver = null;
+
+    function applySiteLockdownUi(hw, reason) {
+        if (typeof document === 'undefined') return;
+
+        // استثناء: غرفة المراقبة والأمان إذا كان المدير مسجلاً دخوله
+        const pageName = window.location.pathname.split('/').pop() || 'index.html';
+        if (pageName === 'security-monitor.html') {
+            try {
+                if (typeof auth !== 'undefined' && auth.currentUser && (auth.currentUser.uid === '7Rfvdr6GpwPcY9uDQwX0fIuWeRv1' || (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().role === 'admin'))) {
+                    return;
+                }
+            } catch (e) { }
+        }
+
+        // إيقاف أي مشغلات فيديو أو صوت في الصفحة فوراً
+        try {
+            document.querySelectorAll('video, audio').forEach(function (el) {
+                try { el.pause(); el.src = ''; el.load(); } catch (e) { }
+            });
+        } catch (e) { }
+
+        // تسجيل خروج أي مستخدم مسجل على هذا الجهاز المحظور
+        try {
+            if (typeof auth !== 'undefined' && auth.currentUser) {
+                auth.signOut();
+            }
+        } catch (e) { }
+
+        let overlay = document.getElementById('almezoSiteLockdownOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'almezoSiteLockdownOverlay';
+            overlay.style.cssText = 'position:fixed !important; top:0 !important; left:0 !important; width:100vw !important; height:100vh !important; background:#070a0e !important; z-index:2147483647 !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; text-align:center !important; padding:20px !important; font-family:"Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; direction:rtl !important; color:#fff !important; overflow-y:auto !important; box-sizing:border-box !important;';
+
+            const safeHw = String(hw || 'غير متوفر');
+            const safeReason = String(reason || 'حظر إداري دائم بقرار من المدير العام');
+            const waMsg = encodeURIComponent('السلام عليكم، تم حظر جهازي في موقع سيرفرات الميزو وبصمة جهازي هي: ' + safeHw);
+
+            overlay.innerHTML = `
+                <div style="background:rgba(20,24,34,0.96); border:2px solid #f44336; border-radius:20px; max-width:540px; width:100%; padding:35px 24px; box-shadow:0 0 60px rgba(244,67,54,0.4); text-align:center; box-sizing:border-box; margin:auto;">
+                    <div style="width:82px; height:82px; border-radius:50%; background:rgba(244,67,54,0.15); border:2.5px solid #f44336; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:2.5rem; color:#f44336; box-shadow:0 0 30px rgba(244,67,54,0.45);">
+                        <i class="fas fa-ban"></i>
+                    </div>
+                    <h2 style="color:#ff5252; font-size:1.55rem; font-weight:800; margin-bottom:12px; line-height:1.3;">⚠️ تم حظر هذا الجهاز من قبل الإدارة</h2>
+                    <p style="color:#cfd8dc; font-size:0.95rem; line-height:1.7; margin-bottom:20px;">
+                        تم تقييد وصول هذا الجهاز ومنعه من دخول واستخدام سيرفرات الميزو نهائياً لأسباب أمنية بقرار من الإدارة العامة.
+                    </p>
+                    <div style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; margin-bottom:22px; text-align:right; font-size:0.88rem; line-height:1.8;">
+                        <div style="color:#b0bec5; margin-bottom:6px;">
+                            <i class="fas fa-fingerprint" style="color:#b388ff; margin-left:6px;"></i> بصمة جهازك المحظور: 
+                            <span style="color:#b388ff; font-family:monospace; font-weight:bold; font-size:0.98rem; direction:ltr; display:inline-block;">${safeHw}</span>
+                        </div>
+                        <div style="color:#b0bec5;">
+                            <i class="fas fa-shield-alt" style="color:#ffb74d; margin-left:6px;"></i> سبب الحظر: 
+                            <span style="color:#ffb74d; font-weight:bold;">${safeReason}</span>
+                        </div>
+                    </div>
+                    <p style="color:#90a4ae; font-size:0.83rem; line-height:1.6; margin-bottom:25px;">
+                        هذا الحظر دائم ومسجل برقم العتاد ولا يرتفع تلقائياً. إذا كنت تعتقد أن هذا الإجراء تم عن طريق الخطأ، يرجى موافاة الإدارة ببصمة جهازك عبر واتساب لفك الحظر.
+                    </p>
+                    <a href="https://wa.me/218917812836?text=${waMsg}" target="_blank" style="background:linear-gradient(135deg, #1b5e20, #2e7d32); color:#fff; text-decoration:none; padding:13px 26px; border-radius:10px; font-weight:bold; font-size:0.95rem; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 20px rgba(46,125,50,0.5);">
+                        <i class="fab fa-whatsapp" style="font-size:1.3rem;"></i> التواصل مع الإدارة لفك الحظر
+                    </a>
+                </div>
+            `;
+
+            if (document.body) {
+                document.body.appendChild(overlay);
+            } else {
+                document.addEventListener('DOMContentLoaded', function () {
+                    document.body.appendChild(overlay);
+                });
+            }
+        }
+
+        if (document.body) document.body.style.setProperty('overflow', 'hidden', 'important');
+        if (document.documentElement) document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+
+        // منع المتلاعب من حذف الشاشة عبر DevTools
+        if (!siteLockdownObserver && typeof MutationObserver !== 'undefined' && document.body) {
+            siteLockdownObserver = new MutationObserver(function () {
+                const el = document.getElementById('almezoSiteLockdownOverlay');
+                if (!el && localStorage.getItem('almezo_banned_hw_' + hw)) {
+                    applySiteLockdownUi(hw, reason);
+                }
+            });
+            siteLockdownObserver.observe(document.body, { childList: true, subtree: false });
+        }
+    }
+
+    function removeSiteLockdownUi() {
+        if (siteLockdownObserver) {
+            siteLockdownObserver.disconnect();
+            siteLockdownObserver = null;
+        }
+        const overlay = document.getElementById('almezoSiteLockdownOverlay');
+        if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+        }
+        if (document.body) document.body.style.removeProperty('overflow');
+        if (document.documentElement) document.documentElement.style.removeProperty('overflow');
+    }
+
+    window.applySiteLockdownUi = applySiteLockdownUi;
+    window.removeSiteLockdownUi = removeSiteLockdownUi;
+
+    function initSiteWideDeviceLockdown() {
+        try {
+            if (typeof window === 'undefined') return;
+            const hw = (typeof getHardwareFingerprint === 'function') ? getHardwareFingerprint() : null;
+            if (!hw) return;
+
+            // 1. فحص الكاش المحلي لتجميد الموقع فوراً دون انتظار شبكة
+            const cachedBan = localStorage.getItem('almezo_banned_hw_' + hw);
+            if (cachedBan) {
+                try {
+                    const b = JSON.parse(cachedBan);
+                    if (b && b.isBanned) {
+                        applySiteLockdownUi(hw, b.reason);
+                    }
+                } catch (e) { }
+            }
+
+            // 2. مستمع لحظي سحابي مباشر على وثيقة حظر هذا الجهاز
+            function startCloudBanWatch() {
+                if (typeof db === 'undefined' || !db) {
+                    setTimeout(startCloudBanWatch, 1000);
+                    return;
+                }
+                const cleanHw = hw.replace(/[^\w-]/g, '').trim();
+                db.collection('security_lockouts').doc('hw_' + cleanHw).onSnapshot(function (doc) {
+                    if (doc && doc.exists) {
+                        const data = doc.data() || {};
+                        // الحظر الشامل للموقع يُطبق فقط وحصرياً إذا كان حظراً إدارياً يدوياً من المدير
+                        // أما أخطاء كلمة السر العادية (1 دقيقة / 5 دقائق) فتنتهي تلقائياً ولا تغلق الموقع
+                        const isPermanentBan = (
+                            (data.status === 'permanent_banned' || data.isPermanent === true || data.isBanned === true) &&
+                            data.status !== 'lifted_by_admin'
+                        );
+
+                        if (isPermanentBan) {
+                            localStorage.setItem('almezo_banned_hw_' + hw, JSON.stringify({
+                                isBanned: true,
+                                reason: data.reason || 'حظر إداري دائم بقرار من المدير العام',
+                                bannedAt: Date.now()
+                            }));
+                            applySiteLockdownUi(hw, data.reason);
+                        } else {
+                            // رُفع الحظر من المدير أو ليس حظراً إدارياً شاملاً
+                            localStorage.removeItem('almezo_banned_hw_' + hw);
+                            removeSiteLockdownUi();
+                        }
+                    } else {
+                        // لا توجد وثيقة حظر
+                        localStorage.removeItem('almezo_banned_hw_' + hw);
+                        removeSiteLockdownUi();
+                    }
+                }, function (err) {
+                    // في حال تعذر القراءة المباشرة، نفحص عبر خادم السيرفر
+                    if (typeof serverLoginGuard === 'function') {
+                        serverLoginGuard('check', '').then(function (state) {
+                            if (state && state.locked) {
+                                applySiteLockdownUi(hw);
+                            }
+                        });
+                    }
+                });
+            }
+
+            startCloudBanWatch();
+        } catch (err) {
+            console.warn('initSiteWideDeviceLockdown error:', err);
+        }
+    }
+
+    window.initSiteWideDeviceLockdown = initSiteWideDeviceLockdown;
+
+    // تشغيل الحظر الشامل فوراً مع تحميل السكربت و DOM
+    initSiteWideDeviceLockdown();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSiteWideDeviceLockdown);
+    }
 })();

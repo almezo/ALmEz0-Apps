@@ -692,6 +692,37 @@ function showScreen(screenId, isBackNavigation = false) {
         }
     }
 
+    // تسجيل التنقل بين أقسام المشغل (بث مباشر / أفلام / مسلسلات) مع منع التكرار (مهلة 60 ثانية)
+    try {
+        if (typeof logActivity === 'function' && screenId) {
+            const screenLogMap = {
+                'live-screen': { action: 'player_browse_live', title: 'تصفح قنوات البث المباشر (Live TV)', section: 'قنوات البث المباشر' },
+                'vod-screen': { action: 'player_browse_movies', title: 'تصفح مكتبة الأفلام (Movies VOD)', section: 'مكتبة الأفلام' },
+                'series-screen': { action: 'player_browse_series', title: 'تصفح مكتبة المسلسلات (Series)', section: 'مكتبة المسلسلات' }
+            };
+            const itemToLog = screenLogMap[screenId];
+            if (itemToLog) {
+                const now = Date.now();
+                window._mizoScreenLogCache = window._mizoScreenLogCache || {};
+                const lastScreenTime = window._mizoScreenLogCache[screenId] || 0;
+                if (now - lastScreenTime > 60000) {
+                    window._mizoScreenLogCache[screenId] = now;
+                    const curSrvCode = state.serverCode || sessionStorage.getItem('sp_server_code') || localStorage.getItem('sp_server_code');
+                    const sMap = { '001': 'سيرفر اكس', '002': 'سيرفر نوفا', '003': 'سيرفر مارفل', '004': 'سيرفر مافين', '005': 'سيرفر ميجا', '006': 'سيرفر نينجا', '007': 'سيرفر MH' };
+                    const sName = sMap[curSrvCode] || (curSrvCode ? `سيرفر (${curSrvCode})` : 'سيرفر IPTV');
+                    const activeUser = state.username || (JSON.parse(localStorage.getItem('sp_user') || '{}')).username || '';
+                    logActivity({
+                        action: itemToLog.action,
+                        category: 'iptv',
+                        severity: 'info',
+                        title: itemToLog.title,
+                        details: { section: itemToLog.section, server: sName, username: activeUser }
+                    });
+                }
+            }
+        }
+    } catch (e) { }
+
     document.querySelectorAll('.app-screen-container').forEach(el => {
         if (el.id === screenId) {
             el.classList.remove('hidden');
@@ -1782,6 +1813,54 @@ function playStream(id, type, extension, name, icon) {
         recordContinueWatching(id, type);
     }
 
+    // تسجيل حركة المشاهدة بدقة عالية (قناة بث مباشر / فيلم VOD / مسلسل) مع منع تكرار السجلات
+    try {
+        if (typeof logActivity === 'function') {
+            const now = Date.now();
+            window._mizoStreamLogCache = window._mizoStreamLogCache || {};
+            const cacheKey = `${type}_${id}`;
+            const lastLogTime = window._mizoStreamLogCache[cacheKey] || 0;
+            const lastAnyLogTime = window._mizoLastAnyStreamLogTime || 0;
+
+            if ((now - lastLogTime > 35000) && (now - lastAnyLogTime > 3000)) {
+                window._mizoStreamLogCache[cacheKey] = now;
+                window._mizoLastAnyStreamLogTime = now;
+
+                const curSrvCode = state.serverCode || sessionStorage.getItem('sp_server_code') || localStorage.getItem('sp_server_code');
+                const sMap = { '001': 'سيرفر اكس', '002': 'سيرفر نوفا', '003': 'سيرفر مارفل', '004': 'سيرفر مافين', '005': 'سيرفر ميجا', '006': 'سيرفر نينجا', '007': 'سيرفر MH' };
+                const sName = sMap[curSrvCode] || (curSrvCode ? `سيرفر (${curSrvCode})` : 'سيرفر IPTV');
+                const activeUser = state.username || (JSON.parse(localStorage.getItem('sp_user') || '{}')).username || '';
+
+                let actAction = 'player_play_channel';
+                let actTitle = `تشغيل قناة: ${name || 'بث مباشر'}`;
+                let actCategory = 'iptv';
+                let actDetails = { channel: name || 'قناة', type: 'بث مباشر', streamId: String(id), server: sName };
+
+                if (type === 'vod') {
+                    actAction = 'player_play_movie';
+                    actTitle = `مشاهدة فيلم: ${name || 'فيلم'}`;
+                    actDetails = { movie: name || 'فيلم', type: 'أفلام VOD', streamId: String(id), server: sName };
+                } else if (type === 'series') {
+                    actAction = 'player_play_series';
+                    actTitle = `مشاهدة حلقة مسلسل: ${name || 'مسلسل'}`;
+                    actDetails = { series: name || 'مسلسل', type: 'مسلسلات', streamId: String(id), server: sName };
+                }
+
+                if (activeUser) actDetails.username = activeUser;
+
+                logActivity({
+                    action: actAction,
+                    category: actCategory,
+                    severity: 'info',
+                    title: actTitle,
+                    details: actDetails
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('Player stream logging error:', e);
+    }
+
     const user = encodeURIComponent(state.username);
     const pass = encodeURIComponent(state.password);
     const ext = extension ? extension.toLowerCase() : (type === 'live' ? 'm3u8' : 'mp4');
@@ -2728,6 +2807,23 @@ function logout() {
         // 2. الحساب يبقى محفوظاً في قوائم التشغيل بعد الخروج — نفس سلوك أندرويد
         //    (Store.logout يضع علامة خروج فقط ولا يحذف شيئاً). كان الخروج يمسح السيرفر
         //    من sp_accounts نهائياً فيفقد المستخدم بياناته ويعيد إدخالها من جديد.
+
+        // تسجيل حركة الخروج من السيرفر
+        try {
+            const oldUser = state.username || (JSON.parse(localStorage.getItem('sp_user') || '{}')).username;
+            const oldServerCode = state.serverCode || localStorage.getItem('sp_server_code');
+            const sMap = { '001': 'سيرفر اكس', '002': 'سيرفر نوفا', '003': 'سيرفر مارفل', '004': 'سيرفر مافين', '005': 'سيرفر ميجا', '006': 'سيرفر نينجا', '007': 'سيرفر MH' };
+            const sName = sMap[oldServerCode] || (oldServerCode ? `سيرفر (${oldServerCode})` : 'سيرفر IPTV');
+            if (typeof logActivity === 'function' && oldUser) {
+                logActivity({
+                    action: 'iptv_logout',
+                    category: 'iptv',
+                    severity: 'info',
+                    title: `تسجيل خروج من سيرفر: ${sName}`,
+                    details: { server: sName, username: oldUser }
+                });
+            }
+        } catch (e) { }
 
         // مسح بيانات سيرفر المشغل النشط
         localStorage.removeItem('sp_user');
@@ -5538,6 +5634,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     const titleEl = document.getElementById('liveItemsCategoryTitle');
                     if (titleEl) titleEl.innerText = `نتائج البحث: "${term}"`;
+                    if (term.length >= 2) logPlayerSearchDebounced(term, 'قنوات البث المباشر');
                     try {
                         const allLive = await getAllStreamsForType('live', 'get_live_streams');
                         const filtered = (Array.isArray(allLive) ? allLive : []).filter(i => (i.name || '').toLowerCase().includes(term));
@@ -5563,6 +5660,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!term) {
                     renderItems(currentItemsArray, ctx);
                 } else {
+                    if (term.length >= 2) logPlayerSearchDebounced(term, ctx === 'vod' ? 'مكتبة الأفلام' : 'مكتبة المسلسلات');
                     try {
                         const allItems = await getAllStreamsForType(ctx, action);
                         const filtered = (Array.isArray(allItems) ? allItems : []).filter(i => (i.name || '').toLowerCase().includes(term));
@@ -5576,6 +5674,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+let _playerSearchDebounceTimer = null;
+let _playerLastSearchedQuery = '';
+function logPlayerSearchDebounced(term, sectionName) {
+    if (!term || term.length < 2 || term === _playerLastSearchedQuery) return;
+    clearTimeout(_playerSearchDebounceTimer);
+    _playerSearchDebounceTimer = setTimeout(() => {
+        try {
+            if (typeof logActivity === 'function') {
+                _playerLastSearchedQuery = term;
+                const curSrvCode = state.serverCode || sessionStorage.getItem('sp_server_code') || localStorage.getItem('sp_server_code');
+                const sMap = { '001': 'سيرفر اكس', '002': 'سيرفر نوفا', '003': 'سيرفر مارفل', '004': 'سيرفر مافين', '005': 'سيرفر ميجا', '006': 'سيرفر نينجا', '007': 'سيرفر MH' };
+                const sName = sMap[curSrvCode] || (curSrvCode ? `سيرفر (${curSrvCode})` : 'سيرفر IPTV');
+                const activeUser = state.username || (JSON.parse(localStorage.getItem('sp_user') || '{}')).username || '';
+                logActivity({
+                    action: 'player_search',
+                    category: 'iptv',
+                    severity: 'info',
+                    title: `بحث في المشغل: "${term}"`,
+                    details: { query: term, section: sectionName, server: sName, username: activeUser }
+                });
+            }
+        } catch (e) { }
+    }, 1800);
+}
 
 // =========================================================
 // LIVE TV VERTICAL BRIGHTNESS & VOLUME SLIDERS & GESTURES

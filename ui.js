@@ -1865,6 +1865,12 @@ function downloadIntelCsv(content, fileName) {
 window.showGlobalBroadcastBanner = function (notif) {
     if (!notif || !notif.title) return;
 
+    // الإشعارات محجوبة تماماً عن الزوار غير المسجلين دخولهم
+    try {
+        if (typeof isUserLoggedIn === 'function' && !isUserLoggedIn()) return;
+        if (window.firebase && firebase.auth && !firebase.auth().currentUser) return;
+    } catch (e) { }
+
     function safeEsc(s) {
         if (typeof window.escapeHtml === 'function') return window.escapeHtml(s);
         return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -2100,9 +2106,9 @@ window.showGlobalBroadcastBanner = function (notif) {
         banner.classList.add('visible');
     });
 
-    // 30 ثانية، زر الإغلاق، والسحب يميناً أو يساراً (firebase-config.js)
-    if (typeof window.mzBannerLifecycle === 'function') window.mzBannerLifecycle(banner, 30000);
-    else setTimeout(() => { if (banner.parentElement) banner.remove(); }, 30000);
+    // 5 ثوانٍ، زر الإغلاق، والسحب يميناً أو يساراً (firebase-config.js)
+    if (typeof window.mzBannerLifecycle === 'function') window.mzBannerLifecycle(banner, 5000);
+    else setTimeout(() => { if (banner.parentElement) banner.remove(); }, 5000);
 };
 
 window.initBroadcastNotificationListener = function () {
