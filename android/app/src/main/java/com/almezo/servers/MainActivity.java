@@ -86,7 +86,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         com.almezo.servers.nat.BroadcastNotifier.setAppForeground(true);
         try {
@@ -95,10 +95,17 @@ public class MainActivity extends BridgeActivity {
                 manager.cancelAll();
             }
         } catch (Throwable ignored) { }
+        optimizeDisplayRefreshRate();
+        if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().addJavascriptInterface(new NativePlayerBridge(), "AndroidNativeBridge");
+        }
+        if (isImmersive) {
+            enableImmersiveFullscreen();
+        }
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         com.almezo.servers.nat.BroadcastNotifier.setAppForeground(false);
     }
@@ -185,18 +192,6 @@ public class MainActivity extends BridgeActivity {
                 decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
             }
         });
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        optimizeDisplayRefreshRate();
-        if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().addJavascriptInterface(new NativePlayerBridge(), "AndroidNativeBridge");
-        }
-        if (isImmersive) {
-            enableImmersiveFullscreen();
-        }
     }
 
     private void optimizeDisplayRefreshRate() {
