@@ -1328,17 +1328,36 @@ async function adminBanDevice(hw, reason) {
     };
 
     // 1. الكتابة المباشرة في Firestore
+    let writeSuccess = false;
+    let writeError = null;
     if (typeof db !== 'undefined' && db) {
-        await db.collection('security_lockouts').doc('hw_' + cleanHw).set(banPayload, { merge: true });
+        try {
+            await db.collection('security_lockouts').doc('hw_' + cleanHw).set(banPayload, { merge: true });
+            writeSuccess = true;
+        } catch (dbErr) {
+            writeError = dbErr;
+            console.warn('Direct Firestore ban write error:', dbErr);
+        }
     }
 
-    // 2. إذا كانت هناك دالة سحابية متوفرة
-    if (typeof functions !== 'undefined' && functions) {
+    // 2. إذا كانت هناك دالة سحابية متوفرة وفشلت الكتابة المباشرة
+    if (!writeSuccess && typeof functions !== 'undefined' && functions) {
         try {
-            await functions.httpsCallable('adminBanDevice')({ hw: cleanHw, reason: banReason });
+            const res = await functions.httpsCallable('adminBanDevice')({ hw: cleanHw, reason: banReason });
+            if (res && res.data && res.data.ok) {
+                writeSuccess = true;
+            }
         } catch (e) {
             console.warn('Callable adminBanDevice warning:', e);
         }
+    }
+
+    // إذا فشل الحظر بكلتا الوسيلتين
+    if (!writeSuccess) {
+        if (writeError && (writeError.code === 'permission-denied' || (writeError.message && writeError.message.includes('permission')))) {
+            throw new Error('أذونات غير كافية في Firestore. يرجى التأكد من نشر قواعد firestore.rules في لوحة Firebase Console للسماح للمدير بالكتابة في security_lockouts.');
+        }
+        throw writeError || new Error('تعذر إتمام عملية الحظر على السيرفر');
     }
 
     // 3. إذا كان المدير على نفس الجهاز
