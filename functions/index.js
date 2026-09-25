@@ -49,10 +49,12 @@ exports.sendWhatsAppNotification = onCall(async (request) => {
 // النماذج المسموحة للمساعد (السريعة الرخيصة فقط) والحد اليومي لكل حساب.
 // كل سؤال للمساعد = طلبان تقريباً، فالحد 80 طلباً ≈ 40 سؤالاً يومياً. المدير بلا حد.
 const AI_ALLOWED_MODELS = new Set([
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.8-flash",
     "gemini-flash-latest"
 ]);
 const AI_DAILY_LIMIT = 80;
@@ -163,17 +165,29 @@ async function aiCallGemini(apiKeyRaw, models, body) {
     for (const m of modelList) {
         for (const key of keys) {
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(body),
                 });
+
+                // إذا كان سبب 429 هو نفاد كوتة أداة بحث جوجل (Google Search Grounding)، نحذف الأداة ونعيد المحاولة فوراً بدون بحث!
+                if (res.status === 429 && body && body.tools) {
+                    logger.warn(`Google Search quota exceeded on model ${m}. Retrying without search tool...`);
+                    delete body.tools;
+                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                    });
+                }
+
                 if (!res.ok) {
                     const errJson = await res.json().catch(() => ({}));
                     const errMsg = errJson.error ? errJson.error.message : `HTTP ${res.status}`;
                     lastError = new Error(errMsg);
-                    // 404 (موديل غير متوفر)، 429 (تجاوز كوتة الدقيقة أو الطلبات)، 5xx (ضغط سيرفر جوجل مؤقت):
-                    // ننتقل للمفتاح التالي أو الموديل التالي تلقائياً دون التوقف (لا كسر للوب)!
+                    // 404 (موديل غير متوفر)، 429 (تجاوز كوتة الدقيقة)، 503/5xx (ضغط سيرفر مؤقت):
+                    // ننتقل للمفتاح التالي أو الموديل التالي تلقائياً!
                     if (res.status === 404 || res.status === 429 || res.status >= 500) {
                         logger.warn(`Gemini fallback [model: ${m}, status: ${res.status}]: ${errMsg}`);
                         continue;
@@ -240,9 +254,9 @@ async function aiHandleMode(request, apiKey) {
         await enforceAiDailyLimit(uid, "aux");
         try {
             const r = await aiCallGemini(apiKey, [
-                "gemini-2.5-flash-lite",
-                "gemini-2.0-flash-lite",
-                "gemini-2.0-flash",
+                "gemini-flash-lite-latest",
+                "gemini-3.5-flash-lite",
+                "gemini-3.1-flash-lite",
                 "gemini-2.5-flash"
             ], {
                 contents: [{ role: "user", parts: [{ text: aiUnderstandPrompt(question, prev) }] }],
@@ -270,7 +284,11 @@ async function aiHandleMode(request, apiKey) {
         await enforceAiDailyLimit(uid, "aux");
         let text = "";
         try {
-            const r = await aiCallGemini(apiKey, ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"], {
+            const r = await aiCallGemini(apiKey, [
+                "gemini-flash-lite-latest",
+                "gemini-3.5-flash-lite",
+                "gemini-2.5-flash"
+            ], {
                 contents: [{ role: "user", parts: [
                     { text: "اكتب نص هذا التسجيل الصوتي حرفياً كما قاله المتحدث (غالباً بلهجة عربية ليبية أو غيرها)، دون أي إضافة أو شرح. أسماء الأفلام والقنوات الأجنبية اكتبها بحروفها الإنجليزية الأصلية. إن كان التسجيل صامتاً أو غير مفهوم فأعد نصاً فارغاً." },
                     { inlineData: { mimeType: mime, data: audio } }
@@ -303,10 +321,10 @@ async function aiHandleMode(request, apiKey) {
     };
     if (d.useSearch === true) body.tools = [{ googleSearch: {} }];
     const r = await aiCallGemini(apiKey, [
+        "gemini-flash-lite-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-lite",
         "gemini-flash-latest"
     ], body);
     return { text: r.text, sources: r.sources, remaining };
@@ -339,13 +357,13 @@ exports.generateAiReply = onCall({ secrets: [GEMINI_API_KEY] }, async (request) 
     await enforceAiDailyLimit(request.auth.uid, "main");
 
     const apiKey = GEMINI_API_KEY.value();
-    const safeModel = AI_ALLOWED_MODELS.has(model) ? model : "gemini-2.5-flash";
+    const safeModel = AI_ALLOWED_MODELS.has(model) ? model : "gemini-flash-lite-latest";
     const modelsToTry = Array.from(new Set([
         safeModel,
+        "gemini-flash-lite-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-lite",
         "gemini-flash-latest",
     ]));
 
