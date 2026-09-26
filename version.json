@@ -1,27 +1,27 @@
 {
-  "version": "1.4.5",
-  "versionCode": 135,
-  "releaseDate": "2026-09-25",
-  "title": "سيرفرات وتطبيق الميزو v1.4.5 - ترقية الأداء ودعم الشاشات الذكية 🚀📺",
-  "notes": "ترقية هامة تشمل دعماً كاملاً لأجهزة التي في بوكس (Android TV) والشاشات، مع تحسينات في سرعة البث واستقرار الأداء. التحديث إلزامي عبر almezo.store ⚡🎬",
+  "version": "1.4.6",
+  "versionCode": 136,
+  "releaseDate": "2026-09-26",
+  "title": "سيرفرات وتطبيق الميزو v1.4.6 - تصحيح أرقام التواصل والأمان 🛡️",
+  "notes": "تحديث يشمل تصحيح وتوحيد رقم واتساب الإدارة لفك الحظر الأمني وتحسينات عامة في الأمان والاستقرار ⚡",
   "minSupportedVersion": "1.4.5",
-  "mandatory": true,
+  "mandatory": false,
   "windows": {
-    "version": "1.4.5",
+    "version": "1.4.6",
     "minSupportedVersion": "1.4.5",
-    "mandatory": true,
-    "releaseDate": "2026-09-25",
-    "title": "مشغل وتطبيق الميزو للكمبيوتر (Windows) v1.4.5",
-    "notes": "ترقية هامة تشمل دعماً كاملاً لأجهزة التي في بوكس والشاشات، مع تحسينات في سرعة البث واستقرار الأداء. التحديث إلزامي عبر almezo.store ⚡🎬"
+    "mandatory": false,
+    "releaseDate": "2026-09-26",
+    "title": "مشغل وتطبيق الميزو للكمبيوتر (Windows) v1.4.6",
+    "notes": "تحديث يشمل تصحيح وتوحيد رقم واتساب الإدارة لفك الحظر الأمني وتحسينات عامة في الأمان والاستقرار ⚡"
   },
   "android": {
-    "version": "1.4.5",
-    "versionCode": 135,
+    "version": "1.4.6",
+    "versionCode": 136,
     "minSupportedVersion": "1.4.5",
-    "mandatory": true,
-    "releaseDate": "2026-09-25",
-    "title": "مشغل وتطبيق الميزو v1.4.5",
-    "notes": "ترقية هامة تشمل دعماً كاملاً لأجهزة التي في بوكس والشاشات، مع تحسينات في سرعة البث واستقرار الأداء. التحديث إلزامي عبر almezo.store ⚡🎬"
+    "mandatory": false,
+    "releaseDate": "2026-09-26",
+    "title": "مشغل وتطبيق الميزو v1.4.6",
+    "notes": "تحديث يشمل تصحيح وتوحيد رقم واتساب الإدارة لفك الحظر الأمني وتحسينات عامة في الأمان والاستقرار ⚡"
   },
   "downloadUrls": {
     "android": "https://github.com/almezo/ALmEz0-Downloads/releases/latest/download/ALmEz0.apk",

@@ -3165,7 +3165,7 @@ window.MizoLedger = (function () {
                     <p style="color:#90a4ae; font-size:0.83rem; line-height:1.6; margin-bottom:25px;">
                         هذا الحظر دائم ومسجل برقم العتاد ولا يرتفع تلقائياً. إذا كنت تعتقد أن هذا الإجراء تم عن طريق الخطأ، يرجى موافاة الإدارة ببصمة جهازك عبر واتساب لفك الحظر.
                     </p>
-                    <a href="https://wa.me/218917812836?text=${waMsg}" target="_blank" style="background:linear-gradient(135deg, #1b5e20, #2e7d32); color:#fff; text-decoration:none; padding:13px 26px; border-radius:10px; font-weight:bold; font-size:0.95rem; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 20px rgba(46,125,50,0.5);">
+                    <a href="https://wa.me/218945772649?text=${waMsg}" target="_blank" style="background:linear-gradient(135deg, #1b5e20, #2e7d32); color:#fff; text-decoration:none; padding:13px 26px; border-radius:10px; font-weight:bold; font-size:0.95rem; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 20px rgba(46,125,50,0.5);">
                         <i class="fab fa-whatsapp" style="font-size:1.3rem;"></i> التواصل مع الإدارة لفك الحظر
                     </a>
                 </div>
