@@ -232,6 +232,16 @@ public class MainActivity extends BridgeActivity {
     }
 
     class NativePlayerBridge {
+        /**
+         * معرّف الجهاز الثابت (ANDROID_ID مجزّأً) لصفحة الويب: يحل محل البصمة القديمة التي
+         * كان يشترك فيها كل جهاز مطابق، ويصمد أمام مسح البيانات وإعادة التثبيت.
+         * نفس المعرّف يستخدمه فحص الحظر في المشغل الأصلي (DeviceBan).
+         */
+        @JavascriptInterface
+        public String getDeviceId() {
+            return com.almezo.servers.nat.DeviceId.get(MainActivity.this);
+        }
+
         @JavascriptInterface
         public boolean hasRecordAudioPermission() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

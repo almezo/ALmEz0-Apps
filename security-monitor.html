@@ -8,14 +8,17 @@
     <meta http-equiv="Expires" content="0">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
     <meta name="description" content="غرفة المراقبة والأمان ورصد الأنشطة - سيرفرات الميزو ALmEz0">
     <title>سيرفرات الميزو | غرفة المراقبة والأمان</title>
 
     <link rel="icon" type="image/x-icon" href="photo/logo.ico">
     <link rel="shortcut icon" type="image/x-icon" href="photo/logo.ico">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <!-- flatpickr مثبّت بنسخة وبصمة سلامة (SRI): أعلى صفحة صلاحية في الموقع لا تشغّل كوداً خارجياً متغيّراً -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" integrity="sha384-RkASv+6KfBMW9eknReJIJ6b3UnjKOKC5bOUaNgIY778NFbQ8MtWq9Lr/khUgqtTt" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/dark.css" integrity="sha384-heUUtXw0Djj2DElfLOVPlASSWFKNL3JDY6s3FEqQD03GYyWOeophY5DsfEG40sYX" crossorigin="anonymous">
     <link rel="stylesheet" href="style.css?v=4097.0">
 
     <style>
@@ -1080,6 +1083,90 @@
             transform: translateY(-1px);
         }
 
+.soc-truncation-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: rgba(255, 179, 0, 0.1);
+            border: 1px solid rgba(255, 179, 0, 0.45);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            color: #ffe0a3;
+            font-size: 0.86rem;
+            line-height: 1.6;
+        }
+
+        .soc-truncation-notice i {
+            color: #ffb300;
+            margin-top: 4px;
+        }
+
+        .btn-ban-account {
+            background: rgba(255, 145, 0, 0.14);
+            border: 1px solid #ff9100;
+            color: #ffab40;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .btn-ban-account:hover {
+            background: #ff9100;
+            color: #111;
+        }
+
+        .account-banned-badge {
+            background: rgba(255, 145, 0, 0.18);
+            border: 1px solid #ff9100;
+            color: #ffab40;
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .banned-section-title {
+            grid-column: 1 / -1;
+            color: #ffab40;
+            font-weight: 800;
+            font-size: 0.98rem;
+            margin: 10px 0 2px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .legacy-ban-box {
+            background: rgba(255, 179, 0, 0.08);
+            border: 1px dashed rgba(255, 179, 0, 0.5);
+            border-radius: 8px;
+            padding: 9px 11px;
+            font-size: 0.82rem;
+        }
+
+        .banned-snapshot-hint {
+            background: rgba(124, 77, 255, 0.12);
+            border: 1px solid rgba(124, 77, 255, 0.3);
+            color: #b388ff;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
         .banned-empty-state {
             text-align: center;
             padding: 45px 20px;
@@ -1655,13 +1742,26 @@
                     <i class="fas fa-file-excel"></i> تصدير Excel
                 </button>
 
-                <button type="button" class="soc-action-btn btn-clear-logs" id="btnClearLogs" title="تنظيف السجلات الأقدم من 7 أيام">
-                    <i class="fas fa-trash-alt"></i> تنظيف السجلات
+                <!-- تحذير: هذا الزر يحذف كل السجلات بلا استثناء. التلميح القديم كان يقول
+                     "الأقدم من 7 أيام" وهو موروث من تنظيف قديم في المتصفح أُلغي؛ التنظيف
+                     التلقائي الآن في السيرفر (cleanupActivityLogs) ويحتفظ بـ60 يوماً. -->
+                <button type="button" class="soc-action-btn btn-clear-logs" id="btnClearLogs" title="حذف كل سجلات الرصد نهائياً من قاعدة البيانات (بما فيها سجلات اليوم) — التنظيف التلقائي للسجلات الأقدم من 60 يوماً يعمل في السيرفر تلقائياً">
+                    <i class="fas fa-trash-alt"></i> حذف كل السجلات
                 </button>
             </div>
         </div>
 
         <!-- حاوية وجدول السجلات الحية -->
+        <!-- يظهر فقط حين يتجاوز اليوم 1500 حركة: الأرقام والجدول حينها لا يغطيان اليوم كاملاً -->
+        <div class="soc-truncation-notice" id="socTruncationNotice" style="display:none;">
+            <i class="fas fa-triangle-exclamation"></i>
+            <div>
+                <strong>اليوم أكبر من نافذة البث الحي.</strong>
+                الجدول وأرقام «اليوم» تغطي آخر 1500 حركة فقط، أي منذ الساعة <span id="socTruncationFrom">--</span>.
+                ما قبلها (ومنه أي محاولة اختراق مبكرة) لا يظهر هنا — اختر تاريخ اليوم من التقويم لجلب اليوم كاملاً.
+            </div>
+        </div>
+
         <div class="soc-logs-container">
             <div class="soc-logs-header">
                 <h3>
@@ -1768,14 +1868,14 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ar.js" integrity="sha384-yZqNNZeGVo7J+Bv4HgUkz1jHmDHbupbt4fBAWj+MJyFAsVQqQ/VpRncxzdCgVPn4" crossorigin="anonymous"></script>
 
     <!-- Scripts -->
-    <script src="firebase-config.js?v=4098.0"></script>
+    <script src="firebase-config.js?v=4101.0"></script>
     <script src="validation.js?v=4078.0"></script>
-    <script src="ui.js?v=4097.0"></script>
-    <script src="security-monitor.js?v=4091.0"></script>
+    <script src="ui.js?v=4099.0"></script>
+    <script src="security-monitor.js?v=4094.0"></script>
 </body>
 
 </html>

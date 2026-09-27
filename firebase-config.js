@@ -922,53 +922,111 @@ async function fetchClientPublicIp() {
 // بدء جلب الـ IP العام في الخلفية فور تحميل السكربت
 try { fetchClientPublicIp(); } catch (e) { }
 
-// بصمة الجهاز الرقمية والعتادية الفريدة (Hardware Fingerprint)
-function getHardwareFingerprint() {
+// =============================================
+// معرّف الجهاز (v2) — بداية الكتلة المختبرة
+// =============================================
+// البصمة القديمة كانت تُحسب من صفات عامة يشترك فيها آلاف الأجهزة (دقة الشاشة، عدد الأنوية،
+// الذاكرة، اللغة، المنطقة الزمنية)، و"بصمة الرسم" فيها كانت آخر 16 حرفاً من صورة PNG، وهي
+// نفسها في كل صور العالم (مقطع IEND). فكل أجهزة الكمبيوتر بنفس المواصفات تأخذ نفس البصمة،
+// وحظر جهاز واحد يحظر كل جهاز مطابق له، و3 محاولات خاطئة من شخص تقفل الآخرين معه.
+//
+// المعرّف الجديد فريد لكل جهاز:
+//   AD-  تطبيق أندرويد: ANDROID_ID من النظام (يصمد أمام مسح البيانات وإعادة التثبيت)
+//   WG-  برنامج الكمبيوتر: MachineGuid من ويندوز (يصمد أمام إعادة تثبيت البرنامج)
+//   WB-  المتصفح: رقم عشوائي محفوظ (المتصفحات تمنع أي معرّف يصمد أمام مسح البيانات)
+// الاسم getHardwareFingerprint باقٍ كما هو لأن كل الكود يستدعيه.
+//
+// لا ثوابت على مستوى الملف: إن فشل تحميل مكتبة Firebase (بلا إنترنت، أو حجب الـ CDN) يتوقف
+// هذا الملف عند سطره 22، فتبقى الدوال متاحة (الدوال تُرفع) بينما لا تُسند المتغيّرات أبداً.
+// اكتُشف هذا بالتشغيل في المحاكي: كان مفتاح التخزين undefined. كل شيء هنا داخل الدوال.
+var _deviceIdCache;
+var _deviceIdSource;
+
+function deviceIdStorageKey() { return 'almezo_device_id_v2'; }
+function isValidDeviceId(v) { return typeof v === 'string' && /^(AD|WG|WB)-[A-F0-9]{32}$/.test(v); }
+
+/** المعرّف الثابت من التطبيق الأصلي، أو نص فارغ في المتصفح العادي. */
+function nativeDeviceId() {
     try {
-        let storedFp = localStorage.getItem('almezo_device_fingerprint');
-        if (storedFp && storedFp.startsWith('HW-')) return storedFp;
-
-        const nav = window.navigator || {};
-        const scr = window.screen || {};
-        const cores = nav.hardwareConcurrency || 2;
-        const memory = nav.deviceMemory || 4;
-        const platform = nav.platform || 'web';
-        const lang = nav.language || 'ar';
-        const screenStr = `${scr.width || 0}x${scr.height || 0}x${scr.colorDepth || 0}`;
-        const touch = ('ontouchstart' in window || (nav.maxTouchPoints && nav.maxTouchPoints > 0)) ? 'T1' : 'T0';
-        const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
-
-        let canvasHash = 'c1';
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 150;
-            canvas.height = 30;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.textBaseline = 'top';
-                ctx.font = "14px 'Arial'";
-                ctx.fillStyle = '#f60';
-                ctx.fillRect(10, 1, 60, 20);
-                ctx.fillStyle = '#069';
-                ctx.fillText('ALmEz0_FP', 2, 10);
-                canvasHash = canvas.toDataURL().slice(-16);
-            }
-        } catch (ce) { }
-
-        const rawFp = `${platform}_${screenStr}_${cores}_${memory}_${lang}_${tz}_${touch}_${canvasHash}`;
-        let hash = 0;
-        for (let i = 0; i < rawFp.length; i++) {
-            hash = ((hash << 5) - hash) + rawFp.charCodeAt(i);
-            hash |= 0;
+        if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.getDeviceId === 'function') {
+            var a = String(window.AndroidNativeBridge.getDeviceId() || '');
+            if (/^AD-[A-F0-9]{32}$/.test(a)) return a;
         }
-
-        const fpHex = 'HW-' + Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
-        localStorage.setItem('almezo_device_fingerprint', fpHex);
-        return fpHex;
-    } catch (e) {
-        return 'HW-' + Math.random().toString(16).substring(2, 10).toUpperCase();
-    }
+    } catch (e) { }
+    try {
+        var w = window.electronAPI && window.electronAPI.deviceId;
+        if (typeof w === 'string' && /^WG-[A-F0-9]{32}$/.test(w)) return w;
+    } catch (e) { }
+    return '';
 }
+
+function randomBrowserDeviceId() {
+    var hex = '';
+    try {
+        var c = window.crypto || window.msCrypto;
+        var b = new Uint8Array(16);
+        c.getRandomValues(b);
+        for (var i = 0; i < b.length; i++) hex += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+    } catch (e) {
+        hex = '';
+        for (var j = 0; j < 32; j++) hex += Math.floor(Math.random() * 16).toString(16);
+    }
+    return 'WB-' + hex.toUpperCase();
+}
+
+function getHardwareFingerprint() {
+    // ثابت طوال عمر الصفحة: كل الاستدعاءات (الحظر، السجلات، القفل) ترى نفس القيمة
+    if (_deviceIdCache) return _deviceIdCache;
+    var id = nativeDeviceId();
+    var source = id ? (id.indexOf('AD-') === 0 ? 'android' : 'windows') : '';
+    if (!id) {
+        try {
+            var stored = localStorage.getItem(deviceIdStorageKey());
+            if (isValidDeviceId(stored)) { id = stored; source = 'stored'; }
+        } catch (e) { }
+    }
+    if (!id) { id = randomBrowserDeviceId(); source = 'new-browser'; }
+    try { localStorage.setItem(deviceIdStorageKey(), id); } catch (e) { }
+    _deviceIdCache = id;
+    _deviceIdSource = source;
+    return id;
+}
+
+/**
+ * البصمة القديمة (HW-xxxxxxxx) لفترة الانتقال فقط، ولا تُحسب من جديد أبداً.
+ * تُقرأ فقط من جهاز كان يحملها قبل التحديث: الحظرات القديمة مبنية عليها فتبقى سارية على
+ * الأجهزة التي كانت مطابقة لها، حتى ينقلها المدير لمعرّفها الجديد من غرفة المراقبة.
+ * الجهاز الجديد لا يحسبها، فلا يرث حظراً قديماً لا يخصه (وهذا أصل مشكلة الأبرياء).
+ */
+function getLegacyFingerprint() {
+    try {
+        var s = localStorage.getItem('almezo_device_fingerprint');
+        if (s && /^HW-[A-F0-9]{1,8}$/.test(s)) return s;
+    } catch (e) { }
+    return '';
+}
+
+/**
+ * قرار شاشة الحظر من كل المصادر معاً (معرّف الجهاز، البصمة القديمة، الحساب).
+ * لا يرفع أي مصدر حظراً فرضه مصدر آخر، ولا تُرفع الشاشة قبل أن تُعرف حالة كل المصادر.
+ * @param {Object} st { devices: {id: {known, banned, reason}}, account: {banned, reason} }
+ * @returns {{show: boolean, kind?: string, reason?: string, remove?: boolean}}
+ */
+function resolveLockdownDecision(st) {
+    var ids = Object.keys((st && st.devices) || {});
+    for (var i = 0; i < ids.length; i++) {
+        var d = st.devices[ids[i]];
+        if (d && d.banned) return { show: true, kind: 'device', reason: d.reason || '' };
+    }
+    if (st && st.account && st.account.banned) {
+        return { show: true, kind: 'account', reason: st.account.reason || '' };
+    }
+    var allKnown = ids.every(function (k) { return st.devices[k] && st.devices[k].known; });
+    return { show: false, remove: allKnown };
+}
+// =============================================
+// معرّف الجهاز (v2) — نهاية الكتلة المختبرة
+// =============================================
 
 function getVisitorId() {
     try {
@@ -1017,8 +1075,11 @@ function getLockoutStorageKey() {
 function checkDeviceLockout() {
     try {
         const hw = getHardwareFingerprint();
+        const legacyHw = getLegacyFingerprint();
         if (hw) {
-            const banStr = localStorage.getItem('almezo_banned_hw_' + hw);
+            // الحظر الدائم قد يكون مسجلاً بالمعرّف الجديد أو بالبصمة القديمة (فترة الانتقال)
+            const banStr = localStorage.getItem('almezo_banned_hw_' + hw) ||
+                (legacyHw ? localStorage.getItem('almezo_banned_hw_' + legacyHw) : null);
             if (banStr) {
                 try {
                     const b = JSON.parse(banStr);
@@ -1306,12 +1367,29 @@ async function syncLockoutFromCloud() {
  * دالة تحكم المدير لحظر جهاز نهائياً ببصمته فقط (Hardware Ban)
  * الحظر دائم ولا يُرفع تلقائياً إلا بإجراء يدوي صريح من المدير
  */
-async function adminBanDevice(hw, reason) {
+/**
+ * حظر جهاز نهائياً ببصمته.
+ * @param {string} hw بصمة الجهاز
+ * @param {string} reason سبب الحظر
+ * @param {Object} [identity] لقطة هوية وقت الحظر: { userName, phone, ip, city, country, os, browser, appPlatform }
+ *   تُخزَّن داخل مستند الحظر لأن قائمة المحظورين كانت تستنتج هذه البيانات من آخر 1500 حركة فقط،
+ *   فتفقد اسم وهاتف وعنوان أي محظور قديم بعد أن تخرج حركاته من نافذة السجلات الحية.
+ */
+async function adminBanDevice(hw, reason, identity) {
     if (!hw || hw === 'غير متوفر') throw new Error('بصمة الجهاز غير صالحة');
     const cleanHw = hw.replace(/[^\w-]/g, '').trim();
     if (!cleanHw) throw new Error('بصمة الجهاز غير صالحة');
 
     const banReason = reason || 'حظر إداري دائم بقرار من المدير العام';
+    const idn = identity || {};
+    const snap = {};
+    ['userName', 'phone', 'ip', 'city', 'country', 'os', 'browser', 'appPlatform', 'role'].forEach(function (k) {
+        const v = idn[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') {
+            snap[k] = String(v).trim().slice(0, 120);
+        }
+    });
+
     const banPayload = {
         key: 'hw_' + cleanHw,
         hw: cleanHw,
@@ -1340,10 +1418,25 @@ async function adminBanDevice(hw, reason) {
         }
     }
 
+    // 1.b لقطة الهوية في مجموعة خاصة بالمدير فقط.
+    // لا تُدمج في مستند الحظر نفسه: ذلك المستند مقروء بلا مصادقة حتى يعرف كل
+    // جهاز حالة حظره، فتخزين الاسم والهاتف والـ IP فيه يكشفها لمن يعرف البصمة.
+    if (writeSuccess && Object.keys(snap).length && typeof db !== 'undefined' && db) {
+        try {
+            await db.collection('security_lockouts_meta').doc('hw_' + cleanHw).set(Object.assign({
+                hw: cleanHw,
+                capturedAtMillis: Date.now()
+            }, snap), { merge: true });
+        } catch (metaErr) {
+            // فشل اللقطة لا يُبطل الحظر نفسه
+            console.warn('تعذر حفظ لقطة هوية المحظور:', metaErr);
+        }
+    }
+
     // 2. إذا كانت هناك دالة سحابية متوفرة وفشلت الكتابة المباشرة
     if (!writeSuccess && typeof functions !== 'undefined' && functions) {
         try {
-            const res = await functions.httpsCallable('adminBanDevice')({ hw: cleanHw, reason: banReason });
+            const res = await functions.httpsCallable('adminBanDevice')({ hw: cleanHw, reason: banReason, identity: snap });
             if (res && res.data && res.data.ok) {
                 writeSuccess = true;
             }
@@ -1399,15 +1492,23 @@ async function adminLiftDeviceLockout(hw, phone, ip) {
     if (!hw && !phone && !ip) throw new Error('معرف الجهاز غير محدد');
     const cleanHw = hw ? hw.replace(/[^\w-]/g, '').trim() : '';
 
-    // 1. تصفير الحظر المحلي فوراً (إن كان المدير على نفس الجهاز)
+    // 1. تصفير الحظر المحلي فوراً (إن كان المدير على نفس الجهاز فقط، كما يقول التعليق)
     try {
-        resetDeviceLockout();
-        unlockUiImmediately();
+        const myHwNow = (typeof getHardwareFingerprint === 'function') ? getHardwareFingerprint() : '';
+        if (cleanHw && myHwNow === cleanHw) {
+            resetDeviceLockout();
+            unlockUiImmediately();
+        }
         if (cleanHw) {
             localStorage.removeItem('almezo_banned_hw_' + cleanHw);
             localStorage.setItem('almezo_lockout_lifted_signal', JSON.stringify({ hw: cleanHw, time: Date.now() }));
         }
     } catch (e) { }
+
+    // كل مسار يسجّل نجاحه؛ إن فشلا معاً يُرمى خطأ بدل رسالة نجاح زائفة
+    let directOk = false;
+    let callableOk = false;
+    let lastErr = null;
 
     // 2. رفع الحظر في Firestore مباشرة لسرعة الاستجابة اللحظية
     if (cleanHw && typeof db !== 'undefined' && db) {
@@ -1422,7 +1523,15 @@ async function adminLiftDeviceLockout(hw, phone, ip) {
                 liftedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date(),
                 liftedBy: (typeof auth !== 'undefined' && auth.currentUser) ? auth.currentUser.uid : 'admin'
             }, { merge: true });
+            directOk = true;
+            // لقطة الهوية لم يعد لها سبب بعد رفع الحظر: لا نحتفظ ببيانات شخص غير محظور
+            try {
+                await db.collection('security_lockouts_meta').doc('hw_' + cleanHw).delete();
+            } catch (metaErr) {
+                console.warn('تعذر حذف لقطة هوية الجهاز:', metaErr);
+            }
         } catch (e) {
+            lastErr = e;
             console.warn('Direct Firestore lift error:', e);
         }
     }
@@ -1431,9 +1540,15 @@ async function adminLiftDeviceLockout(hw, phone, ip) {
     if (typeof functions !== 'undefined' && functions) {
         try {
             await functions.httpsCallable('liftLockout')({ hw: cleanHw, phone: phone || '', ip: ip || '' });
+            callableOk = true;
         } catch (fnErr) {
+            lastErr = lastErr || fnErr;
             console.warn('Callable liftLockout warning:', fnErr);
         }
+    }
+
+    if (!directOk && !callableOk) {
+        throw lastErr || new Error('تعذر رفع الحظر على السيرفر');
     }
 
     // 4. تسجيل حركة إدارية في سجل الرصد
@@ -1457,8 +1572,36 @@ async function adminLiftDeviceLockout(hw, phone, ip) {
     return true;
 }
 
+/**
+ * حظر حساب (لا جهاز): يُعطَّل الحساب في Firebase Auth من السيرفر فلا يسجّل صاحبه الدخول من
+ * أي جهاز، وتُلغى جلساته، وتظهر له شاشة الإيقاف فوراً إن كان متصلاً.
+ * تنبيه: لا يوقف اشتراك IPTV نفسه؛ صاحبه يعرف بيانات Xtream ويستطيع استخدامها في أي تطبيق،
+ * فالإيقاف الكامل يتطلب أيضاً تعطيل الاشتراك من لوحة Xtream.
+ */
+async function adminBanAccount(uid, reason) {
+    if (!uid) throw new Error('معرّف الحساب غير محدد');
+    if (typeof functions === 'undefined' || !functions) throw new Error('خدمة السيرفر غير متاحة');
+    const res = await functions.httpsCallable('adminBanAccount')({
+        uid: String(uid),
+        reason: reason || 'تم إيقاف هذا الحساب بقرار من الإدارة'
+    });
+    if (!res || !res.data || !res.data.ok) throw new Error('تعذر إيقاف الحساب على السيرفر');
+    return res.data;
+}
+
+async function adminUnbanAccount(uid) {
+    if (!uid) throw new Error('معرّف الحساب غير محدد');
+    if (typeof functions === 'undefined' || !functions) throw new Error('خدمة السيرفر غير متاحة');
+    const res = await functions.httpsCallable('adminUnbanAccount')({ uid: String(uid) });
+    if (!res || !res.data || !res.data.ok) throw new Error('تعذر رفع إيقاف الحساب على السيرفر');
+    return res.data;
+}
+
 window.adminBanDevice = adminBanDevice;
 window.adminLiftDeviceLockout = adminLiftDeviceLockout;
+window.adminBanAccount = adminBanAccount;
+window.adminUnbanAccount = adminUnbanAccount;
+window.getLegacyFingerprint = getLegacyFingerprint;
 window.syncLockoutFromCloud = syncLockoutFromCloud;
 window.listenToDeviceLockoutUpdates = listenToDeviceLockoutUpdates;
 window.unlockUiImmediately = unlockUiImmediately;
@@ -1552,6 +1695,7 @@ function getClientDeviceInfo() {
             screen: (window.screen ? `${window.screen.width}x${window.screen.height}` : 'unknown'),
             visitorId: getVisitorId(),
             hardwareFingerprint: getHardwareFingerprint(),
+            legacyFingerprint: getLegacyFingerprint(),
             publicIp: ipData.ip || 'غير معروف',
             country: ipData.country || '',
             city: ipData.city || '',
@@ -1566,6 +1710,7 @@ function getClientDeviceInfo() {
             appPlatform: 'web',
             visitorId: getVisitorId(),
             hardwareFingerprint: getHardwareFingerprint(),
+            legacyFingerprint: getLegacyFingerprint(),
             publicIp: 'غير معروف'
         };
     }
@@ -3106,8 +3251,20 @@ window.MizoLedger = (function () {
 (function () {
     let siteLockdownObserver = null;
 
-    function applySiteLockdownUi(hw, reason) {
+    function lockdownEsc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c];
+        });
+    }
+
+    /**
+     * @param {string} hw معرّف الجهاز (يُعرض ليرسله صاحبه للإدارة)
+     * @param {string} reason سبب الحظر
+     * @param {string} [kind] 'device' (افتراضي) أو 'account' لحظر الحساب
+     */
+    function applySiteLockdownUi(hw, reason, kind) {
         if (typeof document === 'undefined') return;
+        const isAccount = kind === 'account';
 
         // استثناء: غرفة المراقبة والأمان إذا كان المدير مسجلاً دخوله
         const pageName = window.location.pathname.split('/').pop() || 'index.html';
@@ -3139,22 +3296,28 @@ window.MizoLedger = (function () {
             overlay.id = 'almezoSiteLockdownOverlay';
             overlay.style.cssText = 'position:fixed !important; top:0 !important; left:0 !important; width:100vw !important; height:100vh !important; background:#070a0e !important; z-index:2147483647 !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; text-align:center !important; padding:20px !important; font-family:"Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; direction:rtl !important; color:#fff !important; overflow-y:auto !important; box-sizing:border-box !important;';
 
-            const safeHw = String(hw || 'غير متوفر');
-            const safeReason = String(reason || 'حظر إداري دائم بقرار من المدير العام');
-            const waMsg = encodeURIComponent('السلام عليكم، تم حظر جهازي في موقع سيرفرات الميزو وبصمة جهازي هي: ' + safeHw);
+            // القيم تُهرَّب قبل إدخالها في HTML (السبب يُكتب من لوحة المدير)
+            const rawHw = String(hw || 'غير متوفر');
+            const safeHw = lockdownEsc(rawHw);
+            const safeReason = lockdownEsc(reason || (isAccount ? 'تم إيقاف هذا الحساب بقرار من الإدارة' : 'حظر إداري دائم بقرار من المدير العام'));
+            const waMsg = encodeURIComponent(isAccount
+                ? 'السلام عليكم، تم إيقاف حسابي في موقع سيرفرات الميزو، ومعرّف جهازي هو: ' + rawHw
+                : 'السلام عليكم، تم حظر جهازي في موقع سيرفرات الميزو ومعرّف جهازي هو: ' + rawHw);
 
             overlay.innerHTML = `
                 <div style="background:rgba(20,24,34,0.96); border:2px solid #f44336; border-radius:20px; max-width:540px; width:100%; padding:35px 24px; box-shadow:0 0 60px rgba(244,67,54,0.4); text-align:center; box-sizing:border-box; margin:auto;">
                     <div style="width:82px; height:82px; border-radius:50%; background:rgba(244,67,54,0.15); border:2.5px solid #f44336; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:2.5rem; color:#f44336; box-shadow:0 0 30px rgba(244,67,54,0.45);">
                         <i class="fas fa-ban"></i>
                     </div>
-                    <h2 style="color:#ff5252; font-size:1.55rem; font-weight:800; margin-bottom:12px; line-height:1.3;">⚠️ تم حظر هذا الجهاز من قبل الإدارة</h2>
+                    <h2 style="color:#ff5252; font-size:1.55rem; font-weight:800; margin-bottom:12px; line-height:1.3;">${isAccount ? '⚠️ تم إيقاف هذا الحساب من قبل الإدارة' : '⚠️ تم حظر هذا الجهاز من قبل الإدارة'}</h2>
                     <p style="color:#cfd8dc; font-size:0.95rem; line-height:1.7; margin-bottom:20px;">
-                        تم تقييد وصول هذا الجهاز ومنعه من دخول واستخدام سيرفرات الميزو نهائياً لأسباب أمنية بقرار من الإدارة العامة.
+                        ${isAccount
+                            ? 'تم إيقاف حسابك ومنعه من تسجيل الدخول واستخدام سيرفرات الميزو بقرار من الإدارة العامة، وتم تسجيل خروجك.'
+                            : 'تم تقييد وصول هذا الجهاز ومنعه من دخول واستخدام سيرفرات الميزو نهائياً لأسباب أمنية بقرار من الإدارة العامة.'}
                     </p>
                     <div style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; margin-bottom:22px; text-align:right; font-size:0.88rem; line-height:1.8;">
                         <div style="color:#b0bec5; margin-bottom:6px;">
-                            <i class="fas fa-fingerprint" style="color:#b388ff; margin-left:6px;"></i> بصمة جهازك المحظور: 
+                            <i class="fas fa-fingerprint" style="color:#b388ff; margin-left:6px;"></i> ${isAccount ? 'معرّف جهازك:' : 'معرّف جهازك المحظور:'} 
                             <span style="color:#b388ff; font-family:monospace; font-weight:bold; font-size:0.98rem; direction:ltr; display:inline-block;">${safeHw}</span>
                         </div>
                         <div style="color:#b0bec5;">
@@ -3163,7 +3326,9 @@ window.MizoLedger = (function () {
                         </div>
                     </div>
                     <p style="color:#90a4ae; font-size:0.83rem; line-height:1.6; margin-bottom:25px;">
-                        هذا الحظر دائم ومسجل برقم العتاد ولا يرتفع تلقائياً. إذا كنت تعتقد أن هذا الإجراء تم عن طريق الخطأ، يرجى موافاة الإدارة ببصمة جهازك عبر واتساب لفك الحظر.
+                        ${isAccount
+                            ? 'هذا الإيقاف لا يرتفع تلقائياً. إذا كنت تعتقد أنه تم عن طريق الخطأ، تواصل مع الإدارة عبر واتساب.'
+                            : 'هذا الحظر دائم ولا يرتفع تلقائياً. إذا كنت تعتقد أن هذا الإجراء تم عن طريق الخطأ، يرجى موافاة الإدارة بمعرّف جهازك عبر واتساب لفك الحظر.'}
                     </p>
                     <a href="https://wa.me/218945772649?text=${waMsg}" target="_blank" style="background:linear-gradient(135deg, #1b5e20, #2e7d32); color:#fff; text-decoration:none; padding:13px 26px; border-radius:10px; font-weight:bold; font-size:0.95rem; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 20px rgba(46,125,50,0.5);">
                         <i class="fab fa-whatsapp" style="font-size:1.3rem;"></i> التواصل مع الإدارة لفك الحظر
@@ -3211,70 +3376,122 @@ window.MizoLedger = (function () {
     window.applySiteLockdownUi = applySiteLockdownUi;
     window.removeSiteLockdownUi = removeSiteLockdownUi;
 
+    /**
+     * حظر الحساب: عند إيقاف المدير للحساب يُعطَّل في Firebase Auth من السيرفر (فلا يسجّل دخوله
+     * من أي جهاز)، وهذا المستمع يُخرج الجلسة المفتوحة حالاً بدل انتظار انتهاء صلاحيتها (حتى ساعة).
+     * الشاشة تبقى حتى إعادة تحميل الصفحة، ثم يتصفح الموقع كزائر ولا يستطيع الدخول لحسابه.
+     */
+    let accountBanUnsub = null;
+    let accountBanUid = '';
+
+    function startAccountBanWatch() {
+        if (typeof auth === 'undefined' || !auth || typeof auth.onAuthStateChanged !== 'function') {
+            setTimeout(startAccountBanWatch, 1000);
+            return;
+        }
+        auth.onAuthStateChanged(function (user) {
+            const uid = user ? user.uid : '';
+            if (uid === accountBanUid) return;
+            if (accountBanUnsub) { try { accountBanUnsub(); } catch (e) { } accountBanUnsub = null; }
+            accountBanUid = uid;
+            if (!uid || typeof db === 'undefined' || !db) return;
+            accountBanUnsub = db.collection('banned_accounts').doc(uid).onSnapshot(function (doc) {
+                if (!doc || !doc.exists) return;
+                const data = doc.data() || {};
+                lockdownState.account = { banned: true, reason: data.reason || '' };
+                renderLockdown();
+            }, function () { /* بلا صلاحية قراءة (قواعد قديمة): لا شيء، والدخول يُرفض من Auth نفسه */ });
+        });
+    }
+
+    /**
+     * حالة شاشة الحظر من كل المصادر: معرّف الجهاز الجديد، والبصمة القديمة (فترة الانتقال)،
+     * والحساب. قرار واحد (resolveLockdownDecision): كان المستمع الواحد يرفع الشاشة متى قال
+     * مستنده "غير محظور"، ومع أكثر من مصدر كان سيرفع حظراً فرضه مصدر آخر.
+     */
+    const lockdownState = { devices: {}, account: { banned: false, reason: '' } };
+    let lockdownPrimaryId = '';
+
+    function renderLockdown() {
+        const decision = resolveLockdownDecision(lockdownState);
+        if (decision.show) {
+            applySiteLockdownUi(lockdownPrimaryId, decision.reason, decision.kind);
+        } else if (decision.remove) {
+            removeSiteLockdownUi();
+        }
+    }
+
+    function isPermanentBanDoc(data) {
+        return !!data && data.status !== 'lifted_by_admin' &&
+            (data.status === 'permanent_banned' || data.isPermanent === true || data.isBanned === true);
+    }
+
     function initSiteWideDeviceLockdown() {
         try {
             if (typeof window === 'undefined') return;
             const hw = (typeof getHardwareFingerprint === 'function') ? getHardwareFingerprint() : null;
             if (!hw) return;
+            lockdownPrimaryId = hw;
+            const legacyHw = (typeof getLegacyFingerprint === 'function') ? getLegacyFingerprint() : '';
+            const watchIds = [hw];
+            if (legacyHw && legacyHw !== hw) watchIds.push(legacyHw);
 
-            // 1. فحص الكاش المحلي لتجميد الموقع فوراً دون انتظار شبكة
-            const cachedBan = localStorage.getItem('almezo_banned_hw_' + hw);
-            if (cachedBan) {
+            // 1. الكاش المحلي يجمّد الموقع فوراً دون انتظار الشبكة
+            watchIds.forEach(function (id) {
+                lockdownState.devices[id] = { known: false, banned: false, reason: '' };
                 try {
-                    const b = JSON.parse(cachedBan);
+                    const b = JSON.parse(localStorage.getItem('almezo_banned_hw_' + id) || 'null');
                     if (b && b.isBanned) {
-                        applySiteLockdownUi(hw, b.reason);
+                        lockdownState.devices[id].banned = true;
+                        lockdownState.devices[id].reason = b.reason || '';
                     }
                 } catch (e) { }
-            }
+            });
+            renderLockdown();
 
-            // 2. مستمع لحظي سحابي مباشر على وثيقة حظر هذا الجهاز
+            // 2. مستمع سحابي لكل معرّف، وكلها تصب في نفس القرار
             function startCloudBanWatch() {
                 if (typeof db === 'undefined' || !db) {
                     setTimeout(startCloudBanWatch, 1000);
                     return;
                 }
-                const cleanHw = hw.replace(/[^\w-]/g, '').trim();
-                db.collection('security_lockouts').doc('hw_' + cleanHw).onSnapshot(function (doc) {
-                    if (doc && doc.exists) {
-                        const data = doc.data() || {};
-                        // الحظر الشامل للموقع يُطبق فقط وحصرياً إذا كان حظراً إدارياً يدوياً من المدير
-                        // أما أخطاء كلمة السر العادية (1 دقيقة / 5 دقائق) فتنتهي تلقائياً ولا تغلق الموقع
-                        const isPermanentBan = (
-                            (data.status === 'permanent_banned' || data.isPermanent === true || data.isBanned === true) &&
-                            data.status !== 'lifted_by_admin'
-                        );
-
-                        if (isPermanentBan) {
-                            localStorage.setItem('almezo_banned_hw_' + hw, JSON.stringify({
-                                isBanned: true,
-                                reason: data.reason || 'حظر إداري دائم بقرار من المدير العام',
-                                bannedAt: Date.now()
-                            }));
-                            applySiteLockdownUi(hw, data.reason);
-                        } else {
-                            // رُفع الحظر من المدير أو ليس حظراً إدارياً شاملاً
-                            localStorage.removeItem('almezo_banned_hw_' + hw);
-                            removeSiteLockdownUi();
-                        }
-                    } else {
-                        // لا توجد وثيقة حظر
-                        localStorage.removeItem('almezo_banned_hw_' + hw);
-                        removeSiteLockdownUi();
-                    }
-                }, function (err) {
-                    // في حال تعذر القراءة المباشرة، نفحص عبر خادم السيرفر
-                    if (typeof serverLoginGuard === 'function') {
-                        serverLoginGuard('check', '').then(function (state) {
-                            if (state && state.locked) {
-                                applySiteLockdownUi(hw);
+                watchIds.forEach(function (id) {
+                    const cleanId = String(id).replace(/[^\w-]/g, '').trim();
+                    db.collection('security_lockouts').doc('hw_' + cleanId).onSnapshot(function (doc) {
+                        const data = doc && doc.exists ? (doc.data() || {}) : null;
+                        // الحظر الشامل للموقع لقرار المدير اليدوي وحده. أخطاء كلمة السر العادية
+                        // (دقيقة / 5 دقائق) تنتهي تلقائياً ولا تغلق الموقع.
+                        const banned = isPermanentBanDoc(data);
+                        lockdownState.devices[id] = { known: true, banned: banned, reason: banned ? (data.reason || '') : '' };
+                        try {
+                            if (banned) {
+                                localStorage.setItem('almezo_banned_hw_' + id, JSON.stringify({
+                                    isBanned: true,
+                                    reason: data.reason || 'حظر إداري دائم بقرار من المدير العام',
+                                    bannedAt: Date.now()
+                                }));
+                            } else {
+                                localStorage.removeItem('almezo_banned_hw_' + id);
                             }
-                        });
-                    }
+                        } catch (e) { }
+                        renderLockdown();
+                    }, function (err) {
+                        // تعذّرت القراءة المباشرة: نسأل السيرفر عن المعرّف الأساسي. الحظر المؤقت بعد
+                        // 3 محاولات خاطئة لا يغلق الموقع كله، لذلك يُشترط permanent الصريح.
+                        if (id === hw && typeof serverLoginGuard === 'function') {
+                            serverLoginGuard('check', '').then(function (state) {
+                                if (state && state.locked && state.permanent) {
+                                    lockdownState.devices[id] = { known: true, banned: true, reason: '' };
+                                    renderLockdown();
+                                }
+                            });
+                        }
+                    });
                 });
             }
 
             startCloudBanWatch();
+            startAccountBanWatch();
         } catch (err) {
             console.warn('initSiteWideDeviceLockdown error:', err);
         }

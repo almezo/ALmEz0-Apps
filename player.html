@@ -28,7 +28,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
-    <script src="firebase-config.js?v=4098.0"></script>
+    <script src="firebase-config.js?v=4101.0"></script>
     <script>
         // قفل مقياس العرض ومنع التكبير تلقائياً مع التوافق الكامل مع معايير HTML5
         (function enforceFixedScale() {
@@ -445,6 +445,11 @@
                 <span class="lang-btn-icon"><i class="fas fa-language"></i></span>
                 <span class="lang-btn-label">English</span>
             </button>
+            <!-- زر عائم لقياس سرعة الإنترنت (Speed Test) بجانب زر اللغة -->
+            <button id="mizoSpeedBtn" class="speed-floating-trigger" onclick="if (window.MizoSpeedTest) window.MizoSpeedTest.openModal();" title="قياس سرعة الإنترنت / Speed Test" tabindex="0">
+                <span class="speed-btn-icon"><i class="fas fa-gauge-high"></i></span>
+                <span class="speed-btn-label">قياس السرعة</span>
+            </button>
         </div>
         <!-- MAIN APP: PROFILE SCREEN -->
         <div class="app-screen-container app-screen hidden auto-style-13" id="profile-screen">
@@ -815,6 +820,99 @@
             </div>
         </div>
 
+        <!-- SPEED TEST MODAL -->
+        <div id="speedTestModal" class="speed-test-modal hidden" role="dialog" aria-modal="true" aria-labelledby="speedTestTitle" dir="rtl">
+            <div class="speed-test-backdrop" onclick="if (window.MizoSpeedTest) window.MizoSpeedTest.closeModal();"></div>
+            <div class="speed-test-card">
+                <div class="speed-test-header">
+                    <div class="speed-test-title-wrap">
+                        <div class="speed-test-icon-badge">
+                            <i class="fas fa-gauge-high"></i>
+                        </div>
+                        <div>
+                            <h3 id="speedTestTitle" class="speed-test-title">قياس سرعة الإنترنت</h3>
+                            <p class="speed-test-subtitle">فحص قدرة الاتصال وتحديد جودة البث الموصى بها لمشغل الميزو</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close-speed" onclick="if (window.MizoSpeedTest) window.MizoSpeedTest.closeModal();" title="إغلاق" tabindex="0">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="speed-test-gauge-wrap">
+                    <svg class="speed-gauge-svg" viewBox="0 0 240 140">
+                        <defs>
+                            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#06b6d4" />
+                                <stop offset="50%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#a855f7" />
+                            </linearGradient>
+                            <filter id="gaugeGlow">
+                                <feGaussianBlur stdDeviation="3" result="blur" />
+                                <feMerge>
+                                    <feMergeNode in="blur" />
+                                    <feMergeNode in="SourceGraphic" />
+                                </feMerge>
+                            </filter>
+                        </defs>
+                        <!-- Arc background -->
+                        <path class="gauge-track" d="M 30 125 A 90 90 0 0 1 210 125" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round" />
+                        <!-- Arc progress -->
+                        <path id="gaugeProgressArc" class="gauge-fill" d="M 30 125 A 90 90 0 0 1 210 125" fill="none" stroke="url(#gaugeGradient)" stroke-width="14" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="283" filter="url(#gaugeGlow)" />
+                    </svg>
+                    <div class="gauge-center-content">
+                        <div class="gauge-speed-val" id="speedTestVal">0.0</div>
+                        <div class="gauge-speed-unit">Mbps</div>
+                        <div class="gauge-status-pill" id="speedTestStatus">
+                            <span class="status-dot"></span>
+                            <span id="speedStatusText">جاهز لبدء الفحص</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="speed-metrics-grid">
+                    <div class="speed-metric-item">
+                        <div class="metric-icon metric-download"><i class="fas fa-arrow-down"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-label">سرعة التحميل</span>
+                            <span class="metric-value" id="metricDownload">-- <small>Mbps</small></span>
+                        </div>
+                    </div>
+                    <div class="speed-metric-item">
+                        <div class="metric-icon metric-ping"><i class="fas fa-bolt"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-label">سرعة الاستجابة (Ping)</span>
+                            <span class="metric-value" id="metricPing">-- <small>ms</small></span>
+                        </div>
+                    </div>
+                    <div class="speed-metric-item">
+                        <div class="metric-icon metric-jitter"><i class="fas fa-wave-square"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-label">تقلب الاتصال (Jitter)</span>
+                            <span class="metric-value" id="metricJitter">-- <small>ms</small></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="speed-recommend-card" id="speedRecommendCard">
+                    <div class="recommend-badge" id="recommendBadge">
+                        <i class="fas fa-tv"></i> <span id="recommendQuality">في انتظار الفحص...</span>
+                    </div>
+                    <p class="recommend-desc" id="recommendDesc">اضغط على زر الفحص لمعرفة جودة البث الأنسب لسرعتك الحالية.</p>
+                </div>
+
+                <div class="speed-test-actions">
+                    <button type="button" class="btn-speed-start" id="btnSpeedStart" onclick="if (window.MizoSpeedTest) window.MizoSpeedTest.startTest();" tabindex="0">
+                        <i class="fas fa-rotate-right"></i>
+                        <span id="speedStartBtnText">بدء الفحص</span>
+                    </button>
+                    <button type="button" class="btn-speed-close" onclick="if (window.MizoSpeedTest) window.MizoSpeedTest.closeModal();" tabindex="0">
+                        <span>إغلاق</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- SweetAlert2 -->
             <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
             <!-- Video.js -->
@@ -826,7 +924,7 @@
             <!-- Custom Logic -->
             <script src="player-lang.js?v=1.1"></script>
             <script src="splayer.js?v=34.8"></script>
-            <script src="downloads-ui.js?v=4097.0"></script>
+            <script src="downloads-ui.js?v=4099.0"></script>
             <!-- AlMeZ0 AI Assistant (Voice & Text Intelligence) -->
             <script src="ai-config.js?v=2.0"></script>
             <script src="ai-assistant.js?v=2.0"></script>

@@ -8,10 +8,18 @@ try {
     appVersion = require('../package.json').version || '1.4.5';
 } catch (e) { }
 
+// معرّف الجهاز الثابت (MachineGuid مجزّأً) يمرّره main.js. محاط بـ try: أي خطأ هنا كان
+// سيُسقط ملف التمهيد كله ويختفي electronAPI بالكامل (حدث ذلك سابقاً في v1.0.89).
+let deviceId = '';
+try {
+    deviceId = require('./device-id').parseDeviceIdArg(process.argv);
+} catch (e) { }
+
 contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
     isElectron: true,
     appVersion: appVersion,
+    deviceId: deviceId,
     setFullScreen: (enabled) => ipcRenderer.send('set-fullscreen', enabled),
     isFullScreen: () => ipcRenderer.invoke('is-fullscreen'),
     openExternal: (url) => ipcRenderer.send('open-external', url),

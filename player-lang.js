@@ -46,6 +46,21 @@
         'تلقائي': 'Auto',
         'آخر تحديث:': 'Last update:',
 
+        // فحص سرعة الإنترنت
+        'قياس سرعة الإنترنت': 'Internet Speed Test',
+        'قياس السرعة': 'Speed Test',
+        'فحص قدرة الاتصال وتحديد جودة البث الموصى بها لمشغل الميزو': 'Check connection speed and recommended streaming quality',
+        'سرعة التحميل': 'Download Speed',
+        'سرعة الاستجابة (Ping)': 'Latency (Ping)',
+        'تقلب الاتصال (Jitter)': 'Jitter',
+        'بدء الفحص': 'Start Test',
+        'إعادة الفحص': 'Test Again',
+        'جاهز لبدء الفحص': 'Ready to test',
+        'في انتظار الفحص...': 'Awaiting test...',
+        'اضغط على زر الفحص لمعرفة جودة البث الأنسب لسرعتك الحالية.': 'Press Start Test to check your streaming capability.',
+        'جاري الفحص...': 'Testing...',
+        'اكتمل الفحص بنجاح': 'Test Completed',
+
         // البحث
         'بحث في الأفلام والمسلسلات': 'Search movies and series',
         'البحث في القنوات': 'Search channels',
@@ -267,13 +282,20 @@
         updateButton();
     }
 
-    // ---------------------------------------------------------------- زر اللغة
+    // ---------------------------------------------------------------- زر اللغة وزر قياس السرعة
     function updateButton() {
         var btn = document.getElementById('mizoLangBtn');
-        if (!btn) return;
         var en = isEnglish();
-        btn.querySelector('.lang-btn-label').textContent = en ? 'العربية' : 'English';
-        btn.title = en ? 'التبديل إلى العربية' : 'Switch to English';
+        if (btn) {
+            btn.querySelector('.lang-btn-label').textContent = en ? 'العربية' : 'English';
+            btn.title = en ? 'التبديل إلى العربية' : 'Switch to English';
+        }
+        var speedBtn = document.getElementById('mizoSpeedBtn');
+        if (speedBtn) {
+            var label = speedBtn.querySelector('.speed-btn-label');
+            if (label) label.textContent = en ? 'Speed Test' : 'قياس السرعة';
+            speedBtn.title = en ? 'Internet Speed Test' : 'قياس سرعة الإنترنت / Speed Test';
+        }
     }
 
     function buildButton() {

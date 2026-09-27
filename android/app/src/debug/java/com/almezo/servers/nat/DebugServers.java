@@ -12,6 +12,11 @@ public final class DebugServers {
         return "http://10.0.2.2:8765/firestore:runQuery";
     }
 
+    /** فحص الحظر في المشغل الأصلي من سيرفر الاختبار بدل loginGuard الحقيقي. */
+    public static String guardUrl() {
+        return "http://10.0.2.2:8765/loginGuard";
+    }
+
     public static String[] testServer() {
         return new String[]{"999", "http://10.0.2.2:8765", "سيرفر تجريبي"};
     }

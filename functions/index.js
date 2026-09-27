@@ -602,7 +602,13 @@ exports.subscriptionExpiryReminders = onSchedule({ schedule: "0 10 * * *", timeZ
 // - الأحداث الخطيرة تُرسل تنبيهاً فورياً للمدير على واتساب.
 const LOG_DAILY_LIMIT_USER = 400;      // لكل حساب مسجّل
 const LOG_DAILY_LIMIT_ANON = 120;      // لكل جهاز زائر غير مسجّل
-const LOG_ALERT_DAILY_LIMIT = 12;      // أقصى عدد تنبيهات واتساب في اليوم
+// تنبيهات المدير الفورية (FCM): كان هذا الحد مُعرَّفاً ولا يُطبَّق في أي مكان، فكان أي زائر
+// مجهول يستطيع إرسال عدد لا نهائي من الإشعارات إلى هاتف المدير بحركات "خطيرة" مزوّرة.
+const LOG_ALERT_DAILY_LIMIT = 60;       // سقف يومي عام لكل التنبيهات
+const LOG_ALERT_PER_SOURCE_LIMIT = 5;   // لكل مصدر (جهاز/IP) في اليوم
+// بصمة الجهاز يختارها العميل بحرية، فتدويرها كان يعطي حصة يومية جديدة بلا حد.
+// سقف إضافي بعنوان IP للزوار، واسع عمداً لأن شبكات الجوال تشارك العنوان بين كثيرين (CGNAT).
+const LOG_DAILY_LIMIT_ANON_IP = 1500;
 
 function logClientIp(request) {
     try {
@@ -626,6 +632,30 @@ async function logEnforceQuota(key, limit) {
         return c;
     });
     return n < limit;
+}
+
+/** مثل logEnforceQuota لكنه يعيد العدد السابق (-1 عند الرفض) ليُعرف آخر تنبيه مسموح. */
+async function logQuotaCount(key, limit) {
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const day = new Date(Date.now() + 2 * 3600 * 1000).toISOString().slice(0, 10);
+    const ref = fs().collection("log_usage").doc(key + "_" + day);
+    return fs().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const c = (snap.exists ? snap.data().count : 0) || 0;
+        if (c >= limit) return -1;
+        tx.set(ref, { key: key, day: day, count: FieldValue.increment(1) }, { merge: true });
+        return c;
+    });
+}
+
+/** نص آمن لإشعار: بلا روابط ولا أقواس، حتى لا يصل نص تصيّد مكتوب من زائر إلى هاتف المدير. */
+function alertSafeText(v, n) {
+    return String(v == null ? "" : v)
+        .replace(/https?:\/\/\S+|www\.\S+|\S+\.(com|net|org|ly|io|me|xyz|link)\S*/gi, "")
+        .replace(/[<>]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, n);
 }
 
 /** بيانات صاحب الحركة من قاعدة البيانات نفسها، لا من الجهاز. */
@@ -674,6 +704,8 @@ function logSanitizeDevice(device, ip) {
         screen: pick(d.screen, 20),
         visitorId: pick(d.visitorId, 40),
         hardwareFingerprint: pick(d.hardwareFingerprint, 40),
+        // البصمة القديمة (HW-...) لفترة الانتقال: تربط الحظرات القديمة بالمعرّفات الفريدة الجديدة
+        legacyFingerprint: pick(d.legacyFingerprint, 16),
         publicIp: ip,
         country: pick(d.country, 40),
         city: pick(d.city, 40),
@@ -720,9 +752,18 @@ const recentAdminAlerts = new Map();
  * يُحفظ في مجموعة خاصة ومستقلة حصرياً بالمدير (admin_security_alerts) مفصولة تماماً عن إعلانات العملاء
  * ويصل لهاتفه عبر FCM مع الصوت والاهتزاز وشريط الإشعارات حتى والتطبيق مغلق.
  */
-async function logAlertAdmin(payload) {
+async function logAlertAdmin(payload, sourceKey) {
     try {
         const now = Date.now();
+
+        // سقفان: لكل مصدر، ثم عام. التكرار داخل 8 ثوانٍ (أدناه) في ذاكرة النسخة فقط،
+        // ودوال السيرفر تعمل بعدة نسخ، فلا يكفي وحده.
+        const src = String(sourceKey || payload.publicIp || (payload.user && payload.user.uid) || "unknown")
+            .replace(/[^\w.:-]/g, "_").slice(0, 60);
+        if ((await logQuotaCount("alert_src_" + src, LOG_ALERT_PER_SOURCE_LIMIT)) < 0) return;
+        const globalCount = await logQuotaCount("alert_all", LOG_ALERT_DAILY_LIMIT);
+        if (globalCount < 0) return;
+        const isLastToday = globalCount === LOG_ALERT_DAILY_LIMIT - 1;
         const dedupeKey = String(payload.publicIp || "") + "_" + String((payload.user && payload.user.phone) || "") + "_" + String(payload.action || "");
         if (dedupeKey.length > 5) {
             const lastTime = recentAdminAlerts.get(dedupeKey);
@@ -737,11 +778,13 @@ async function logAlertAdmin(payload) {
         }
 
         const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
-        const body = (payload.user ? payload.user.name + (payload.user.phone ? " (" + payload.user.phone + ")" : "") : "مستخدم") +
-            " • " + ((payload.device && payload.device.type) || "جهاز غير معروف") +
-            (payload.publicIp ? " • " + payload.publicIp : "") +
-            (payload.page ? " • " + payload.page : "");
-        const alertTitle = "🚨 " + String(payload.title || "حدث أمني").slice(0, 120);
+        // نوع الجهاز والصفحة يرسلهما العميل: يُنظَّفان قبل أن يصلا لشاشة هاتف المدير
+        const body = (payload.user ? alertSafeText(payload.user.name, 60) + (payload.user.phone ? " (" + alertSafeText(payload.user.phone, 20) + ")" : "") : "مستخدم") +
+            " • " + (alertSafeText(payload.device && payload.device.type, 40) || "جهاز غير معروف") +
+            (payload.publicIp ? " • " + alertSafeText(payload.publicIp, 45) : "") +
+            (payload.page ? " • " + alertSafeText(payload.page, 40) : "");
+        const alertTitle = "🚨 " + alertSafeText(payload.title || "حدث أمني", 120) +
+            (isLastToday ? " (آخر تنبيه اليوم — البقية في غرفة المراقبة)" : "");
         const alertBody = body.slice(0, 240);
 
         const doc = await fs().collection("admin_security_alerts").add({
@@ -805,6 +848,10 @@ exports.logEvent = onCall(async (request) => {
     if (!(await logEnforceQuota(quotaKey, uid ? LOG_DAILY_LIMIT_USER : LOG_DAILY_LIMIT_ANON))) {
         return { ok: false, reason: "quota" };
     }
+    // الزائر المجهول يختار بصمته بنفسه، فتدويرها كان يتجاوز الحد السابق بلا نهاية
+    if (!uid && ip && !(await logEnforceQuota("ip_" + ip.replace(/[.:]/g, "_"), LOG_DAILY_LIMIT_ANON_IP))) {
+        return { ok: false, reason: "quota" };
+    }
 
     const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
     const user = await logResolveUser(uid);
@@ -835,9 +882,20 @@ exports.logEvent = onCall(async (request) => {
 
     const ref = await fs().collection("activity_logs").add(payload);
 
-    // تنبيه فوري للمدير على واتساب للأحداث الخطيرة فقط
+    // تنبيه فوري للمدير للأحداث الخطيرة فقط.
+    // العنوان يُبنى هنا في السيرفر: عنوان الحركة يكتبه العميل بحرية، فكان أي زائر يستطيع
+    // إرسال نص تصيّد يظهر على شاشة هاتف المدير كتنبيه أمني رسمي.
     if (severity === "danger" && payload.category === "security") {
-        await logAlertAdmin(payload);
+        const ALERT_TITLES = {
+            login_failed: "محاولة دخول فاشلة",
+            client_locked_out: "حظر مؤقت بعد محاولات دخول فاشلة",
+            lockout_attempt: "محاولة دخول أثناء سريان الحظر",
+            unauthorized_access_attempt: "محاولة دخول غير مصرح لغرفة المراقبة",
+            brute_force_warning: "تحذير: تخمين كلمة مرور"
+        };
+        const trustedTitle = ALERT_TITLES[payload.action] ||
+            ("حدث أمني من " + (uid ? "مستخدم مسجل" : "زائر غير مسجل"));
+        await logAlertAdmin(Object.assign({}, payload, { title: trustedTitle }), ip || quotaKey);
     }
     return { ok: true, id: ref.id };
 });
@@ -906,6 +964,16 @@ function guardFormatDuration(seconds) {
     return "24 ساعة (يوم كامل)";
 }
 
+/**
+ * الهاتف والـ IP وبيانات الجهاز تُحفظ في مستند ip_ فقط (للمدير وحده).
+ * مستندات hw_ مقروءة بلا مصادقة (ليعرف كل جهاز حالة حظره)، فكانت تكشف رقم الهاتف
+ * والعنوان والمدينة ومزوّد الخدمة لأي شخص يعرف بصمة الجهاز. الجهاز لا يقرأ منها إلا
+ * isBanned وisPermanent وreason وstatus.
+ */
+function guardPersonalFields(key, phone, ip, device) {
+    return String(key).startsWith("ip_") ? { phone: phone, ip: ip, device: device } : {};
+}
+
 function guardKeys(d, ip) {
     const clean = (v, n) => String(v == null ? "" : v).replace(/[^\w.:@-]/g, "").slice(0, n);
     // المفاتيح: بصمة الجهاز وعنوان IP فقط. لا نحظر برقم الهاتف وحده، وإلا استطاع شخص أن
@@ -927,11 +995,25 @@ async function guardRead(db, keys) {
  * حالة الحظر لهذا الطلب: أقوى حظر ساري بين مفاتيحه (جهاز، IP، رقم).
  * lift = رفع المدير للحظر يُلغي السريان.
  */
+/**
+ * حظر دائم من المدير؟ (نفس شرط الجهاز في firebase-config.js)
+ * يُعامل كسارٍ دائماً مهما كانت قيمة lockedUntil، ولا يمسّه loginGuard أبداً.
+ */
+function guardIsPermanent(d) {
+    return !!d && d.status !== "lifted_by_admin" &&
+        (d.status === "permanent_banned" || d.isPermanent === true || d.isBanned === true);
+}
+
+const GUARD_PERMANENT_UNTIL = 4102444800000; // سنة 2100، كما يكتبها adminBanDevice
+
 function guardActive(rows, now) {
     let best = null;
     for (const r of rows) {
         const d = r.data;
         if (!d || d.status === "lifted_by_admin") continue;
+        if (guardIsPermanent(d)) {
+            return { until: Math.max(Number(d.lockedUntil) || 0, GUARD_PERMANENT_UNTIL), tier: Number(d.tier) || 1, durationSeconds: 999999999, key: r.key, permanent: true };
+        }
         const until = Number(d.lockedUntil) || 0;
         if (until > now && (!best || until > best.until)) {
             best = { until: until, tier: Number(d.tier) || 1, durationSeconds: Number(d.durationSeconds) || 60, key: r.key };
@@ -957,11 +1039,18 @@ exports.loginGuard = onCall(async (request) => {
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "لا يمكن تصفير الحظر دون تسجيل دخول موثّق.");
         }
+        // الحظر الدائم لا يُلمس أبداً. كان هذا المسار يكتب lockedUntil: 0 فوق مستند الحظر
+        // الدائم، فيلتقطه تنظيف الليل (lockedUntil < قبل 30 يوماً) ويحذفه، فيُرفع الحظر
+        // بصمت: كان يكفي المحظور أي حساب مسجّل ونداء واحد لهذه الدالة ببصمة جهازه.
         const batch = db.batch();
+        let touched = 0;
         rows.forEach((r) => {
-            if (r.data) batch.set(r.ref, { attempts: 0, lockedUntil: 0, status: "cleared", tier: 0, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            if (r.data && !guardIsPermanent(r.data)) {
+                batch.set(r.ref, { attempts: 0, lockedUntil: 0, status: "cleared", tier: 0, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+                touched++;
+            }
         });
-        await batch.commit();
+        if (touched) await batch.commit();
         return { locked: false, remainingSeconds: 0, attempts: 0, remainingAttempts: GUARD_MAX_ATTEMPTS };
     }
 
@@ -974,7 +1063,10 @@ exports.loginGuard = onCall(async (request) => {
             formattedDuration: guardFormatDuration(active.durationSeconds),
             tierIndex: Math.max(0, active.tier - 1),
             attempts: GUARD_MAX_ATTEMPTS,
-            remainingAttempts: 0
+            remainingAttempts: 0,
+            // حظر المدير الدائم مقابل القفل المؤقت بعد 3 محاولات: المشغل الأصلي وشاشة الموقع
+            // يُغلقان للدائم وحده
+            permanent: !!active.permanent
         };
     }
 
@@ -987,18 +1079,17 @@ exports.loginGuard = onCall(async (request) => {
     const attempts = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.attempts)) || 0)) + 1;
     const tierIndex = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.tierIndex)) || 0));
     const device = logSanitizeDevice(d.device, ip);
+    // الرقم يكتبه العميل: أرقام فقط، وإلا وصل نص حر إلى عنوان تنبيه هاتف المدير
+    const cleanPhone = String(d.phone || "").replace(/[^\d+]/g, "").slice(0, 20);
     const batch = db.batch();
 
     if (attempts >= GUARD_MAX_ATTEMPTS) {
         const durationSeconds = GUARD_TIERS_SECONDS[Math.min(tierIndex, GUARD_TIERS_SECONDS.length - 1)];
         const lockedUntil = now + durationSeconds * 1000;
         rows.forEach((r) => {
-            batch.set(r.ref, {
+            batch.set(r.ref, Object.assign({
                 key: r.key,
                 hw: String(d.hw || "").slice(0, 40),
-                phone: String(d.phone || "").slice(0, 20),
-                ip: ip,
-                device: device,
                 attempts: 0,
                 tierIndex: Math.min(tierIndex + 1, GUARD_TIERS_SECONDS.length - 1),
                 tier: tierIndex + 1,
@@ -1008,35 +1099,35 @@ exports.loginGuard = onCall(async (request) => {
                 status: "active",
                 createdAt: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp()
-            }, { merge: true });
+            }, guardPersonalFields(r.key, cleanPhone, ip, device)), { merge: true });
         });
         await batch.commit();
 
         // إشعار أمني فوري للمدير من السيرفر فور تفعيل الحظر لضمان وصوله حتى والتطبيق مغلق
         try {
             const alertPayload = {
-                title: "حظر أمني مؤقت (" + guardFormatDuration(durationSeconds) + ") لـ " + (d.phone || "جهاز غير معروف"),
+                title: "حظر أمني مؤقت (" + guardFormatDuration(durationSeconds) + ") لـ " + (cleanPhone || "جهاز غير معروف"),
                 action: "client_locked_out",
                 category: "security",
                 severity: "danger",
                 user: {
                     uid: request.auth ? request.auth.uid : "",
-                    name: d.phone ? "عميل (" + d.phone + ")" : "زائر غير مسجل",
-                    phone: String(d.phone || "").slice(0, 20),
+                    name: cleanPhone ? "عميل (" + cleanPhone + ")" : "زائر غير مسجل",
+                    phone: cleanPhone,
                     role: "visitor"
                 },
                 device: device,
                 publicIp: ip,
                 page: "login",
                 details: {
-                    attemptedPhone: String(d.phone || ""),
+                    attemptedPhone: cleanPhone,
                     tier: tierIndex + 1,
                     durationSeconds: durationSeconds,
                     formattedDuration: guardFormatDuration(durationSeconds),
                     reason: "تكرار إدخال بيانات خاطئة (Brute-Force)"
                 }
             };
-            logAlertAdmin(alertPayload).catch((e) => logger.warn("loginGuard alert failed", { error: e.message }));
+            logAlertAdmin(alertPayload, ip || ("hw_" + String(d.hw || "").slice(0, 40))).catch((e) => logger.warn("loginGuard alert failed", { error: e.message }));
         } catch (e) { }
 
         return {
@@ -1052,20 +1143,90 @@ exports.loginGuard = onCall(async (request) => {
     }
 
     rows.forEach((r) => {
-        batch.set(r.ref, {
+        batch.set(r.ref, Object.assign({
             key: r.key,
             hw: String(d.hw || "").slice(0, 40),
-            phone: String(d.phone || "").slice(0, 20),
-            ip: ip,
-            device: device,
             attempts: attempts,
             tierIndex: tierIndex,
             status: "counting",
             updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
+        }, guardPersonalFields(r.key, cleanPhone, ip, device)), { merge: true });
     });
     await batch.commit();
     return { locked: false, attempts: attempts, remainingAttempts: GUARD_MAX_ATTEMPTS - attempts, tierIndex: tierIndex };
+});
+
+/**
+ * حظر حساب (لا جهاز) من لوحة المدير.
+ * يُعطَّل الحساب في Firebase Auth فلا يسجّل صاحبه الدخول من أي جهاز، وتُلغى جلساته (رموز
+ * التحديث)، ويُكتب مستند banned_accounts/{uid} الذي يراقبه الموقع فيُخرج الجلسة المفتوحة فوراً.
+ * لا يمسّ اشتراك IPTV نفسه: تعطيله يتم من لوحة Xtream.
+ */
+async function accountBanGuard(request) {
+    if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");
+    const { getFirestore: fs } = require("firebase-admin/firestore");
+    const db = fs();
+    const adminUid = request.auth.uid;
+    const isAdmin = adminUid === AI_ADMIN_UID || (await db.collection("admins").doc(adminUid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "هذه العملية للمدير فقط.");
+    const target = String((request.data && request.data.uid) || "").slice(0, 128);
+    if (!target || !/^[A-Za-z0-9_-]+$/.test(target)) throw new HttpsError("invalid-argument", "لم يُحدَّد الحساب.");
+    return { db, adminUid, target };
+}
+
+exports.adminBanAccount = onCall(async (request) => {
+    const { db, adminUid, target } = await accountBanGuard(request);
+    const { FieldValue } = require("firebase-admin/firestore");
+    const { getAuth } = require("firebase-admin/auth");
+    if (target === AI_ADMIN_UID || target === adminUid) {
+        throw new HttpsError("permission-denied", "لا يمكن إيقاف حساب المدير.");
+    }
+    if ((await db.collection("admins").doc(target).get()).exists) {
+        throw new HttpsError("permission-denied", "هذا حساب مدير. أزل صلاحيته أولاً.");
+    }
+
+    // الاسم والهاتف من قاعدة البيانات نفسها، لا مما يرسله المتصفح
+    const who = await logResolveUser(target);
+    const reason = String((request.data && request.data.reason) || "تم إيقاف هذا الحساب بقرار من الإدارة").slice(0, 200);
+
+    let authDisabled = false;
+    try {
+        await getAuth().updateUser(target, { disabled: true });
+        await getAuth().revokeRefreshTokens(target);
+        authDisabled = true;
+    } catch (err) {
+        // حساب محذوف من Auth: يبقى المستند لتظهر الشاشة لأي جلسة قديمة
+        if (!(err && err.code === "auth/user-not-found")) {
+            throw new HttpsError("internal", "تعذر إيقاف حساب الدخول: " + err.message);
+        }
+    }
+
+    await db.collection("banned_accounts").doc(target).set({
+        uid: target,
+        userName: String(who.name || "").slice(0, 80),
+        phone: String(who.phone || "").slice(0, 20),
+        role: String(who.role || "").slice(0, 20),
+        reason: reason,
+        bannedAt: FieldValue.serverTimestamp(),
+        bannedAtMillis: Date.now(),
+        bannedBy: adminUid,
+        authDisabled: authDisabled
+    });
+    return { ok: true, authDisabled: authDisabled };
+});
+
+exports.adminUnbanAccount = onCall(async (request) => {
+    const { db, target } = await accountBanGuard(request);
+    const { getAuth } = require("firebase-admin/auth");
+    try {
+        await getAuth().updateUser(target, { disabled: false });
+    } catch (err) {
+        if (!(err && err.code === "auth/user-not-found")) {
+            throw new HttpsError("internal", "تعذر إعادة تفعيل حساب الدخول: " + err.message);
+        }
+    }
+    await db.collection("banned_accounts").doc(target).delete();
+    return { ok: true };
 });
 
 /** حظر جهاز نهائياً ببصمته من لوحة المدير: حظر دائم لا يرتفع إلا برفع المدير له يدوياً. */
@@ -1081,6 +1242,25 @@ exports.adminBanDevice = onCall(async (request) => {
     const hw = String(d.hw || "").replace(/[^\w-]/g, "").slice(0, 40);
     if (!hw) throw new HttpsError("invalid-argument", "بصمة الجهاز غير محددة.");
 
+    // لقطة هوية وقت الحظر (نفس حقول المسار المباشر في firebase-config.js)
+    const idn = d.identity && typeof d.identity === "object" ? d.identity : {};
+    const snap = {};
+    ["userName", "phone", "ip", "city", "country", "os", "browser", "appPlatform", "role"].forEach((k) => {
+        const v = idn[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") {
+            snap[k] = String(v).trim().slice(0, 120);
+        }
+    });
+
+    // اللقطة في مجموعة المدير وحده: مستند الحظر مقروء بلا مصادقة (allow get على ^hw_.*)
+    if (Object.keys(snap).length) {
+        await db.collection("security_lockouts_meta").doc("hw_" + hw).set({
+            hw: hw,
+            capturedAtMillis: Date.now(),
+            ...snap
+        }, { merge: true });
+    }
+
     const ref = db.collection("security_lockouts").doc("hw_" + hw);
     await ref.set({
         key: "hw_" + hw,
@@ -1092,6 +1272,7 @@ exports.adminBanDevice = onCall(async (request) => {
         durationSeconds: 999999999,
         formattedDuration: "حظر دائم بقرار الإدارة",
         bannedAt: FieldValue.serverTimestamp(),
+        bannedAtMillis: Date.now(),
         reason: String(d.reason || "حظر إداري دائم بقرار من المدير العام").slice(0, 200),
         bannedBy: uid
     }, { merge: true });
@@ -1122,12 +1303,17 @@ exports.liftLockout = onCall(async (request) => {
     refs.forEach((k) => {
         batch.set(db.collection("security_lockouts").doc(k), {
             status: "lifted_by_admin",
+            // المسار المباشر في المتصفح يصفّر هذين، والسيرفر لم يكن يفعل
+            isBanned: false,
+            isPermanent: false,
             lockedUntil: 0,
             attempts: 0,
             tierIndex: 0,
             liftedAt: FieldValue.serverTimestamp(),
             liftedBy: uid
         }, { merge: true });
+        // لقطة الهوية لم يعد لها سبب بعد رفع الحظر: لا نحتفظ ببيانات شخص غير محظور
+        if (k.startsWith("hw_")) batch.delete(db.collection("security_lockouts_meta").doc(k));
     });
     await batch.commit();
     return { ok: true, lifted: refs.length };
@@ -1137,11 +1323,38 @@ exports.liftLockout = onCall(async (request) => {
 async function guardCleanup(db) {
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const snap = await db.collection("security_lockouts").where("lockedUntil", "<", cutoff).limit(300).get();
-    if (snap.empty) return 0;
-    const batch = db.batch();
-    snap.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
-    return snap.size;
+    let removed = 0;
+    if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach((doc) => {
+            const data = doc.data() || {};
+            if (guardIsPermanent(data)) {
+                // حظر دائم صُفّر وقته (بالثغرة القديمة في مسار success): يُصلَح ولا يُحذف
+                batch.set(doc.ref, { lockedUntil: GUARD_PERMANENT_UNTIL, status: "permanent_banned" }, { merge: true });
+                return;
+            }
+            batch.delete(doc.ref);
+            removed++;
+        });
+        await batch.commit();
+    }
+
+    // إزالة البيانات الشخصية القديمة من مستندات hw_ العلنية (كُتبت قبل هذا الإصلاح)
+    try {
+        const { FieldValue } = require("firebase-admin/firestore");
+        const pii = await db.collection("security_lockouts").where("phone", ">", "").limit(300).get();
+        const b2 = db.batch();
+        let stripped = 0;
+        pii.docs.forEach((doc) => {
+            if (!doc.id.startsWith("hw_")) return;
+            b2.update(doc.ref, { phone: FieldValue.delete(), ip: FieldValue.delete(), device: FieldValue.delete() });
+            stripped++;
+        });
+        if (stripped) await b2.commit();
+    } catch (e) {
+        logger.warn("lockout PII strip failed", { error: e.message });
+    }
+    return removed;
 }
 
 // =============================================

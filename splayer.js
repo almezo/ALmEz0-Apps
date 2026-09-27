@@ -5867,7 +5867,7 @@ function initLivePlayerGestures() {
 function isBlockingModalOpen() {
     if (document.querySelector('.mz-dlg-overlay')) return true;
     const candidates = document.querySelectorAll(
-        '#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)'
+        '#almezoAiModal:not(.hidden), #speedTestModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)'
     );
     for (const m of candidates) {
         if (m.classList.contains('swal2-container') && m.querySelector('.swal2-toast')) continue;
@@ -5989,7 +5989,7 @@ function initTvNavigationEngine() {
     function getVisibleFocusables() {
         // فحص النوافذ المنبثقة النشطة لحصر التركيز داخلها ومنع تسرب الأسهم لخلفية الشاشة
         // نافذة التنبيه/التأكيد أولاً: قد تُفتح فوق نافذة أخرى (تأكيد حذف فوق قوائم التشغيل)
-        const activeModal = document.querySelector('.mz-dlg-overlay') || document.querySelector('#almezoAiModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
+        const activeModal = document.querySelector('.mz-dlg-overlay') || document.querySelector('#almezoAiModal:not(.hidden), #speedTestModal:not(.hidden), #fullscreenVideoModal:not(.hidden), #playlistsModal:not(.hidden), #deviceModeModal:not(.hidden), #trailerModal:not(.hidden), #sortModal:not(.hidden), .custom-logout-modal, .swal2-container, .modal:not(.hidden)');
         let container = activeModal;
         let includeNav = false;
 
@@ -6243,14 +6243,15 @@ function initTvNavigationEngine() {
             return;
         }
 
-        // تنقل سلس ومحسوب بين كروت الشاشة الرئيسية وزري المساعد وتغيير اللغة
-        if (currentFocusedEl && (currentFocusedEl.classList.contains('dash-card') || currentFocusedEl.id === 'aiFloatingTrigger' || currentFocusedEl.id === 'mizoLangBtn' || currentFocusedEl.classList.contains('ai-floating-trigger') || currentFocusedEl.classList.contains('lang-floating-trigger'))) {
+        // تنقل سلس ومحسوب بين كروت الشاشة الرئيسية وأزرار المساعد وتغيير اللغة وقياس السرعة
+        if (currentFocusedEl && (currentFocusedEl.classList.contains('dash-card') || currentFocusedEl.id === 'aiFloatingTrigger' || currentFocusedEl.id === 'mizoLangBtn' || currentFocusedEl.id === 'mizoSpeedBtn' || currentFocusedEl.classList.contains('ai-floating-trigger') || currentFocusedEl.classList.contains('lang-floating-trigger') || currentFocusedEl.classList.contains('speed-floating-trigger'))) {
             const dashCards = Array.from(document.querySelectorAll('#dashboard-screen .dash-card'));
             const isAiBtn = currentFocusedEl.id === 'aiFloatingTrigger' || currentFocusedEl.classList.contains('ai-floating-trigger');
+            const isSpeedBtn = currentFocusedEl.id === 'mizoSpeedBtn' || currentFocusedEl.classList.contains('speed-floating-trigger');
             const isLangBtn = currentFocusedEl.id === 'mizoLangBtn' || currentFocusedEl.classList.contains('lang-floating-trigger');
             const isEn = !!(window.MizoLang && window.MizoLang.isEnglish && window.MizoLang.isEnglish());
 
-            if (isAiBtn || isLangBtn) {
+            if (isAiBtn || isSpeedBtn || isLangBtn) {
                 if (e.key === 'ArrowUp' || e.keyCode === 38) {
                     e.preventDefault();
                     setFocus(dashCards[0] || document.getElementById('cardLive'));
@@ -6258,13 +6259,31 @@ function initTvNavigationEngine() {
                 }
                 if (e.key === 'ArrowLeft' || e.keyCode === 37) {
                     e.preventDefault();
-                    const targetBtn = isEn ? (isAiBtn ? document.getElementById('mizoLangBtn') : document.getElementById('aiFloatingTrigger')) : (isAiBtn ? document.getElementById('mizoLangBtn') : document.getElementById('aiFloatingTrigger'));
+                    let targetBtn = null;
+                    if (isEn) {
+                        // في الإنجليزية: المساعد يسار، ثم السرعة، ثم اللغة يمين
+                        if (isLangBtn) targetBtn = document.getElementById('mizoSpeedBtn');
+                        else if (isSpeedBtn) targetBtn = document.getElementById('aiFloatingTrigger');
+                    } else {
+                        // في العربية: المساعد يمين، ثم السرعة، ثم اللغة أقصى اليسار
+                        if (isAiBtn) targetBtn = document.getElementById('mizoSpeedBtn');
+                        else if (isSpeedBtn) targetBtn = document.getElementById('mizoLangBtn');
+                    }
                     if (targetBtn && !targetBtn.classList.contains('hidden') && targetBtn.offsetParent !== null) setFocus(targetBtn);
                     return;
                 }
                 if (e.key === 'ArrowRight' || e.keyCode === 39) {
                     e.preventDefault();
-                    const targetBtn = isEn ? (isLangBtn ? document.getElementById('aiFloatingTrigger') : document.getElementById('mizoLangBtn')) : (isLangBtn ? document.getElementById('aiFloatingTrigger') : document.getElementById('mizoLangBtn'));
+                    let targetBtn = null;
+                    if (isEn) {
+                        // في الإنجليزية: السهم اليمين يتحرك نحو اليمين (المساعد -> السرعة -> اللغة)
+                        if (isAiBtn) targetBtn = document.getElementById('mizoSpeedBtn');
+                        else if (isSpeedBtn) targetBtn = document.getElementById('mizoLangBtn');
+                    } else {
+                        // في العربية: السهم اليمين يتحرك نحو اليمين (اللغة -> السرعة -> المساعد)
+                        if (isLangBtn) targetBtn = document.getElementById('mizoSpeedBtn');
+                        else if (isSpeedBtn) targetBtn = document.getElementById('aiFloatingTrigger');
+                    }
                     if (targetBtn && !targetBtn.classList.contains('hidden') && targetBtn.offsetParent !== null) setFocus(targetBtn);
                     return;
                 }
@@ -6661,3 +6680,345 @@ window.MizoSubs = (function () {
 
     return { sync: sync, remove: remove, checkLocal: checkLocal, isTrial: isTrial, init: init };
 })();
+
+// =========================================================================
+// نظام فحص وقياس سرعة الإنترنت المباشر للمشغل (Mizo In-Player Speed Test)
+// =========================================================================
+window.MizoSpeedTest = (function () {
+    let isRunning = false;
+    let abortController = null;
+    let currentAnimFrame = null;
+
+    function getEn() {
+        return !!(window.MizoLang && window.MizoLang.isEnglish && window.MizoLang.isEnglish());
+    }
+
+    function openModal() {
+        const modal = document.getElementById('speedTestModal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        resetUi();
+        // عزل الشاشة والقائمة خلف النافذة حتى لا تتسرب أسهم الريموت إلى كروت الداشبورد
+        if (typeof syncModalInertState === 'function') syncModalInertState();
+        const startBtn = document.getElementById('btnSpeedStart');
+        if (startBtn) startBtn.focus();
+    }
+
+    function closeModal() {
+        stopTest();
+        const modal = document.getElementById('speedTestModal');
+        if (modal) modal.classList.add('hidden');
+        // فك العزل قبل إرجاع التركيز، وإلا بقي الزر داخل منطقة inert ولم يقبل التركيز
+        if (typeof syncModalInertState === 'function') syncModalInertState();
+        const trigger = document.getElementById('mizoSpeedBtn');
+        if (trigger) trigger.focus();
+    }
+
+    function resetUi() {
+        const valEl = document.getElementById('speedTestVal');
+        const arc = document.getElementById('gaugeProgressArc');
+        const statusText = document.getElementById('speedStatusText');
+        const statusDot = document.querySelector('.status-dot');
+        const dlEl = document.getElementById('metricDownload');
+        const pingEl = document.getElementById('metricPing');
+        const jitterEl = document.getElementById('metricJitter');
+        const recBadge = document.getElementById('recommendBadge');
+        const recDesc = document.getElementById('recommendDesc');
+        const startText = document.getElementById('speedStartBtnText');
+
+        const en = getEn();
+        if (valEl) valEl.textContent = '0.0';
+        if (arc) arc.style.strokeDashoffset = '283';
+        if (statusText) statusText.textContent = en ? 'Ready to test' : 'جاهز لبدء الفحص';
+        if (statusDot) statusDot.classList.remove('testing');
+        if (dlEl) dlEl.innerHTML = '-- <small>Mbps</small>';
+        if (pingEl) pingEl.innerHTML = '-- <small>ms</small>';
+        if (jitterEl) jitterEl.innerHTML = '-- <small>ms</small>';
+        if (recBadge) recBadge.innerHTML = '<i class="fas fa-tv"></i> <span>' + (en ? 'Awaiting test...' : 'في انتظار الفحص...') + '</span>';
+        if (recDesc) recDesc.textContent = en ? 'Press Start Test to check your streaming capability.' : 'اضغط على زر الفحص لمعرفة جودة البث الأنسب لسرعتك الحالية.';
+        if (startText) startText.textContent = en ? 'Start Test' : 'بدء الفحص';
+    }
+
+    function updateGauge(speedMbps) {
+        const valEl = document.getElementById('speedTestVal');
+        const arc = document.getElementById('gaugeProgressArc');
+        if (valEl) valEl.textContent = speedMbps.toFixed(1);
+        if (arc) {
+            const max = 100;
+            const ratio = Math.min(Math.max(speedMbps / max, 0), 1);
+            const offset = 283 - (283 * ratio);
+            arc.style.strokeDashoffset = String(offset);
+        }
+    }
+
+    function stopTest() {
+        isRunning = false;
+        if (abortController) {
+            try { abortController.abort(); } catch (e) { }
+            abortController = null;
+        }
+        if (currentAnimFrame) {
+            cancelAnimationFrame(currentAnimFrame);
+            currentAnimFrame = null;
+        }
+        const statusDot = document.querySelector('.status-dot');
+        if (statusDot) statusDot.classList.remove('testing');
+    }
+
+    // نبضات صغيرة جداً فقط: أي ملف كبير هنا يُفسد قياس Ping وJitter ويهدر الباقة.
+    // channel_logos.json كان مستخدماً سابقاً وحجمه 2.2 ميجابايت، فكان Jitter رقماً وهمياً.
+    // نقطة قياس واحدة فقط: خلط ملف محلي (أقل من مللي) مع سيرفر بعيد (~200 مللي) في
+    // نفس السلسلة يجعل Jitter رقماً وهمياً، والملف المحلي لا يقيس الإنترنت أصلاً.
+    const PING_URL = 'https://speed.cloudflare.com/__down?bytes=0';
+
+    function withCacheBuster(url, tag) {
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'nocache=' + Date.now() + '_' + tag;
+    }
+
+    async function measurePing(signal) {
+        const pings = [];
+
+        // نبضة تمهيدية مهملة: تتحمل كلفة DNS + TLS حتى لا تتضخم القياسات التالية
+        try {
+            await fetch(withCacheBuster(PING_URL, 'warm'), { method: 'GET', cache: 'no-store', signal: signal });
+        } catch (e) {
+            if (signal.aborted) throw e;
+        }
+
+        for (let i = 0; i < 5; i++) {
+            if (signal.aborted) break;
+            const url = withCacheBuster(PING_URL, i);
+            const t0 = performance.now();
+            try {
+                const resp = await fetch(url, { method: 'GET', cache: 'no-store', signal: signal });
+                // استهلاك الجسم ضروري لإغلاق الاتصال، والحجم هنا صفر أو بضع مئات بايت
+                if (resp.body && typeof resp.body.getReader === 'function') {
+                    const reader = resp.body.getReader();
+                    while (true) { const r = await reader.read(); if (r.done) break; }
+                } else {
+                    await resp.text();
+                }
+                const rtt = performance.now() - t0;
+                if (rtt > 0) pings.push(rtt);
+            } catch (e) {
+                if (signal.aborted) throw e;
+            }
+        }
+
+        if (pings.length === 0) return { ping: null, jitter: null };
+        const minPing = Math.min.apply(null, pings);
+        let jitter = 0;
+        if (pings.length > 1) {
+            // Jitter = وسيط الفروق بين النبضات المتتالية. الوسيط لا المتوسط: على خط بطيء
+            // تشذّ نبضة واحدة بشدة، وقياس فعلي أعطى jitter=571ms مقابل ping=156ms بالمتوسط.
+            const diffs = [];
+            for (let j = 1; j < pings.length; j++) diffs.push(Math.abs(pings[j] - pings[j - 1]));
+            diffs.sort(function (x, y) { return x - y; });
+            const mid = Math.floor(diffs.length / 2);
+            jitter = diffs.length % 2 ? diffs[mid] : (diffs[mid - 1] + diffs[mid]) / 2;
+        }
+        return { ping: Math.round(minPing), jitter: Math.round(jitter) };
+    }
+
+    async function startTest() {
+        if (isRunning) return;
+        isRunning = true;
+        resetUi();
+
+        abortController = new AbortController();
+        const signal = abortController.signal;
+
+        const en = getEn();
+        const statusText = document.getElementById('speedStatusText');
+        const statusDot = document.querySelector('.status-dot');
+        const pingEl = document.getElementById('metricPing');
+        const jitterEl = document.getElementById('metricJitter');
+        const dlEl = document.getElementById('metricDownload');
+        const startBtnText = document.getElementById('speedStartBtnText');
+
+        if (statusDot) statusDot.classList.add('testing');
+        if (startBtnText) startBtnText.textContent = en ? 'Testing...' : 'جاري الفحص...';
+
+        try {
+            // 1. فحص زمن الاستجابة والتقلب (Ping & Jitter)
+            if (statusText) statusText.textContent = en ? 'Measuring ping & latency...' : 'جاري فحص سرعة الاستجابة (Ping)...';
+            const pingRes = await measurePing(signal);
+            if (pingEl) pingEl.innerHTML = (pingRes.ping === null ? '--' : pingRes.ping) + ' <small>ms</small>';
+            if (jitterEl) jitterEl.innerHTML = (pingRes.jitter === null ? '--' : pingRes.jitter) + ' <small>ms</small>';
+
+            // 2. فحص سرعة التحميل (Download Speed)
+            if (statusText) statusText.textContent = en ? 'Testing download speed...' : 'جاري قياس سرعة التحميل...';
+
+            const testPayloads = [
+                'https://speed.cloudflare.com/__down?bytes=2000000',
+                'https://speed.cloudflare.com/__down?bytes=5000000',
+                'https://speed.cloudflare.com/__down?bytes=10000000'
+            ];
+            // سقف زمني صارم: الفحص القديم كان يتحقق من المدة بين الحِزم فقط، فحزمة
+            // 10 ميجابايت على خط بطيء تُقرأ حتى آخرها. قياس فعلي: 29 ثانية لفحص واحد.
+            const MAX_TEST_MS = 8000;
+            const MIN_BYTES_FOR_RESULT = 250000;
+            let deadlineHit = false;
+
+            let totalBytes = 0;
+            let lastSpeed = 0;
+            const speeds = [];
+            let lastError = null;
+            let startTime = 0;
+
+            for (let k = 0; k < testPayloads.length; k++) {
+                if (signal.aborted) break;
+                const targetUrl = testPayloads[k] + '&nocache=' + Date.now();
+                try {
+                    const resp = await fetch(targetUrl, { method: 'GET', cache: 'no-store', signal: signal });
+                    if (!resp.ok) throw new Error('Status ' + resp.status);
+                    // المؤقت يبدأ بعد وصول الترويسة: زمن DNS/TLS/TTFB ليس زمن نقل بيانات
+                    if (!startTime) startTime = performance.now();
+
+                    if (resp.body && typeof resp.body.getReader === 'function') {
+                        const reader = resp.body.getReader();
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            if (value) {
+                                totalBytes += value.length;
+                                const elapsedMs = performance.now() - startTime;
+                                const elapsed = elapsedMs / 1000;
+                                if (elapsed > 0.15) {
+                                    const instantMbps = (totalBytes * 8) / (elapsed * 1000000);
+                                    lastSpeed = instantMbps;
+                                    speeds.push(instantMbps);
+                                    updateGauge(instantMbps);
+                                }
+                                if (elapsedMs > MAX_TEST_MS && totalBytes > MIN_BYTES_FOR_RESULT) {
+                                    deadlineHit = true;
+                                    try { await reader.cancel(); } catch (e) { }
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        const blob = await resp.blob();
+                        totalBytes += blob.size;
+                        const elapsed = (performance.now() - startTime) / 1000;
+                        if (elapsed > 0) {
+                            const instantMbps = (totalBytes * 8) / (elapsed * 1000000);
+                            lastSpeed = instantMbps;
+                            speeds.push(instantMbps);
+                            updateGauge(instantMbps);
+                        }
+                    }
+                } catch (fetchErr) {
+                    if (signal.aborted) throw fetchErr;
+                    // ملف محلي ليس قياساً لسرعة الإنترنت، فلا يُستخدم كبديل هنا
+                    lastError = fetchErr;
+                    break;
+                }
+
+                if (deadlineHit) break;
+                if (startTime && (performance.now() - startTime) > 4000 && totalBytes > 3000000) {
+                    break;
+                }
+            }
+
+            // لا بايتات = لا اتصال: خطأ صريح، لا "0.0 ميجابت" مع توصية بجودة SD
+            if (totalBytes <= 0) {
+                throw (lastError || new Error('no-bytes-received'));
+            }
+
+            const totalDuration = (performance.now() - startTime) / 1000;
+            let finalSpeed = 0;
+            if (totalDuration > 0) {
+                finalSpeed = (totalBytes * 8) / (totalDuration * 1000000);
+            } else {
+                finalSpeed = lastSpeed || 0;
+            }
+
+            if (speeds.length > 5) {
+                const recent = speeds.slice(-10);
+                const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+                finalSpeed = (finalSpeed * 0.4) + (avg * 0.6);
+            }
+
+            updateGauge(finalSpeed);
+            if (dlEl) dlEl.innerHTML = finalSpeed.toFixed(1) + ' <small>Mbps</small>';
+            if (statusText) statusText.textContent = en ? 'Test Completed' : 'اكتمل الفحص بنجاح';
+            if (statusDot) statusDot.classList.remove('testing');
+
+            applyRecommendation(finalSpeed, en);
+
+        } catch (err) {
+            if (!signal.aborted) {
+                console.error('Speed test error:', err);
+                if (statusText) statusText.textContent = en ? 'No connection' : 'لا يوجد اتصال بالإنترنت';
+                if (dlEl) dlEl.innerHTML = '-- <small>Mbps</small>';
+                updateGauge(0);
+                const badge = document.getElementById('recommendBadge');
+                const desc = document.getElementById('recommendDesc');
+                if (badge) {
+                    badge.style.color = '#ef4444';
+                    badge.innerHTML = '<i class="fas fa-plug-circle-xmark"></i> ' + (en ? 'Test failed' : 'تعذر إتمام الفحص');
+                }
+                if (desc) {
+                    desc.textContent = en
+                        ? 'Could not reach the test server. Check your internet connection or router, then try again.'
+                        : 'تعذر الوصول إلى سيرفر الفحص. تأكد من اتصالك بالإنترنت أو افحص الراوتر ثم أعد المحاولة.';
+                }
+            }
+        } finally {
+            isRunning = false;
+            if (startBtnText) startBtnText.textContent = en ? 'Test Again' : 'إعادة الفحص';
+            if (statusDot) statusDot.classList.remove('testing');
+        }
+    }
+
+    function applyRecommendation(mbps, isEn) {
+        const badge = document.getElementById('recommendBadge');
+        const desc = document.getElementById('recommendDesc');
+        if (!badge || !desc) return;
+
+        if (mbps >= 25) {
+            badge.style.color = '#22c55e';
+            badge.innerHTML = '<i class="fas fa-circle-check"></i> ' + (isEn ? '4K Ultra HD Streaming' : 'بث فائق الدقة 4K Ultra HD');
+            desc.textContent = isEn
+                ? 'Your internet speed is excellent! You can stream 4K movies and live sports with peak smoothness and zero buffering.'
+                : 'سرعة الإنترنت لديك ممتازة جداً! جاهز لتشغيل قنوات ومباريات وأفلام بدقة 4K فائقة الوضوح بدون أي تقطيع.';
+        } else if (mbps >= 10) {
+            badge.style.color = '#38bdf8';
+            badge.innerHTML = '<i class="fas fa-check-circle"></i> ' + (isEn ? 'FHD 1080p 60fps Streaming' : 'بث عالي الدقة FHD 1080p 60fps');
+            desc.textContent = isEn
+                ? 'Very good speed! Ideal for FHD 1080p live matches, series, and movies with great stability.'
+                : 'سرعة جيدة جداً! مناسبة تماماً لمشاهدة المباريات الحية والأفلام بجودة FHD 1080p بسلاسة وثبات عالٍ.';
+        } else if (mbps >= 4) {
+            badge.style.color = '#eab308';
+            badge.innerHTML = '<i class="fas fa-tv"></i> ' + (isEn ? 'HD 720p Recommended' : 'موصى بجودة HD 720p');
+            desc.textContent = isEn
+                ? 'Moderate connection. Recommended to watch channels and movies in HD 720p for smooth playback.'
+                : 'اتصال متوسط. موصى بمشاهدة القنوات والأفلام بجودة HD 720p لضمان عدم حدوث توقف مؤقت أثناء البث.';
+        } else {
+            badge.style.color = '#ef4444';
+            badge.innerHTML = '<i class="fas fa-triangle-exclamation"></i> ' + (isEn ? 'SD Quality Recommended' : 'موصى بجودة SD العادية');
+            desc.textContent = isEn
+                ? 'Connection speed is low. We recommend using SD (Standard Definition) quality to avoid buffering.'
+                : 'سرعة الإنترنت ضعيفة حالياً. موصى باختيار جودة SD العادية لتجنب التقطيع، أو فحص الراوتر.';
+        }
+    }
+
+    // إغلاق النافذة بزر Escape
+    window.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+            const modal = document.getElementById('speedTestModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        }
+    });
+
+    return {
+        openModal: openModal,
+        closeModal: closeModal,
+        startTest: startTest,
+        resetUi: resetUi
+    };
+})();
+

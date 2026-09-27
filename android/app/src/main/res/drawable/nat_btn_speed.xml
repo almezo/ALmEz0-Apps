@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- زر قياس سرعة الإنترنت في لوحة التحكم: تدرج سماوي وأزرق ملكي مع إطار متوهج عند التركيز.
+     حالة الضغط قبل حالة التركيز: على التلفزيون يكون الزر مركّزاً أثناء ضغطة OK،
+     فلو جاء التركيز أولاً لفاز وابتلع أثر الضغط ولم يشعر المستخدم بأي استجابة. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="29dp" />
+            <gradient android:angle="135" android:startColor="#FF0891B2" android:endColor="#FF1D4ED8" />
+            <stroke android:width="2.5dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="29dp" />
+            <gradient android:angle="135" android:startColor="#FF06B6D4" android:endColor="#FF2563EB" />
+            <stroke android:width="2.5dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="29dp" />
+            <gradient android:angle="135" android:startColor="#F206B6D4" android:endColor="#F22563EB" />
+            <stroke android:width="1.5dp" android:color="#59FFFFFF" />
+        </shape>
+    </item>
+</selector>

@@ -120,6 +120,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // لقطة هوية المحظور (اسم/هاتف/IP/موقع) وقت الحظر: للمدير وحده.
+    // لا تُخزَّن داخل security_lockouts لأن تلك المستندات مقروءة بلا مصادقة
+    // (allow get على ^hw_.*) لتتعرف كل جهاز على حالة حظره، فكان تخزين الهوية
+    // هناك يكشف اسم وهاتف وعنوان المحظور لأي شخص يعرف بصمة جهازه.
+    // الحسابات الموقوفة: يكتبها السيرفر وحده (adminBanAccount). المدير يقرأ القائمة، وصاحب
+    // الحساب يقرأ مستنده هو فقط ليُخرج الموقع جلسته المفتوحة فور إيقافه.
+    match /banned_accounts/{uid} {
+      allow read: if isAdmin();
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /security_lockouts_meta/{metaId} {
+      allow read, write: if isAdmin();
+    }
+
     match /security_lockouts/{lockoutId} {
       // المدير له كامل الصلاحيات لقراءة وحظر ورفع الحظر عن أي جهاز مباشرة
       allow read, write: if isAdmin();

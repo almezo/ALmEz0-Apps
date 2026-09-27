@@ -4658,6 +4658,233 @@ function getAuthErrorMessage(code) {
     }
 }
 
+// =============================================
+// تحليل محاولات الدخول الفاشلة (Failed Attempt Forensics)
+// =============================================
+/**
+ * يحوّل محاولة دخول فاشلة إلى وصف يُمكّن المدير من الحكم:
+ * هل هذا عميل نسي كلمته، أم شخص يتلاعب ويجرّب عشوائياً؟
+ *
+ * ملاحظة مقصودة: كلمة السر المُدخَلة **لا تُسجَّل نصاً أبداً**. المستخدمون يعيدون
+ * استخدام كلمات سرهم في بريدهم ومصارفهم، وتسجيلها نصاً في Firestore يجعل سجل
+ * الرصد نفسه أخطر من أي هجوم. المُسجَّل هو بصمة غير قابلة للعكس + خصائص الشكل،
+ * وهي تجيب على سؤال "يتلاعب أم لا؟" بدقة أعلى من قراءة النص، لأن الحكم يأتي من
+ * نمط المحاولات المتتالية لا من كلمة واحدة.
+ * المعرّف (رقم الهاتف / اسم المستخدم) يُسجَّل كما كُتب حرفياً — فهو ليس سراً.
+ *
+ * حدود هذا التحليل (مقصودة وموثّقة): يعمل في متصفح صاحب المحاولة، فهو تقدير لمن يستخدم
+ * نموذج الدخول فقط. مهاجم بسكربت يستدعي Firebase Auth مباشرة لا يمرّ به أصلاً، ويستطيع
+ * إرسال حقول pw* مزوّرة عبر logEvent. لذلك الأحكام "تقدير المتصفح" لا دليل قاطع،
+ * والحماية الحقيقية هي loginGuard في السيرفر وحدود Firebase Auth نفسها.
+ */
+// كل ما يلي داخل closure: لا يُصدَّر إلى window إلا الدالتان في آخره. كانت pwLastAttempt
+// متغيّراً عاماً، فكان window.pwLastAttempt.get() يعيد آخر كلمة سر لأي سكربت في الصفحة.
+(function () {
+var PW_COMMON_LIST = [
+    '123456', '1234567', '12345678', '123456789', '1234567890', '000000', '111111',
+    '123123', '121212', 'password', 'password1', 'qwerty', 'qwerty123', 'abc123',
+    'admin', 'admin123', 'root', '1q2w3e4r', 'iloveyou', 'welcome', 'letmein',
+    'libya', 'almezo', 'almezo123', '11223344', '12341234', 'asdasd', 'asdfgh', 'zxcvbn'
+];
+
+/**
+ * آخر كلمة سر مُدخَلة — تُستخدم فقط لمعرفة "هل هذه تعديل بسيط على السابقة؟"، وهو ما يميّز
+ * عميلاً ينسى كلمته (Ahmed2019 ← Ahmed2020) عن مخمّن. بدونها يظهر العميل الناسي كمخمّن.
+ * محفوظة داخل closure لا على window: المتغيّر العام كان يُقرأ من أي سكربت في الصفحة
+ * (والصفحات تحمّل سكربتات من CDN خارجي). تُمسح بعد 3 دقائق وعند نجاح الدخول،
+ * ولا تُكتب لقرص ولا تُرسل لأي مكان.
+ */
+var pwLastAttempt = (function () {
+    var value = null, timer = null;
+    function clear() { value = null; if (timer) { clearTimeout(timer); timer = null; } }
+    return {
+        get: function () { return value; },
+        set: function (v) {
+            value = v;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(clear, 3 * 60 * 1000);
+        },
+        clear: clear
+    };
+})();
+
+/** مسافة تعديل (Levenshtein) مبتورة: تكفي لمعرفة "هل هذه تعديل بسيط على السابقة؟" */
+function pwEditDistance(a, b) {
+    if (a === b) return 0;
+    if (!a || !b) return Math.max((a || '').length, (b || '').length);
+    if (Math.abs(a.length - b.length) > 4) return 99;
+    var prev = [], cur = [], i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+        cur[0] = i;
+        for (j = 1; j <= b.length; j++) {
+            cur[j] = Math.min(
+                prev[j] + 1,
+                cur[j - 1] + 1,
+                prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)
+            );
+        }
+        for (j = 0; j <= b.length; j++) prev[j] = cur[j];
+    }
+    return prev[b.length];
+}
+
+/** بصمة غير قابلة للعكس للمحاولة، لكشف تكرار نفس الكلمة دون معرفة نصها. */
+async function pwFingerprint(pw) {
+    try {
+        if (!window.crypto || !window.crypto.subtle || typeof TextEncoder === 'undefined') return '';
+        var data = new TextEncoder().encode('almezo_attempt_v1::' + pw);
+        var buf = await window.crypto.subtle.digest('SHA-256', data);
+        var arr = Array.from(new Uint8Array(buf)).slice(0, 5);
+        return arr.map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    } catch (e) {
+        // بلا crypto لا نلجأ لتعمية ضعيفة: نتخلى عن البصمة بدلاً من تسريب الكلمة
+        return '';
+    }
+}
+
+/** هل الإدخال ضرب متسلسل/متكرر على الكيبورد؟ */
+function pwIsKeyboardMash(pw) {
+    if (!pw || pw.length < 4) return false;
+    var low = pw.toLowerCase();
+    if (/^(.)\1+$/.test(low)) return true;                       // aaaaaa / 111111
+    if (/^(..?.?)\1{1,}$/.test(low) && low.length >= 6) return true; // asdasd / 123123
+    var rows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm', '1234567890'];
+    for (var r = 0; r < rows.length; r++) {
+        for (var k = 0; k + 4 <= rows[r].length; k++) {
+            var seg = rows[r].substr(k, 4);
+            if (low.indexOf(seg) !== -1) return true;
+            if (low.indexOf(seg.split('').reverse().join('')) !== -1) return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * يعيد وصفاً جاهزاً للعرض في الرادار الأمني.
+ * @returns {Promise<Object>} حقول تُدمج مباشرة في details الخاص بـ logActivity
+ */
+async function analyzeLoginAttempt(password, phone) {
+    var pw = String(password == null ? '' : password);
+    var out = {};
+
+    if (!pw) {
+        out.pwProfile = 'لم يُدخل أي كلمة سر (الحقل فارغ)';
+        out.pwVerdict = 'حقل فارغ — ضغط الزر دون كتابة';
+        out.pwVerdictLevel = 'normal';
+        return out;
+    }
+
+    var hasDigit = /[0-9]/.test(pw);
+    var hasLower = /[a-z]/.test(pw);
+    var hasUpper = /[A-Z]/.test(pw);
+    var hasArabic = /[؀-ۿ]/.test(pw);
+    var hasSymbol = /[^A-Za-z0-9؀-ۿ]/.test(pw);
+
+    var kinds = [];
+    if (hasDigit) kinds.push('أرقام');
+    if (hasLower || hasUpper) kinds.push('حروف إنجليزية');
+    if (hasArabic) kinds.push('حروف عربية');
+    if (hasSymbol) kinds.push('رموز');
+
+    out.pwLen = pw.length;
+    out.pwKinds = kinds.join(' + ') || 'غير معروف';
+    out.pwProfile = pw.length + ' خانة (' + out.pwKinds + ')';
+
+    var fp = await pwFingerprint(pw);
+    if (fp) out.pwFingerprint = fp;
+
+    // سجل بصمات المحاولات السابقة لنفس المعرّف داخل هذه الجلسة
+    var histKey = 'almezo_pw_attempts_' + (phone || 'unknown');
+    var history = [];
+    try {
+        history = JSON.parse(sessionStorage.getItem(histKey) || '[]');
+        if (!Array.isArray(history)) history = [];
+    } catch (e) { history = [] }
+
+    var repeatCount = fp ? history.filter(function (h) { return h.fp === fp; }).length : 0;
+    var distinctCount = 0;
+    try {
+        distinctCount = Object.keys(history.reduce(function (acc, h) { acc[h.fp || h.len] = 1; return acc; }, {})).length;
+    } catch (e) { distinctCount = history.length }
+
+    out.pwAttemptNo = history.length + 1;
+    if (repeatCount > 0) out.pwRepeatedSameValue = repeatCount + 1;
+
+    // تشابه مع المحاولة السابقة مباشرة (نص المحاولة السابقة موجود في الذاكرة فقط)
+    var prevPlain = pwLastAttempt.get();
+    if (prevPlain) {
+        var dist = pwEditDistance(pw, prevPlain);
+        if (dist > 0 && dist <= 3) out.pwVariationOfPrev = true;
+    }
+
+    var isCommon = PW_COMMON_LIST.indexOf(pw.toLowerCase()) !== -1;
+    var isMash = pwIsKeyboardMash(pw);
+    // كم محاولة سابقة (بكلمات مختلفة) كانت شائعة أو عبثاً على الكيبورد؟ التصعيد لـ"هجوم"
+    // يحتاج تتابعاً: كثير من العملاء كلمة سرهم الحقيقية 123456، فمحاولة واحدة بها ليست دليلاً.
+    var priorWeakDistinct = history.filter(function (h) { return h.weak && h.fp !== fp; }).length;
+    var equalsPhone = !!(phone && (pw === phone || pw === String(phone).replace(/^0/, '')));
+
+    if (isCommon) out.pwCommonList = true;
+    if (isMash) out.pwKeyboardMash = true;
+    if (equalsPhone) out.pwEqualsPhone = true;
+
+    // ------- الحكم النهائي -------
+    // الترتيب مقصود: الأخص قبل الأعم. رقم الهاتف يُفحص أولاً لأن أي رقم يحتوي
+    // بطبيعته متتاليات مثل "1234" فيُصنَّف خطأً كضرب عشوائي على صف الأرقام.
+    if (equalsPhone) {
+        out.pwVerdict = 'أدخل رقم الهاتف نفسه ككلمة سر — أقرب للتخمين';
+        out.pwVerdictLevel = 'suspicious';
+    } else if ((isCommon || isMash) && priorWeakDistinct >= 1) {
+        out.pwVerdict = 'يجرّب كلمات شائعة/متسلسلة مختلفة واحدة تلو الأخرى (' + (priorWeakDistinct + 1) + ') — نمط تخمين';
+        out.pwVerdictLevel = 'attack';
+    } else if (isCommon) {
+        out.pwVerdict = 'كلمة شائعة جداً — قد تكون كلمة العميل الضعيفة فعلاً، والتكرار بكلمات أخرى شائعة هو الدليل';
+        out.pwVerdictLevel = 'suspicious';
+    } else if (isMash) {
+        out.pwVerdict = 'نمط متسلسل على الكيبورد — قد يكون عبثاً أو كلمة ضعيفة حقيقية';
+        out.pwVerdictLevel = 'suspicious';
+    } else if (repeatCount > 0) {
+        out.pwVerdict = 'يعيد إدخال نفس الكلمة (' + (repeatCount + 1) + ' مرات) — سلوك عميل يظن أنها صحيحة';
+        out.pwVerdictLevel = 'normal';
+    } else if (out.pwVariationOfPrev) {
+        out.pwVerdict = 'تعديل بسيط على محاولته السابقة — سلوك عميل ينسى كلمته';
+        out.pwVerdictLevel = 'normal';
+    } else if (distinctCount >= 4) {
+        out.pwVerdict = 'كلمات مختلفة تماماً في كل محاولة (' + (distinctCount + 1) + ') — تخمين متسلسل';
+        out.pwVerdictLevel = 'attack';
+    } else if (distinctCount >= 2) {
+        // العميل الحقيقي يجرّب كلماته القديمة (2-3 كلمات) قبل أن يتذكر — هذا وحده ليس هجوماً
+        out.pwVerdict = 'جرّب ' + (distinctCount + 1) + ' كلمات مختلفة — قد يجرّب كلماته القديمة، أو يخمّن';
+        out.pwVerdictLevel = 'suspicious';
+    } else if (pw.length < 6) {
+        out.pwVerdict = 'إدخال قصير جداً — غالباً خطأ كتابة أو عبث';
+        out.pwVerdictLevel = 'suspicious';
+    } else {
+        out.pwVerdict = (history.length ? 'كلمة معقولة — الأرجح خطأ عميل' : 'محاولة واحدة بكلمة معقولة — الأرجح خطأ عميل');
+        out.pwVerdictLevel = 'normal';
+    }
+
+    // تحديث السجل (بصمات وأطوال فقط — لا نص)
+    try {
+        history.push({ fp: fp, len: pw.length, weak: !!(isCommon || isMash), at: Date.now() });
+        sessionStorage.setItem(histKey, JSON.stringify(history.slice(-12)));
+    } catch (e) { }
+    pwLastAttempt.set(pw);
+
+    return out;
+}
+
+/** بعد نجاح الدخول: لا سبب لإبقاء أي أثر للمحاولات السابقة. */
+function resetLoginAttemptForensics(phone) {
+    pwLastAttempt.clear();
+    try { sessionStorage.removeItem('almezo_pw_attempts_' + (phone || 'unknown')); } catch (e) { }
+}
+
+window.analyzeLoginAttempt = analyzeLoginAttempt;
+window.resetLoginAttemptForensics = resetLoginAttemptForensics;
+})();
+
 /**
  * معالج زر تسجيل الدخول
  */
@@ -4713,6 +4940,12 @@ async function handleLogin() {
         }
     }
 
+    // تحليل ما أدخله صاحب المحاولة فعلياً، ليظهر في الرادار الأمني
+    var attemptMeta = {};
+    try {
+        attemptMeta = await analyzeLoginAttempt(password, phone);
+    } catch (e) { attemptMeta = {} }
+
     // التحقق من صحة صيغة الرقم الليبي
     var phoneResult = validateLibyanNumber(phone);
     if (!phoneResult.valid) {
@@ -4737,13 +4970,13 @@ async function handleLogin() {
                     category: 'security',
                     severity: 'danger',
                     title: '🚨 حظر أمني مؤقت (' + lockResult.formattedDuration + ') بسبب إدخال هاتف خاطئ',
-                    details: {
+                    details: Object.assign({
                         attemptedPhone: phone,
                         attempts: 3,
                         tier: lockResult.tierIndex + 1,
                         formattedDuration: lockResult.formattedDuration,
                         reason: phoneResult.error
-                    },
+                    }, attemptMeta),
                     userOverride: { phone: phone, name: 'جهاز محظور لـ ' + phone }
                 });
             }
@@ -4755,12 +4988,12 @@ async function handleLogin() {
                     category: 'security',
                     severity: 'danger',
                     title: '⚠️ محاولة دخول برقم هاتف غير صالح (المحاولة ' + lockResult.attempts + ' من 3)',
-                    details: {
+                    details: Object.assign({
                         attemptedPhone: phone,
                         attempts: lockResult.attempts,
                         remainingAttempts: lockResult.remainingAttempts,
                         reason: phoneResult.error
-                    },
+                    }, attemptMeta),
                     userOverride: { phone: phone, name: 'محاولة دخول لـ ' + phone }
                 });
             }
@@ -4791,13 +5024,13 @@ async function handleLogin() {
                     category: 'security',
                     severity: 'danger',
                     title: '🚨 حظر أمني مؤقت (' + lockResultPass.formattedDuration + ') بسبب كلمة سر غير صالحة',
-                    details: {
+                    details: Object.assign({
                         attemptedPhone: phone,
                         attempts: 3,
                         tier: lockResultPass.tierIndex + 1,
                         formattedDuration: lockResultPass.formattedDuration,
                         reason: passResult.error
-                    },
+                    }, attemptMeta),
                     userOverride: { phone: phone, name: 'جهاز محظور لـ ' + phone }
                 });
             }
@@ -4809,12 +5042,12 @@ async function handleLogin() {
                     category: 'security',
                     severity: 'danger',
                     title: '⚠️ محاولة دخول بكلمة سر قصيرة (المحاولة ' + lockResultPass.attempts + ' من 3)',
-                    details: {
+                    details: Object.assign({
                         attemptedPhone: phone,
                         attempts: lockResultPass.attempts,
                         remainingAttempts: lockResultPass.remainingAttempts,
                         reason: passResult.error
-                    },
+                    }, attemptMeta),
                     userOverride: { phone: phone, name: 'محاولة دخول لـ ' + phone }
                 });
             }
@@ -4844,6 +5077,7 @@ async function handleLogin() {
             resetDeviceLockout();
         }
         if (typeof serverLoginGuard === 'function') serverLoginGuard('success', phone);
+        if (typeof resetLoginAttemptForensics === 'function') resetLoginAttemptForensics(phone);
         if (lockoutCountdownInterval) {
             clearInterval(lockoutCountdownInterval);
             lockoutCountdownInterval = null;
@@ -4946,14 +5180,14 @@ async function handleLogin() {
                     category: 'security',
                     severity: 'danger',
                     title: '🚨 حظر أمني مؤقت (' + lockResult.formattedDuration + ') لـ ' + phone,
-                    details: {
+                    details: Object.assign({
                         attemptedPhone: phone,
                         attempts: 3,
                         tier: lockResult.tierIndex + 1,
                         durationSeconds: lockResult.durationSeconds,
                         formattedDuration: lockResult.formattedDuration,
                         reason: 'تخمين كلمة مرور (Brute-Force)'
-                    },
+                    }, attemptMeta),
                     userOverride: { phone: phone, name: 'جهاز محظور لـ ' + phone }
                 });
             }
@@ -4975,13 +5209,13 @@ async function handleLogin() {
                     category: 'security',
                     severity: 'danger',
                     title: '⚠️ محاولة دخول بكلمة سر خاطئة (المحاولة ' + lockResult.attempts + ' من 3)',
-                    details: {
+                    details: Object.assign({
                         attemptedPhone: phone,
                         attempts: lockResult.attempts,
                         remainingAttempts: lockResult.remainingAttempts,
                         errorCode: errorCode,
                         reason: 'كلمة سر غير صحيحة'
-                    },
+                    }, attemptMeta),
                     userOverride: { phone: phone, name: 'محاولة دخول لـ ' + phone }
                 });
             }

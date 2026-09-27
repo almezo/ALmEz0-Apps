@@ -4,6 +4,10 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { readMachineDeviceId, ARG_PREFIX: DEVICE_ID_ARG } = require('./device-id');
+
+// معرّف الجهاز الثابت يُقرأ مرة واحدة عند الإقلاع ويُمرَّر لملف التمهيد (انظر device-id.js)
+const MACHINE_DEVICE_ID = readMachineDeviceId();
 
 // Hardware acceleration (smooth 60fps GPU video rendering without excessive CPU/GPU usage)
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
@@ -62,6 +66,8 @@ if (!gotTheLock) {
                 // بلا خنق للخلفية: عند الانتقال لبرنامج آخر كان كروميوم يجمّد المؤقتات
                 // والرسم، فيعود البرنامج أحياناً بشاشة متجمّدة لا تستجيب حتى إعادة تشغيله.
                 backgroundThrottling: false,
+                // معرّف الجهاز لملف التمهيد (process.argv)، ومنه إلى الصفحة عبر electronAPI.deviceId
+                additionalArguments: MACHINE_DEVICE_ID ? [DEVICE_ID_ARG + MACHINE_DEVICE_ID] : [],
                 sandbox: false,
                 webSecurity: false,
                 allowRunningInsecureContent: true

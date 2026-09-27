@@ -6464,10 +6464,12 @@ video.aspect-4-3 {
     transform: scale(1.12);
 }
 
-/* إظهار زر مساعد الميزو وزر اللغة فقط في الشاشة الرئيسية (Dashboard) وإخفاؤهما في باقي الشاشات */
+/* إظهار زر مساعد الميزو وزر اللغة وزر قياس السرعة فقط في الشاشة الرئيسية (Dashboard) وإخفاؤها في باقي الشاشات */
 body:not(.screen-is-dashboard) #aiFloatingTrigger,
 body:not(.screen-is-dashboard) #mizoLangBtn,
-body:not(.screen-is-dashboard) .lang-floating-trigger {
+body:not(.screen-is-dashboard) .lang-floating-trigger,
+body:not(.screen-is-dashboard) #mizoSpeedBtn,
+body:not(.screen-is-dashboard) .speed-floating-trigger {
     display: none !important;
 }
 
@@ -6524,9 +6526,13 @@ body:not(.screen-is-dashboard) .lang-floating-trigger {
 body.in-fullscreen-player .ai-floating-trigger,
 body.in-fullscreen-player #mizoLangBtn,
 body.in-fullscreen-player .lang-floating-trigger,
+body.in-fullscreen-player #mizoSpeedBtn,
+body.in-fullscreen-player .speed-floating-trigger,
 #fullscreenVideoModal:not(.hidden) ~ .ai-floating-trigger,
 #fullscreenVideoModal:not(.hidden) ~ #mizoLangBtn,
-#fullscreenVideoModal:not(.hidden) ~ .lang-floating-trigger {
+#fullscreenVideoModal:not(.hidden) ~ .lang-floating-trigger,
+#fullscreenVideoModal:not(.hidden) ~ #mizoSpeedBtn,
+#fullscreenVideoModal:not(.hidden) ~ .speed-floating-trigger {
     display: none !important;
 }
 
@@ -8254,6 +8260,7 @@ html.lang-en .sidebar {
 /* زر المساعد في جهة وزر اللغة في الجهة المقابلة تماماً، وينقلبان مع اتجاه اللغة */
 html.lang-en .ai-floating-trigger { right: auto; left: 24px; }
 html.lang-en .lang-floating-trigger { left: auto; right: 24px; }
+html.lang-en .speed-floating-trigger { left: auto; right: 162px; }
 
 /* شريط التحكم في الفيديو: ترتيب الأزرار ينقلب ليطابق المشغلات الإنجليزية */
 html.lang-en .sp-controls,
@@ -8314,9 +8321,403 @@ html.lang-en .time-display {
 }
 .lang-btn-icon { font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .lang-btn-label { letter-spacing: 0.2px; }
+/* عرض ثابت: نص الزر يتغير بين "English" و"العربية" باختلاف عرضه،
+   وزر قياس السرعة يقف على إزاحة ثابتة بعده، فبدون هذا يتلاصق الزران في إحدى اللغتين */
+.lang-floating-trigger { min-width: 128px; justify-content: center; box-sizing: border-box; }
 @media (max-width: 600px) {
-    .lang-floating-trigger { left: 14px; padding: 9px 14px; font-size: 12.5px; }
+    .lang-floating-trigger { left: 14px; padding: 9px 14px; font-size: 12.5px; min-width: 112px; }
     html.lang-en .lang-floating-trigger { left: auto; right: 14px; }
 }
+
+/* زر قياس سرعة الإنترنت العائم (بجانب زر اللغة) */
+.speed-floating-trigger {
+    position: fixed;
+    bottom: 24px;
+    left: 162px;
+    z-index: 99999;
+    pointer-events: auto !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.95), rgba(59, 130, 246, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    -webkit-user-select: none;
+    user-select: none;
+}
+.speed-floating-trigger:hover,
+.speed-floating-trigger:focus-visible {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.75), 0 0 30px rgba(6, 182, 212, 0.65);
+    outline: none;
+}
+.speed-floating-trigger:active {
+    transform: scale(0.96);
+}
+.speed-btn-icon { font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.speed-btn-label { letter-spacing: 0.2px; }
+@media (max-width: 600px) {
+    .speed-floating-trigger { left: 135px; padding: 9px 12px; font-size: 12px; gap: 6px; }
+    html.lang-en .speed-floating-trigger { left: auto; right: 135px; }
+}
+/* شاشات ضيقة جداً: الزران فوق بعضهما بدل التزاحم أفقياً */
+@media (max-width: 400px) {
+    .speed-floating-trigger { left: 14px; bottom: 76px; }
+    html.lang-en .speed-floating-trigger { left: auto; right: 14px; }
+}
+
+body.tv-device-mode .speed-floating-trigger:focus {
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: 0 0 0 3.5px #fff, 0 15px 40px rgba(0,0,0,0.8), 0 0 30px rgba(6, 182, 212, 0.8) !important;
+    outline: none !important;
+}
+
+/* =========================================================================
+   نافذة فحص سرعة الإنترنت (Speed Test Modal)
+   ========================================================================= */
+.speed-test-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 100001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+.speed-test-modal.hidden {
+    display: none !important;
+}
+.speed-test-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(3, 7, 18, 0.84);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+}
+.speed-test-card {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 520px;
+    /* ارتفاع المحتوى يتجاوز الشاشة في الوضع الأفقي وعلى شاشات TV القصيرة،
+       فبدون تمرير يُقطع زرّا "بدء الفحص" و"إغلاق" ولا يمكن الوصول إليهما */
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: linear-gradient(145deg, rgba(17, 24, 39, 0.97), rgba(15, 23, 42, 0.98));
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    padding: 24px 26px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 50px rgba(6, 182, 212, 0.15);
+    box-sizing: border-box;
+    color: #fff;
+    animation: speedModalEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes speedModalEnter {
+    from { opacity: 0; transform: scale(0.92) translateY(15px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.speed-test-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 14px;
+}
+.speed-test-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.speed-test-icon-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    color: #06b6d4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.25);
+}
+.speed-test-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin: 0 0 2px 0;
+    color: #fff;
+}
+.speed-test-subtitle {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin: 0;
+}
+.btn-close-speed {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-close-speed:hover,
+.btn-close-speed:focus-visible {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    transform: scale(1.08);
+    outline: none;
+}
+
+/* منطقة عداد السرعة الدائري */
+.speed-test-gauge-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    height: 160px;
+    margin: 0 auto 10px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+}
+.speed-gauge-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.gauge-fill {
+    transition: stroke-dashoffset 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.gauge-center-content {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.gauge-speed-val {
+    font-size: 2.8rem;
+    font-weight: 900;
+    line-height: 1;
+    font-family: 'Outfit', -apple-system, monospace;
+    background: linear-gradient(135deg, #ffffff, #06b6d4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+}
+.gauge-speed-unit {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.gauge-status-pill {
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    color: #cbd5e1;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #06b6d4;
+    box-shadow: 0 0 10px #06b6d4;
+    display: inline-block;
+}
+.status-dot.testing {
+    animation: statusPulse 1s infinite ease-in-out;
+}
+@keyframes statusPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.5; }
+}
+
+/* كروت المؤشرات الثلاثية */
+.speed-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.speed-metric-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+.speed-metric-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+.metric-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+}
+.metric-download { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
+.metric-ping { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+.metric-jitter { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.metric-label {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-bottom: 2px;
+}
+.metric-value {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #fff;
+    font-family: monospace;
+}
+.metric-value small {
+    font-size: 0.68rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* بطاقة توصية الجودة */
+.speed-recommend-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+.recommend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #38bdf8;
+    margin-bottom: 4px;
+}
+.recommend-desc {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* أزرار الإجراءات */
+.speed-test-actions {
+    display: flex;
+    gap: 10px;
+}
+.btn-speed-start {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #06b6d4, #2563eb);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(6, 182, 212, 0.4);
+    transition: all 0.2s ease;
+    outline: none;
+}
+.btn-speed-start:hover,
+.btn-speed-start:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(6, 182, 212, 0.6);
+    background: linear-gradient(135deg, #0891b2, #1d4ed8);
+}
+.btn-speed-start:active {
+    transform: scale(0.98);
+}
+.btn-speed-close {
+    padding: 12px 22px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #cbd5e1;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+}
+.btn-speed-close:hover,
+.btn-speed-close:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+/* دعم اتجاه اللغة الإنجليزية في النافذة */
+html.lang-en .speed-test-card {
+    direction: ltr;
+}
+html.lang-en .speed-test-header {
+    flex-direction: row;
+}
+html.lang-en .speed-test-title-wrap {
+    flex-direction: row;
+}
+
 /* الساعة والتاريخ في الشريط العلوي يبقيان بترتيب LTR في الإنجليزية */
 html.lang-en .auto-style-36 { direction: ltr; }
+
+/* شاشات قصيرة (هاتف أفقي / TV بارتفاع صغير): تقليص العدّاد والمسافات */
+@media (max-height: 560px) {
+    .speed-test-card { padding: 16px 18px; border-radius: 18px; }
+    .speed-test-gauge-wrap { transform: scale(0.82); transform-origin: center top; margin-bottom: -18px; }
+    .speed-test-subtitle { display: none; }
+    .speed-metrics-grid { gap: 8px; }
+    .recommend-desc { font-size: 12px; }
+}
