@@ -9547,6 +9547,9 @@ html:not(.mz-kbd):not([data-is-tv="true"]) select:focus-visible {
 .city-option-other { grid-column: 1 / -1; color: #fbbf24; }
 .city-empty { grid-column: 1 / -1; text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 6px; }
 @media (max-width: 480px) { .city-list { grid-template-columns: repeat(2, 1fr); } }
+.age-list { grid-template-columns: repeat(4, 1fr) !important; max-height: 200px; }
+@media (max-width: 480px) { .age-list { grid-template-columns: repeat(3, 1fr) !important; } }
+.age-option { font-weight: 700; line-height: 1.25; }
 
 /* ===== إشعارات: صورة، جدولة، وتقرير من رآها ===== */
 .broadcast-image-row, .broadcast-schedule-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

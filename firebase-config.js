@@ -629,6 +629,14 @@ function showSecurityEvictionModal() {
     });
 
     document.getElementById('btnEvictOk').onclick = () => {
+        try {
+            if (typeof auth !== 'undefined' && auth && typeof auth.signOut === 'function') {
+                auth.signOut().catch(function () { });
+            }
+            localStorage.removeItem('almezo_cached_user');
+            sessionStorage.removeItem('almezo_cached_user');
+            localStorage.removeItem('almezo_auth_version');
+        } catch (e) { }
         window.location.href = 'index.html';
     };
 }
@@ -683,17 +691,29 @@ auth.onAuthStateChanged(async function (firebaseUser) {
                     const forceLogout = () => {
                         console.warn('Session revoked! Password was changed from another device.');
 
-                        // تسجيل حركة الطرد الأمني قبل مسح البيانات
+                        // تسجيل حركة الطرد الأمني قبل مسح البيانات (مع منع التكرار اللحظي)
                         var evictedUser = currentAuthUser || null;
-                        if (evictedUser && typeof logActivity === 'function') {
-                            logActivity({
-                                action: 'session_forced_eviction',
-                                category: 'security',
-                                severity: 'danger',
-                                title: '🚨 طرد أمني: تم تغيير كلمة المرور من جهاز آخر',
-                                details: { phone: evictedUser.phone, uid: evictedUser.uid, reason: 'Auth version mismatch' },
-                                userOverride: evictedUser
-                            });
+                        var nowTime = Date.now();
+                        var lastLogged = 0;
+                        try { lastLogged = parseInt(sessionStorage.getItem('almezo_last_eviction_logged') || '0', 10); } catch (e) { }
+
+                        if (nowTime - lastLogged > 120000) {
+                            try { sessionStorage.setItem('almezo_last_eviction_logged', String(nowTime)); } catch (e) { }
+                            if (evictedUser && typeof logActivity === 'function') {
+                                logActivity({
+                                    action: 'session_forced_eviction',
+                                    category: 'security',
+                                    severity: 'danger',
+                                    title: '🚨 طرد أمني: تم تغيير كلمة المرور من جهاز آخر',
+                                    details: {
+                                        phone: evictedUser.phone || '',
+                                        uid: evictedUser.uid || '',
+                                        reason: 'Auth version mismatch',
+                                        evictedUserName: evictedUser.name || (evictedUser.firstName ? (evictedUser.firstName + ' ' + (evictedUser.lastName || '')).trim() : '')
+                                    },
+                                    userOverride: evictedUser
+                                });
+                            }
                         }
 
                         // 1. أولاً: وضع علامة الطرد الصريح لمنع الكاش من العمل
@@ -794,24 +814,43 @@ auth.onAuthStateChanged(async function (firebaseUser) {
             } catch (e) { }
 
             if (hadCachedUser) {
-                // تسجيل حركة الطرد الأمني قبل مسح البيانات
-                if (evictedUser && typeof logActivity === 'function') {
-                    logActivity({
-                        action: 'session_forced_eviction',
-                        category: 'security',
-                        severity: 'danger',
-                        title: '🚨 طرد أمني: تم تغيير كلمة المرور من جهاز آخر (استجابة الخادم)',
-                        details: { phone: evictedUser.phone, uid: evictedUser.uid, reason: 'Firebase token revoked' },
-                        userOverride: evictedUser
-                    });
+                // تسجيل حركة الطرد الأمني قبل مسح البيانات (مع منع التكرار اللحظي)
+                var nowTime = Date.now();
+                var lastLogged = 0;
+                try { lastLogged = parseInt(sessionStorage.getItem('almezo_last_eviction_logged') || '0', 10); } catch (e) { }
+
+                if (nowTime - lastLogged > 120000) {
+                    try { sessionStorage.setItem('almezo_last_eviction_logged', String(nowTime)); } catch (e) { }
+                    if (evictedUser && typeof logActivity === 'function') {
+                        logActivity({
+                            action: 'session_forced_eviction',
+                            category: 'security',
+                            severity: 'danger',
+                            title: '🚨 طرد أمني: تم إبطال جلسة الحساب من السيرفر (انتهت الجلسة)',
+                            details: {
+                                phone: evictedUser.phone || '',
+                                uid: evictedUser.uid || '',
+                                reason: 'Firebase token revoked',
+                                evictedUserName: evictedUser.name || (evictedUser.firstName ? (evictedUser.firstName + ' ' + (evictedUser.lastName || '')).trim() : '')
+                            },
+                            userOverride: evictedUser
+                        });
+                    }
                 }
 
-                // فايربيز أبطل الجلسة! نمسح كل شيء ونعرض التنبيه الأمني
+                // فايربيز أبطل الجلسة! نمسح كل شيء تماماً ونسجل الخروج الصريح
                 window.__almezo_explicit_logout = true;
                 try {
                     localStorage.removeItem('almezo_cached_user');
                     sessionStorage.removeItem('almezo_cached_user');
                     localStorage.removeItem('almezo_auth_version');
+                } catch (e) { }
+
+                // تسجيل خروج نهائي من فايربيز لتنظيف IndexedDB ومنع تكرار محاولة الدخول بالجلسة الميتة
+                try {
+                    if (typeof auth !== 'undefined' && auth && typeof auth.signOut === 'function') {
+                        auth.signOut().catch(function () { });
+                    }
                 } catch (e) { }
 
                 // تحديث الهيدر فوراً

@@ -29,11 +29,14 @@ exports.sendWhatsAppNotification = onCall(async (request) => {
     const url = `https://api.callmebot.com/whatsapp.php?phone=${ADMIN_PHONE}&text=${encodeURIComponent(message)}&apikey=${API_KEY}`;
 
     try {
-        const response = await fetch(url);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (response.ok) {
             return { success: true };
         } else {
-            throw new Error("فشل الاتصال بـ CallMeBot");
+            throw new Error("فشل الاتصال بـ CallMeBot: استجابة غير صالحة");
         }
     } catch (error) {
         logger.error("خطأ في إرسال واتساب:", error);
@@ -854,7 +857,11 @@ exports.logEvent = onCall(async (request) => {
     }
 
     const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
-    const user = await logResolveUser(uid);
+    let targetUid = uid;
+    if (!targetUid && d.action === "session_forced_eviction" && d.details && typeof d.details.uid === "string") {
+        targetUid = d.details.uid.slice(0, 128);
+    }
+    const user = await logResolveUser(targetUid);
     const severity = ["info", "warning", "danger", "success"].includes(d.severity) ? d.severity : "info";
     const details = (d.details && typeof d.details === "object" && !Array.isArray(d.details)) ? d.details : {};
     const payload = {
@@ -891,10 +898,11 @@ exports.logEvent = onCall(async (request) => {
             client_locked_out: "حظر مؤقت بعد محاولات دخول فاشلة",
             lockout_attempt: "محاولة دخول أثناء سريان الحظر",
             unauthorized_access_attempt: "محاولة دخول غير مصرح لغرفة المراقبة",
-            brute_force_warning: "تحذير: تخمين كلمة مرور"
+            brute_force_warning: "تحذير: تخمين كلمة مرور",
+            session_forced_eviction: "طرد أمني: إنهاء جلسة حساب"
         };
         const trustedTitle = ALERT_TITLES[payload.action] ||
-            ("حدث أمني من " + (uid ? "مستخدم مسجل" : "زائر غير مسجل"));
+            ("حدث أمني من " + (targetUid ? "مستخدم مسجل" : "زائر غير مسجل"));
         await logAlertAdmin(Object.assign({}, payload, { title: trustedTitle }), ip || quotaKey);
     }
     return { ok: true, id: ref.id };

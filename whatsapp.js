@@ -110,8 +110,8 @@ async function sendAdminNotification(orderData) {
         '📅 التاريخ الطلب: ' + getFormattedCurrentDateTime();
 
     try {
-        await fireCallMeBotRequest(adminMsg);
-        console.log('✅ تم إرسال إشعار الطلب للمدير بنجاح (Cloud Function)');
+        fireCallMeBotRequest(adminMsg);
+        console.log('📡 تم إرسال إشعار الطلب للمدير في الخلفية (Cloud Function)');
     } catch (error) {
         console.warn('⚠️ فشل إرسال الإشعار للمدير (لن يؤثر على عملية الشراء):', error.message);
     }

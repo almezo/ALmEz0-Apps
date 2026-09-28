@@ -3522,20 +3522,61 @@ window.deleteTransaction = async function (transactionId) {
     const beforeClose = cached && window.MizoLedger && !window.MizoLedger.counts(cached);
     const isConfirmed = await showConfirm(beforeClose
         ? 'هذه العملية قبل آخر إقفال للحساب. حذفها يزيلها من السجل والتقارير فقط، ولا يغيّر أرصدة المناديب.\n\nهل تريد حذفها؟'
-        : 'هل أنت متأكد من إلغاء هذه العملية؟');
+        : 'هل أنت متأكد من إلغاء هذه العملية وإرجاع نقاطها إلى المخزون؟');
     if (isConfirmed) {
         try {
+            // 1. احصل على بيانات العملية قبل حذفها لمعرفة الصنف والنقاط المخصومة
+            let transData = cached || null;
+            if (!transData) {
+                const transDoc = await db.collection('transactions').doc(transactionId).get();
+                transData = transDoc.exists ? transDoc.data() : null;
+            }
+
+            // 2. حذف المعاملة
             await db.collection('transactions').doc(transactionId).delete();
+
+            // 3. إرجاع المخزون بناءً على عدد النقاط المخصومة في العملية
+            let pointsReturned = 0;
+            if (transData && typeof transData.product === 'string') {
+                let inventoryItemName = String(transData.product);
+                const cat = transData.category || '';
+                if (cat === 'smartApps' || cat === 'smart') {
+                    const appName = String(transData.product).trim().toLowerCase();
+                    const iboOneApps = ['ibo one', 'iboplayer3', 'duplex pro', 'kemet tv'];
+                    inventoryItemName = iboOneApps.some(app => appName.includes(app)) ? 'ibo-one' : 'ibo-bob';
+                } else if (cat === 'vip') {
+                    inventoryItemName = 'باقات VIP';
+                }
+                const pointsToReturn = Number(transData.inventoryPointsDeducted) || 0;
+                if (pointsToReturn > 0) {
+                    await db.collection('inventory').doc(inventoryItemName).set({
+                        count: firebase.firestore.FieldValue.increment(pointsToReturn),
+                        category: cat,
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    pointsReturned = pointsToReturn;
+                }
+            }
+
             if (typeof logActivity === 'function') {
                 logActivity({
                     action: 'admin_delete_transaction',
                     category: 'admin',
                     severity: 'danger',
-                    title: 'إلغاء وحذف معاملة مالية: ' + transactionId,
-                    details: { transactionId: transactionId }
+                    title: 'إلغاء وحذف معاملة مالية: ' + (transData && transData.product ? transData.product : transactionId) + (pointsReturned > 0 ? ` (تم إرجاع ${pointsReturned} نقطة للمخزون)` : ''),
+                    details: {
+                        transactionId: transactionId,
+                        product: transData ? transData.product : '',
+                        duration: transData ? transData.duration : '',
+                        pointsReturned: pointsReturned
+                    }
                 });
             }
-            if (typeof showToast === 'function') showToast('تم إلغاء العملية بنجاح', 'success');
+            if (typeof showToast === 'function') {
+                showToast(pointsReturned > 0 
+                    ? `تم إلغاء العملية وإرجاع ${pointsReturned} نقطة للمخزون بنجاح ✅` 
+                    : 'تم إلغاء العملية بنجاح', 'success');
+            }
         } catch (error) {
             console.error("Error deleting transaction: ", error);
             if (typeof showToast === 'function') showToast('حدث خطأ أثناء إلغاء العملية', 'error');

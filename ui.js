@@ -2912,9 +2912,10 @@ function injectModals() {
         '        </div>',
         '      </div>',
         '      <div class="form-row">',
-        '        <div class="input-group">',
-        '          <label for="regAge">العمر:</label>',
-        '          <select id="regAge" class="auth-select"><option value="">اختر عمرك</option></select>',
+        '        <div class="input-group age-picker">',
+        '          <label for="regAgeBtn">العمر:</label>',
+        '          <input type="hidden" id="regAge">',
+        '          <button type="button" id="regAgeBtn" class="auth-select city-picker-btn" aria-haspopup="listbox"><span id="regAgeLabel">اختر عمرك</span><i class="fas fa-chevron-down"></i></button>',
         '          <p id="regAgeError" class="error-msg"></p>',
         '        </div>',
         '        <div class="input-group city-picker">',
@@ -2923,6 +2924,9 @@ function injectModals() {
         '          <button type="button" id="regCityBtn" class="auth-select city-picker-btn" aria-haspopup="listbox"><span id="regCityLabel">اختر مدينتك</span><i class="fas fa-chevron-down"></i></button>',
         '          <p id="regCityError" class="error-msg"></p>',
         '        </div>',
+        '      </div>',
+        '      <div class="city-picker-panel" id="regAgePanel" role="listbox" aria-label="العمر" style="display:none; margin: -6px 0 14px;">',
+        '        <div class="city-list age-list" id="regAgeList" style="grid-template-columns: repeat(4, 1fr); max-height: 200px;"></div>',
         '      </div>',
         '      <div class="city-picker-panel" id="regCityPanel" role="listbox" aria-label="مدن ليبيا">',
         '        <input type="text" id="regCitySearch" class="city-search" placeholder="🔍 ابحث عن مدينتك..." autocomplete="off">',
@@ -4438,6 +4442,7 @@ function switchAuthTab(tab) {
     // مسح رسائل الخطأ عند التبديل
     if (typeof clearRegFieldErrors === 'function') clearRegFieldErrors();
     if (typeof closeCityPicker === 'function') closeCityPicker(false);
+    if (typeof closeAgePicker === 'function') closeAgePicker(false);
     var errors = ['loginPhoneError', 'loginPasswordError', 'loginGeneralError', 'regPhoneError', 'regPasswordError', 'regPasswordConfirmError', 'regGeneralError'];
     errors.forEach(function (id) {
         var el = document.getElementById(id);
@@ -4485,6 +4490,11 @@ function openLoginModal(defaultTab) {
         if (el) el.value = '';
     });
     setupRegistrationPickers();
+    var ageLabel = document.getElementById('regAgeLabel');
+    if (ageLabel) ageLabel.textContent = 'اختر عمرك';
+    var ageBtn = document.getElementById('regAgeBtn');
+    if (ageBtn) ageBtn.classList.remove('has-value');
+    closeAgePicker(false);
     var cityLabel = document.getElementById('regCityLabel');
     if (cityLabel) cityLabel.textContent = 'اختر مدينتك';
     var cityBtn = document.getElementById('regCityBtn');
@@ -5259,16 +5269,54 @@ function normalizeCityText(s) {
         .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ');
 }
 
-/** قائمة العمر: "30 سنة - 1996" مع حساب سنة الميلاد من السنة الحالية. */
-function fillRegAgeSelect() {
-    var sel = document.getElementById('regAge');
-    if (!sel || sel.options.length > 1) return;
+/** قائمة العمر: عرض شبكة أزرار متوافقة 100% مع الريموت والشاشات (12 إلى 80 سنة) */
+function renderAgeList() {
+    var list = document.getElementById('regAgeList');
+    if (!list) return;
     var year = new Date().getFullYear();
-    var html = '<option value="">اختر عمرك</option>';
+    var html = '';
     for (var age = 12; age <= 80; age++) {
-        html += '<option value="' + age + '">' + age + ' سنة - ' + (year - age) + '</option>';
+        html += '<button type="button" class="city-option age-option" data-age="' + age + '">' + age + ' سنة <span style="font-size:0.75rem; opacity:0.75; display:block;">(' + (year - age) + ')</span></button>';
     }
-    sel.innerHTML = html;
+    list.innerHTML = html;
+}
+
+function openAgePicker() {
+    closeCityPicker(false);
+    var panel = document.getElementById('regAgePanel');
+    if (!panel) return;
+    renderAgeList();
+    panel.style.display = 'block';
+    panel.classList.add('open');
+    var currentAge = (document.getElementById('regAge') || {}).value;
+    var target = currentAge ? panel.querySelector('[data-age="' + currentAge + '"]') : panel.querySelector('.age-option');
+    if (target) setTimeout(function () { try { target.focus(); } catch (e) { } }, 30);
+}
+
+function closeAgePicker(focusBack) {
+    var panel = document.getElementById('regAgePanel');
+    if (panel) {
+        panel.classList.remove('open');
+        panel.style.display = 'none';
+    }
+    if (focusBack) {
+        var btn = document.getElementById('regAgeBtn');
+        if (btn) try { btn.focus(); } catch (e) { }
+    }
+}
+
+function selectAge(age) {
+    var hidden = document.getElementById('regAge');
+    var label = document.getElementById('regAgeLabel');
+    var btn = document.getElementById('regAgeBtn');
+    if (!hidden) return;
+    var year = new Date().getFullYear();
+    hidden.value = age;
+    if (label) label.textContent = age + ' سنة (' + (year - age) + ')';
+    if (btn) btn.classList.add('has-value');
+    var err = document.getElementById('regAgeError');
+    if (err) { err.style.display = 'none'; err.innerText = ''; }
+    closeAgePicker(true);
 }
 
 function renderCityList(filter) {
@@ -5285,6 +5333,7 @@ function renderCityList(filter) {
 }
 
 function openCityPicker() {
+    closeAgePicker(false);
     var panel = document.getElementById('regCityPanel');
     if (!panel) return;
     var search = document.getElementById('regCitySearch');
@@ -5332,42 +5381,91 @@ function getSelectedCity() {
 }
 
 function setupRegistrationPickers() {
-    fillRegAgeSelect();
+    // 1. ربط محدد العمر
+    var ageBtn = document.getElementById('regAgeBtn');
+    if (ageBtn && !ageBtn.dataset.bound) {
+        ageBtn.dataset.bound = '1';
+        ageBtn.addEventListener('click', function () {
+            var panel = document.getElementById('regAgePanel');
+            if (panel && panel.classList.contains('open')) closeAgePicker(false); else openAgePicker();
+        });
+    }
+    var ageList = document.getElementById('regAgeList');
+    if (ageList && !ageList.dataset.bound) {
+        ageList.dataset.bound = '1';
+        ageList.addEventListener('click', function (e) {
+            var opt = e.target.closest ? e.target.closest('.age-option') : null;
+            if (opt) selectAge(opt.getAttribute('data-age'));
+        });
+    }
+    var agePanel = document.getElementById('regAgePanel');
+    if (agePanel && !agePanel.dataset.bound) {
+        agePanel.dataset.bound = '1';
+        agePanel.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeAgePicker(true);
+            }
+        });
+    }
+
+    // 2. ربط محدد المدينة
     var btn = document.getElementById('regCityBtn');
-    if (!btn || btn.dataset.bound) return;
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', function () {
-        var panel = document.getElementById('regCityPanel');
-        if (panel && panel.classList.contains('open')) closeCityPicker(false); else openCityPicker();
-    });
+    if (btn && !btn.dataset.bound) {
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', function () {
+            var panel = document.getElementById('regCityPanel');
+            if (panel && panel.classList.contains('open')) closeCityPicker(false); else openCityPicker();
+        });
+    }
     var list = document.getElementById('regCityList');
-    if (list) list.addEventListener('click', function (e) {
-        var opt = e.target.closest ? e.target.closest('.city-option') : null;
-        if (opt) selectCity(opt.getAttribute('data-city'));
-    });
+    if (list && !list.dataset.bound) {
+        list.dataset.bound = '1';
+        list.addEventListener('click', function (e) {
+            var opt = e.target.closest ? e.target.closest('.city-option') : null;
+            if (opt) selectCity(opt.getAttribute('data-city'));
+        });
+    }
     var search = document.getElementById('regCitySearch');
-    if (search) search.addEventListener('input', function () { renderCityList(search.value); });
+    if (search && !search.dataset.bound) {
+        search.dataset.bound = '1';
+        search.addEventListener('input', function () { renderCityList(search.value); });
+    }
     var panel = document.getElementById('regCityPanel');
-    if (panel) panel.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
-            e.preventDefault();
-            e.stopPropagation();
-            closeCityPicker(true);
-        }
-    });
+    if (panel && !panel.dataset.bound) {
+        panel.dataset.bound = '1';
+        panel.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.keyCode === 27 || e.keyCode === 4) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeCityPicker(true);
+            }
+        });
+    }
     // الأرقام العربية تظهر إنجليزية فوراً أثناء كتابة رقم الهاتف
     ['regPhone', 'loginPhone'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) el.addEventListener('input', function () {
-            var v = toLatinDigits(el.value);
-            if (v !== el.value) el.value = v;
+        if (el && !el.dataset.boundDigits) {
+            el.dataset.boundDigits = '1';
+            el.addEventListener('input', function () {
+                var v = toLatinDigits(el.value);
+                if (v !== el.value) el.value = v;
+            });
+        }
+    });
+
+    // إغلاق القوائم عند النقر خارجها
+    if (!window.__pickersOutsideBound) {
+        window.__pickersOutsideBound = true;
+        document.addEventListener('click', function (e) {
+            if (!e.target || !e.target.closest) return;
+            var inAge = e.target.closest('#regAgePanel') || e.target.closest('#regAgeBtn');
+            if (!inAge) closeAgePicker(false);
+            var inCity = e.target.closest('#regCityPanel') || e.target.closest('#regCityBtn');
+            if (!inCity) closeCityPicker(false);
         });
-    });
-    var age = document.getElementById('regAge');
-    if (age) age.addEventListener('change', function () {
-        var err = document.getElementById('regAgeError');
-        if (err) { err.style.display = 'none'; err.innerText = ''; }
-    });
+    }
 }
 
 function showFieldError(id, msg) {

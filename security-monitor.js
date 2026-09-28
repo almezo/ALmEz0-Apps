@@ -751,10 +751,23 @@
             }
 
             // رتبة المستخدم
+            const isEviction = log.action === 'session_forced_eviction';
             const role = (log.user && log.user.role) ? log.user.role : 'visitor';
-            const roleLabel = getRoleBadge(role);
-            const userName = (log.user && log.user.name) ? log.user.name : 'زائر مجهول';
-            const userPhone = (log.user && log.user.phone) ? log.user.phone : '';
+            const roleLabel = isEviction 
+                ? '<span class="role-badge role-badge-customer" style="background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5;"><i class="fas fa-sign-out-alt"></i> الحساب المطرود</span>' 
+                : getRoleBadge(role);
+            let userName = (log.user && log.user.name) ? log.user.name : 'زائر مجهول';
+            let userPhone = (log.user && log.user.phone) ? log.user.phone : '';
+            if (isEviction) {
+                if ((userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details) {
+                    if (log.details.evictedUserName) userName = log.details.evictedUserName;
+                    else if (log.details.phone) userName = 'عميل (' + log.details.phone + ')';
+                    else if (log.details.uid) userName = 'حساب (' + log.details.uid.slice(0, 8) + '...)';
+                }
+                if (!userPhone && log.details && log.details.phone) {
+                    userPhone = log.details.phone;
+                }
+            }
 
             // شارة مستوى الخطورة / النشاط
             const sevBadge = getSeverityBadge(log.severity, log.action);
@@ -1021,6 +1034,24 @@
 
         let parts = [];
 
+        // معالجة واضحة ومباشرة لحالات الطرد الأمني للجلسة
+        if (action === 'session_forced_eviction') {
+            if (details.evictedUserName) {
+                parts.push(`👤 الحساب المطرود: <strong style="color:#f87171;">${escapeHtml(details.evictedUserName)}</strong>`);
+            }
+            if (details.phone) {
+                parts.push(`📞 الهاتف: <code style="color:#6ee7b7; direction:ltr; display:inline-block;">${escapeHtml(details.phone)}</code>`);
+            }
+            if (details.uid) {
+                parts.push(`🆔 المعرّف: <code style="color:#b388ff; font-size:0.75rem;">${escapeHtml(details.uid)}</code>`);
+            }
+            if (details.reason) {
+                const rText = details.reason === 'Firebase token revoked' ? 'إلغاء التوكن من السيرفر' : (details.reason === 'Auth version mismatch' ? 'تغيير كلمة المرور من جهاز آخر' : details.reason);
+                parts.push(`⚠️ السبب: <span style="color:#ffcc80;">${escapeHtml(rText)}</span>`);
+            }
+            return parts.join(' • ') || 'طرد أمني للجلسة';
+        }
+
         // بيانات تشغيل ومشاهدة القنوات والأفلام والمسلسلات
         if (details.channel) parts.push(`📺 القناة: <strong style="color:#69f0ae;">${escapeHtml(details.channel)}</strong>`);
         if (details.movie) parts.push(`🎬 الفيلم: <strong style="color:#ea80fc;">${escapeHtml(details.movie)}</strong>`);
@@ -1257,8 +1288,13 @@
             ${accountControlHtml}
             <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); padding:16px; border-radius:8px; margin-bottom:12px; line-height:1.9;">
                 <p><strong>العنوان:</strong> ${escapeHtml(log.title || log.action)}</p>
-                <p><strong>الفاعل:</strong> ${escapeHtml(log.user ? log.user.name : 'زائر')} (${escapeHtml(log.user && log.user.role ? log.user.role : 'visitor')})</p>
-                <p><strong>الهاتف:</strong> ${log.user && log.user.phone ? escapeHtml(log.user.phone) : 'غير متوفر'}</p>
+                ${log.action === 'session_forced_eviction' ? `
+                    <p><strong>الحساب المتأثر (المطرود):</strong> <span style="color:#f87171; font-weight:bold;">${escapeHtml((log.user && log.user.name && log.user.name !== 'زائر غير مسجل') ? log.user.name : ((log.details && log.details.evictedUserName) ? log.details.evictedUserName : 'حساب مستخدم'))}</span> (${escapeHtml(log.user && log.user.role && log.user.role !== 'visitor' ? log.user.role : 'customer')}) <span style="font-size:0.82rem; color:var(--text-secondary);">(تم طرد جلسته من هذا الجهاز استجابة لقرار السيرفر)</span></p>
+                    <p><strong>الهاتف:</strong> ${escapeHtml((log.user && log.user.phone) || (log.details && log.details.phone) || 'غير متوفر')}</p>
+                ` : `
+                    <p><strong>الفاعل:</strong> ${escapeHtml(log.user ? log.user.name : 'زائر')} (${escapeHtml(log.user && log.user.role ? log.user.role : 'visitor')})</p>
+                    <p><strong>الهاتف:</strong> ${log.user && log.user.phone ? escapeHtml(log.user.phone) : 'غير متوفر'}</p>
+                `}
                 <p><strong>التوقيت:</strong> ${dateFormatted} - ${timeFormatted}</p>
                 <p><strong>عنوان IP العام (Public IP):</strong> <span style="color:#4fc3f7; font-family:monospace; font-weight:bold; font-size:1.05rem;">${escapeHtml(ipAddress)}</span> ${locationStr ? `<span style="color:var(--text-secondary);">(${escapeHtml(locationStr)}${ispStr ? ` - ${escapeHtml(ispStr)}` : ''})</span>` : ''}</p>
                 <p><strong>معرّف الجهاز:</strong> <span style="color:#b388ff; font-family:monospace; font-weight:bold;">${escapeHtml(cleanHwFp || hwFp)}</span></p>
