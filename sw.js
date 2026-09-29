@@ -42,7 +42,7 @@ const OFFLINE_HTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لا يوجد اتصال بالإنترنت | سيرفرات الميزو</title>
+    <title>الموقع غير متاح مؤقتاً | سيرفرات الميزو</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body {
@@ -150,16 +150,33 @@ const OFFLINE_HTML = `<!DOCTYPE html>
         <div class="offline-icon-circle">
             <svg viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
         </div>
-        <h1 class="offline-title">لا يوجد اتصال بالإنترنت</h1>
-        <p class="offline-desc">
-            يبدو أن جهازك غير متصل بالإنترنت حالياً. يرجى التحقق من اتصال شبكة Wi-Fi أو بيانات الهاتف والمحاولة مرة أخرى.
+        <h1 class="offline-title" id="offTitle">الموقع غير متاح مؤقتاً</h1>
+        <p class="offline-desc" id="offDesc">
+            تعذّر الوصول إلى سيرفر الموقع حالياً، والمشكلة ليست في اتصالك. غالباً يعود الموقع خلال دقائق، وستُعاد المحاولة تلقائياً.
         </p>
         <button class="offline-btn" onclick="window.location.reload()">
             <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-            <span>إعادة المحاولة</span>
+            <span id="offBtn">إعادة المحاولة</span>
         </button>
         <div class="offline-footer">سيرفرات الميزو - ALmEz0</div>
     </div>
+    <script>
+        // الصفحة تظهر كلما فشل طلب الصفحة، وأغلب ذلك توقف سيرفر الاستضافة لا انقطاع إنترنت الزائر
+        // (انقطاع 29/9/2026 ظهر للجميع كـ "لا يوجد إنترنت"). نصف الإنترنت المقطوع فقط حين يقوله المتصفح.
+        if (navigator.onLine === false) {
+            document.title = 'لا يوجد اتصال بالإنترنت | سيرفرات الميزو';
+            document.getElementById('offTitle').textContent = 'لا يوجد اتصال بالإنترنت';
+            document.getElementById('offDesc').textContent = 'يبدو أن جهازك غير متصل بالإنترنت حالياً. يرجى التحقق من اتصال شبكة Wi-Fi أو بيانات الهاتف، وسيُفتح الموقع تلقائياً فور عودة الاتصال.';
+        }
+        window.addEventListener('online', function () { window.location.reload(); });
+        var left = 20;
+        var btn = document.getElementById('offBtn');
+        setInterval(function () {
+            left--;
+            if (left <= 0) { window.location.reload(); return; }
+            btn.textContent = 'إعادة المحاولة (' + left + ')';
+        }, 1000);
+    </script>
 </body>
 </html>`;
 

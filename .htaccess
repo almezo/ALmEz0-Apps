@@ -5,6 +5,23 @@
 # 1. Prevent Directory Browsing
 Options -Indexes
 
+# 1b. Never serve development files, even if an upload puts them here by mistake.
+#     Found public on 2026-09-29: old functions/index.js (CallMeBot key), scratch/*.py (Firebase tokens),
+#     .vscode/sftp.json, firestore.rules, package.json.
+#     Do NOT add plain .json here: version.json, servers.json and channel_logos.json are fetched by the apps.
+<FilesMatch "(^\.|\.(py|pyc|gs|md|bat|ps1|sh|log|sql|zip|rar|7z|bak|env|ini|rules)$|^(package(-lock)?|firebase|firestore\.indexes|capacitor\.config|tsconfig)\.json$|^error_log$)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+<IfModule mod_alias.c>
+    RedirectMatch 404 "^/(\.git|\.github|\.vscode|\.agents|\.claude|node_modules|functions|scratch|scripts|android|ios|electron|dist-electron|dist-hosting|www|IPTV-m3u-Web-Player-ez-main)(/|$)"
+</IfModule>
+
 # 2. Enable CORS (Cross-Origin Resource Sharing)
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"

@@ -38,3 +38,6 @@ firebase-debug.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+.claude/settings.local.json
+github pass.txt
+*pass*.txt

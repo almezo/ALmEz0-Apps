@@ -1749,7 +1749,8 @@ window.changeIntelCustomerRole = async function (customerId, customerName, newRo
     if (typeof Swal !== 'undefined') {
         const res = await Swal.fire({
             title: 'تغيير رتبة المستخدم',
-            html: `هل أنت متأكد من تغيير رتبة <strong>${customerName}</strong> إلى <strong>${roleNames[newRole] || newRole}</strong>؟`,
+            // الاسم يكتبه العميل عند التسجيل (القواعد تحدّ طوله فقط)، فوسم HTML فيه كان يُنفَّذ بصلاحيات المدير
+            html: `هل أنت متأكد من تغيير رتبة <strong>${safeIntelEsc(customerName)}</strong> إلى <strong>${safeIntelEsc(roleNames[newRole] || newRole)}</strong>؟`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'نعم، حفظ التغيير',
@@ -1797,11 +1798,12 @@ window.changeIntelCustomerRole = async function (customerId, customerName, newRo
 window.openCustomerDetailNotes = function (customerId, name, phone) {
     if (typeof Swal !== 'undefined') {
         Swal.fire({
-            title: `بطاقة العميل: ${name}`,
+            // عنوان SweetAlert يُعرض كـ HTML مثل html، فكلاهما يُهرَّب
+            title: `بطاقة العميل: ${safeIntelEsc(name)}`,
             html: `
                 <div style="text-align:right; font-size:0.9rem; line-height:1.7; padding:10px;">
-                    <p><strong>المعرف (UID):</strong> <code>${customerId}</code></p>
-                    <p><strong>رقم الهاتف:</strong> ${phone}</p>
+                    <p><strong>المعرف (UID):</strong> <code>${safeIntelEsc(customerId)}</code></p>
+                    <p><strong>رقم الهاتف:</strong> ${safeIntelEsc(phone)}</p>
                     <p><strong>حالة الحساب:</strong> نشط ومسجل في السحابة</p>
                 </div>
             `,
