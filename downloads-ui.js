@@ -503,7 +503,9 @@
         beforeStream: beforeStream,
         afterStream: afterStream,
         openPage: openPage,
-        openBox: openBox
+        openBox: openBox,
+        // قياس السرعة ينبّه العميل إن كان تنزيل يقاسمه الإنترنت (نتيجة أقل من الحقيقة)
+        isDownloading: function () { return state.items.some(function (i) { return i.state === 'running'; }); }
     };
 
     onChange(renderBox);

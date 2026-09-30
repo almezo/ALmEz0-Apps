@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
     <!-- Custom CSS -->
-    <link href="splayer.css?v=25.2" rel="stylesheet" />
+    <link href="splayer.css?v=25.3" rel="stylesheet" />
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <!-- Screen Intelligence & App Bridge for Mobile & Desktop -->
@@ -117,12 +117,15 @@
                 var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
                 if (!cached) return; // لم يسجل الدخول للموقع: التحويل أعلاه يتولى الأمر
                 function arr(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { return []; } }
+                // المفضلة ومتابعة المشاهدة محفوظة لكل حساب (mizoAccKey في splayer.js)، والقديمة بلا حساب احتياطاً
+                var accId = localStorage.getItem('sp_active_acc_id') || '';
+                function accArr(base) { var v = accId ? arr(base + '@' + accId) : []; return v.length ? v : arr(base); }
                 var data = {
                     accounts: arr('sp_accounts').length ? arr('sp_accounts') : arr('sp_saved_accounts'),
                     activeId: localStorage.getItem('sp_active_acc_id') || '',
                     loggedOut: localStorage.getItem('sp_logged_out') === 'true',
-                    favs: { live: arr('sp_favs_live'), vod: arr('sp_favs_vod'), series: arr('sp_favs_series') },
-                    cont: { live: arr('sp_continue_live'), vod: arr('sp_continue_vod'), series: arr('sp_continue_series') }
+                    favs: { live: accArr('sp_favs_live'), vod: accArr('sp_favs_vod'), series: accArr('sp_favs_series') },
+                    cont: { live: accArr('sp_continue_live'), vod: accArr('sp_continue_vod'), series: accArr('sp_continue_series') }
                 };
                 document.documentElement.style.visibility = 'hidden';
                 bridge.openNativePlayer(JSON.stringify(data));
@@ -839,36 +842,57 @@
                     </button>
                 </div>
 
+                <!-- عدّاد بإبرة ومقياس غير خطي (0 5 10 25 50 100 200): يُرسم في splayer.js (MizoSpeedTest.buildGauge)
+                     بنفس تصميم عدّاد مشغل أندرويد (SpeedGaugeView) -->
                 <div class="speed-test-gauge-wrap">
-                    <svg class="speed-gauge-svg" viewBox="0 0 240 140">
+                    <svg class="speed-gauge-svg" id="speedGaugeSvg" viewBox="0 0 260 200" aria-hidden="true">
                         <defs>
                             <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stop-color="#06b6d4" />
-                                <stop offset="50%" stop-color="#3b82f6" />
+                                <stop offset="0%" stop-color="#ef4444" />
+                                <stop offset="22%" stop-color="#f97316" />
+                                <stop offset="38%" stop-color="#eab308" />
+                                <stop offset="55%" stop-color="#22c55e" />
+                                <stop offset="72%" stop-color="#06b6d4" />
+                                <stop offset="86%" stop-color="#3b82f6" />
                                 <stop offset="100%" stop-color="#a855f7" />
                             </linearGradient>
-                            <filter id="gaugeGlow">
-                                <feGaussianBlur stdDeviation="3" result="blur" />
+                            <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="4" result="blur" />
                                 <feMerge>
                                     <feMergeNode in="blur" />
                                     <feMergeNode in="SourceGraphic" />
                                 </feMerge>
                             </filter>
                         </defs>
-                        <!-- Arc background -->
-                        <path class="gauge-track" d="M 30 125 A 90 90 0 0 1 210 125" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round" />
-                        <!-- Arc progress -->
-                        <path id="gaugeProgressArc" class="gauge-fill" d="M 30 125 A 90 90 0 0 1 210 125" fill="none" stroke="url(#gaugeGradient)" stroke-width="14" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="283" filter="url(#gaugeGlow)" />
+                        <path class="gauge-track" id="gaugeTrack" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round" />
+                        <path id="gaugeProgressArc" class="gauge-fill" fill="none" stroke="url(#gaugeGradient)" stroke-width="14" stroke-linecap="round" filter="url(#gaugeGlow)" />
+                        <g id="gaugeTicks"></g>
+                        <g id="gaugeNeedle" class="gauge-needle">
+                            <polygon points="0,-4 92,0 0,4" fill="#ffffff" />
+                            <circle r="9" fill="#ffffff" />
+                            <circle r="4.5" fill="#0f172a" />
+                        </g>
                     </svg>
                     <div class="gauge-center-content">
                         <div class="gauge-speed-val" id="speedTestVal">0.0</div>
                         <div class="gauge-speed-unit">Mbps</div>
-                        <div class="gauge-status-pill" id="speedTestStatus">
-                            <span class="status-dot"></span>
-                            <span id="speedStatusText">جاهز لبدء الفحص</span>
-                        </div>
                     </div>
                 </div>
+                <div class="gauge-status-pill" id="speedTestStatus">
+                    <span class="status-dot"></span>
+                    <span id="speedStatusText">جاهز لبدء الفحص</span>
+                </div>
+                <!-- مراحل الفحص: تضيء كل مرحلة عند بدئها وتصير خضراء عند اكتمالها -->
+                <div class="speed-phases" id="speedPhases">
+                    <span class="speed-phase" id="phasePing"><i></i><span data-ar="الاستجابة" data-en="Ping">الاستجابة</span></span>
+                    <span class="speed-phase-sep"></span>
+                    <span class="speed-phase" id="phaseDl"><i></i><span data-ar="التحميل" data-en="Download">التحميل</span></span>
+                    <span class="speed-phase-sep"></span>
+                    <span class="speed-phase" id="phaseStable"><i></i><span data-ar="الثبات" data-en="Stability">الثبات</span></span>
+                </div>
+                <!-- رسم حيّ لتذبذب السرعة: الثبات يحدد سلاسة البث أكثر من الرقم وحده -->
+                <canvas class="speed-spark" id="speedSpark" height="44"></canvas>
+                <div class="speed-warning hidden" id="speedWarning"></div>
 
                 <div class="speed-metrics-grid">
                     <div class="speed-metric-item">
@@ -899,6 +923,14 @@
                         <i class="fas fa-tv"></i> <span id="recommendQuality">في انتظار الفحص...</span>
                     </div>
                     <p class="recommend-desc" id="recommendDesc">اضغط على زر الفحص لمعرفة جودة البث الأنسب لسرعتك الحالية.</p>
+                    <!-- ما يتحمله الاتصال من الجودات: أخضر مناسب، أصفر على الحافة، رمادي غير مناسب -->
+                    <div class="speed-quality-chips" id="speedQualityChips">
+                        <span class="q-chip" data-q="SD">SD</span>
+                        <span class="q-chip" data-q="HD">HD</span>
+                        <span class="q-chip" data-q="FHD">FHD</span>
+                        <span class="q-chip" data-q="4K">4K</span>
+                    </div>
+                    <div class="speed-history hidden" id="speedHistory"></div>
                 </div>
 
                 <div class="speed-test-actions">
@@ -923,11 +955,11 @@
             <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
             <!-- Custom Logic -->
             <script src="player-lang.js?v=1.1"></script>
-            <script src="splayer.js?v=34.8"></script>
-            <script src="downloads-ui.js?v=4099.0"></script>
+            <script src="splayer.js?v=34.9"></script>
+            <script src="downloads-ui.js?v=4099.1"></script>
             <!-- AlMeZ0 AI Assistant (Voice & Text Intelligence) -->
             <script src="ai-config.js?v=2.0"></script>
-            <script src="ai-assistant.js?v=2.0"></script>
+            <script src="ai-assistant.js?v=2.1"></script>
             <!-- Display Time Script -->
             <script>
                 function updateNavClock() {

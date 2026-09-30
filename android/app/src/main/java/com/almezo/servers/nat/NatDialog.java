@@ -48,8 +48,25 @@ public class NatDialog extends android.app.Dialog {
      * تمرّ بـBaseActivity، فكان التنقل فيها يتبع خوارزمية أندرويد وحدها: الضغط يساراً على
      * بطاقة سيرفر لا يحرّك شيئاً، ولا يمكن الوصول لزر الحذف داخلها إلا بدورة طويلة.
      */
+    /** معالجة خاصة لنافذة بعينها تسبق التنقل الهندسي (true = تكفّلت بالضغطة). */
+    public interface KeyInterceptor {
+        boolean onKey(@NonNull android.view.KeyEvent event);
+    }
+
+    private KeyInterceptor keyInterceptor;
+
+    /**
+     * التنقل الهندسي أدناه يسبق مستمعي المفاتيح في العناصر (OnKeyListener)، فكل منطق ريموت
+     * خاص يُكتب على العنصر نفسه لا يعمل أبداً ما دام Fx وجد هدفاً. النوافذ التي تحتاج سلوكاً
+     * خاصاً (حصر التركيز في درج، تمرير نص طويل) تمرّره من هنا.
+     */
+    public void setKeyInterceptor(KeyInterceptor k) {
+        keyInterceptor = k;
+    }
+
     @Override
     public boolean dispatchKeyEvent(@NonNull android.view.KeyEvent event) {
+        if (keyInterceptor != null && keyInterceptor.onKey(event)) return true;
         if (event.getAction() == android.view.KeyEvent.ACTION_DOWN && getWindow() != null) {
             int dir = Fx.directionOf(event.getKeyCode());
             android.view.View focused = getCurrentFocus();

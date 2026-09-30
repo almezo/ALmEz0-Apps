@@ -417,9 +417,12 @@ public final class Downloads {
                     } else if (items.contains(next) && RUNNING.equals(next.state)) {
                         next.retries++;
                         next.speed = 0;
-                        if (next.retries <= MAX_AUTO_RETRIES && !(t instanceof SpaceException) && !(t instanceof HttpException)) {
+                        // رفض "مشغول" (403 وأخواتها) مؤقت: التنزيل يُستأنف بعد ثانية من إغلاق المشغل، واللوحة ذات
+                        // الاتصال الواحد تبقى تحسب اتصال المشغل ثوانيَ، فكان يُعلَّم فاشلاً نهائياً برسالة مضلِّلة
+                        boolean busy = t instanceof HttpException && isBusyCode(((HttpException) t).code);
+                        if (next.retries <= MAX_AUTO_RETRIES && !(t instanceof SpaceException) && (!(t instanceof HttpException) || busy)) {
                             next.state = QUEUED; // انقطاع مؤقت: نعيد المحاولة من حيث توقف
-                            next.error = "انقطع الاتصال، إعادة المحاولة…";
+                            next.error = busy ? "السيرفر مشغول، إعادة المحاولة…" : "انقطع الاتصال، إعادة المحاولة…";
                         } else {
                             next.state = FAILED;
                             next.error = friendlyError(t);
@@ -447,11 +450,15 @@ public final class Downloads {
         HttpException(int code) { super("HTTP " + code); this.code = code; }
     }
 
+    private static boolean isBusyCode(int c) {
+        return c == 401 || c == 403 || c == 429 || (c >= 500 && c < 600);
+    }
+
     private static String friendlyError(Throwable t) {
         if (t instanceof SpaceException) return "المساحة غير كافية على الجهاز";
         if (t instanceof HttpException) {
             int c = ((HttpException) t).code;
-            if (c == 401 || c == 403) return "السيرفر رفض التنزيل (" + c + ") — تأكد من صلاحية الاشتراك";
+            if (c == 401 || c == 403) return "السيرفر رفض التنزيل (" + c + ") — قد يكون مشغولاً باتصال آخر أو انتهى الاشتراك";
             if (c == 404) return "الملف غير موجود على السيرفر";
             return "خطأ من السيرفر (" + c + ")";
         }

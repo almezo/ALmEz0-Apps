@@ -16,10 +16,61 @@ import java.util.List;
 public final class Store {
 
     private static final String PREFS = "almezo_native_player";
+    /**
+     * نقاط الاستئناف في ملف مستقل بسقف. كانت في ملف الإعدادات الرئيسي بلا حذف أبداً، والمشغل
+     * يحفظ كل 10 ثوانٍ، وكل حفظ يعيد كتابة الملف كله (الحسابات والمفضلة ومئات النقاط القديمة).
+     */
+    private static final String POS_PREFS = "almezo_positions";
+    private static final int MAX_POSITIONS = 400;
+    private static boolean positionsMigrated;
+    private static int positionSaves;
     private final SharedPreferences sp;
+    private final SharedPreferences pos;
 
     public Store(Context ctx) {
         sp = ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        pos = ctx.getApplicationContext().getSharedPreferences(POS_PREFS, Context.MODE_PRIVATE);
+        migratePositions();
+    }
+
+    /** نقل نقاط الاستئناف القديمة من الملف الرئيسي مرة واحدة (بلا فقدان لما شاهده العميل). */
+    private void migratePositions() {
+        synchronized (Store.class) {
+            if (positionsMigrated) return;
+            positionsMigrated = true;
+            if (sp.getBoolean("positions_moved", false)) return;
+            SharedPreferences.Editor main = sp.edit();
+            SharedPreferences.Editor dst = pos.edit();
+            for (java.util.Map.Entry<String, ?> e : sp.getAll().entrySet()) {
+                if (e.getKey().startsWith("pos_") && e.getValue() instanceof String) {
+                    dst.putString(e.getKey(), e.getValue() + "|0");
+                    main.remove(e.getKey());
+                }
+            }
+            dst.apply();
+            main.putBoolean("positions_moved", true).apply();
+        }
+    }
+
+    /** يحذف أقدم النقاط (بوقت آخر حفظ) حين يتجاوز العدد السقف. */
+    private void prunePositions() {
+        java.util.Map<String, ?> all = pos.getAll();
+        if (all.size() <= MAX_POSITIONS) return;
+        List<java.util.Map.Entry<String, ?>> entries = new ArrayList<>(all.entrySet());
+        java.util.Collections.sort(entries, (x, y) -> Long.compare(savedAt(x.getValue()), savedAt(y.getValue())));
+        SharedPreferences.Editor ed = pos.edit();
+        int drop = all.size() - MAX_POSITIONS * 3 / 4;
+        for (int i = 0; i < drop; i++) ed.remove(entries.get(i).getKey());
+        ed.apply();
+    }
+
+    private static long savedAt(Object v) {
+        try {
+            String s = String.valueOf(v);
+            return Long.parseLong(s.substring(s.lastIndexOf('|') + 1));
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     // ---------------- الحسابات ----------------
@@ -154,24 +205,26 @@ public final class Store {
     /** يحفظ آخر موضع مشاهدة لعمل (فيلم أو حلقة) ومدته، لاستئنافه لاحقاً وعرض شريط التقدم. */
     public void savePosition(String key, long positionMs, long durationMs) {
         if (key == null || key.isEmpty()) return;
-        sp.edit().putString(scoped("pos", key), positionMs + "|" + durationMs).apply();
+        // الصيغة: موضع|مدة|وقت الحفظ (الأخير لحذف الأقدم عند تجاوز السقف)
+        pos.edit().putString(scoped("pos", key), positionMs + "|" + durationMs + "|" + System.currentTimeMillis()).apply();
+        if (++positionSaves % 25 == 0) prunePositions();
     }
 
     /** {الموضع، المدة} بالمللي ثانية، أو null إن لم يُشاهَد. */
     public long[] position(String key) {
         if (key == null) return null;
-        String v = sp.getString(scoped("pos", key), null);
+        String v = pos.getString(scoped("pos", key), null);
         if (v == null) return null;
         try {
-            int sep = v.indexOf('|');
-            return new long[]{Long.parseLong(v.substring(0, sep)), Long.parseLong(v.substring(sep + 1))};
+            String[] parts = v.split("\\|");
+            return new long[]{Long.parseLong(parts[0]), Long.parseLong(parts[1])};
         } catch (Exception e) {
             return null;
         }
     }
 
     public void clearPosition(String key) {
-        if (key != null) sp.edit().remove(scoped("pos", key)).apply();
+        if (key != null) pos.edit().remove(scoped("pos", key)).apply();
     }
 
     // ---------------- أوقات آخر تحديث ----------------

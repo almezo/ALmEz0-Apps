@@ -126,6 +126,15 @@ public class PlayerActivity extends AppCompatActivity {
     /** امتدادات الأفلام والحلقات التي نجرّبها بالترتيب عند فشل التشغيل. */
     private static final String[] VOD_EXTENSIONS = {"mkv", "mp4", "avi", "ts"};
     private int vodExtTried = 0;
+    /** رابط الفيلم/الحلقة كما جاء من اللوحة، قبل أي تجربة لامتداد بديل. */
+    private String originalUrl = null;
+    /**
+     * مهلة بين إغلاق الحلقة الحالية وفتح التالية. اللوحة تسمح باتصال واحد للاشتراك، وكان فتح التالية
+     * فوراً يسبق إغلاق السابقة (ثلاثة اتصالات معاً في المحاكي) فترفضها اللوحة بـ 403.
+     */
+    private static final long SWITCH_GAP_MS = 1500;
+    private final Runnable openPendingItem = this::openCurrentItem;
+    private boolean switchPending = false;
     private boolean isTvDevice = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -159,6 +168,45 @@ public class PlayerActivity extends AppCompatActivity {
             handler.postDelayed(this, 1000);
         }
     };
+
+    // مؤشر صحة الاتصال: القياس مستمر كل ثانية، والعرض فقط وطبقة الأدوات ظاهرة
+    private final ConnectionHealth connHealth = new ConnectionHealth();
+    private TextView tvConnHealth;
+
+    private final Runnable connHealthRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                connHealth.tick();
+                if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) renderConnHealth();
+            } catch (Throwable t) {
+                Log.w(TAG, "connHealth error", t);
+            }
+            if (!isFinishing() && !isDestroyed()) handler.postDelayed(this, 1000);
+        }
+    };
+
+    private void renderConnHealth() {
+        if (tvConnHealth == null) return;
+        // ملف منزّل على الجهاز: لا يوجد اتصال نقيسه
+        if (player == null || videoUrl == null || videoUrl.startsWith("file:")) {
+            tvConnHealth.setVisibility(View.GONE);
+            return;
+        }
+        int bitrate = 0;
+        try {
+            androidx.media3.common.Format f = player.getVideoFormat();
+            if (f != null && f.bitrate > 0) bitrate = f.bitrate;
+        } catch (Throwable ignored) { }
+        int v = connHealth.verdict(player.getTotalBufferedDuration(), player.getPlayWhenReady(), bitrate);
+        String speed = ConnectionHealth.mbpsText(connHealth.mbps());
+        String text = "● " + ConnectionHealth.label(v)
+                + (speed != null ? " · ⁦" + speed + "⁩" : "");
+        android.text.SpannableString s = new android.text.SpannableString(text);
+        s.setSpan(new android.text.style.ForegroundColorSpan(ConnectionHealth.color(v)), 0, 1, 0);
+        tvConnHealth.setText(s);
+        tvConnHealth.setVisibility(View.VISIBLE);
+    }
 
     private final Runnable updateProgressRunnable = new Runnable() {
         @Override
@@ -407,6 +455,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnSettings = findViewById(R.id.btn_settings);
         btnCloseSettings = findViewById(R.id.btn_close_settings);
         tvTitle = findViewById(R.id.tv_title);
+        tvConnHealth = findViewById(R.id.tv_conn_health);
         tvPosition = findViewById(R.id.tv_position);
         tvDuration = findViewById(R.id.tv_duration);
         seekBar = findViewById(R.id.seek_bar);
@@ -859,6 +908,15 @@ public class PlayerActivity extends AppCompatActivity {
     private void togglePlayPause() {
         if (player != null) {
             try {
+                // بعد خطأ يتوقف المشغل كلياً (IDLE) ولا يفعل play() شيئاً: زر التشغيل يصبح "أعد المحاولة"
+                if (player.getPlaybackState() == Player.STATE_IDLE && videoUrl != null) {
+                    if (switchPending) return; // الحلقة التالية ستُفتح وحدها بعد إغلاق السابقة
+                    vodExtTried = 0;
+                    isRetried = false;
+                    resumeChecked = false;
+                    openCurrentItem();
+                    return;
+                }
                 if (player.isPlaying()) {
                     player.pause();
                     isUserPaused = true;
@@ -980,6 +1038,37 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+
+    /**
+     * أسماء المسارات كما يفهمها المشاهد. كانت تقنية بالإنجليزية ("1, AUDIO, mp4a, N/A, 48000, und")
+     * فلا يعرف العميل أي خيار هو العربي أو الإنجليزي أو الأعلى جودة.
+     */
+    private static String videoQualityLabel(Format f, int index) {
+        if (f.height > 0) {
+            String q = f.height >= 2160 ? "4K" : f.height >= 1080 ? "1080p (FHD)" : f.height >= 720 ? "720p (HD)" : f.height + "p";
+            return "الجودة " + q;
+        }
+        return "الجودة " + index;
+    }
+
+    private static String audioLabel(Format f, int index) {
+        String name = f.label != null && !f.label.trim().isEmpty() ? f.label
+                : (f.language != null ? languageName(f.language) : "الصوت " + index);
+        if (f.channelCount >= 6) name += " (5.1)";
+        else if (f.channelCount == 2) name += " (ستيريو)";
+        return name;
+    }
+
+    private static String languageName(String code) {
+        if (code == null || code.isEmpty() || "und".equalsIgnoreCase(code)) return "غير محددة";
+        try {
+            String n = new Locale(code).getDisplayLanguage(new Locale("ar"));
+            return n == null || n.isEmpty() || n.equalsIgnoreCase(code) ? code : n;
+        } catch (Throwable t) {
+            return code;
+        }
+    }
+
     private void populateSettingsTracks() {
         if (player == null) return;
         try {
@@ -988,7 +1077,7 @@ public class PlayerActivity extends AppCompatActivity {
             // 1. VIDEO TRACKS
             if (rgVideoTracks != null) {
                 rgVideoTracks.removeAllViews();
-                addRadioButton(rgVideoTracks, "Disable", false, (buttonView, isChecked) -> {
+                addRadioButton(rgVideoTracks, "بدون صورة", false, (buttonView, isChecked) -> {
                     if (isChecked) {
                         TrackSelectionParameters params = player.getTrackSelectionParameters()
                                 .buildUpon()
@@ -1006,7 +1095,7 @@ public class PlayerActivity extends AppCompatActivity {
                             Format f = tg.getFormat(i);
                             String res = (f.width > 0 && f.height > 0) ? (f.width + " x " + f.height) : "Default";
                             String codec = f.sampleMimeType != null ? f.sampleMimeType.replace("video/", "") : "h264";
-                            String label = videoIndex + ", VIDEO, " + codec + ", " + res;
+                            String label = videoQualityLabel(f, videoIndex);
                             boolean isSelected = group.isTrackSelected(i);
 
                             final int finalIndex = i;
@@ -1031,7 +1120,7 @@ public class PlayerActivity extends AppCompatActivity {
             // 2. AUDIO TRACKS
             if (rgAudioTracks != null) {
                 rgAudioTracks.removeAllViews();
-                addRadioButton(rgAudioTracks, "Disable", false, (buttonView, isChecked) -> {
+                addRadioButton(rgAudioTracks, "كتم الصوت", false, (buttonView, isChecked) -> {
                     if (isChecked) {
                         TrackSelectionParameters params = player.getTrackSelectionParameters()
                                 .buildUpon()
@@ -1050,7 +1139,7 @@ public class PlayerActivity extends AppCompatActivity {
                             String codec = f.sampleMimeType != null ? f.sampleMimeType.replace("audio/", "") : "aac";
                             String lang = f.language != null ? f.language : "und";
                             String sampleRate = f.sampleRate > 0 ? (f.sampleRate + " Hz") : "48000 Hz";
-                            String label = audioIndex + ", AUDIO, " + codec + ", N/A, " + sampleRate + ", " + lang;
+                            String label = audioLabel(f, audioIndex);
                             boolean isSelected = group.isTrackSelected(i);
 
                             final int finalIndex = i;
@@ -1082,7 +1171,8 @@ public class PlayerActivity extends AppCompatActivity {
                         TrackGroup tg = group.getMediaTrackGroup();
                         for (int i = 0; i < tg.length; i++) {
                             Format f = tg.getFormat(i);
-                            String label = f.label != null ? f.label : (f.language != null ? f.language : ("Subtitle #" + (subCount + 1)));
+                            String label = f.label != null && !f.label.trim().isEmpty() ? f.label
+                                    : (f.language != null ? languageName(f.language) : ("ترجمة " + (subCount + 1)));
                             boolean isSelected = group.isTrackSelected(i);
 
                             final int finalIndex = i;
@@ -1107,7 +1197,7 @@ public class PlayerActivity extends AppCompatActivity {
                     if (tvNoSubtitles != null) tvNoSubtitles.setVisibility(View.VISIBLE);
                 } else {
                     if (tvNoSubtitles != null) tvNoSubtitles.setVisibility(View.GONE);
-                    addRadioButton(rgSubtitleTracks, "Disable Subtitles", false, (buttonView, isChecked) -> {
+                    addRadioButton(rgSubtitleTracks, "بدون ترجمة", false, (buttonView, isChecked) -> {
                         if (isChecked) {
                             TrackSelectionParameters params = player.getTrackSelectionParameters()
                                     .buildUpon()
@@ -1212,7 +1302,9 @@ public class PlayerActivity extends AppCompatActivity {
                 return true;
 
             case KeyEvent.KEYCODE_MEDIA_PLAY:
-                if (player != null) player.play();
+                // بعد خطأ يكون المشغل متوقفاً كلياً (IDLE) فلا يفعل play() شيئاً: togglePlayPause يعيد المحاولة
+                if (player != null && player.getPlaybackState() == Player.STATE_IDLE) togglePlayPause();
+                else if (player != null) player.play();
                 showControls();
                 return true;
 
@@ -1317,6 +1409,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         videoUrl = videoUrl.trim();
+        originalUrl = videoUrl;
         // يوقف أي تنزيل ويغلق اتصاله قبل أن يفتح المشغل اتصاله بالسيرفر
         if (!countedOpen) { countedOpen = true; openPlayers++; }
         playerVisible = true;
@@ -1356,11 +1449,14 @@ public class PlayerActivity extends AppCompatActivity {
                     .setUserAgent("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 ALmEz0/1.0")
                     .setAllowCrossProtocolRedirects(true)
                     .setConnectTimeoutMs(25000)
-                    .setReadTimeoutMs(25000);
+                    .setReadTimeoutMs(25000)
+                    .setTransferListener(connHealth);
 
             // DefaultDataSource: الروابط تمر عبر مصدر HTTP نفسه، والملفات المنزّلة (file://) تُقرأ من الجهاز
             DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(new androidx.media3.datasource.DefaultDataSource.Factory(this, httpDataSourceFactory));
+            // البث المباشر أيضاً: تبديل القناة يلقى نفس رفض "مشغول" من اللوحة ذات الاتصال الواحد
+            mediaSourceFactory.setLoadErrorHandlingPolicy(new PanelErrorPolicy(!isLiveStream));
 
             // مخزن مؤقت واحد لكل الأجهزة بلا تفرقة بين ضعيف وقوي
             DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
@@ -1422,6 +1518,12 @@ public class PlayerActivity extends AppCompatActivity {
                     try {
                         // بطء الإنترنت: علامة التحميل وحدها، وزر التشغيل يختفي في هذه اللحظة فقط
                         boolean buffering = playbackState == Player.STATE_BUFFERING;
+                        if (player != null) {
+                            connHealth.onState(playbackState == Player.STATE_READY, buffering,
+                                    playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED,
+                                    player.getPlayWhenReady());
+                            if (controlsOverlay != null && controlsOverlay.getVisibility() == View.VISIBLE) renderConnHealth();
+                        }
                         if (pbBuffering != null) pbBuffering.setVisibility(buffering ? View.VISIBLE : View.GONE);
                         if (btnPlayPause != null) btnPlayPause.setVisibility(buffering ? View.INVISIBLE : View.VISIBLE);
 
@@ -1436,6 +1538,17 @@ public class PlayerActivity extends AppCompatActivity {
                     } catch (Throwable t) {
                         Log.w(TAG, "playbackStateChanged error", t);
                     }
+                }
+
+                @Override
+                public void onPositionDiscontinuity(Player.PositionInfo oldPos, Player.PositionInfo newPos, int reason) {
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK) connHealth.onSeek();
+                }
+
+                @Override
+                public void onMediaItemTransition(@androidx.annotation.Nullable MediaItem item, int reason) {
+                    connHealth.reset();
+                    connHealth.onSeek();
                 }
 
                 @Override
@@ -1463,14 +1576,19 @@ public class PlayerActivity extends AppCompatActivity {
                     try {
                         if (pbBuffering != null) pbBuffering.setVisibility(View.GONE);
                         Log.e(TAG, "ExoPlayer error: " + error.getMessage(), error);
+                        boolean busy = isPanelBusy(httpCode(error));
 
                         /*
                          * الأفلام والحلقات: لوحات Xtream ترسل container_extension أحياناً ناقصاً أو
                          * خاطئاً، فيُبنى الرابط بامتداد mp4 افتراضاً ويفشل من أول مرة، ثم ينجح في
                          * المحاولة الثانية بعد وصول بيانات الفيلم. لم تكن هناك أي إعادة محاولة لغير
                          * البث المباشر، فنجرّب بقية الامتدادات المعروفة بصمت قبل إظهار أي خطأ.
+                         *
+                         * إلا إن رفضت اللوحة لأنها مشغولة (403 وأخواتها): الملف موجود والاتصال السابق
+                         * ما زال محسوباً، وتجربة امتدادات أخرى كانت تضاعف الطلبات المرفوضة حتى 20 طلباً
+                         * في 19 ثانية لملفات غير موجودة، وهذا ما يجعل اللوحة تحظر الـIP.
                          */
-                        if (!isLiveStream && videoUrl != null && !videoUrl.startsWith("file:") && vodExtTried < VOD_EXTENSIONS.length) {
+                        if (!busy && !isLiveStream && videoUrl != null && !videoUrl.startsWith("file:") && vodExtTried < VOD_EXTENSIONS.length) {
                             int dot = videoUrl.lastIndexOf('.');
                             int slash = videoUrl.lastIndexOf('/');
                             if (dot > slash && slash > 0) {
@@ -1492,7 +1610,8 @@ public class PlayerActivity extends AppCompatActivity {
                         }
 
                         // Automatic fallback for IPTV live streams: if .m3u8 fails, retry with .ts and vice-versa
-                        if (isLiveStream && videoUrl != null && !isRetried) {
+                        // (إلا عند رفض "مشغول": الصيغة سليمة والاتصال السابق ما زال محسوباً)
+                        if (!busy && isLiveStream && videoUrl != null && !isRetried) {
                             isRetried = true;
                             String fallbackUrl = null;
                             if (videoUrl.contains(".m3u8")) {
@@ -1513,7 +1632,17 @@ public class PlayerActivity extends AppCompatActivity {
                             }
                         }
 
-                        com.almezo.servers.nat.Ui.toast(PlayerActivity.this, "تعذر استكمال البث من السيرفر");
+                        // زر التشغيل يعيد المحاولة بالرابط الأصلي لا بآخر امتداد مجرَّب (كان يبقى .ts)
+                        if (!isLiveStream && originalUrl != null) videoUrl = originalUrl;
+                        com.almezo.servers.nat.Ui.toast(PlayerActivity.this, busy
+                                ? (isLiveStream ? "السيرفر ما زال مشغولاً بالقناة السابقة، اضغط تشغيل بعد لحظات"
+                                        : "السيرفر ما زال مشغولاً بالحلقة السابقة، اضغط تشغيل بعد لحظات")
+                                : "تعذر استكمال البث من السيرفر");
+                        if (!isLiveStream) {
+                            // المشغل متوقف الآن: أيقونة التشغيل تدل على أن الزر يعيد المحاولة (togglePlayPause)
+                            if (btnPlayPause != null) btnPlayPause.setImageResource(R.drawable.ic_player_play);
+                            showControls();
+                        }
                     } catch (Throwable t) {
                         Log.w(TAG, "onPlayerError error", t);
                     }
@@ -1521,6 +1650,8 @@ public class PlayerActivity extends AppCompatActivity {
             });
 
             handler.post(updateProgressRunnable);
+            handler.removeCallbacks(connHealthRunnable);
+            handler.postDelayed(connHealthRunnable, 1000);
             resetControlsHideTimer();
             setupQueueUi();
 
@@ -1542,6 +1673,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (controlsOverlay != null) {
                 controlsOverlay.setVisibility(View.VISIBLE);
             }
+            try { renderConnHealth(); } catch (Throwable ignored) { }
             if (!isTvDevice) {
                 if (btnLock != null) btnLock.setVisibility(View.VISIBLE);
                 if (layoutBrightnessSlider != null) {
@@ -1723,27 +1855,122 @@ public class PlayerActivity extends AppCompatActivity {
         PlayQueue.Entry e = PlayQueue.current();
         if (e == null) return;
         handler.removeCallbacks(nextCountdownRunnable);
+        handler.removeCallbacks(openPendingItem);
         if (nextPanel != null) nextPanel.setVisibility(View.GONE);
         if (resumeChip != null) resumeChip.setVisibility(View.GONE);
         videoUrl = e.url;
+        originalUrl = e.url;
         contentKey = e.key;
         syncDownloadPause();
         resumeChecked = false;
         isRetried = false;
+        vodExtTried = 0; // كان يتراكم عبر الحلقات فتقل محاولات كل حلقة تالية حتى تنعدم
         if (tvTitle != null) tvTitle.setText(e.title);
-        try {
-            player.setMediaItem(buildMediaItem(e.url));
-            player.prepare();
-            player.setPlayWhenReady(true);
-            isUserPaused = false;
-        } catch (Throwable t) {
-            Log.w(TAG, "playIndex error", t);
+        if (!isLiveStream && !e.url.startsWith("file:")) {
+            /*
+             * الحلقة من السيرفر: نغلق اتصال الحالية أولاً ثم نفتح التالية بعد مهلة. كان setMediaItem
+             * على نفس المشغل يفتح التالية وتحميل الحالية ما زال جارياً (مثبت في المحاكي 30/9/2026:
+             * ثلاثة اتصالات معاً)، فترفض اللوحة ذات الاتصال الواحد بـ 403. الضغط المتكرر يلغي
+             * الفتح السابق المؤجل فلا يُفتح إلا آخر حلقة اختارها المستخدم.
+             */
+            try {
+                player.stop();
+                player.clearMediaItems();
+            } catch (Throwable t) {
+                Log.w(TAG, "playIndex stop error", t);
+            }
+            resetProgressUi();
+            if (pbBuffering != null) pbBuffering.setVisibility(View.VISIBLE);
+            switchPending = true;
+            handler.postDelayed(openPendingItem, SWITCH_GAP_MS);
+        } else {
+            openCurrentItem();
         }
         if (isLiveStream) {
             try { if (store != null) store.recordContinueWatching(Models.LIVE, e.streamId); } catch (Throwable ignored) { }
             showChannelOsd();
         } else {
             showControls();
+        }
+    }
+
+    /** يفتح videoUrl في المشغل (فوراً، أو بعد مهلة الإغلاق في playIndex). */
+    private void openCurrentItem() {
+        switchPending = false;
+        if (player == null || videoUrl == null) return;
+        try {
+            player.setMediaItem(buildMediaItem(videoUrl));
+            player.prepare();
+            player.setPlayWhenReady(true);
+            isUserPaused = false;
+        } catch (Throwable t) {
+            Log.w(TAG, "openCurrentItem error", t);
+        }
+    }
+
+    /**
+     * الشريط والوقت لا يتحدثان حتى تُعرف مدة الحلقة الجديدة، فكانا يبقيان على وقت الحلقة السابقة
+     * ويبدو أن التبديل لم يحدث. نصفّرهما فور اختيار الحلقة.
+     */
+    private void resetProgressUi() {
+        if (seekBar != null) {
+            seekBar.setProgress(0);
+            seekBar.setSecondaryProgress(0);
+        }
+        if (tvPosition != null) tvPosition.setText(formatTime(0));
+        if (tvDuration != null) tvDuration.setText(formatTime(0));
+    }
+
+    /** رمز HTTP في سلسلة أسباب الخطأ، أو 0 إن لم يكن رد HTTP. */
+    private static int httpCode(Throwable t) {
+        for (int i = 0; t != null && i < 8; i++, t = t.getCause()) {
+            if (t instanceof androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                return ((androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) t).responseCode;
+            }
+        }
+        return 0;
+    }
+
+    /** رفض "مشغول": حد الاتصالات أو ضغط مؤقت في اللوحة، لا ملف مفقود. */
+    private static boolean isPanelBusy(int code) {
+        return code == 401 || code == 403 || code == 429 || (code >= 500 && code < 600);
+    }
+
+    /**
+     * سياسة إعادة المحاولة للأفلام والحلقات.
+     *
+     * لوحات Xtream تسمح باتصال واحد للاشتراك، وتبقى تحسب الاتصال المغلق مفتوحاً بضع ثوانٍ. إعادات
+     * ExoPlayer الافتراضية (بعد 0 ثم 1 ثم 2 ثانية) تنتهي قبل أن تُفرج اللوحة عن الاتصال. هنا ينتظر
+     * رفض "مشغول" بهدوء (1.5 ثم 3 ثم 4.5 ثم 6 ثم 6 ثوانٍ = 21 ثانية، ستة طلبات)، والملف المفقود
+     * (404/410) لا يُعاد، فيُجرَّب الامتداد التالي فوراً بطلب واحد بدل أربعة.
+     */
+    private static final class PanelErrorPolicy extends androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy {
+        private static final long[] BUSY_DELAYS_MS = {1500, 3000, 4500, 6000, 6000};
+        /**
+         * الأفلام والحلقات: الملف المفقود لا يُعاد (يُجرَّب الامتداد التالي). البث المباشر يُبقي
+         * سلوك ExoPlayer الافتراضي لـ404، فمقاطع HLS تختفي من القائمة وتعود طبيعياً.
+         */
+        private final boolean failFastOnMissing;
+
+        PanelErrorPolicy(boolean failFastOnMissing) {
+            this.failFastOnMissing = failFastOnMissing;
+        }
+
+        @Override
+        public long getRetryDelayMsFor(LoadErrorInfo info) {
+            int code = httpCode(info.exception);
+            if (failFastOnMissing && (code == 404 || code == 410)) return C.TIME_UNSET;
+            if (isPanelBusy(code)) {
+                int i = info.errorCount - 1;
+                return i >= 0 && i < BUSY_DELAYS_MS.length ? BUSY_DELAYS_MS[i] : C.TIME_UNSET;
+            }
+            return super.getRetryDelayMsFor(info);
+        }
+
+        @Override
+        public int getMinimumLoadableRetryCount(int dataType) {
+            // لا يظهر الخطأ للمستخدم قبل أن تنتهي الانتظارات أعلاه
+            return Math.max(BUSY_DELAYS_MS.length, super.getMinimumLoadableRetryCount(dataType));
         }
     }
 

@@ -67,16 +67,27 @@ public final class AiAssistantDialog {
     private static final String KEY_SESSIONS = "sessions";
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("d/M HH:mm", Locale.getDefault());
 
+    /** سقف السجل: أحدث 30 محادثة، وآخر 80 رسالة في كل منها (كان السجل يكبر بلا حد). */
+    private static final int MAX_SESSIONS = 30;
+    private static final int MAX_MESSAGES = 80;
+
     static final class Message {
         final boolean isUser;
         final boolean pending;
+        /** رسالة خطأ من التطبيق (لا رد من النموذج): تُعرض ولا تُحفظ في السجل ولا في سياق النموذج. */
+        final boolean error;
         final String text;
         final List<AiBrain.Card> cards;
         final List<AiBrain.Source> sources;
 
         Message(boolean isUser, boolean pending, String text, List<AiBrain.Card> cards, List<AiBrain.Source> sources) {
+            this(isUser, pending, false, text, cards, sources);
+        }
+
+        Message(boolean isUser, boolean pending, boolean error, String text, List<AiBrain.Card> cards, List<AiBrain.Source> sources) {
             this.isUser = isUser;
             this.pending = pending;
+            this.error = error;
             this.text = text;
             this.cards = cards;
             this.sources = sources;
@@ -89,12 +100,18 @@ public final class AiAssistantDialog {
         static Message bot(String text) {
             return new Message(false, false, text, Collections.emptyList(), Collections.emptyList());
         }
+
+        static Message error(String text) {
+            return new Message(false, false, true, text, Collections.emptyList(), Collections.emptyList());
+        }
     }
 
     static final class Session {
         String id;
         String title;
         long createdAt;
+        /** الحساب الذي اقتُرحت بطاقاته: بطاقات سيرفر آخر لا تُعرض (أرقامها تشير لأعمال مختلفة). */
+        String accId = "";
         final List<Message> messages = new ArrayList<>();
 
         Session(String id, String title, long createdAt) {
@@ -103,18 +120,47 @@ public final class AiAssistantDialog {
             this.createdAt = createdAt;
         }
 
+        /**
+         * البطاقات (أفلام/مسلسلات/قنوات) والمصادر تُحفظ مع النص. كان يُحفظ النص وحده، فتختفي
+         * الاقتراحات كلها عند إعادة فتح المحادثة من السجل ويبقى الكلام بلا أزرار تشغيل.
+         */
         JSONObject toJson() {
             try {
                 JSONObject obj = new JSONObject();
                 obj.put("id", id);
                 obj.put("title", title);
                 obj.put("createdAt", createdAt);
+                obj.put("accId", accId == null ? "" : accId);
                 JSONArray msgs = new JSONArray();
-                for (Message m : messages) {
-                    if (m.pending) continue;
+                int skip = Math.max(0, messages.size() - MAX_MESSAGES);
+                for (int i = skip; i < messages.size(); i++) {
+                    Message m = messages.get(i);
+                    if (m.pending || m.error) continue;
                     JSONObject mo = new JSONObject();
                     mo.put("isUser", m.isUser);
                     mo.put("text", m.text);
+                    if (!m.cards.isEmpty()) {
+                        JSONArray ca = new JSONArray();
+                        for (AiBrain.Card c : m.cards) {
+                            Models.Item it = c.item;
+                            if (it == null || it.id == null) continue;
+                            ca.put(new JSONObject()
+                                    .put("type", c.type)
+                                    .put("id", it.id)
+                                    .put("name", it.safeName())
+                                    .put("icon", it.icon == null ? "" : it.icon)
+                                    .put("ext", it.extension == null ? "" : it.extension)
+                                    .put("rating", (double) it.rating));
+                        }
+                        mo.put("cards", ca);
+                    }
+                    if (!m.sources.isEmpty()) {
+                        JSONArray sa = new JSONArray();
+                        for (AiBrain.Source s : m.sources) {
+                            sa.put(new JSONObject().put("title", s.title).put("uri", s.uri));
+                        }
+                        mo.put("sources", sa);
+                    }
                     msgs.put(mo);
                 }
                 obj.put("messages", msgs);
@@ -124,12 +170,14 @@ public final class AiAssistantDialog {
             }
         }
 
-        static Session fromJson(JSONObject obj) {
+        static Session fromJson(JSONObject obj, String activeAccId) {
             if (obj == null) return null;
             String id = obj.optString("id");
             String title = obj.optString("title", "محادثة");
             long createdAt = obj.optLong("createdAt", System.currentTimeMillis());
             Session s = new Session(id, title, createdAt);
+            s.accId = obj.optString("accId", "");
+            boolean sameAccount = s.accId.isEmpty() || s.accId.equals(activeAccId);
             JSONArray msgs = obj.optJSONArray("messages");
             if (msgs != null) {
                 for (int i = 0; i < msgs.length(); i++) {
@@ -137,21 +185,45 @@ public final class AiAssistantDialog {
                     if (mo == null) continue;
                     boolean isUser = mo.optBoolean("isUser", false);
                     String text = mo.optString("text", "");
-                    s.messages.add(new Message(isUser, false, text, Collections.emptyList(), Collections.emptyList()));
+                    List<AiBrain.Card> cards = new ArrayList<>();
+                    JSONArray ca = sameAccount ? mo.optJSONArray("cards") : null;
+                    if (ca != null) {
+                        for (int j = 0; j < ca.length(); j++) {
+                            JSONObject co = ca.optJSONObject(j);
+                            if (co == null || co.optString("id").isEmpty()) continue;
+                            Models.Item it = new Models.Item();
+                            it.id = co.optString("id");
+                            it.name = co.optString("name", "");
+                            it.icon = co.optString("icon", "");
+                            it.extension = co.optString("ext", "");
+                            it.rating = (float) co.optDouble("rating", 0);
+                            cards.add(new AiBrain.Card(co.optString("type", "movie"), it));
+                        }
+                    }
+                    List<AiBrain.Source> sources = new ArrayList<>();
+                    JSONArray sa = mo.optJSONArray("sources");
+                    if (sa != null) {
+                        for (int j = 0; j < sa.length(); j++) {
+                            JSONObject so = sa.optJSONObject(j);
+                            if (so == null || so.optString("uri").isEmpty()) continue;
+                            sources.add(new AiBrain.Source(so.optString("title", so.optString("uri")), so.optString("uri")));
+                        }
+                    }
+                    s.messages.add(new Message(isUser, false, text, cards, sources));
                 }
             }
             return s;
         }
     }
 
-    private static List<Session> loadSessions(Context ctx) {
+    private static List<Session> loadSessions(Context ctx, String activeAccId) {
         List<Session> list = new ArrayList<>();
         try {
             SharedPreferences sp = ctx.getSharedPreferences(PREF_HISTORY, Context.MODE_PRIVATE);
             String raw = sp.getString(KEY_SESSIONS, "[]");
             JSONArray arr = new JSONArray(raw);
             for (int i = 0; i < arr.length(); i++) {
-                Session s = Session.fromJson(arr.optJSONObject(i));
+                Session s = Session.fromJson(arr.optJSONObject(i), activeAccId);
                 if (s != null) list.add(s);
             }
         } catch (Exception ignored) { }
@@ -160,6 +232,8 @@ public final class AiAssistantDialog {
 
     private static void saveSessions(Context ctx, List<Session> sessions) {
         try {
+            // الأحدث أولاً (add(0) عند الإنشاء): يُحذف الأقدم عند تجاوز السقف
+            while (sessions.size() > MAX_SESSIONS) sessions.remove(sessions.size() - 1);
             JSONArray arr = new JSONArray();
             for (Session s : sessions) {
                 JSONObject o = s.toJson();
@@ -187,7 +261,9 @@ public final class AiAssistantDialog {
         final Xtream api = new Xtream(a, acc);
         final AiBrain brain = new AiBrain(a, api, acc);
 
-        final Dialog d = new NatDialog(a);
+        // الزر الذي فُتح منه المساعد: يعود إليه التركيز عند الإغلاق (كان يذهب لزر الرئيسية)
+        final View opener = a.getCurrentFocus();
+        final NatDialog d = new NatDialog(a);
         d.setContentView(R.layout.nat_dialog_ai_assistant);
 
         if (d.getWindow() != null) {
@@ -216,7 +292,7 @@ public final class AiAssistantDialog {
         /*
          * التنقل بالريموت داخل المحادثة: فقاعات الردّ ليست عناصر قابلة للتركيز، فلم يكن
          * هناك ما يمرّر القائمة، ويبقى الرد الطويل غير مقروء. نجعل القائمة نفسها قابلة
-         * للتركيز، والأسهم تمرّرها بمقدار ثلث الشاشة في كل ضغطة.
+         * للتركيز، والأسهم تمرّرها (انظر keyInterceptor أدناه).
          */
         chatList.setFocusable(true);
         chatList.setFocusableInTouchMode(false);
@@ -235,16 +311,6 @@ public final class AiAssistantDialog {
                     pp = g.getParent();
                 }
             } catch (Throwable ignored) { }
-        });
-        chatList.setOnKeyListener((v, keyCode, e) -> {
-            if (e.getAction() != KeyEvent.ACTION_DOWN) return false;
-            int step = Math.max(120, chatList.getHeight() / 3);
-            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                if (chatList.canScrollVertically(1)) { chatList.smoothScrollBy(0, step); return true; }
-            } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                if (chatList.canScrollVertically(-1)) { chatList.smoothScrollBy(0, -step); return true; }
-            }
-            return false;
         });
         chatList.setItemAnimator(null);
         final MessageAdapter adapter = new MessageAdapter(a, messages, api, d);
@@ -272,7 +338,7 @@ public final class AiAssistantDialog {
             historyDrawer.setLayoutParams(lp);
         }
 
-        final List<Session> allSessions = loadSessions(a);
+        final List<Session> allSessions = loadSessions(a, acc.id);
         final Session[] currentSession = {null};
 
         final View chipMatches = d.findViewById(R.id.chip_matches);
@@ -301,6 +367,25 @@ public final class AiAssistantDialog {
             if (input != null) input.clearFocus();
         };
 
+        // ريموت درج السجل: تركيز صف محادثة بعينه (قد لا يكون مرسوماً بعد فنمرّر إليه أولاً)
+        final Runnable focusNewChat = () -> { if (btnNewChat != null) btnNewChat.requestFocus(); };
+        final java.util.function.IntConsumer focusHistoryRow = pos -> {
+            if (historyList == null || pos < 0 || pos >= allSessions.size()) { focusNewChat.run(); return; }
+            RecyclerView.ViewHolder vh = historyList.findViewHolderForAdapterPosition(pos);
+            if (vh != null && vh.itemView.isShown()) { vh.itemView.requestFocus(); return; }
+            historyList.scrollToPosition(pos);
+            historyList.post(() -> {
+                RecyclerView.ViewHolder later = historyList.findViewHolderForAdapterPosition(pos);
+                if (later != null) later.itemView.requestFocus();
+                else focusNewChat.run();
+            });
+        };
+        // إغلاق الدرج مع نقل التركيز لعنصر ظاهر: كان التركيز يبقى على صف اختفى فيضيع من الريموت
+        final java.util.function.Consumer<View> closeDrawer = focusTo -> {
+            if (historyDrawer != null) historyDrawer.setVisibility(View.GONE);
+            if (focusTo != null) focusTo.requestFocus();
+        };
+
         // محول قائمة سجل المحادثات
         final HistoryAdapter historyAdapter = new HistoryAdapter(a, allSessions, currentSession, new HistoryListener() {
             @Override
@@ -322,12 +407,13 @@ public final class AiAssistantDialog {
                 }
                 brain.restoreTurns(turns);
 
-                if (historyDrawer != null) historyDrawer.setVisibility(View.GONE);
                 hideKeyboard.run();
+                // التركيز على المحادثة نفسها: الأسهم تمرّرها للقراءة مباشرة
+                closeDrawer.accept(chatList);
             }
 
             @Override
-            public void onDelete(Session session) {
+            public void onDelete(Session session, int pos) {
                 allSessions.remove(session);
                 saveSessions(a, allSessions);
                 if (historyEmpty != null) {
@@ -340,6 +426,8 @@ public final class AiAssistantDialog {
                     messages.add(Message.bot(WELCOME));
                     adapter.notifyDataSetChanged();
                 }
+                // الصف المحذوف كان يحمل التركيز: ننقله للصف الذي حل مكانه (أو السابق، أو "جديدة")
+                if (historyList != null) historyList.post(() -> focusHistoryRow.accept(Math.min(pos, allSessions.size() - 1)));
             }
         });
 
@@ -350,7 +438,11 @@ public final class AiAssistantDialog {
 
         final boolean[] busy = {false};
         final Sender sender = q -> {
-            if (busy[0] || q == null || q.trim().isEmpty()) return;
+            if (q == null || q.trim().isEmpty()) return;
+            if (busy[0]) {
+                Ui.toast(a, "انتظر حتى يكتمل الرد السابق");
+                return;
+            }
             busy[0] = true;
             chatList.postDelayed(() -> busy[0] = false, 35000);
             hideKeyboard.run();
@@ -360,18 +452,33 @@ public final class AiAssistantDialog {
             if (currentSession[0] == null) {
                 String title = trimmed.length() > 36 ? trimmed.substring(0, 36) + "..." : trimmed;
                 Session newSession = new Session("session_" + System.currentTimeMillis(), title, System.currentTimeMillis());
+                newSession.accId = acc.id;
                 allSessions.add(0, newSession);
                 currentSession[0] = newSession;
             }
-            currentSession[0].messages.add(Message.user(trimmed));
+            /*
+             * الرد يُحفظ في المحادثة التي سُئل فيها. كان يُضاف إلى "المحادثة الحالية" لحظة وصوله،
+             * فإن فتح المستخدم محادثة أخرى أو بدأ جديدة أثناء الانتظار دخل الرد فيها.
+             */
+            final Session target = currentSession[0];
+            target.messages.add(Message.user(trimmed));
             saveSessions(a, allSessions);
 
-            ask(a, brain, trimmed, messages, adapter, chatList, replyMsg -> {
+            ask(a, brain, trimmed, messages, adapter, chatList, () -> currentSession[0] == target, replyMsg -> {
                 busy[0] = false;
-                if (currentSession[0] != null && replyMsg != null) {
-                    currentSession[0].messages.add(replyMsg);
-                    saveSessions(a, allSessions);
+                if (replyMsg == null) return;
+                if (replyMsg.error) {
+                    // رسالة الخطأ لا تُحفظ، والسؤال الذي بقي بلا رد يُزال حتى لا يدخل سياق النموذج لاحقاً
+                    int n = target.messages.size();
+                    if (n > 0 && target.messages.get(n - 1).isUser) target.messages.remove(n - 1);
+                    if (target.messages.isEmpty()) {
+                        allSessions.remove(target);
+                        if (currentSession[0] == target) currentSession[0] = null;
+                    }
+                } else {
+                    target.messages.add(replyMsg);
                 }
+                saveSessions(a, allSessions);
             });
         };
 
@@ -398,8 +505,10 @@ public final class AiAssistantDialog {
                             historyEmpty.setVisibility(allSessions.isEmpty() ? View.VISIBLE : View.GONE);
                         }
                         historyDrawer.setVisibility(View.VISIBLE);
+                        // التركيز يدخل الدرج مباشرة (كان يبقى على زر السجل في الطرف المقابل)
+                        if (historyList != null) historyList.post(() -> focusHistoryRow.accept(0));
                     } else {
-                        historyDrawer.setVisibility(View.GONE);
+                        closeDrawer.accept(btnHistory);
                     }
                 }
             });
@@ -413,14 +522,18 @@ public final class AiAssistantDialog {
                 messages.clear();
                 messages.add(Message.bot("بدأنا محادثة جديدة! 🎬⚽ تفضل بسؤالي عن أي فيلم، مسلسل، أو مواعيد المباريات."));
                 adapter.notifyDataSetChanged();
-                if (historyDrawer != null) historyDrawer.setVisibility(View.GONE);
                 hideKeyboard.run();
+                closeDrawer.accept(chipMovie);
             });
         }
 
         Runnable sendTyped = () -> {
             String q = input.getText().toString();
-            if (q.trim().isEmpty() || busy[0]) return;
+            if (q.trim().isEmpty()) return;
+            if (busy[0]) {
+                Ui.toast(a, "انتظر حتى يكتمل الرد السابق");
+                return;
+            }
             input.setText("");
             sender.send(q);
         };
@@ -446,7 +559,76 @@ public final class AiAssistantDialog {
         d.setOnKeyListener((di, keyCode, ev) -> {
             if (keyCode == KeyEvent.KEYCODE_BACK && ev.getAction() == KeyEvent.ACTION_UP) {
                 if (historyDrawer != null && historyDrawer.getVisibility() == View.VISIBLE) {
-                    historyDrawer.setVisibility(View.GONE);
+                    closeDrawer.accept(btnHistory);
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        /*
+         * الريموت داخل المساعد (مُثبت على المحاكي 30/9/2026 قبل هذا الإصلاح). التنقل الهندسي العام
+         * في NatDialog يسبق مستمعي المفاتيح في العناصر، فكان:
+         * - الرد الطويل لا يتمرر: الأعلى/الأسفل يخرجان من المحادثة إلى الأزرار فوراً.
+         * - درج السجل بلا حدود: الأسفل من "جديدة" يمشي على أزرار الحذف، والجانبي من زر حذف
+         *   يقفز إلى عنصر مخفي خلف الدرج، فيضيع المستخدم.
+         * الآن: ما دام الدرج مفتوحاً يبقى التركيز داخله (أعلى/أسفل بين المحادثات، والجانبي بين
+         * المحادثة وزر حذفها)، والأسهم تمرّر المحادثة حتى نهايتها قبل مغادرتها.
+         */
+        d.setKeyInterceptor(ev -> {
+            if (ev.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int dir = Fx.directionOf(ev.getKeyCode());
+            if (dir == 0) return false;
+            View f = d.getCurrentFocus();
+
+            if (historyDrawer != null && historyDrawer.getVisibility() == View.VISIBLE) {
+                if (f == null || !isInside(f, historyDrawer)) {
+                    focusHistoryRow.accept(0);
+                    return true;
+                }
+                if (f == btnNewChat) {
+                    if (dir == View.FOCUS_DOWN) focusHistoryRow.accept(0);
+                    return true;
+                }
+                RecyclerView.ViewHolder vh = historyList != null ? historyList.findContainingViewHolder(f) : null;
+                if (!(vh instanceof HistoryHolder)) return true;
+                HistoryHolder h = (HistoryHolder) vh;
+                int pos = h.getBindingAdapterPosition();
+                if (dir == View.FOCUS_UP) {
+                    focusHistoryRow.accept(pos - 1); // من أول محادثة: إلى زر "جديدة"
+                } else if (dir == View.FOCUS_DOWN) {
+                    if (pos + 1 < allSessions.size()) focusHistoryRow.accept(pos + 1);
+                } else {
+                    // زر الحذف على جانب المحادثة: السهم نحوه يدخله والسهم المعاكس يعيد للمحادثة
+                    boolean deleteOnLeft = centerX(h.btnDelete) < centerX(h.itemView);
+                    boolean towardDelete = (dir == View.FOCUS_LEFT) == deleteOnLeft;
+                    if (f == h.btnDelete) {
+                        if (!towardDelete) h.itemView.requestFocus();
+                    } else if (towardDelete) {
+                        h.btnDelete.requestFocus();
+                    }
+                }
+                return true;
+            }
+
+            /*
+             * المحادثة: الأسفل ينتقل لبطاقات الاقتراحات الظاهرة (تشغيل/صفحة العمل) واحدة تلو الأخرى،
+             * وحين لا توجد بطاقة ظاهرة في الاتجاه تتمرر المحادثة لقراءة بقية الرد. عند حافتها تُترك
+             * الضغطة للتنقل العام فينتقل التركيز للأزرار أسفلها أو فوقها.
+             */
+            boolean inChat = f != null && (f == chatList || isInside(f, chatList));
+            if (inChat && (dir == View.FOCUS_UP || dir == View.FOCUS_DOWN)) {
+                boolean down = dir == View.FOCUS_DOWN;
+                View target = (f != chatList || down) ? nextVisibleInChat(chatList, f, down) : null;
+                if (target != null && target.requestFocus()) return true;
+                int sign = down ? 1 : -1;
+                if (chatList.canScrollVertically(sign)) {
+                    if (f != chatList) chatList.requestFocus(); // البطاقة قد تخرج من الشاشة مع التمرير
+                    chatList.smoothScrollBy(0, sign * Math.max(120, chatList.getHeight() / 3));
+                    return true;
+                }
+                if (f != chatList && !down) {
+                    chatList.requestFocus();
                     return true;
                 }
             }
@@ -478,6 +660,7 @@ public final class AiAssistantDialog {
                 activeInput = null;
                 pendingSpeechSend = null;
             }
+            if (opener != null && !a.isFinishing()) opener.post(opener::requestFocus);
         });
         d.show();
         if (BaseActivity.isTvDevice(a)) {
@@ -489,6 +672,54 @@ public final class AiAssistantDialog {
 
     private interface Sender {
         void send(String q);
+    }
+
+    /** هل ما زالت المحادثة التي سُئل فيها معروضة؟ (لا يُكتب الرد في محادثة أخرى مفتوحة) */
+    private interface StillShown {
+        boolean get();
+    }
+
+    private static boolean isInside(View v, View parent) {
+        for (View cur = v; cur != null; ) {
+            if (cur == parent) return true;
+            android.view.ViewParent p = cur.getParent();
+            cur = p instanceof View ? (View) p : null;
+        }
+        return false;
+    }
+
+    /**
+     * أقرب عنصر قابل للتركيز داخل المحادثة (بطاقة أو مصدر) ظاهر بالكامل في الاتجاه المطلوب.
+     * من المحادثة نفسها: أعلى بطاقة ظاهرة (للأسفل فقط؛ الأعلى يمرّر للقراءة).
+     */
+    private static View nextVisibleInChat(RecyclerView list, View from, boolean down) {
+        android.graphics.Rect box = new android.graphics.Rect();
+        if (!list.getGlobalVisibleRect(box)) return null;
+        android.graphics.Rect fr = new android.graphics.Rect();
+        boolean fromList = from == list;
+        if (!fromList && !from.getGlobalVisibleRect(fr)) fromList = true;
+        ArrayList<View> all = new ArrayList<>();
+        list.addFocusables(all, down ? View.FOCUS_DOWN : View.FOCUS_UP, View.FOCUSABLES_ALL);
+        View best = null;
+        int bestEdge = 0;
+        android.graphics.Rect r = new android.graphics.Rect();
+        for (View v : all) {
+            if (v == list || v == from || !v.isShown() || !v.getGlobalVisibleRect(r) || !box.contains(r)) continue;
+            if (fromList) {
+                if (best == null || r.top < bestEdge) { best = v; bestEdge = r.top; }
+            } else if (down) {
+                if (r.top >= fr.bottom - 2 && (best == null || r.top < bestEdge)) { best = v; bestEdge = r.top; }
+            } else {
+                if (r.bottom <= fr.top + 2 && (best == null || r.bottom > bestEdge)) { best = v; bestEdge = r.bottom; }
+            }
+        }
+        return best;
+    }
+
+    private static int centerX(View v) {
+        int[] loc = new int[2];
+        v.getLocationOnScreen(loc);
+        return loc[0] + v.getWidth() / 2;
     }
 
     private interface ReplyCallback {
@@ -504,7 +735,7 @@ public final class AiAssistantDialog {
     }
 
     private static void ask(Activity a, AiBrain brain, String query, List<Message> messages, MessageAdapter adapter,
-                            RecyclerView chatList, ReplyCallback callback) {
+                            RecyclerView chatList, StillShown stillShown, ReplyCallback callback) {
         messages.add(Message.user(query));
         // وضع الانتظار بدون نص ثابت، بل عبر مؤشر التحميل المتحرك على نمط جيميناي
         messages.add(new Message(false, true, "", Collections.emptyList(), Collections.emptyList()));
@@ -517,25 +748,28 @@ public final class AiAssistantDialog {
                 AiBrain.Reply r = brain.ask(query);
                 reply = new Message(false, false, r.text, r.cards, r.sources);
             } catch (AiClient.AuthRequiredException e) {
-                reply = Message.bot("لتفعيل مساعد الميزو افتح المشغل من داخل موقع الميزو بعد تسجيل الدخول في الموقع، ثم أعد السؤال.");
+                reply = Message.error("لتفعيل مساعد الميزو افتح المشغل من داخل موقع الميزو بعد تسجيل الدخول في الموقع، ثم أعد السؤال.");
             } catch (AiClient.QuotaException e) {
                 android.util.Log.w("AiAssistantDialog", "AI quota exhausted");
-                reply = Message.bot("مساعد الميزو وصل للحد المسموح من الطلبات حالياً. أعد المحاولة بعد قليل. 🙏");
+                reply = Message.error("مساعد الميزو وصل للحد المسموح من الطلبات حالياً. أعد المحاولة بعد قليل. 🙏");
             } catch (AiBrain.EmptyReplyException e) {
                 android.util.Log.w("AiAssistantDialog", "AI empty reply");
-                reply = Message.bot("لم يصلني رد مكتمل هذه المرة. جرّب إعادة صياغة السؤال أو أعد إرساله.");
+                reply = Message.error("لم يصلني رد مكتمل هذه المرة. جرّب إعادة صياغة السؤال أو أعد إرساله.");
             } catch (Throwable e) {
                 android.util.Log.e("AiAssistantDialog", "AI ask error", e);
-                reply = Message.bot("عذراً، تعذر الوصول إلى المساعد الآن. تحقق من اتصال الإنترنت وحاول مجدداً.");
+                reply = Message.error("عذراً، تعذر الوصول إلى المساعد الآن. تحقق من اتصال الإنترنت وحاول مجدداً.");
             }
             final Message finalReply = reply;
             a.runOnUiThread(() -> {
+                // يُقرأ قبل callback: عند الخطأ قد يحذف callback محادثة فارغة فيبدو أنها لم تعد معروضة
+                boolean shown = stillShown.get();
                 try {
                     callback.onReply(finalReply);
                 } catch (Throwable t) {
                     android.util.Log.e("AiAssistantDialog", "Callback error", t);
                 }
-                if (a.isFinishing()) return;
+                // انتقل المستخدم لمحادثة أخرى: الرد محفوظ في محادثته (callback) ولا يُعرض هنا
+                if (a.isFinishing() || !shown) return;
                 int last = messages.size() - 1;
                 if (last >= 0 && messages.get(last).pending) {
                     messages.set(last, finalReply);
@@ -553,7 +787,7 @@ public final class AiAssistantDialog {
 
     private interface HistoryListener {
         void onSelect(Session session);
-        void onDelete(Session session);
+        void onDelete(Session session, int pos);
     }
 
     private static class HistoryAdapter extends RecyclerView.Adapter<HistoryHolder> {
@@ -591,27 +825,12 @@ public final class AiAssistantDialog {
             BaseActivity.applyFocusScale(h.btnDelete, 1.08f);
 
             h.itemView.setOnClickListener(v -> listener.onSelect(s));
-            // الريموت: أعلى/أسفل بين المحادثات نفسها (لا بين أزرار المسح المصطفة في عمود واحد)،
-            // وزر المسح بالسهم الجانبي من المحادثة، ومنه السهم الآخر يعيد للمحادثة.
-            h.itemView.setOnKeyListener((v, keyCode, e) -> {
-                if (e.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) { h.btnDelete.requestFocus(); return true; }
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) return focusRow(h.getBindingAdapterPosition() - 1);
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) return focusRow(h.getBindingAdapterPosition() + 1);
-                return false;
-            });
-            h.btnDelete.setOnKeyListener((v, keyCode, e) -> {
-                if (e.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) { h.itemView.requestFocus(); return true; }
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) return true;
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) return focusRow(h.getBindingAdapterPosition() - 1);
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) return focusRow(h.getBindingAdapterPosition() + 1);
-                return false;
-            });
+            // تنقل الريموت داخل الدرج كله في keyInterceptor بالنافذة: مستمعو المفاتيح هنا لم يكونوا
+            // يعملون أصلاً لأن التنقل الهندسي في NatDialog يسبقهم.
             h.btnDelete.setOnClickListener(v -> {
-                int pos = h.getAdapterPosition();
+                int pos = h.getBindingAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION && pos < list.size()) {
-                    listener.onDelete(s);
+                    listener.onDelete(s, pos); // يحذفها من القائمة، ثم يُبلَّغ المحول
                     notifyItemRemoved(pos);
                 }
             });
@@ -620,29 +839,6 @@ public final class AiAssistantDialog {
         @Override
         public int getItemCount() {
             return list.size();
-        }
-
-        private RecyclerView recycler;
-
-        @Override
-        public void onAttachedToRecyclerView(@NonNull RecyclerView rv) {
-            recycler = rv;
-        }
-
-        /** تركيز صف المحادثة رقم pos. خارج القائمة: يُترك للبحث الافتراضي (رأس السجل مثلاً). */
-        private boolean focusRow(int pos) {
-            if (recycler == null || pos < 0 || pos >= list.size()) return false;
-            RecyclerView.ViewHolder vh = recycler.findViewHolderForAdapterPosition(pos);
-            if (vh != null) {
-                vh.itemView.requestFocus();
-            } else {
-                recycler.scrollToPosition(pos);
-                recycler.post(() -> {
-                    RecyclerView.ViewHolder later = recycler.findViewHolderForAdapterPosition(pos);
-                    if (later != null) later.itemView.requestFocus();
-                });
-            }
-            return true;
         }
     }
 

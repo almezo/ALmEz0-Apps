@@ -224,11 +224,15 @@ function openRequest(url, from, hop = 0) {
     });
 }
 
+function isBusyCode(c) {
+    return c === 401 || c === 403 || c === 429 || (c >= 500 && c < 600);
+}
+
 function friendlyError(err) {
     if (err && err.code === 'SPACE') return 'المساحة غير كافية على الجهاز';
     if (err && err.httpCode) {
         const c = err.httpCode;
-        if (c === 401 || c === 403) return `السيرفر رفض التنزيل (${c}) — تأكد من صلاحية الاشتراك`;
+        if (c === 401 || c === 403) return `السيرفر رفض التنزيل (${c}) — قد يكون مشغولاً باتصال آخر أو انتهى الاشتراك`;
         if (c === 404) return 'الملف غير موجود على السيرفر';
         return `خطأ من السيرفر (${c})`;
     }
@@ -339,9 +343,12 @@ async function work() {
                 else if (next.state === PAUSED || playbackActive) { if (playbackActive && next.state === RUNNING) next.state = QUEUED; }
                 else if (next.state === RUNNING) {
                     next.retries = (next.retries || 0) + 1;
-                    if (next.retries <= MAX_AUTO_RETRIES && !err.httpCode && err.code !== 'SPACE') {
+                    // رفض "مشغول" (403 وأخواتها) مؤقت: التنزيل يُستأنف بعد ثانية من إغلاق المشغل، واللوحة ذات
+                    // الاتصال الواحد تبقى تحسب اتصال المشغل ثوانيَ، فكان يُعلَّم فاشلاً نهائياً برسالة مضلِّلة
+                    const busy = isBusyCode(err.httpCode);
+                    if (next.retries <= MAX_AUTO_RETRIES && (!err.httpCode || busy) && err.code !== 'SPACE') {
                         next.state = QUEUED; // انقطاع مؤقت: يعيد المحاولة من حيث توقف
-                        next.error = 'انقطع الاتصال، إعادة المحاولة…';
+                        next.error = busy ? 'السيرفر مشغول، إعادة المحاولة…' : 'انقطع الاتصال، إعادة المحاولة…';
                         save(true); notify(true);
                         await new Promise(r => setTimeout(r, 5000 * next.retries));
                     } else {

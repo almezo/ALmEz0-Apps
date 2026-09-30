@@ -85,8 +85,9 @@ public final class Related {
             return out;
         }
 
-        return rankByGenre(ctx, api, accountId, type, pool, curGenres, curCountry, cat, limit,
-                Models.VOD.equals(type) ? BATCH * 4 : BATCH * 2);
+        // سقف 32 طلب معلومات لأول فتح لصفحة الفيلم (كان 64): الكاش يكمل الباقي مع الزيارات التالية،
+        // ولوحة السيرفر لا تُثقل بعشرات الطلبات لحظة يضغط العميل تشغيل
+        return rankByGenre(ctx, api, accountId, type, pool, curGenres, curCountry, cat, limit, BATCH * 2);
     }
 
     /**

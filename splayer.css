@@ -3761,6 +3761,41 @@ input.search-input[placeholder*="المسلسلات"] {
     border-color: var(--accent-red);
 }
 
+/* العنوان ومؤشر الاتصال تحته في وسط الشريط العلوي */
+.vjs-custom-mid {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.vjs-custom-mid .vjs-custom-title {
+    max-width: 100%;
+}
+
+.mizo-conn {
+    direction: rtl;
+    font-size: 15px;
+    font-weight: 700;
+    color: #e2e8f0;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 3px 14px;
+    white-space: nowrap;
+}
+
+.mizo-conn[hidden] {
+    display: none;
+}
+
+.mizo-conn i {
+    font-style: normal;
+    margin-inline-end: 4px;
+}
+
 .vjs-custom-title {
     color: #fff;
     font-size: 32px;
@@ -8493,38 +8528,39 @@ body.tv-device-mode .speed-floating-trigger:focus {
     outline: none;
 }
 
-/* منطقة عداد السرعة الدائري */
+/* منطقة عداد السرعة: قوس 240 درجة بإبرة (يُرسم في MizoSpeedTest.buildGauge) */
 .speed-test-gauge-wrap {
     position: relative;
     width: 100%;
     max-width: 280px;
-    height: 160px;
-    margin: 0 auto 10px auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-end;
+    aspect-ratio: 260 / 200;
+    margin: 0 auto 4px auto;
 }
 .speed-gauge-svg {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
+    overflow: visible;
 }
-.gauge-fill {
-    transition: stroke-dashoffset 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.gauge-tick { stroke: rgba(255, 255, 255, 0.25); stroke-linecap: round; }
+.gauge-tick.major { stroke-width: 2.4; }
+.gauge-tick.minor { stroke-width: 1.4; }
+.gauge-tick.lit { stroke: #e2e8f0; }
+.gauge-tick-label { fill: #94a3b8; font-size: 11px; font-weight: 700; font-family: 'Outfit', sans-serif; }
+.gauge-needle polygon, .gauge-needle circle:first-of-type { filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.55)); }
 .gauge-center-content {
-    position: relative;
-    z-index: 3;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 80%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 8px;
+    pointer-events: none;
 }
 .gauge-speed-val {
-    font-size: 2.8rem;
+    font-size: 2.3rem;
     font-weight: 900;
     line-height: 1;
     font-family: 'Outfit', -apple-system, monospace;
@@ -8535,7 +8571,7 @@ body.tv-device-mode .speed-floating-trigger:focus {
     letter-spacing: -1px;
 }
 .gauge-speed-unit {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 700;
     color: #94a3b8;
     margin-top: 2px;
@@ -8543,8 +8579,9 @@ body.tv-device-mode .speed-floating-trigger:focus {
     letter-spacing: 1px;
 }
 .gauge-status-pill {
-    margin-top: 8px;
-    display: inline-flex;
+    margin: 30px auto 10px auto;
+    width: fit-content;
+    display: flex;
     align-items: center;
     gap: 7px;
     padding: 4px 12px;
@@ -8568,6 +8605,70 @@ body.tv-device-mode .speed-floating-trigger:focus {
 @keyframes statusPulse {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.4); opacity: 0.5; }
+}
+
+/* مراحل الفحص */
+.speed-phases {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+}
+.speed-phase { display: inline-flex; align-items: center; gap: 6px; transition: color 0.3s ease; }
+.speed-phase i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+.speed-phase.active { color: #06b6d4; }
+.speed-phase.active i { animation: statusPulse 1s infinite ease-in-out; box-shadow: 0 0 8px #06b6d4; }
+.speed-phase.done { color: #22c55e; }
+.speed-phase-sep { width: 18px; height: 2px; border-radius: 2px; background: #334155; }
+
+/* رسم تذبذب السرعة */
+.speed-spark {
+    display: block;
+    width: 100%;
+    height: 44px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.speed-warning {
+    margin: -4px 0 12px 0;
+    text-align: center;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #f59e0b;
+}
+.speed-warning.hidden, .speed-history.hidden { display: none; }
+
+/* شرائح الجودات */
+.speed-quality-chips {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+.q-chip {
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #64748b;
+    border: 1px solid #475569;
+    background: rgba(71, 85, 105, 0.12);
+    transition: all 0.3s ease;
+}
+.q-chip.ok { color: #22c55e; border-color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+.q-chip.edge { color: #f59e0b; border-color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+.q-chip.ok::after { content: ' ✓'; }
+.q-chip.edge::after { content: ' ⚠'; }
+.speed-history bdi { white-space: nowrap; }
+.speed-history {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.6;
 }
 
 /* كروت المؤشرات الثلاثية */
@@ -8713,10 +8814,19 @@ html.lang-en .speed-test-title-wrap {
 /* الساعة والتاريخ في الشريط العلوي يبقيان بترتيب LTR في الإنجليزية */
 html.lang-en .auto-style-36 { direction: ltr; }
 
+/* شاشات متوسطة الارتفاع (لابتوب 768): عدّاد أصغر حتى لا تُقطع ترويسة النافذة */
+@media (max-height: 820px) {
+    .speed-test-gauge-wrap { max-width: 235px; }
+    .speed-spark { height: 34px; margin-bottom: 8px; }
+    .gauge-status-pill { margin-top: 16px; margin-bottom: 8px; }
+    .speed-test-header { margin-bottom: 12px; }
+}
+
 /* شاشات قصيرة (هاتف أفقي / TV بارتفاع صغير): تقليص العدّاد والمسافات */
 @media (max-height: 560px) {
     .speed-test-card { padding: 16px 18px; border-radius: 18px; }
-    .speed-test-gauge-wrap { transform: scale(0.82); transform-origin: center top; margin-bottom: -18px; }
+    .speed-test-gauge-wrap { max-width: 230px; }
+    .speed-spark { height: 32px; }
     .speed-test-subtitle { display: none; }
     .speed-metrics-grid { gap: 8px; }
     .recommend-desc { font-size: 12px; }

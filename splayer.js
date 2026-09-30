@@ -393,6 +393,80 @@ function mizoSetQueue(kind, items, index) {
     window.mizoQueue = { kind: kind, items: items.slice(), index: index };
 }
 
+/**
+ * المفضلة ومتابعة المشاهدة ونقاط الاستئناف لكل حساب على حدة (مثل Store.scoped في مشغل أندرويد).
+ * كانت مفاتيحها عامة، فمن عنده أكثر من سيرفر تختلط قوائمه، ويُستأنف فيلم من وقت فيلم آخر في
+ * سيرفر مختلف يحمل نفس الرقم. البيانات القديمة تُنقل مرة واحدة للحساب النشط حتى لا يفقد العميل شيئاً.
+ */
+/**
+ * تهريب نص قادم من لوحة السيرفر أو الحساب قبل وضعه في HTML (نص أو قيمة سمة). أسماء القنوات والأعمال
+ * والصور تأتي من لوحات IPTV تعمل غالباً عبر http غير المشفر، فكان اسم قناة يحمل وسماً يُنفَّذ داخل
+ * برنامج الكمبيوتر (حيث الحسابات وكلمات سرها) وداخل الموقع. مشغل أندرويد يعرضها كنص فلا يتأثر.
+ */
+function mzEsc(v) {
+    return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** رابط صورة داخل url('...') في CSS: بلا اقتباس أو أقواس أو فواصل أسطر تكسر القيمة. */
+function mzCssUrl(v) {
+    return String(v === null || v === undefined ? '' : v).replace(/['"()\\\n\r]/g, c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'));
+}
+
+/** رقم آخر تشغيل بدأ؛ تزيده playStream وإغلاق المشغل، فلا تفتح محاولة مؤجلة فيلماً بعد إغلاقه. */
+let mizoPlayToken = 0;
+/** انتظار رفض "مشغول" قبل إعادة نفس الرابط (نفس فواصل مشغل أندرويد: 21 ثانية إجمالاً). */
+const MIZO_BUSY_DELAYS = [1500, 3000, 4500, 6000, 6000];
+
+function mizoIsBusyStatus(status) {
+    return status === 401 || status === 403 || status === 429 || (status >= 500 && status < 600);
+}
+
+/**
+ * رمز HTTP لرابط فيلم/حلقة بطلب صغير (أول بايت فقط) يُقطع فور وصول الرد. في برنامج الكمبيوتر
+ * (webSecurity معطل) يُقرأ الرمز فعلاً؛ في المتصفح يمنعه CORS فيعود 0 ويكمل المشغل كالسابق.
+ */
+async function mizoProbeStatus(url) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+        const r = await fetch(url, { headers: { Range: 'bytes=0-0' }, cache: 'no-store', signal: ctrl.signal });
+        return r.status;
+    } catch (e) {
+        return 0;
+    } finally {
+        clearTimeout(timer);
+        try { ctrl.abort(); } catch (e) { }
+    }
+}
+
+let mizoKeysScoped = false;
+function mizoAccKey(base) {
+    let id = '';
+    try { id = localStorage.getItem('sp_active_acc_id') || ''; } catch (e) { }
+    if (!id) return base;
+    if (!mizoKeysScoped) {
+        mizoKeysScoped = true;
+        try {
+            if (localStorage.getItem('sp_keys_scoped_v1') !== '1') {
+                const legacy = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.indexOf('@') < 0 && (/^sp_(favs|continue)_(live|vod|series)$/.test(k) || k.indexOf('sp_progress_') === 0)) legacy.push(k);
+                }
+                legacy.forEach(function (k) {
+                    const scopedKey = k + '@' + id;
+                    if (localStorage.getItem(scopedKey) === null) localStorage.setItem(scopedKey, localStorage.getItem(k));
+                    localStorage.removeItem(k);
+                });
+                localStorage.setItem('sp_keys_scoped_v1', '1');
+            }
+        } catch (e) { }
+    }
+    return base + '@' + id;
+}
+
 function mizoPlayAdjacent(delta) {
     const q = window.mizoQueue;
     if (!q) return;
@@ -413,7 +487,19 @@ function mizoPlayAdjacent(delta) {
         playStream(it.stream_id, 'live', 'm3u8', it.name, it.stream_icon);
         if (typeof showTvLiveOsd === 'function') showTvLiveOsd(it.name, it.stream_icon);
     } else {
-        playStream(it.id, 'series', it.ext || 'mp4', it.title, it.cover);
+        // نفس إصلاح مشغل أندرويد (playIndex): اللوحة تسمح باتصال واحد وتبقى تحسب المغلق بضع ثوانٍ،
+        // فنغلق الحلقة الحالية أولاً ثم نفتح التالية بعد مهلة. الضغط المتكرر يُبقي آخر اختيار فقط.
+        clearTimeout(mizoPlayAdjacent.pending);
+        mizoPlayToken++; // محاولات الحلقة الحالية المؤجلة لا تُفتح خلال المهلة
+        if (window.hlsInstance) {
+            try { window.hlsInstance.stopLoad(); } catch (e) { }
+        }
+        mizoReleaseVideos();
+        if (typeof showToast === 'function') showToast('جاري فتح ' + (it.title || 'الحلقة'), 'info');
+        mizoPlayAdjacent.pending = setTimeout(function () {
+            mizoPlayAdjacent.pending = null;
+            playStream(it.id, 'series', it.ext || 'mp4', it.title, it.cover);
+        }, 1500);
     }
 }
 
@@ -454,7 +540,10 @@ function mizoInstallQueueButtons() {
 
 function playCurrentLiveNative() {
     if (!currentStreamInfo || currentStreamInfo.type !== 'live') return;
-    const host = getBestHost();
+    // كانت تستدعي getBestHost() غير المعرَّفة في أي ملف، فيرمي زر 60fps وملء الشاشة للقناة في أندرويد
+    // خطأً ولا يحدث شيء. العنوان هو نفسه الذي سجّل به المشغل الدخول.
+    const host = (state.host || localStorage.getItem('sp_host') || sessionStorage.getItem('sp_host') || '').replace(/\/+$/, '');
+    if (!host) return;
     const user = encodeURIComponent(state.username);
     const pass = encodeURIComponent(state.password);
     const ext = currentStreamInfo.extension || 'm3u8';
@@ -1401,13 +1490,13 @@ function renderPlaylists() {
             `;
         } else if (isSessionActive) {
             actionBtnHtml = `
-                <button type="button" class="btn-playlist-select" onclick="event.stopPropagation(); activateAccount('${acc.id}')" title="التبديل إلى هذا السيرفر">
+                <button type="button" class="btn-playlist-select" onclick="event.stopPropagation(); activateAccount('${mzEsc(acc.id)}')" title="التبديل إلى هذا السيرفر">
                     <i class="fas fa-exchange-alt"></i> التبديل لهذا السيرفر
                 </button>
             `;
         } else {
             actionBtnHtml = `
-                <button type="button" class="btn-playlist-select btn-playlist-connect" onclick="event.stopPropagation(); activateAccount('${acc.id}')" title="دخول وتشغيل السيرفر">
+                <button type="button" class="btn-playlist-select btn-playlist-connect" onclick="event.stopPropagation(); activateAccount('${mzEsc(acc.id)}')" title="دخول وتشغيل السيرفر">
                     <i class="fas fa-play-circle"></i> دخول للسيرفر
                 </button>
             `;
@@ -1415,28 +1504,28 @@ function renderPlaylists() {
 
         const cardClickHandler = isCurrentlyConnected
             ? "closePlaylistsModal(); showScreen('dashboard-screen');"
-            : `activateAccount('${acc.id}')`;
+            : `activateAccount('${mzEsc(acc.id)}')`;
 
         return `
-            <div class="playlist-card ${isCurrentlyConnected ? 'is-active' : ''}" onclick="${cardClickHandler}" title="اضغط للدخول إلى ${serverName}">
+            <div class="playlist-card ${isCurrentlyConnected ? 'is-active' : ''}" onclick="${cardClickHandler}" title="اضغط للدخول إلى ${mzEsc(serverName)}">
                 ${badgeHtml}
                 <div class="playlist-card-top">
-                    <img src="${serverLogo}" alt="${serverName}" class="playlist-logo" onerror="this.src='photo/logo.ico'" />
+                    <img src="${mzEsc(serverLogo)}" alt="${mzEsc(serverName)}" class="playlist-logo" onerror="this.src='photo/logo.ico'" />
                     <div class="playlist-card-meta">
-                        <h4 title="${serverName}">${serverName}</h4>
+                        <h4 title="${mzEsc(serverName)}">${mzEsc(serverName)}</h4>
                         <div class="playlist-username">
                             <i class="fas fa-user-circle"></i>
-                            <span>${username}</span>
+                            <span>${mzEsc(username)}</span>
                         </div>
                         <div class="playlist-exp">
                             <i class="far fa-calendar-alt"></i>
-                            <span>الانتهاء: ${expDate}</span>
+                            <span>الانتهاء: ${mzEsc(expDate)}</span>
                         </div>
                     </div>
                 </div>
                 <div class="playlist-card-actions">
                     ${actionBtnHtml}
-                    <button type="button" class="btn-playlist-delete" onclick="event.stopPropagation(); deleteAccount('${acc.id}')" title="حذف من المحفوظات">
+                    <button type="button" class="btn-playlist-delete" onclick="event.stopPropagation(); deleteAccount('${mzEsc(acc.id)}')" title="حذف من المحفوظات">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -2007,7 +2096,7 @@ function playStream(id, type, extension, name, icon) {
 
         document.getElementById('playingChannelName').innerText = name || 'Live Channel';
         document.getElementById('playingChannelIcon').src = icon || 'photo/logo.ico';
-        const favsLive = JSON.parse(localStorage.getItem('sp_favs_live') || '[]');
+        const favsLive = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_live')) || '[]');
         const btnLiveFav = document.getElementById('btnLiveFav');
         if (btnLiveFav) btnLiveFav.classList.toggle('active', favsLive.includes(String(id)));
         document.getElementById('playerTopHeader').classList.remove('hidden');
@@ -2024,6 +2113,10 @@ function playStream(id, type, extension, name, icon) {
 
     let currentTryIndex = 0;
     let fallbackTimer = null;
+    let busyRetries = 0;
+
+    // رقم هذا التشغيل: إغلاق المشغل أو تشغيل آخر يغيّر mizoPlayToken فتتوقف محاولاته المؤجلة
+    const playToken = ++mizoPlayToken;
 
     function showLiveChannelLoading(channelName) {
         const overlay = document.getElementById('liveChannelLoadingOverlay');
@@ -2091,7 +2184,7 @@ function playStream(id, type, extension, name, icon) {
             mimeType = 'video/mp4';
         }
 
-        const progressKey = `sp_progress_${type}_${id}`;
+        const progressKey = mizoAccKey(`sp_progress_${type}_${id}`);
         let isSeeking = false;
         let seekTargetTime = 0;
         let seekRecoveryCount = 0;
@@ -2183,8 +2276,15 @@ function playStream(id, type, extension, name, icon) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
                                 hlsNetworkRetries++;
                                 if (hlsNetworkRetries <= 3) {
+                                    // إعادة متباعدة (1.5 ثم 3 ثم 4.5 ثانية): كانت فورية ثلاث مرات متتالية، واللوحة
+                                    // التي ما زالت تحسب اتصال القناة السابقة ترفضها كلها وتعدّها رشقة طلبات
                                     console.warn(`HLS Network Error, retrying (${hlsNetworkRetries}/3)...`);
-                                    window.hlsInstance.startLoad();
+                                    const hlsRef = window.hlsInstance;
+                                    setTimeout(() => {
+                                        if (window.hlsInstance === hlsRef) {
+                                            try { hlsRef.startLoad(); } catch (e) { }
+                                        }
+                                    }, 1500 * hlsNetworkRetries);
                                 } else {
                                     console.warn("HLS Network Error retry limit reached, triggering fallback.");
                                     triggerFallback();
@@ -2202,20 +2302,11 @@ function playStream(id, type, extension, name, icon) {
                 });
             } else {
                 // تمرير نوع video/mp4 لمشغل Video.js لتقبل كل من صيغ MP4 و MKV في WebView والمتصفحات
+                // Video.js وحده يعيّن المصدر. كان هنا تعيين مباشر إضافي على عنصر video "للتسريع"، لكن
+                // src() في Video.js يُطبَّق بعد جهوزية المشغل، فيجد التعيين المباشر العنصرَ فارغاً فيضع المصدر،
+                // ثم يضعه Video.js مرة أخرى: كل تشغيل كان يفتح طلبين كاملين لنفس الملف في اللحظة نفسها
+                // (مقيس في برنامج الكمبيوتر 30/9/2026)، واللوحة ذات الاتصال الواحد قد ترفض الثاني.
                 window.vjsPlayer.src({ src: playUrl, type: mimeType });
-
-                // التعيين المباشر على عنصر video لتسريع وتحفيز البث التدريجي فورا
-                const playerEl = window.vjsPlayer.el();
-                const videoTag = (window.vjsPlayer.tech() && window.vjsPlayer.tech().el()) || (playerEl && playerEl.querySelector('video'));
-                // المقارنة بالرابط الكامل: videoTag.src يُرجع الرابط مُطبَّعاً (مسار كامل وترميز)، فكانت
-                // المقارنة بالنص الخام تفشل دائماً ويُعاد تعيين المصدر وتحميله، فيفتح كل تشغيل
-                // اتصالين بالسيرفر لنفس الملف في اللحظة نفسها
-                let absPlayUrl = playUrl;
-                try { absPlayUrl = new URL(playUrl, window.location.href).href; } catch (e) { }
-                if (videoTag && videoTag.src !== absPlayUrl && videoTag.currentSrc !== absPlayUrl) {
-                    videoTag.src = playUrl;
-                    videoTag.load();
-                }
             }
 
             window.vjsPlayer.ready(function () {
@@ -2356,11 +2447,15 @@ function playStream(id, type, extension, name, icon) {
                 const topBarHtml = `
                     <div class="vjs-custom-top-bar">
                         <button class="vjs-top-btn" id="innerPlayerClose" title="إغلاق"><i class="fas fa-times"></i></button>
-                        <div class="vjs-custom-title">${name || 'تشغيل'}</div>
+                        <div class="vjs-custom-mid">
+                            <div class="vjs-custom-title">${mzEsc(name || 'تشغيل')}</div>
+                            <div class="mizo-conn" id="mizoConnHealth" hidden></div>
+                        </div>
                         <button class="vjs-top-btn" id="innerPlayerInfo" title="معلومات البث"><i class="fas fa-info"></i></button>
                     </div>
                 `;
                 playerEl.insertAdjacentHTML('beforeend', topBarHtml);
+                if (window.MizoConnHealth) window.MizoConnHealth.attach(player, playUrl);
 
                 const closeBtn = document.getElementById('innerPlayerClose');
                 if (closeBtn) {
@@ -2705,13 +2800,57 @@ function playStream(id, type, extension, name, icon) {
     // دالة محاولة الروابط البديلة إذا فشل الرابط الأول
     function triggerFallback() {
         if (fallbackTimer) return;
+        if (playToken !== mizoPlayToken) return; // أُغلق المشغل أو بدأ تشغيل آخر
 
-        // في حال حدوث خطأ عند بداية التشغيل، يتم التبديل فوراً خلال 250ms بدلاً من الانتظار ثانيتين
         const isInitialStartError = !window.vjsPlayer || !window.vjsPlayer.currentTime || window.vjsPlayer.currentTime() <= 0.5;
-        const delayMs = isInitialStartError ? 400 : 1500;
+
+        /*
+         * رفض "مشغول" (403 وأخواتها): الملف موجود لكن اللوحة ذات الاتصال الواحد ما زالت تحسب اتصال
+         * الحلقة السابقة. عنصر الفيديو لا يكشف رمز HTTP، فكان المشغل يظنه امتداداً خاطئاً ويجرّب
+         * mkv وavi وts ثم يستسلم برسالة خطأ دون أن يعيد الملف الصحيح بعد أن تُفرج اللوحة عنه
+         * (مثبت بسيرفر اختبار 30/9/2026). نفحص الرمز بطلب صغير واحد: المشغول يُعاد بهدوء (مثل
+         * مشغل أندرويد)، والمفقود فقط ينتقل للامتداد التالي.
+         */
+        const failedUrl = urlQueue[currentTryIndex];
+        if (isInitialStartError && type !== 'live' && !localFileUrl && /^https?:/i.test(failedUrl || '')
+            && busyRetries < MIZO_BUSY_DELAYS.length) {
+            fallbackTimer = -1; // يمنع الدخول المتكرر أثناء الفحص والانتظار
+            // أثناء الانشغال نعيد الفحص الصغير وحده (طلب بايت واحد)، لا المشغل كله (طلبان كاملان)،
+            // ونفتح الفيديو مرة واحدة حين تُفرج اللوحة؛ وإن صار الرد "مفقود" ننتقل للامتداد التالي.
+            const decide = (status) => {
+                if (playToken !== mizoPlayToken) { fallbackTimer = null; return; }
+                if (mizoIsBusyStatus(status) && busyRetries < MIZO_BUSY_DELAYS.length) {
+                    const wait = MIZO_BUSY_DELAYS[busyRetries++];
+                    if (busyRetries === 1 && typeof showToast === 'function') {
+                        showToast('السيرفر ما زال مشغولاً بالحلقة السابقة، جاري إعادة المحاولة...', 'info');
+                    }
+                    console.warn(`السيرفر مشغول (${status})، فحص نفس الرابط بعد ${wait}ms`);
+                    fallbackTimer = setTimeout(() => mizoProbeStatus(failedUrl).then(decide), wait);
+                } else if (busyRetries > 0 && status >= 200 && status < 300) {
+                    fallbackTimer = null;
+                    initSelectedPlayer(failedUrl); // أُفرج عن الاتصال: الملف الصحيح نفسه
+                } else {
+                    fallbackTimer = null;
+                    advanceToNextUrl(isInitialStartError);
+                }
+            };
+            mizoProbeStatus(failedUrl).then(decide);
+            return;
+        }
+        advanceToNextUrl(isInitialStartError);
+    }
+
+    function advanceToNextUrl(isInitialStartError) {
+        /*
+         * فاصل متزايد بين الروابط البديلة (1 ثم 2 ثم 3 ثم 4 ثوانٍ). كان 0.4 ثانية ثابتة، فالفيلم الذي
+         * يرفضه السيرفر يُطلب بخمس صيغ في أقل من ثانيتين — نفس رشقة الطلبات المرفوضة التي أُثبت
+         * في مشغل أندرويد أنها تجعل اللوحة تحظر الـIP.
+         */
+        const delayMs = isInitialStartError ? Math.min(1000 * (currentTryIndex + 1), 4000) : 1500;
 
         fallbackTimer = setTimeout(() => {
             fallbackTimer = null;
+            if (playToken !== mizoPlayToken) return;
 
             currentTryIndex++;
             if (currentTryIndex < urlQueue.length) {
@@ -3559,8 +3698,8 @@ async function loadCategories(action, type) {
     container.innerHTML = '';
 
     const effectiveType = (type === 'movies') ? 'vod' : type;
-    const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
-    const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
+    const favsList = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_' + effectiveType)) || '[]');
+    const contList = JSON.parse(localStorage.getItem(mizoAccKey('sp_continue_' + effectiveType)) || '[]');
     const favsCount = favsList.length;
     const contCount = contList.length;
 
@@ -3587,8 +3726,8 @@ async function loadCategories(action, type) {
         el.className = 'list-item special-category';
         const displayVal = cat.count !== '' ? cat.count : '';
         el.innerHTML = `
-            <span class="cat-name">${cat.name}</span>
-            <span class="cat-count" data-cat-id="${cat.id}">${displayVal}</span>
+            <span class="cat-name">${mzEsc(cat.name)}</span>
+            <span class="cat-count" data-cat-id="${mzEsc(cat.id)}">${displayVal}</span>
         `;
         el.onclick = () => {
             sessionStorage.setItem('sp_active_cat_' + type, cat.id);
@@ -3633,8 +3772,8 @@ async function loadCategories(action, type) {
             }
 
             el.innerHTML = `
-                <span class="cat-name">${cat.category_name}</span>
-                <span class="cat-count" data-cat-id="${cat.category_id}">${displayCount}</span>
+                <span class="cat-name">${mzEsc(cat.category_name)}</span>
+                <span class="cat-count" data-cat-id="${mzEsc(cat.category_id)}">${displayCount}</span>
             `;
             el.onclick = () => {
                 sessionStorage.setItem('sp_active_cat_' + type, cat.category_id);
@@ -3851,8 +3990,8 @@ async function fetchCategoryCounts(type, containerId) {
 
         // حفظ كافة العدادات المحسوبة في التخزين المحلي لظهور فوري دائم
         const effectiveType = (type === 'movies') ? 'vod' : type;
-        const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
-        const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
+        const favsList = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_' + effectiveType)) || '[]');
+        const contList = JSON.parse(localStorage.getItem(mizoAccKey('sp_continue_' + effectiveType)) || '[]');
         const validFavs = streams.filter(s => favsList.includes(String(s.stream_id || s.series_id))).length;
         const validCont = streams.filter(s => contList.includes(String(s.stream_id || s.series_id))).length;
 
@@ -3967,10 +4106,10 @@ async function loadStreams(action, categoryId, type) {
         const effectiveType = (type === 'movies') ? 'vod' : type;
 
         if (categoryId === 'favs') {
-            const favs = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
+            const favs = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_' + effectiveType)) || '[]');
             items = items.filter(item => favs.includes(String(item.stream_id || item.series_id))).slice(0, 30);
         } else if (categoryId === 'continue') {
-            const cont = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
+            const cont = JSON.parse(localStorage.getItem(mizoAccKey('sp_continue_' + effectiveType)) || '[]');
             items = items.filter(item => cont.includes(String(item.stream_id || item.series_id)));
             items.sort((a, b) => cont.indexOf(String(a.stream_id || a.series_id)) - cont.indexOf(String(b.stream_id || b.series_id)));
             items = items.slice(0, 30);
@@ -4214,13 +4353,15 @@ document.addEventListener('click', resetCloseBtnInactivityTimer);
 
 function closeFullscreenPlayer(isFromPopState = false) {
     clearTimeout(closeBtnTimeout);
+    clearTimeout(mizoPlayAdjacent.pending); // حلقة تالية مؤجلة لا تُفتح بعد إغلاق المشغل
+    mizoPlayToken++; // ولا محاولة مؤجلة (رابط بديل/إعادة بعد انشغال) لتشغيل أُغلق
     if (window.MizoDL) window.MizoDL.afterStream();
     if (window.vjsPlayer && currentStreamInfo && currentStreamInfo.type !== 'live') {
         try {
             const cur = window.vjsPlayer.currentTime();
             const dur = window.vjsPlayer.duration();
             if (dur > 0 && cur > 5 && (dur - cur) > 10) {
-                localStorage.setItem(`sp_progress_${currentStreamInfo.type}_${currentStreamInfo.id}`, cur);
+                localStorage.setItem(mizoAccKey(`sp_progress_${currentStreamInfo.type}_${currentStreamInfo.id}`), cur);
             }
         } catch (e) { }
     }
@@ -4286,6 +4427,8 @@ document.addEventListener('webkitfullscreenchange', () => {
 });
 
 function closeLivePlayer(clearSaved = true) {
+    clearTimeout(mizoPlayAdjacent.pending);
+    mizoPlayToken++;
     if (window.MizoDL) window.MizoDL.afterStream();
     // زر الإغلاق الأحمر في ملء الشاشة: يغلق القناة ويخرج من ملء الشاشة معاً، وكان يوقف
     // البث فقط فيبقى المستخدم أمام شاشة سوداء بملء الشاشة بلا قناة.
@@ -4343,7 +4486,7 @@ function closeLivePlayer(clearSaved = true) {
 function toggleCurrentLiveFavorite() {
     if (!currentStreamInfo || currentStreamInfo.type !== 'live') return;
     toggleFavorite(currentStreamInfo.id, 'live');
-    const favsLive = JSON.parse(localStorage.getItem('sp_favs_live') || '[]');
+    const favsLive = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_live')) || '[]');
     const btnLiveFav = document.getElementById('btnLiveFav');
     if (btnLiveFav) {
         btnLiveFav.classList.toggle('active', favsLive.includes(String(currentStreamInfo.id)));
@@ -4517,7 +4660,7 @@ async function showMovieDetails(movieId, name, cover, ext) {
     document.getElementById('moviePoster').src = cover || 'photo/logo.ico';
     const backdropEl = document.getElementById('movieBackdrop');
     if (backdropEl) {
-        backdropEl.style.backgroundImage = `url('${cover || 'photo/logo.ico'}')`;
+        backdropEl.style.backgroundImage = `url('${mzCssUrl(cover || 'photo/logo.ico')}')`;
     }
 
     // عرض قسم الأفلام المقترحة فوراً من نفس التصنيف
@@ -4529,13 +4672,13 @@ async function showMovieDetails(movieId, name, cover, ext) {
     if (movieTrailerBtn) movieTrailerBtn.classList.add('hidden');
 
     // Set favorite button state
-    const favsVod = JSON.parse(localStorage.getItem('sp_favs_vod') || '[]');
+    const favsVod = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_vod')) || '[]');
     const btnFav = document.getElementById('btnMovieFav');
     if (btnFav) {
         btnFav.classList.toggle('active', favsVod.includes(String(movieId)));
         btnFav.onclick = () => {
             toggleFavorite(movieId, 'vod');
-            const updated = JSON.parse(localStorage.getItem('sp_favs_vod') || '[]');
+            const updated = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_vod')) || '[]');
             btnFav.classList.toggle('active', updated.includes(String(movieId)));
         };
     }
@@ -4592,7 +4735,7 @@ async function showMovieDetails(movieId, name, cover, ext) {
         if (backdropUrl && typeof backdropUrl === 'string') {
             backdropUrl = backdropUrl.replace(/\/t\/p\/w\d+\//, '/t/p/original/');
             if (backdropEl) {
-                backdropEl.style.backgroundImage = `url('${backdropUrl}')`;
+                backdropEl.style.backgroundImage = `url('${mzCssUrl(backdropUrl)}')`;
             }
         }
 
@@ -4656,7 +4799,7 @@ async function showSeriesDetails(seriesId, name, cover) {
     document.getElementById('seriesPoster').src = cover || 'photo/logo.ico';
     const backdropEl = document.getElementById('seriesBackdrop');
     if (backdropEl) {
-        backdropEl.style.backgroundImage = `url('${cover || 'photo/logo.ico'}')`;
+        backdropEl.style.backgroundImage = `url('${mzCssUrl(cover || 'photo/logo.ico')}')`;
     }
 
     // عرض قسم المسلسلات المقترحة فوراً من نفس التصنيف
@@ -4668,13 +4811,13 @@ async function showSeriesDetails(seriesId, name, cover) {
     if (seriesTrailerBtn) seriesTrailerBtn.classList.add('hidden');
 
     // Set favorite button state
-    const favsSeries = JSON.parse(localStorage.getItem('sp_favs_series') || '[]');
+    const favsSeries = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_series')) || '[]');
     const btnSeriesFav = document.getElementById('btnSeriesFav');
     if (btnSeriesFav) {
         btnSeriesFav.classList.toggle('active', favsSeries.includes(String(seriesId)));
         btnSeriesFav.onclick = () => {
             toggleFavorite(seriesId, 'series');
-            const updated = JSON.parse(localStorage.getItem('sp_favs_series') || '[]');
+            const updated = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_series')) || '[]');
             btnSeriesFav.classList.toggle('active', updated.includes(String(seriesId)));
         };
     }
@@ -4721,7 +4864,7 @@ async function showSeriesDetails(seriesId, name, cover) {
         if (backdropUrl && typeof backdropUrl === 'string') {
             backdropUrl = backdropUrl.replace(/\/t\/p\/w\d+\//, '/t/p/original/');
             if (backdropEl) {
-                backdropEl.style.backgroundImage = `url('${backdropUrl}')`;
+                backdropEl.style.backgroundImage = `url('${mzCssUrl(backdropUrl)}')`;
             }
         }
 
@@ -4805,15 +4948,15 @@ async function showSeriesDetails(seriesId, name, cover) {
 
                 epCard.innerHTML = `
                     <div class="episode-thumb-box">
-                        <img src="${epCover}" class="episode-thumb-img" onerror="this.src='${cover || 'photo/logo.ico'}'" alt="${epTitle}">
+                        <img src="${mzEsc(epCover)}" class="episode-thumb-img" onerror="this.src='${mzEsc(cover || 'photo/logo.ico')}'" alt="${mzEsc(epTitle)}">
                         <div class="episode-play-overlay">
                             <div class="episode-play-icon"><i class="fas fa-play"></i></div>
                         </div>
-                        ${epNum ? `<span class="episode-badge">${epNum}</span>` : ''}
+                        ${epNum ? `<span class="episode-badge">${mzEsc(epNum)}</span>` : ''}
                     </div>
                     <div class="episode-info-box">
-                        <div class="episode-card-title" title="${epTitle}">${epTitle}</div>
-                        ${ep.info && ep.info.duration ? `<div class="episode-card-duration"><i class="far fa-clock"></i> ${ep.info.duration}</div>` : ''}
+                        <div class="episode-card-title" title="${mzEsc(epTitle)}">${mzEsc(epTitle)}</div>
+                        ${ep.info && ep.info.duration ? `<div class="episode-card-duration"><i class="far fa-clock"></i> ${mzEsc(ep.info.duration)}</div>` : ''}
                     </div>
                 `;
 
@@ -4950,7 +5093,7 @@ function renderPopularShelf(type, currentId, targetCategoryId, genreText) {
     // تحديث عنوان شريط الاقتراحات ليعكس التصنيف المطابق
     if (titleEl) {
         if (categoryMatches.length > 0 && typeof currentCategoryName !== 'undefined' && currentCategoryName && currentCategoryName !== 'الكل') {
-            titleEl.innerHTML = `<i class="fas fa-film" style="color:var(--accent-red); margin-left:8px;"></i> أعمال أخرى في قسم "${currentCategoryName}"`;
+            titleEl.innerHTML = `<i class="fas fa-film" style="color:var(--accent-red); margin-left:8px;"></i> أعمال أخرى في قسم "${mzEsc(currentCategoryName)}"`;
         } else {
             titleEl.innerHTML = `<i class="fas fa-film" style="color:var(--accent-red); margin-left:8px;"></i> ${type === 'vod' ? 'أفلام' : 'مسلسلات'} مقترحة من نفس التصنيف`;
         }
@@ -4973,10 +5116,10 @@ function renderPopularShelf(type, currentId, targetCategoryId, genreText) {
         card.className = 'popular-card';
         card.innerHTML = `
             <div class="popular-card-poster-wrap">
-                <img src="${cover}" class="popular-card-poster" loading="lazy" onerror="this.src='photo/logo.ico'" alt="${name}">
-                ${rating ? `<div class="popular-card-badge"><i class="fas fa-star"></i> ${rating}</div>` : ''}
+                <img src="${mzEsc(cover)}" class="popular-card-poster" loading="lazy" onerror="this.src='photo/logo.ico'" alt="${mzEsc(name)}">
+                ${rating ? `<div class="popular-card-badge"><i class="fas fa-star"></i> ${mzEsc(rating)}</div>` : ''}
             </div>
-            <div class="popular-card-title" title="${name}">${name}</div>
+            <div class="popular-card-title" title="${mzEsc(name)}">${mzEsc(name)}</div>
         `;
 
         card.onclick = () => {
@@ -5413,10 +5556,10 @@ function appendNextItemChunk(customSize) {
                 el.innerHTML = `
                     <div class="channel-poster-box">
                         <img class="channel-poster-spacer" src="${CHANNEL_POSTER_SPACER_SRC}" alt="" aria-hidden="true">
-                        <img src="${iconSrc}" class="channel-poster-img" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                        <img src="${mzEsc(iconSrc)}" class="channel-poster-img" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
                     </div>
                     <div class="vod-info">
-                        <div class="vod-title" title="${item.name || ''}">${item.name || ''}</div>
+                        <div class="vod-title" title="${mzEsc(item.name || '')}">${mzEsc(item.name || '')}</div>
                     </div>
                 `;
             } else {
@@ -5425,8 +5568,8 @@ function appendNextItemChunk(customSize) {
                     el.classList.add('active');
                 }
                 el.innerHTML = `
-                    <img src="${iconSrc}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
-                    <span>${item.name || ''}</span>
+                    <img src="${mzEsc(iconSrc)}" class="channel-icon" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                    <span>${mzEsc(item.name || '')}</span>
                 `;
             }
 
@@ -5457,9 +5600,9 @@ function appendNextItemChunk(customSize) {
             const fetchPriorityAttr = isPriority ? 'fetchpriority="high"' : 'fetchpriority="low"';
 
             card.innerHTML = `
-                <img src="${cover}" class="vod-poster" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
+                <img src="${mzEsc(cover)}" class="vod-poster" loading="${loadingAttr}" decoding="async" ${fetchPriorityAttr} referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='photo/logo.ico'">
                 <div class="vod-info">
-                    <div class="vod-title" title="${name}">${name}</div>
+                    <div class="vod-title" title="${mzEsc(name)}">${mzEsc(name)}</div>
                 </div>
             `;
             const cardImg = card.querySelector('img');
@@ -5494,8 +5637,8 @@ function updateCategoryBadges(type) {
     try {
         const effectiveType = (type === 'movies') ? 'vod' : type;
         const containerId = (effectiveType === 'vod' || effectiveType === 'series') ? 'vodCategories' : 'liveCategories';
-        const favsList = JSON.parse(localStorage.getItem('sp_favs_' + effectiveType) || '[]');
-        const contList = JSON.parse(localStorage.getItem('sp_continue_' + effectiveType) || '[]');
+        const favsList = JSON.parse(localStorage.getItem(mizoAccKey('sp_favs_' + effectiveType)) || '[]');
+        const contList = JSON.parse(localStorage.getItem(mizoAccKey('sp_continue_' + effectiveType)) || '[]');
 
         const favSpan = document.querySelector(`#${containerId} [data-cat-id="favs"]`);
         if (favSpan) {
@@ -5514,7 +5657,7 @@ function toggleFavorite(id, type) {
     if (!id) return;
     id = String(id);
     const effectiveType = (type === 'movies') ? 'vod' : type;
-    const storageKey = 'sp_favs_' + effectiveType;
+    const storageKey = mizoAccKey('sp_favs_' + effectiveType);
     let favs = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
     if (favs.includes(id)) {
@@ -5544,7 +5687,7 @@ function recordContinueWatching(id, type) {
     if (!id) return;
     id = String(id);
     const effectiveType = (type === 'movies') ? 'vod' : type;
-    const storageKey = 'sp_continue_' + effectiveType;
+    const storageKey = mizoAccKey('sp_continue_' + effectiveType);
     let cont = JSON.parse(localStorage.getItem(storageKey) || '[]');
 
     // إزالة العنصر لو كان موجوداً لنقله إلى بداية القائمة
@@ -6684,19 +6827,369 @@ window.MizoSubs = (function () {
 // =========================================================================
 // نظام فحص وقياس سرعة الإنترنت المباشر للمشغل (Mizo In-Player Speed Test)
 // =========================================================================
+/*
+ * مؤشر صحة الاتصال داخل المشغل (نفس منطق ConnectionHealth.java في الأندرويد).
+ * يقيس من الفيديو نفسه بلا أي اتصال إضافي باللوحة، ويظهر داخل الشريط العلوي فيختفي معه.
+ * الحكم مبني على التقطيع الحقيقي أولاً: إن كان الفيديو يقطّع الآن أو قطّع قبل قليل فهو أحمر
+ * مهما بدت السرعة جيدة.
+ */
+window.MizoConnHealth = (function () {
+    let timer = null;
+    let st = null;
+
+    function bufferedAhead(v) {
+        try {
+            const t = v.currentTime, b = v.buffered;
+            for (let i = 0; i < b.length; i++) {
+                if (b.start(i) <= t + 0.3 && b.end(i) >= t) return b.end(i) - t;
+            }
+        } catch (e) { }
+        return 0;
+    }
+
+    /* السرعة بالميجابت: من hls.js أو VHS إن وُجدا، وإلا تقدير لملفات MP4 من نمو المخزن × معدل البت */
+    function measureMbps(player, v) {
+        const now = performance.now();
+        try {
+            const hls = window.hlsInstance;
+            if (hls && hls.media === v && hls.bandwidthEstimate > 0) return hls.bandwidthEstimate / 1e6;
+        } catch (e) { }
+        try {
+            const tech = player.tech && player.tech({ IWillNotUseThisInPlugins: true });
+            const vhs = tech && tech.vhs;
+            if (vhs && vhs.throughput > 0) return vhs.throughput / 1e6;
+        } catch (e) { }
+        // Chromium: البايتات المفكوكة مقسومة على الزمن المشغَّل = معدل البت الفعلي للملف
+        const dec = (v.webkitVideoDecodedByteCount || 0) + (v.webkitAudioDecodedByteCount || 0);
+        const end = bufferedAhead(v) + v.currentTime;
+        const s = st.prog;
+        if (s.t0 === null || v.seeking || v.currentTime < s.pos0) {
+            st.prog = { t0: v.currentTime, dec0: dec, pos0: v.currentTime, lastEnd: end, lastAt: now, rates: [] };
+            return st.mbps;
+        }
+        const played = v.currentTime - s.t0;
+        const bitrate = played > 3 ? (dec - s.dec0) * 8 / played : 0;
+        const dt = (now - s.lastAt) / 1000;
+        const grow = end - s.lastEnd;
+        s.lastEnd = end; s.lastAt = now;
+        // مخزن لا ينمو والفيديو يعمل = المتصفح أوقف التحميل لامتلائه أو لانتهاء الملف؛ ليس بطئاً
+        // فلا نحسبه. أما عدم النمو أثناء التقطيع فهو سرعة شبه معدومة فعلاً.
+        if (bitrate > 0 && dt > 0 && (grow > 0.05 || st.waitingSince)) {
+            s.rates.push(Math.max(0, grow) / dt * bitrate / 1e6);
+            if (s.rates.length > 5) s.rates.shift();
+            return s.rates.reduce((a, b) => a + b, 0) / s.rates.length;
+        }
+        return st.mbps;
+    }
+
+    function verdict(v) {
+        const now = Date.now();
+        st.stalls = st.stalls.filter(t => now - t <= 90000);
+        const recent = st.stalls.filter(t => now - t <= 60000).length;
+        const last = st.stalls.length ? st.stalls[st.stalls.length - 1] : 0;
+        const stallingNow = !v.paused && st.waitingSince && now - st.waitingSince > 700 && now - st.lastSeek > 2000;
+        if (stallingNow && st.stalls.length) return 2;
+        if (recent >= 2 || (last && now - last <= 30000)) return 2;
+        if (last) return 1;
+        if (stallingNow) return 1;
+        if (!v.paused && st.wasPlaying && bufferedAhead(v) < 3) return 1;
+        return 0;
+    }
+
+    const LABELS = ['ممتاز', 'متوسط', 'ضعيف · تقطيع'];
+    const COLORS = ['#22c55e', '#eab308', '#ef4444'];
+
+    function render() {
+        if (!st) return;
+        const el = document.getElementById('mizoConnHealth');
+        const player = st.player;
+        if (!el || !player || (player.isDisposed && player.isDisposed())) { detach(); return; }
+        const v = player.tech && player.tech({ IWillNotUseThisInPlugins: true }) && player.tech({ IWillNotUseThisInPlugins: true }).el();
+        if (!v) return;
+        st.mbps = measureMbps(player, v);
+        const k = verdict(v);
+        const sp = st.mbps > 0 ? (st.mbps >= 10 ? st.mbps.toFixed(0) : st.mbps.toFixed(1)) + ' Mbps' : '';
+        el.innerHTML = `<i style="color:${COLORS[k]}">●</i> ${LABELS[k]}${sp ? ` · <bdi>${sp}</bdi>` : ''}`;
+        el.hidden = false;
+    }
+
+    function detach() {
+        if (timer) clearInterval(timer);
+        timer = null;
+        st = null;
+    }
+
+    function attach(player, url) {
+        detach();
+        // ملف منزّل على الجهاز: لا يوجد اتصال نقيسه
+        if (!player || /^(file|blob):/i.test(String(url || ''))) return;
+        st = {
+            player, stalls: [], wasPlaying: false, waitingSince: 0, lastSeek: Date.now(), mbps: -1,
+            prog: { t0: null }
+        };
+        const mine = st;
+        const on = (ev, fn) => player.on(ev, () => { if (st === mine) fn(); });
+        on('playing', () => { mine.wasPlaying = true; mine.waitingSince = 0; });
+        on('seeking', () => { mine.lastSeek = Date.now(); });
+        on('loadstart', () => { mine.lastSeek = Date.now(); mine.wasPlaying = false; mine.prog = { t0: null }; });
+        on('waiting', () => {
+            const now = Date.now();
+            if (!mine.waitingSince) mine.waitingSince = now;
+            // توقف بعد أن كان الفيديو يعمل، وليس بسبب تقديم من المستخدم = تقطيع حقيقي
+            if (mine.wasPlaying && now - mine.lastSeek > 2000 && !player.paused()) mine.stalls.push(now);
+            mine.wasPlaying = false;
+        });
+        on('dispose', detach);
+        timer = setInterval(render, 1000);
+    }
+
+    return { attach, detach };
+})();
+
 window.MizoSpeedTest = (function () {
     let isRunning = false;
     let abortController = null;
     let currentAnimFrame = null;
 
+    /*
+     * عدّاد بإبرة ومقياس غير خطي، ومراحل الفحص، ورسم حي لتذبذب السرعة، وتوصية تجمع السرعة
+     * والثبات، وسجل آخر 5 فحوصات. نفس تصميم ومنطق مشغل أندرويد (SpeedTestDialog/SpeedGaugeView).
+     */
+    const STOPS = [0, 5, 10, 25, 50, 100, 200];
+    const QUALITY_MIN = { SD: 1.5, HD: 4, FHD: 10, '4K': 25 };
+    const CX = 130, CY = 130, R = 100, START = 150, SWEEP = 240;
+    const ARC_LEN = R * SWEEP * Math.PI / 180;
+    const HISTORY_KEY = 'mizo_speed_history';
+
+    let gaugeTarget = 0, gaugeShown = 0, gaugeLoop = null;
+    let sparkSamples = [];
+
     function getEn() {
         return !!(window.MizoLang && window.MizoLang.isEnglish && window.MizoLang.isEnglish());
+    }
+
+    function polar(angleDeg, r) {
+        const a = angleDeg * Math.PI / 180;
+        return [CX + Math.cos(a) * r, CY + Math.sin(a) * r];
+    }
+
+    function fraction(mbps) {
+        if (!(mbps > 0)) return 0;
+        const n = STOPS.length - 1;
+        for (let i = 0; i < n; i++) {
+            if (mbps <= STOPS[i + 1]) return (i + (mbps - STOPS[i]) / (STOPS[i + 1] - STOPS[i])) / n;
+        }
+        return 1;
+    }
+
+    /** يرسم القوس والعلامات مرة واحدة (مسارات SVG محسوبة، لا صور). */
+    function buildGauge() {
+        const track = document.getElementById('gaugeTrack');
+        const arc = document.getElementById('gaugeProgressArc');
+        const ticks = document.getElementById('gaugeTicks');
+        if (!track || !arc || !ticks || ticks.childNodes.length) return;
+        const [sx, sy] = polar(START, R);
+        const [ex, ey] = polar(START + SWEEP, R);
+        const d = `M ${sx.toFixed(2)} ${sy.toFixed(2)} A ${R} ${R} 0 1 1 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+        track.setAttribute('d', d);
+        arc.setAttribute('d', d);
+        arc.style.strokeDasharray = ARC_LEN.toFixed(1);
+        arc.style.strokeDashoffset = ARC_LEN.toFixed(1);
+        const ns = 'http://www.w3.org/2000/svg';
+        const n = STOPS.length - 1;
+        for (let i = 0; i <= n * 2; i++) {
+            const f = i / (n * 2);
+            const ang = START + SWEEP * f;
+            const major = i % 2 === 0;
+            const r1 = R - 13, r2 = r1 - (major ? 10 : 6);
+            const [x1, y1] = polar(ang, r1);
+            const [x2, y2] = polar(ang, r2);
+            const line = document.createElementNS(ns, 'line');
+            line.setAttribute('x1', x1.toFixed(2)); line.setAttribute('y1', y1.toFixed(2));
+            line.setAttribute('x2', x2.toFixed(2)); line.setAttribute('y2', y2.toFixed(2));
+            line.setAttribute('class', 'gauge-tick ' + (major ? 'major' : 'minor'));
+            line.dataset.f = String(f);
+            ticks.appendChild(line);
+            if (major) {
+                const [lx, ly] = polar(ang, r2 - 12);
+                const t = document.createElementNS(ns, 'text');
+                t.setAttribute('x', lx.toFixed(2)); t.setAttribute('y', (ly + 4).toFixed(2));
+                t.setAttribute('text-anchor', 'middle');
+                t.setAttribute('class', 'gauge-tick-label');
+                t.textContent = String(STOPS[i / 2]);
+                ticks.appendChild(t);
+            }
+        }
+        renderGauge(0);
+    }
+
+    function renderGauge(value) {
+        const frac = fraction(value);
+        const arc = document.getElementById('gaugeProgressArc');
+        const needle = document.getElementById('gaugeNeedle');
+        const valEl = document.getElementById('speedTestVal');
+        if (arc) arc.style.strokeDashoffset = (ARC_LEN * (1 - frac)).toFixed(1);
+        if (needle) needle.setAttribute('transform', `translate(${CX} ${CY}) rotate(${(START + SWEEP * frac).toFixed(2)})`);
+        if (valEl) valEl.textContent = value.toFixed(1);
+        document.querySelectorAll('#gaugeTicks .gauge-tick').forEach(t => {
+            t.classList.toggle('lit', parseFloat(t.dataset.f) <= frac + 0.0001);
+        });
+    }
+
+    /** الإبرة تقترب من القيمة بنعومة (مثل عدّاد حقيقي) بدل القفز بين القراءات. */
+    function updateGauge(speedMbps) {
+        gaugeTarget = Math.max(0, speedMbps || 0);
+        if (gaugeLoop) return;
+        const step = () => {
+            const diff = gaugeTarget - gaugeShown;
+            if (Math.abs(diff) > 0.02) {
+                gaugeShown += diff * 0.14;
+                renderGauge(gaugeShown);
+                gaugeLoop = requestAnimationFrame(step);
+            } else {
+                gaugeShown = gaugeTarget;
+                renderGauge(gaugeShown);
+                gaugeLoop = null;
+            }
+        };
+        gaugeLoop = requestAnimationFrame(step);
+    }
+
+    function resetGauge() {
+        if (gaugeLoop) { cancelAnimationFrame(gaugeLoop); gaugeLoop = null; }
+        gaugeTarget = 0; gaugeShown = 0;
+        renderGauge(0);
+    }
+
+    function setPhase(id, cls) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('active', 'done');
+        if (cls) el.classList.add(cls);
+    }
+
+    function drawSpark() {
+        const c = document.getElementById('speedSpark');
+        if (!c || !c.getContext) return;
+        const dpr = window.devicePixelRatio || 1;
+        const w = c.clientWidth || 300, h = c.clientHeight || 44;
+        if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+        const g = c.getContext('2d');
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.clearRect(0, 0, w, h);
+        if (sparkSamples.length < 2) return;
+        const max = Math.max(1, ...sparkSamples) * 1.15;
+        const stepX = w / (sparkSamples.length - 1);
+        const rtl = document.documentElement.dir !== 'ltr' && !document.documentElement.classList.contains('lang-en');
+        const pts = sparkSamples.map((v, i) => [rtl ? w - i * stepX : i * stepX, h - (v / max) * (h - 4)]);
+        g.beginPath();
+        pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+        const grad = g.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, 'rgba(6,182,212,0.4)');
+        grad.addColorStop(1, 'rgba(6,182,212,0)');
+        g.save();
+        g.lineTo(pts[pts.length - 1][0], h);
+        g.lineTo(pts[0][0], h);
+        g.closePath();
+        g.fillStyle = grad;
+        g.fill();
+        g.restore();
+        g.beginPath();
+        pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+        g.strokeStyle = '#06b6d4';
+        g.lineWidth = 2.2;
+        g.lineJoin = 'round';
+        g.stroke();
+    }
+
+    /**
+     * تنزيل جارٍ أو فيديو يعمل يقاسم الفحص نفس الإنترنت فتظهر السرعة أقل من حقيقتها، والعميل يظنها
+     * ضعفاً في خطه. ننبهه قبل الفحص.
+     */
+    function showBusyWarning(en) {
+        const el = document.getElementById('speedWarning');
+        if (!el) return;
+        let msg = '';
+        try {
+            if (window.MizoDL && typeof window.MizoDL.isDownloading === 'function' && window.MizoDL.isDownloading()) {
+                msg = en ? '⚠ A download is running, the result will be lower than your real speed'
+                    : '⚠ يوجد تنزيل جارٍ الآن، ستظهر السرعة أقل من سرعتك الحقيقية';
+            } else if (document.querySelector('#fullscreenVideoContainer video, #livePlayerWrapper video')
+                && [...document.querySelectorAll('#fullscreenVideoContainer video, #livePlayerWrapper video')].some(v => !v.paused)) {
+                msg = en ? '⚠ A video is playing, pause it for an accurate result'
+                    : '⚠ يوجد فيديو يعمل الآن، أوقفه للحصول على نتيجة دقيقة';
+            }
+        } catch (e) { }
+        el.textContent = msg;
+        el.classList.toggle('hidden', !msg);
+    }
+
+    function paintChips(effective) {
+        document.querySelectorAll('#speedQualityChips .q-chip').forEach(chip => {
+            const min = QUALITY_MIN[chip.dataset.q];
+            chip.classList.remove('ok', 'edge');
+            if (effective === null || min === undefined) return;
+            if (effective >= min) chip.classList.add('ok');
+            else if (effective >= min * 0.8) chip.classList.add('edge');
+        });
+    }
+
+    /** نفس معادلة مشغل أندرويد (SpeedTestDialog.stabilityScore): 0 متقطع · 1 ثابت. */
+    function stabilityScore(windows, jitterMs) {
+        const w = windows.length > 4 ? windows.slice(2) : windows;
+        let score = 1;
+        if (w.length >= 3) {
+            const mean = w.reduce((a, b) => a + b, 0) / w.length;
+            if (mean > 0) {
+                const sd = Math.sqrt(w.reduce((a, v) => a + (v - mean) * (v - mean), 0) / w.length);
+                score = Math.max(0, Math.min(1, 1 - (sd / mean - 0.25) / 0.75));
+            }
+        }
+        if (jitterMs != null && jitterMs > 30) score -= Math.min(0.3, (jitterMs - 30) / 200);
+        return Math.max(0, Math.min(1, score));
+    }
+
+    function stabilityText(s, en) {
+        if (s >= 0.7) return en ? 'Test completed · Stable connection ✓' : 'اكتمل الفحص · اتصال ثابت ✓';
+        if (s >= 0.4) return en ? 'Test completed · Slight fluctuation' : 'اكتمل الفحص · تذبذب خفيف في الاتصال';
+        return en ? 'Test completed · Unstable connection ⚠' : 'اكتمل الفحص · الاتصال متذبذب ⚠';
+    }
+
+    function readHistory() {
+        try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { return []; }
+    }
+
+    function saveHistory(speed, ping) {
+        try {
+            const list = [{ t: Date.now(), s: Math.round(speed * 10) / 10, p: ping == null ? -1 : ping }].concat(readHistory()).slice(0, 5);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+        } catch (e) { }
+    }
+
+    function showHistory(en) {
+        const el = document.getElementById('speedHistory');
+        if (!el) return;
+        const list = readHistory();
+        if (!list.length) { el.classList.add('hidden'); return; }
+        const fmt = t => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        // كل قراءة معزولة باتجاه LTR: خلط الأرقام والإنجليزية داخل سطر عربي كان يبعثر ترتيبها
+        el.textContent = '';
+        el.appendChild(document.createTextNode(en ? 'Recent tests:  ' : 'آخر الفحوصات:  '));
+        list.slice(0, 3).forEach((o, i) => {
+            if (i) el.appendChild(document.createTextNode('  •  '));
+            const b = document.createElement('bdi');
+            b.dir = 'ltr';
+            b.textContent = `${Number(o.s).toFixed(1)} Mbps (${fmt(o.t)})`;
+            el.appendChild(b);
+        });
+        el.classList.remove('hidden');
     }
 
     function openModal() {
         const modal = document.getElementById('speedTestModal');
         if (!modal) return;
         modal.classList.remove('hidden');
+        buildGauge();
         resetUi();
         // عزل الشاشة والقائمة خلف النافذة حتى لا تتسرب أسهم الريموت إلى كروت الداشبورد
         if (typeof syncModalInertState === 'function') syncModalInertState();
@@ -6715,8 +7208,6 @@ window.MizoSpeedTest = (function () {
     }
 
     function resetUi() {
-        const valEl = document.getElementById('speedTestVal');
-        const arc = document.getElementById('gaugeProgressArc');
         const statusText = document.getElementById('speedStatusText');
         const statusDot = document.querySelector('.status-dot');
         const dlEl = document.getElementById('metricDownload');
@@ -6727,28 +7218,22 @@ window.MizoSpeedTest = (function () {
         const startText = document.getElementById('speedStartBtnText');
 
         const en = getEn();
-        if (valEl) valEl.textContent = '0.0';
-        if (arc) arc.style.strokeDashoffset = '283';
+        resetGauge();
+        sparkSamples = [];
+        drawSpark();
+        ['phasePing', 'phaseDl', 'phaseStable'].forEach(id => setPhase(id, null));
+        document.querySelectorAll('#speedPhases [data-ar]').forEach(s => { s.textContent = en ? s.dataset.en : s.dataset.ar; });
+        paintChips(null);
+        showHistory(en);
+        showBusyWarning(en);
         if (statusText) statusText.textContent = en ? 'Ready to test' : 'جاهز لبدء الفحص';
         if (statusDot) statusDot.classList.remove('testing');
         if (dlEl) dlEl.innerHTML = '-- <small>Mbps</small>';
         if (pingEl) pingEl.innerHTML = '-- <small>ms</small>';
         if (jitterEl) jitterEl.innerHTML = '-- <small>ms</small>';
-        if (recBadge) recBadge.innerHTML = '<i class="fas fa-tv"></i> <span>' + (en ? 'Awaiting test...' : 'في انتظار الفحص...') + '</span>';
+        if (recBadge) { recBadge.style.color = ''; recBadge.innerHTML = '<i class="fas fa-tv"></i> <span>' + (en ? 'Awaiting test...' : 'في انتظار الفحص...') + '</span>'; }
         if (recDesc) recDesc.textContent = en ? 'Press Start Test to check your streaming capability.' : 'اضغط على زر الفحص لمعرفة جودة البث الأنسب لسرعتك الحالية.';
         if (startText) startText.textContent = en ? 'Start Test' : 'بدء الفحص';
-    }
-
-    function updateGauge(speedMbps) {
-        const valEl = document.getElementById('speedTestVal');
-        const arc = document.getElementById('gaugeProgressArc');
-        if (valEl) valEl.textContent = speedMbps.toFixed(1);
-        if (arc) {
-            const max = 100;
-            const ratio = Math.min(Math.max(speedMbps / max, 0), 1);
-            const offset = 283 - (283 * ratio);
-            arc.style.strokeDashoffset = String(offset);
-        }
     }
 
     function stopTest() {
@@ -6841,12 +7326,15 @@ window.MizoSpeedTest = (function () {
 
         try {
             // 1. فحص زمن الاستجابة والتقلب (Ping & Jitter)
+            setPhase('phasePing', 'active');
             if (statusText) statusText.textContent = en ? 'Measuring ping & latency...' : 'جاري فحص سرعة الاستجابة (Ping)...';
             const pingRes = await measurePing(signal);
             if (pingEl) pingEl.innerHTML = (pingRes.ping === null ? '--' : pingRes.ping) + ' <small>ms</small>';
             if (jitterEl) jitterEl.innerHTML = (pingRes.jitter === null ? '--' : pingRes.jitter) + ' <small>ms</small>';
+            setPhase('phasePing', 'done');
 
             // 2. فحص سرعة التحميل (Download Speed)
+            setPhase('phaseDl', 'active');
             if (statusText) statusText.textContent = en ? 'Testing download speed...' : 'جاري قياس سرعة التحميل...';
 
             const testPayloads = [
@@ -6858,13 +7346,37 @@ window.MizoSpeedTest = (function () {
             // 10 ميجابايت على خط بطيء تُقرأ حتى آخرها. قياس فعلي: 29 ثانية لفحص واحد.
             const MAX_TEST_MS = 8000;
             const MIN_BYTES_FOR_RESULT = 250000;
+            const WINDOW_MS = 500;
             let deadlineHit = false;
 
             let totalBytes = 0;
             let lastSpeed = 0;
-            const speeds = [];
             let lastError = null;
             let startTime = 0;
+            // سرعات نوافذ قصيرة متتالية: منها الرسم الحي وحساب ثبات الاتصال
+            const windows = [];
+            let windowStart = 0, windowBytes = 0;
+
+            const account = (n) => {
+                totalBytes += n;
+                windowBytes += n;
+                const now = performance.now();
+                if (now - windowStart >= WINDOW_MS) {
+                    const w = (windowBytes * 8) / ((now - windowStart) / 1000 * 1000000);
+                    windows.push(w);
+                    sparkSamples.push(w);
+                    if (sparkSamples.length > 60) sparkSamples.shift();
+                    drawSpark();
+                    windowStart = now;
+                    windowBytes = 0;
+                }
+                const elapsed = (now - startTime) / 1000;
+                if (elapsed > 0.15) {
+                    lastSpeed = (totalBytes * 8) / (elapsed * 1000000);
+                    updateGauge(lastSpeed);
+                }
+                return now - startTime;
+            };
 
             for (let k = 0; k < testPayloads.length; k++) {
                 if (signal.aborted) break;
@@ -6873,7 +7385,7 @@ window.MizoSpeedTest = (function () {
                     const resp = await fetch(targetUrl, { method: 'GET', cache: 'no-store', signal: signal });
                     if (!resp.ok) throw new Error('Status ' + resp.status);
                     // المؤقت يبدأ بعد وصول الترويسة: زمن DNS/TLS/TTFB ليس زمن نقل بيانات
-                    if (!startTime) startTime = performance.now();
+                    if (!startTime) { startTime = performance.now(); windowStart = startTime; }
 
                     if (resp.body && typeof resp.body.getReader === 'function') {
                         const reader = resp.body.getReader();
@@ -6881,15 +7393,7 @@ window.MizoSpeedTest = (function () {
                             const { done, value } = await reader.read();
                             if (done) break;
                             if (value) {
-                                totalBytes += value.length;
-                                const elapsedMs = performance.now() - startTime;
-                                const elapsed = elapsedMs / 1000;
-                                if (elapsed > 0.15) {
-                                    const instantMbps = (totalBytes * 8) / (elapsed * 1000000);
-                                    lastSpeed = instantMbps;
-                                    speeds.push(instantMbps);
-                                    updateGauge(instantMbps);
-                                }
+                                const elapsedMs = account(value.length);
                                 if (elapsedMs > MAX_TEST_MS && totalBytes > MIN_BYTES_FOR_RESULT) {
                                     deadlineHit = true;
                                     try { await reader.cancel(); } catch (e) { }
@@ -6899,14 +7403,7 @@ window.MizoSpeedTest = (function () {
                         }
                     } else {
                         const blob = await resp.blob();
-                        totalBytes += blob.size;
-                        const elapsed = (performance.now() - startTime) / 1000;
-                        if (elapsed > 0) {
-                            const instantMbps = (totalBytes * 8) / (elapsed * 1000000);
-                            lastSpeed = instantMbps;
-                            speeds.push(instantMbps);
-                            updateGauge(instantMbps);
-                        }
+                        account(blob.size);
                     }
                 } catch (fetchErr) {
                     if (signal.aborted) throw fetchErr;
@@ -6926,33 +7423,30 @@ window.MizoSpeedTest = (function () {
                 throw (lastError || new Error('no-bytes-received'));
             }
 
+            // نفس حساب مشغل أندرويد: إجمالي البايتات على إجمالي زمن النقل (بلا متوسطات مرجّحة)،
+            // حتى يعطي البرنامجان الرقم نفسه على نفس الخط
             const totalDuration = (performance.now() - startTime) / 1000;
-            let finalSpeed = 0;
-            if (totalDuration > 0) {
-                finalSpeed = (totalBytes * 8) / (totalDuration * 1000000);
-            } else {
-                finalSpeed = lastSpeed || 0;
-            }
-
-            if (speeds.length > 5) {
-                const recent = speeds.slice(-10);
-                const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
-                finalSpeed = (finalSpeed * 0.4) + (avg * 0.6);
-            }
+            const finalSpeed = totalDuration > 0 ? (totalBytes * 8) / (totalDuration * 1000000) : (lastSpeed || 0);
+            const stability = stabilityScore(windows, pingRes.jitter);
 
             updateGauge(finalSpeed);
             if (dlEl) dlEl.innerHTML = finalSpeed.toFixed(1) + ' <small>Mbps</small>';
-            if (statusText) statusText.textContent = en ? 'Test Completed' : 'اكتمل الفحص بنجاح';
+            setPhase('phaseDl', 'done');
+            setPhase('phaseStable', 'done');
+            if (statusText) statusText.textContent = stabilityText(stability, en);
             if (statusDot) statusDot.classList.remove('testing');
 
-            applyRecommendation(finalSpeed, en);
+            applyRecommendation(finalSpeed, stability, en);
+            saveHistory(finalSpeed, pingRes.ping);
+            showHistory(en);
 
         } catch (err) {
             if (!signal.aborted) {
                 console.error('Speed test error:', err);
                 if (statusText) statusText.textContent = en ? 'No connection' : 'لا يوجد اتصال بالإنترنت';
                 if (dlEl) dlEl.innerHTML = '-- <small>Mbps</small>';
-                updateGauge(0);
+                resetGauge();
+                ['phasePing', 'phaseDl', 'phaseStable'].forEach(id => setPhase(id, null));
                 const badge = document.getElementById('recommendBadge');
                 const desc = document.getElementById('recommendDesc');
                 if (badge) {
@@ -6972,35 +7466,46 @@ window.MizoSpeedTest = (function () {
         }
     }
 
-    function applyRecommendation(mbps, isEn) {
+    /**
+     * التوصية تجمع السرعة والثبات: اتصال سريع لكنه متقطع لا يحتمل الجودة التي يوحي بها رقمه،
+     * فنحسب "السرعة الفعلية للبث" = السرعة × (0.6 + 0.4 × الثبات). نفس حساب مشغل أندرويد.
+     */
+    function applyRecommendation(mbps, stability, isEn) {
         const badge = document.getElementById('recommendBadge');
         const desc = document.getElementById('recommendDesc');
         if (!badge || !desc) return;
+        const effective = mbps * (0.6 + 0.4 * stability);
+        paintChips(effective);
 
-        if (mbps >= 25) {
+        if (effective >= 25) {
             badge.style.color = '#22c55e';
-            badge.innerHTML = '<i class="fas fa-circle-check"></i> ' + (isEn ? '4K Ultra HD Streaming' : 'بث فائق الدقة 4K Ultra HD');
+            badge.innerHTML = '<i class="fas fa-circle-check"></i> ' + (isEn ? '4K Ultra HD Streaming' : 'مناسب لبث 4K فائق الدقة');
             desc.textContent = isEn
-                ? 'Your internet speed is excellent! You can stream 4K movies and live sports with peak smoothness and zero buffering.'
-                : 'سرعة الإنترنت لديك ممتازة جداً! جاهز لتشغيل قنوات ومباريات وأفلام بدقة 4K فائقة الوضوح بدون أي تقطيع.';
-        } else if (mbps >= 10) {
+                ? 'Excellent! 4K movies and live sports will play smoothly.'
+                : 'سرعة ممتازة! جاهز لتشغيل الأفلام والمباريات بدقة 4K بدون تقطيع.';
+        } else if (effective >= 10) {
             badge.style.color = '#38bdf8';
-            badge.innerHTML = '<i class="fas fa-check-circle"></i> ' + (isEn ? 'FHD 1080p 60fps Streaming' : 'بث عالي الدقة FHD 1080p 60fps');
+            badge.innerHTML = '<i class="fas fa-check-circle"></i> ' + (isEn ? 'FHD 1080p · 4K may buffer' : 'مناسب لـ FHD 1080p، أما 4K فقد يتقطع');
             desc.textContent = isEn
-                ? 'Very good speed! Ideal for FHD 1080p live matches, series, and movies with great stability.'
-                : 'سرعة جيدة جداً! مناسبة تماماً لمشاهدة المباريات الحية والأفلام بجودة FHD 1080p بسلاسة وثبات عالٍ.';
-        } else if (mbps >= 4) {
+                ? 'Very good for FHD live matches and movies. Choose FHD if a channel offers 4K.'
+                : 'ممتاز للمباريات والأفلام بجودة FHD. إن توفرت القناة بجودة 4K فاختر FHD لمشاهدة بلا تقطيع.';
+        } else if (effective >= 4) {
             badge.style.color = '#eab308';
             badge.innerHTML = '<i class="fas fa-tv"></i> ' + (isEn ? 'HD 720p Recommended' : 'موصى بجودة HD 720p');
             desc.textContent = isEn
-                ? 'Moderate connection. Recommended to watch channels and movies in HD 720p for smooth playback.'
-                : 'اتصال متوسط. موصى بمشاهدة القنوات والأفلام بجودة HD 720p لضمان عدم حدوث توقف مؤقت أثناء البث.';
+                ? 'Moderate connection. Choose HD channels for smooth playback.'
+                : 'اتصال متوسط. اختر القنوات بجودة HD لضمان مشاهدة بلا توقف.';
         } else {
             badge.style.color = '#ef4444';
             badge.innerHTML = '<i class="fas fa-triangle-exclamation"></i> ' + (isEn ? 'SD Quality Recommended' : 'موصى بجودة SD العادية');
             desc.textContent = isEn
-                ? 'Connection speed is low. We recommend using SD (Standard Definition) quality to avoid buffering.'
-                : 'سرعة الإنترنت ضعيفة حالياً. موصى باختيار جودة SD العادية لتجنب التقطيع، أو فحص الراوتر.';
+                ? 'Low speed. Use SD channels, or check your router.'
+                : 'السرعة ضعيفة حالياً. اختر قنوات SD العادية، أو افحص الراوتر.';
+        }
+        if (stability < 0.4) {
+            desc.textContent += isEn
+                ? ' Your connection fluctuates; restarting the router or moving closer to it may help.'
+                : ' اتصالك متذبذب: إعادة تشغيل الراوتر أو الاقتراب منه قد يحسّن الثبات.';
         }
     }
 

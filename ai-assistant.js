@@ -25,9 +25,21 @@
         }
     }
 
+    // سقف السجل: أحدث 30 محادثة وآخر 80 رسالة في كل منها. البطاقات تُحفظ HTML مع كل رد، والسجل
+    // كان يكبر بلا حد في localStorage الذي يشاركه البرنامج كله (الحسابات ونقاط الاستئناف)، فإن
+    // امتلأ فشلت كل عمليات الحفظ الأخرى بصمت.
+    const MAX_SESSIONS = 30;
+    const MAX_MESSAGES = 80;
+
+    function activeAccId() {
+        try { return localStorage.getItem('sp_active_acc_id') || ''; } catch (e) { return ''; }
+    }
+
     function saveSessions(sessions) {
         try {
-            localStorage.setItem('almezo_ai_chat_sessions', JSON.stringify(sessions));
+            const capped = sessions.slice(0, MAX_SESSIONS).map(s => (s.messages && s.messages.length > MAX_MESSAGES)
+                ? Object.assign({}, s, { messages: s.messages.slice(-MAX_MESSAGES) }) : s);
+            localStorage.setItem('almezo_ai_chat_sessions', JSON.stringify(capped));
         } catch (e) { }
     }
 
@@ -39,6 +51,7 @@
                 id: currentSessionId,
                 title: initialTitle ? (initialTitle.length > 30 ? initialTitle.slice(0, 30) + '...' : initialTitle) : 'محادثة جديدة',
                 createdAt: Date.now(),
+                accId: activeAccId(),
                 messages: []
             };
             sessions.unshift(newSession);
@@ -66,6 +79,38 @@
             const session = getOrCreateCurrentSession(sender === 'user' ? text : null);
             session.messages.push({ sender, text, actionCardsHtml: actionCardsHtml || '', time: Date.now() });
             const sessions = getSavedSessions().map(s => s.id === session.id ? session : s);
+            saveSessions(sessions);
+            renderHistoryDrawer();
+        } catch (e) { }
+    }
+
+    /**
+     * الرد يُحفظ في المحادثة التي سُئل فيها (sessionId)، لا في المفتوحة لحظة وصوله: كان المستخدم إن
+     * فتح محادثة أخرى أو بدأ جديدة أثناء الانتظار دخل الرد فيها.
+     */
+    function saveReplyToSession(sessionId, text, actionCardsHtml) {
+        try {
+            const sessions = getSavedSessions();
+            const session = sessions.find(s => s.id === sessionId);
+            if (!session) return; // حُذفت أثناء الانتظار
+            session.messages.push({ sender: 'model', text, actionCardsHtml: actionCardsHtml || '', time: Date.now() });
+            saveSessions(sessions);
+            renderHistoryDrawer();
+        } catch (e) { }
+    }
+
+    /** فشل الرد: السؤال الذي بقي بلا جواب يُزال من المحادثة (والفارغة تُحذف) حتى لا يدخل سياق النموذج. */
+    function dropUnansweredQuestion(sessionId) {
+        try {
+            let sessions = getSavedSessions();
+            const session = sessions.find(s => s.id === sessionId);
+            if (!session) return;
+            const last = session.messages[session.messages.length - 1];
+            if (last && last.sender === 'user') session.messages.pop();
+            if (!session.messages.length) {
+                sessions = sessions.filter(s => s.id !== sessionId);
+                if (currentSessionId === sessionId) currentSessionId = null;
+            }
             saveSessions(sessions);
             renderHistoryDrawer();
         } catch (e) { }
@@ -104,9 +149,11 @@
         if (!container) return;
 
         container.innerHTML = '';
+        // بطاقات اقتُرحت من سيرفر حساب آخر تشير لأرقام أعمال مختلفة في السيرفر الحالي: يبقى النص وحده
+        const sameAccount = !session.accId || session.accId === activeAccId();
         if (session.messages && session.messages.length > 0) {
             session.messages.forEach(m => {
-                appendMessage(m.sender, m.text, m.actionCardsHtml || '', false);
+                appendMessage(m.sender, m.text, sameAccount ? (m.actionCardsHtml || '') : '', false);
                 conversationHistory.push({ role: m.sender === 'user' ? 'user' : 'model', text: String(m.text || '').replace(/^🎙️ /, '') });
             });
         } else {
@@ -1032,26 +1079,36 @@
     }
 
     async function answerQuestion(text) {
+        const sessionId = currentSessionId; // المحادثة التي سُئل فيها (أنشأها حفظ السؤال قبل قليل)
         showTyping('جاري البحث في سيرفرك وتحليل طلبك ⚡...');
         try {
             const reply = await askAssistant(text);
-            hideTyping();
+            const stillShown = currentSessionId === sessionId;
+            if (stillShown) hideTyping();
             const extras = buildInteractiveCardsHtml(reply.cards) + sourcesHtml(reply.sources);
-            appendMessage('model', reply.text, extras, true);
-            // السجل يحفظ السؤال والرد معاً بعد النجاح فقط (مع الوسوم ليعرف النموذج ما اقترحه)
-            conversationHistory.push({ role: 'user', text }, { role: 'model', text: reply.raw });
-            if (conversationHistory.length > 12) conversationHistory = conversationHistory.slice(-12);
+            saveReplyToSession(sessionId, reply.text, extras);
+            if (stillShown) {
+                appendMessage('model', reply.text, extras, false);
+                // السجل يحفظ السؤال والرد معاً بعد النجاح فقط (مع الوسوم ليعرف النموذج ما اقترحه)
+                conversationHistory.push({ role: 'user', text }, { role: 'model', text: reply.raw });
+                if (conversationHistory.length > 12) conversationHistory = conversationHistory.slice(-12);
+            }
             showAiStatus('جاهز لمساعدتك ✨');
         } catch (err) {
             console.error('[AlMeZ0 AI] Error handling message:', err);
-            hideTyping();
-            appendMessage('model', toFriendlyAiError(err), '', false);
+            const stillShown = currentSessionId === sessionId;
+            dropUnansweredQuestion(sessionId);
+            if (stillShown) {
+                hideTyping();
+                appendMessage('model', toFriendlyAiError(err), '', false);
+            }
             showAiStatus('جاهز لمساعدتك ✨');
         }
     }
 
     async function handleSendMessage(msgText) {
-        if (!msgText || !msgText.trim() || busy) return;
+        if (!msgText || !msgText.trim()) return;
+        if (busy) { showAiStatus('انتظر حتى يكتمل الرد السابق ⏳'); return; }
         const text = msgText.trim().slice(0, 1500);
         const inputEl = document.getElementById('aiChatInput');
         if (inputEl) inputEl.value = '';

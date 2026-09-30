@@ -70,6 +70,11 @@ public final class AiBrain {
     private final String serverName;
     /** سجل المحادثة بصيغة Gemini (السؤال بدون بيانات السيرفر + الرد بوسومه)، آخر 8 رسائل. */
     private final List<JSONObject> history = new ArrayList<>();
+    /**
+     * يتغيّر مع كل تبديل للمحادثة (جديدة/مسح/فتح من السجل). رد يصل بعد التبديل لا يُضاف
+     * إلى سياق المحادثة الأخرى — كان يدخل في ذاكرة النموذج لمحادثة لا علاقة لها بالسؤال.
+     */
+    private int epoch = 0;
     private final Random random = new Random();
 
     public AiBrain(Context ctx, Xtream api, Models.Account account) {
@@ -82,12 +87,13 @@ public final class AiBrain {
     }
 
     public void clearHistory() {
-        synchronized (history) { history.clear(); }
+        synchronized (history) { history.clear(); epoch++; }
     }
 
     public void restoreTurns(List<JSONObject> turns) {
         synchronized (history) {
             history.clear();
+            epoch++;
             if (turns != null) {
                 history.addAll(turns);
                 while (history.size() > 12) history.remove(0);
@@ -118,7 +124,9 @@ public final class AiBrain {
         payload.put("question", question);
         payload.put("context", context);
         JSONArray hist = new JSONArray();
+        final int askedIn;
         synchronized (history) {
+            askedIn = epoch;
             for (JSONObject h : history) {
                 String t = h.getJSONArray("parts").getJSONObject(0).optString("text", "");
                 hist.put(new JSONObject().put("role", h.optString("role")).put("text", t));
@@ -135,10 +143,12 @@ public final class AiBrain {
         if (raw.isEmpty()) throw new EmptyReplyException();
 
         synchronized (history) {
-            history.add(userTurn(question));
-            history.add(new JSONObject().put("role", "model").put("parts",
-                    new JSONArray().put(new JSONObject().put("text", raw))));
-            while (history.size() > 12) history.remove(0);
+            if (askedIn == epoch) {
+                history.add(userTurn(question));
+                history.add(new JSONObject().put("role", "model").put("parts",
+                        new JSONArray().put(new JSONObject().put("text", raw))));
+                while (history.size() > 12) history.remove(0);
+            }
         }
 
         List<Card> cards = new ArrayList<>();

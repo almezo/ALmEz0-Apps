@@ -9,6 +9,40 @@ const { readMachineDeviceId, ARG_PREFIX: DEVICE_ID_ARG } = require('./device-id'
 // معرّف الجهاز الثابت يُقرأ مرة واحدة عند الإقلاع ويُمرَّر لملف التمهيد (انظر device-id.js)
 const MACHINE_DEVICE_ID = readMachineDeviceId();
 
+/**
+ * صفحات تبقى داخل البرنامج: ملفاته المحلية وموقع الميزو ونطاقاته الفرعية. كان الفحص بـ
+ * url.includes('almezo.store') فيُعامَل https://evil.com/?almezo.store كصفحة داخلية تُفتح في
+ * نافذة البرنامج بصلاحياته (preload بلا webSecurity).
+ */
+function isInternalUrl(url) {
+    try {
+        const u = new URL(String(url));
+        if (u.protocol === 'file:') return true;
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+        const h = u.hostname.toLowerCase();
+        return h === 'localhost' || h === '127.0.0.1' || h === 'almezo.store' || h.endsWith('.almezo.store');
+    } catch (e) {
+        return false;
+    }
+}
+
+// بروتوكولات يُسمح بفتحها خارج البرنامج: المواقع والبريد والهاتف وواتساب والمشغلات الخارجية.
+// غيرها (file: و ms-msdt: و search-ms: ...) قد يشغّل برامج على ويندوز لو وصل إليه رابط خبيث.
+const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:', 'whatsapp:', 'vlc:', 'potplayer:']);
+
+function openExternalSafe(url) {
+    try {
+        const protocol = new URL(String(url)).protocol;
+        if (!EXTERNAL_PROTOCOLS.has(protocol)) {
+            console.warn('Blocked external protocol:', protocol);
+            return;
+        }
+        shell.openExternal(String(url));
+    } catch (e) {
+        console.warn('Invalid external URL');
+    }
+}
+
 // Hardware acceleration (smooth 60fps GPU video rendering without excessive CPU/GPU usage)
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -136,28 +170,16 @@ if (!gotTheLock) {
 
         // Intercept external links and open in default system browser
         mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-            if (
-                url.startsWith('http://') ||
-                url.startsWith('https://') ||
-                url.startsWith('mailto:') ||
-                url.startsWith('tel:') ||
-                url.startsWith('whatsapp:')
-            ) {
-                // If it is an external site (WhatsApp, Facebook, external player, etc.), open externally
-                const isInternalHost = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('almezo.store');
-                if (!isInternalHost) {
-                    shell.openExternal(url);
-                    return { action: 'deny' };
-                }
-            }
-            return { action: 'allow' };
+            if (isInternalUrl(url)) return { action: 'allow' };
+            // WhatsApp وفيسبوك والمشغل الخارجي وغيرها: خارج البرنامج (والبروتوكولات غير المعروفة تُرفض)
+            openExternalSafe(url);
+            return { action: 'deny' };
         });
 
         mainWindow.webContents.on('will-navigate', (event, url) => {
-            const isLocal = url.startsWith('file://') || url.includes('localhost') || url.includes('almezo.store');
-            if (!isLocal) {
+            if (!isInternalUrl(url)) {
                 event.preventDefault();
-                shell.openExternal(url);
+                openExternalSafe(url);
             }
         });
 
@@ -253,9 +275,7 @@ if (!gotTheLock) {
 
     // IPC listener for opening external URLs from renderer
     ipcMain.on('open-external', (event, url) => {
-        if (url) {
-            shell.openExternal(url);
-        }
+        if (url) openExternalSafe(url);
     });
 
     // IPC listener for native desktop notifications
