@@ -8831,3 +8831,28 @@ html.lang-en .auto-style-36 { direction: ltr; }
     .speed-metrics-grid { gap: 8px; }
     .recommend-desc { font-size: 12px; }
 }
+
+/* نافذة قياس السرعة بالعرض: العدّاد في عمود والنتائج والأزرار في عمود (مثل تطبيق الأندرويد).
+   عمود واحد طويل كان لا يناسب شاشات الكمبيوتر والتلفاز */
+.speed-test-card { max-width: 900px; }
+.speed-test-body {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) 1fr;
+    gap: 18px;
+    align-items: start;
+}
+.speed-col-gauge {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 12px 16px 14px;
+    min-width: 0;
+}
+.speed-col-info { min-width: 0; }
+.speed-col-info .speed-metrics-grid { margin-top: 0; }
+.speed-col-gauge .speed-spark { margin-bottom: 0; }
+/* الشاشات الضيقة (هاتف عمودي) فقط: عمود واحد */
+@media (max-width: 760px) {
+    .speed-test-card { max-width: 520px; }
+    .speed-test-body { grid-template-columns: 1fr; }
+}

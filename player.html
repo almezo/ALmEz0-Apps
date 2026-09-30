@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 
     <!-- Custom CSS -->
-    <link href="splayer.css?v=25.3" rel="stylesheet" />
+    <link href="splayer.css?v=25.4" rel="stylesheet" />
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <!-- Screen Intelligence & App Bridge for Mobile & Desktop -->
@@ -842,6 +842,9 @@
                     </button>
                 </div>
 
+                <!-- عمودان بالعرض: العدّاد على جهة، والنتائج والأزرار على الجهة الأخرى (مثل تطبيق الأندرويد) -->
+                <div class="speed-test-body">
+                <div class="speed-col speed-col-gauge">
                 <!-- عدّاد بإبرة ومقياس غير خطي (0 5 10 25 50 100 200): يُرسم في splayer.js (MizoSpeedTest.buildGauge)
                      بنفس تصميم عدّاد مشغل أندرويد (SpeedGaugeView) -->
                 <div class="speed-test-gauge-wrap">
@@ -893,26 +896,28 @@
                 <!-- رسم حيّ لتذبذب السرعة: الثبات يحدد سلاسة البث أكثر من الرقم وحده -->
                 <canvas class="speed-spark" id="speedSpark" height="44"></canvas>
                 <div class="speed-warning hidden" id="speedWarning"></div>
+                </div>
+                <div class="speed-col speed-col-info">
 
                 <div class="speed-metrics-grid">
                     <div class="speed-metric-item">
                         <div class="metric-icon metric-download"><i class="fas fa-arrow-down"></i></div>
                         <div class="metric-info">
-                            <span class="metric-label">سرعة التحميل</span>
+                            <span class="metric-label">التحميل</span>
                             <span class="metric-value" id="metricDownload">-- <small>Mbps</small></span>
                         </div>
                     </div>
                     <div class="speed-metric-item">
                         <div class="metric-icon metric-ping"><i class="fas fa-bolt"></i></div>
                         <div class="metric-info">
-                            <span class="metric-label">سرعة الاستجابة (Ping)</span>
+                            <span class="metric-label">الاستجابة</span>
                             <span class="metric-value" id="metricPing">-- <small>ms</small></span>
                         </div>
                     </div>
                     <div class="speed-metric-item">
                         <div class="metric-icon metric-jitter"><i class="fas fa-wave-square"></i></div>
                         <div class="metric-info">
-                            <span class="metric-label">تقلب الاتصال (Jitter)</span>
+                            <span class="metric-label">التقلب</span>
                             <span class="metric-value" id="metricJitter">-- <small>ms</small></span>
                         </div>
                     </div>
@@ -942,6 +947,8 @@
                         <span>إغلاق</span>
                     </button>
                 </div>
+                </div>
+                </div>
             </div>
         </div>
 
@@ -954,7 +961,7 @@
             <!-- HLS.js -->
             <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
             <!-- Custom Logic -->
-            <script src="player-lang.js?v=1.1"></script>
+            <script src="player-lang.js?v=1.2"></script>
             <script src="splayer.js?v=34.9"></script>
             <script src="downloads-ui.js?v=4099.1"></script>
             <!-- AlMeZ0 AI Assistant (Voice & Text Intelligence) -->
