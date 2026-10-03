@@ -354,6 +354,12 @@ public class MainActivity extends BridgeActivity {
             com.almezo.servers.nat.AiClient.saveRefreshToken(MainActivity.this, refreshToken);
         }
 
+        /** خروج المستخدم أو انتهاء جلسته في الموقع: تُمسح جلسة المساعد في المشغل الأصلي. */
+        @JavascriptInterface
+        public void clearFirebaseSession() {
+            com.almezo.servers.nat.AiClient.clearSession(MainActivity.this);
+        }
+
         /**
          * يفتح مشغل الميزو الأصلي بدل player.html داخل WebView.
          * @param migrationJson بيانات مشغل الويب (الحسابات، المفضلة، متابعة المشاهدة) لنقلها أول مرة

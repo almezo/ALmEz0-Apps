@@ -758,7 +758,12 @@
                 : getRoleBadge(role);
             let userName = (log.user && log.user.name) ? log.user.name : 'زائر مجهول';
             let userPhone = (log.user && log.user.phone) ? log.user.phone : '';
-            if (isEviction) {
+            // دخول ناجح سُجّل قبل أن تصل جلسة الحساب للسيرفر: الرقم في التفاصيل أوضح من "زائر"
+            if (log.action === 'login_success' && (userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details && log.details.phone) {
+                userName = 'عميل (' + log.details.phone + ')';
+                if (!userPhone) userPhone = log.details.phone;
+            }
+            if (isEviction || log.action === 'session_expired') {
                 if ((userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details) {
                     if (log.details.evictedUserName) userName = log.details.evictedUserName;
                     else if (log.details.phone) userName = 'عميل (' + log.details.phone + ')';
@@ -1035,9 +1040,9 @@
         let parts = [];
 
         // معالجة واضحة ومباشرة لحالات الطرد الأمني للجلسة
-        if (action === 'session_forced_eviction') {
+        if (action === 'session_forced_eviction' || action === 'session_expired') {
             if (details.evictedUserName) {
-                parts.push(`👤 الحساب المطرود: <strong style="color:#f87171;">${escapeHtml(details.evictedUserName)}</strong>`);
+                parts.push(`👤 ${action === 'session_expired' ? 'الحساب' : 'الحساب المطرود'}: <strong style="color:#f87171;">${escapeHtml(details.evictedUserName)}</strong>`);
             }
             if (details.phone) {
                 parts.push(`📞 الهاتف: <code style="color:#6ee7b7; direction:ltr; display:inline-block;">${escapeHtml(details.phone)}</code>`);
@@ -1046,7 +1051,7 @@
                 parts.push(`🆔 المعرّف: <code style="color:#b388ff; font-size:0.75rem;">${escapeHtml(details.uid)}</code>`);
             }
             if (details.reason) {
-                const rText = details.reason === 'Firebase token revoked' ? 'إلغاء التوكن من السيرفر' : (details.reason === 'Auth version mismatch' ? 'تغيير كلمة المرور من جهاز آخر' : details.reason);
+                const rText = details.reason === 'Firebase token revoked' ? 'انتهت الجلسة على الجهاز (مسح بيانات المتصفح أو انتهاء صلاحية الدخول)' : (details.reason === 'Auth version mismatch' ? 'تغيير كلمة المرور من جهاز آخر' : details.reason);
                 parts.push(`⚠️ السبب: <span style="color:#ffcc80;">${escapeHtml(rText)}</span>`);
             }
             return parts.join(' • ') || 'طرد أمني للجلسة';

@@ -1133,6 +1133,9 @@ window.openUsersIntelModal = function () {
                         <button type="button" class="intel-btn-export" id="intelExportBtn">
                             <i class="fas fa-file-excel"></i> تصدير البيانات (CSV)
                         </button>
+                        <button type="button" class="intel-btn-export" onclick="mzShowOrphanAccounts()" style="border-color:rgba(245,158,11,0.5); color:#fbbf24;" title="حسابات دخول بدون بيانات (تسجيل لم يكتمل)">
+                            <i class="fas fa-user-slash"></i> حسابات ناقصة
+                        </button>
                     </div>
                 </div>
 
@@ -1545,6 +1548,9 @@ function renderUsersIntelContent() {
                             <span style="font-weight:700; color:#cbd5e1; direction:ltr; text-align:right; font-size:0.75rem;">${safeIntelEsc(phone)}</span>
                             <button type="button" class="intel-btn-copy" onclick="copyIntelText(${intelJsArg(phone)}, this)" title="نسخ الرقم">
                                 <i class="fas fa-copy"></i>
+                            </button>
+                            <button type="button" class="intel-btn-copy" onclick="mzAdminTempPin(${intelJsArg(c.id)}, ${intelJsArg(fullName)}, ${intelJsArg(phone)})" title="نسي الرقم السري: تعيين رقم سري مؤقت" style="color:#38bdf8;">
+                                <i class="fas fa-key"></i>
                             </button>
                             ${waPhone ? `
                                 <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="intel-btn-wa" title="محادثة واتساب">
@@ -2893,6 +2899,9 @@ function injectModals() {
         '      <button class="confirm-btn" id="confirmLoginBtn">',
         '        <i class="fas fa-sign-in-alt"></i> دخول للحساب',
         '      </button>',
+        '      <div style="text-align:center; margin-top:10px;">',
+        '        <button type="button" class="auth-switch-link" id="forgotPinBtn" onclick="mzForgotPin()">نسيت الرقم السري؟</button>',
+        '      </div>',
         '      <div class="auth-switch-prompt">',
         '        <span>عميل جديد لأول مرة؟</span>',
         '        <button type="button" class="auth-switch-link" id="switchToRegister">إنشاء حساب جديد</button>',
@@ -3305,10 +3314,14 @@ async function confirmLogout() {
     try {
         localStorage.removeItem('almezo_cached_user');
         sessionStorage.removeItem('almezo_cached_user');
+        localStorage.removeItem('almezo_auth_version');
     } catch (e) { }
 
+    // ننتظر وصول حركة الخروج (بحد أقصى ثانيتين ونصف) قبل إنهاء الجلسة: كانت تُرسل بعد الخروج
+    // فيسجّلها السيرفر باسم "زائر غير مسجل" بدل صاحب الحساب
+    var logoutLogged = null;
     if (typeof logActivity === 'function') {
-        logActivity({
+        logoutLogged = logActivity({
             action: 'logout',
             category: 'auth',
             severity: 'info',
@@ -3317,6 +3330,9 @@ async function confirmLogout() {
             userOverride: user // نمرر المستخدم صراحة لتسجيل حركته كصاحب الحساب وليس كزائر
         });
     }
+    try {
+        await Promise.race([Promise.resolve(logoutLogged).catch(function () { }), new Promise(function (r) { setTimeout(r, 2500); })]);
+    } catch (e) { }
     // تسجيل الخروج عبر Firebase Auth (يُطلق onAuthStateChanged تلقائياً)
     logoutUser().then(function () {
         closeLogoutModal();
@@ -3795,7 +3811,7 @@ function updateHeaderLoginState() {
         btn.onclick = function () { openLogoutModal(); };
 
         try {
-            var cacheData = JSON.stringify({ name: displayName, uid: user.uid, role: user.role, firstName: user.firstName });
+            var cacheData = JSON.stringify({ name: displayName, uid: user.uid, role: user.role, firstName: user.firstName, lastName: user.lastName || '', phone: user.phone || '' });
             localStorage.setItem('almezo_cached_user', cacheData);
             sessionStorage.setItem('almezo_cached_user', cacheData);
         } catch (e) { }
@@ -4958,112 +4974,20 @@ async function handleLogin() {
         attemptMeta = await analyzeLoginAttempt(password, phone);
     } catch (e) { attemptMeta = {} }
 
-    // التحقق من صحة صيغة الرقم الليبي
+    // أخطاء الصيغة (رقم ناقص أو يبدأ بـ 218، رقم سري أقصر من 6) تُعرض فقط ولا تُحسب محاولة خاطئة:
+    // لم يُجرَّب أي رقم سري على السيرفر. كانت ثلاثة أخطاء كتابة تحظر جهاز العميل وتظهر في غرفة
+    // المراقبة كتخمين كلمة مرور. الحظر للمحاولات الحقيقية المرفوضة من Firebase أدناه.
     var phoneResult = validateLibyanNumber(phone);
     if (!phoneResult.valid) {
         phoneErrEl.innerText = phoneResult.error;
         phoneErrEl.style.display = 'block';
-
-        // تسجيل المحاولة الخاطئة واحتسابها ضمن سلم الحظر
-        var lockResult = { lockedNow: false, attempts: 1, remainingAttempts: 2, tierIndex: 0, formattedDuration: 'دقيقة واحدة', remainingSeconds: 60 };
-        if (typeof recordFailedAttemptAndLockout === 'function') {
-            lockResult = recordFailedAttemptAndLockout(phone);
-        }
-        if (typeof serverLoginGuard === 'function') {
-            var srv = await serverLoginGuard('fail', phone);
-            if (srv) lockResult = Object.assign(lockResult, srv, { lockedNow: !!srv.lockedNow });
-        }
-
-        if (lockResult.lockedNow) {
-            startLockoutCountdown(lockResult.remainingSeconds, errEl, btn, lockResult.formattedDuration, lockResult.tierIndex);
-            if (typeof logActivity === 'function') {
-                logActivity({
-                    action: 'client_locked_out',
-                    category: 'security',
-                    severity: 'danger',
-                    title: '🚨 حظر أمني مؤقت (' + lockResult.formattedDuration + ') بسبب إدخال هاتف خاطئ',
-                    details: Object.assign({
-                        attemptedPhone: phone,
-                        attempts: 3,
-                        tier: lockResult.tierIndex + 1,
-                        formattedDuration: lockResult.formattedDuration,
-                        reason: phoneResult.error
-                    }, attemptMeta),
-                    userOverride: { phone: phone, name: 'جهاز محظور لـ ' + phone }
-                });
-            }
-            showToast('🚨 تم حظر تسجيل الدخول مؤقتاً لمدة ' + lockResult.formattedDuration + '', 'error', 5000);
-        } else {
-            if (typeof logActivity === 'function') {
-                logActivity({
-                    action: 'login_failed',
-                    category: 'security',
-                    severity: 'danger',
-                    title: '⚠️ محاولة دخول برقم هاتف غير صالح (المحاولة ' + lockResult.attempts + ' من 3)',
-                    details: Object.assign({
-                        attemptedPhone: phone,
-                        attempts: lockResult.attempts,
-                        remainingAttempts: lockResult.remainingAttempts,
-                        reason: phoneResult.error
-                    }, attemptMeta),
-                    userOverride: { phone: phone, name: 'محاولة دخول لـ ' + phone }
-                });
-            }
-        }
         return;
     }
 
-    // التحقق من إدخال الرقم السري
     var passResult = validatePassword(password);
     if (!passResult.valid) {
         passErrEl.innerText = passResult.error;
         passErrEl.style.display = 'block';
-
-        var lockResultPass = { lockedNow: false, attempts: 1, remainingAttempts: 2, tierIndex: 0, formattedDuration: 'دقيقة واحدة', remainingSeconds: 60 };
-        if (typeof recordFailedAttemptAndLockout === 'function') {
-            lockResultPass = recordFailedAttemptAndLockout(phone);
-        }
-        if (typeof serverLoginGuard === 'function') {
-            var srvPass = await serverLoginGuard('fail', phone);
-            if (srvPass) lockResultPass = Object.assign(lockResultPass, srvPass, { lockedNow: !!srvPass.lockedNow });
-        }
-
-        if (lockResultPass.lockedNow) {
-            startLockoutCountdown(lockResultPass.remainingSeconds, errEl, btn, lockResultPass.formattedDuration, lockResultPass.tierIndex);
-            if (typeof logActivity === 'function') {
-                logActivity({
-                    action: 'client_locked_out',
-                    category: 'security',
-                    severity: 'danger',
-                    title: '🚨 حظر أمني مؤقت (' + lockResultPass.formattedDuration + ') بسبب كلمة سر غير صالحة',
-                    details: Object.assign({
-                        attemptedPhone: phone,
-                        attempts: 3,
-                        tier: lockResultPass.tierIndex + 1,
-                        formattedDuration: lockResultPass.formattedDuration,
-                        reason: passResult.error
-                    }, attemptMeta),
-                    userOverride: { phone: phone, name: 'جهاز محظور لـ ' + phone }
-                });
-            }
-            showToast('🚨 تم حظر تسجيل الدخول مؤقتاً لمدة ' + lockResultPass.formattedDuration + '', 'error', 5000);
-        } else {
-            if (typeof logActivity === 'function') {
-                logActivity({
-                    action: 'login_failed',
-                    category: 'security',
-                    severity: 'danger',
-                    title: '⚠️ محاولة دخول بكلمة سر قصيرة (المحاولة ' + lockResultPass.attempts + ' من 3)',
-                    details: Object.assign({
-                        attemptedPhone: phone,
-                        attempts: lockResultPass.attempts,
-                        remainingAttempts: lockResultPass.remainingAttempts,
-                        reason: passResult.error
-                    }, attemptMeta),
-                    userOverride: { phone: phone, name: 'محاولة دخول لـ ' + phone }
-                });
-            }
-        }
         return;
     }
 
@@ -5074,6 +4998,11 @@ async function handleLogin() {
     try {
         // === تسجيل الدخول عبر Firebase Auth ===
         // يستخدم رقم الهاتف كبريد اصطناعي داخلياً (phoneToSyntheticEmail في firebase-config.js)
+        // دخول برقم سري كتبه صاحبه الآن: إصدار الجلسة المحفوظ من دخول سابق لا معنى له، وكان يطرده
+        // فوراً برسالة "تغيّرت كلمة المرور من جهاز آخر" إن تغيّر الرقم منذ آخر مرة (من جهاز آخر أو
+        // برقم مؤقت من الإدارة). المستمع يتبنّى إصدار السيرفر الحالي عند أول قراءة
+        try { localStorage.removeItem('almezo_auth_version'); } catch (e) { }
+        if (typeof mzNoteLoginPassword === 'function') mzNoteLoginPassword(password);
         var firebaseUser = await loginWithFirebaseAuth(phone, password);
 
         // جلب الملف الشخصي من Firestore مباشرةً لتحديث الواجهة فوراً
@@ -5109,6 +5038,10 @@ async function handleLogin() {
         // تحديث الهيدر وإغلاق النافذة
         updateHeaderLoginState();
         closeLoginModal();
+        // الزر كان يبقى "جاري التحقق..." ومعطلاً بعد النجاح، فيتعطل الدخول التالي في نفس الصفحة
+        // (خروج ثم دخول بحساب آخر دون إعادة تحميل)
+        btn.innerHTML = originalText;
+        btn.disabled = false;
 
         var firstName = (currentAuthUser && currentAuthUser.firstName) ? currentAuthUser.firstName : 'بك';
         showToast('مرحباً بعودتك ' + firstName + '! 👋 تم تسجيل الدخول بنجاح', 'success');
@@ -5165,6 +5098,19 @@ async function handleLogin() {
             return;
         }
 
+        // حساب أوقفه المدير: ليس خطأ كلمة سر، فلا يُحسب محاولة ولا يُحظر جهازه
+        if (errorCode === 'auth/user-disabled') {
+            errEl.innerHTML = '<span style="color:#ff5252; font-size:0.92rem; font-weight:bold; display:inline-block; margin-top:4px;"><i class="fas fa-user-lock"></i> تم إيقاف هذا الحساب. يرجى التواصل مع الإدارة.</span>';
+            errEl.style.display = 'block';
+            return;
+        }
+        // حماية Firebase المؤقتة من كثرة الطلبات: انتظار فقط، لا محاولة خاطئة
+        if (errorCode === 'auth/too-many-requests') {
+            errEl.innerHTML = '<span style="color:#ffb74d; font-size:0.92rem; font-weight:bold; display:inline-block; margin-top:4px;"><i class="fas fa-hourglass-half"></i> محاولات كثيرة متتالية على هذا الحساب. انتظر بضع دقائق ثم حاول مجدداً.</span>';
+            errEl.style.display = 'block';
+            return;
+        }
+
         // 2. إذا كان الحساب غير مسجل أصلاً في النظام
         if (errorCode === 'auth/user-not-found') {
             errEl.innerHTML = '<span style="color:#ff5252; font-size:0.92rem; font-weight:bold; display:inline-block; margin-top:4px;"><i class="fas fa-user-times"></i> هذا الرقم غير مسجل لدينا. يمكنك إنشاء حساب جديد أولاً.</span>';
@@ -5206,7 +5152,7 @@ async function handleLogin() {
             showToast('🚨 تم حظر تسجيل الدخول مؤقتاً لمدة ' + lockResult.formattedDuration + '', 'error', 5000);
         } else {
             // إظهار رسالة الخطأ والمحاولات المتبقية
-            errEl.innerHTML = '<span style="color:#ff5252; font-size:0.92rem; font-weight:bold;"><i class="fas fa-times-circle"></i> هناك خطأ في رقم الهاتف أو الرقم السري.</span><br><span style="color:#ffb74d; font-size:0.88rem; font-weight:bold; display:inline-block; margin-top:5px;"><i class="fas fa-exclamation-triangle"></i> متبقي لديك (' + lockResult.remainingAttempts + ') محاولة قبل الحظر المؤقت.</span>';
+            errEl.innerHTML = '<span style="color:#ff5252; font-size:0.92rem; font-weight:bold;"><i class="fas fa-times-circle"></i> هناك خطأ في رقم الهاتف أو الرقم السري.</span><br><span style="color:#ffb74d; font-size:0.88rem; font-weight:bold; display:inline-block; margin-top:5px;"><i class="fas fa-exclamation-triangle"></i> متبقي لديك (' + lockResult.remainingAttempts + ') محاولة قبل الحظر المؤقت.</span><br><span style="color:#94a3b8; font-size:0.85rem; display:inline-block; margin-top:5px;">ليس لديك حساب بهذا الرقم؟ اضغط «إنشاء حساب جديد».</span>';
             errEl.style.display = 'block';
 
             var lockoutBanner = document.getElementById('loginLockoutBanner');
@@ -5489,13 +5435,18 @@ function clearRegFieldErrors() {
  * السري ويُحفظ الملف. الرقم السري يثبت أنه صاحب الحساب. يعيد true إن اكتمل التسجيل.
  */
 async function completeOrphanRegistration(phone, password, userData) {
-    var user = await loginWithFirebaseAuth(phone, password);
-    var profile = await fetchUserProfile(user.uid);
-    if (profile) {
-        await logoutUser().catch(function () { });
-        return false;
+    window.__mzRegistering = Date.now();
+    try {
+        var user = await loginWithFirebaseAuth(phone, password);
+        var profile = await fetchUserProfile(user.uid);
+        if (profile) {
+            await logoutUser().catch(function () { });
+            return false;
+        }
+        await saveUserToFirestore(userData, user.uid);
+    } finally {
+        window.__mzRegistering = 0;
     }
-    await saveUserToFirestore(userData, user.uid);
     currentAuthUser = Object.assign({ uid: user.uid }, userData);
     if (typeof sendRegistrationNotification === 'function') sendRegistrationNotification(userData);
     updateHeaderLoginState();
@@ -6192,3 +6143,89 @@ async function handleStaffRoleChange(newRole) {
 // شبكة أمان: أي alert متبقٍّ في صفحات الموقع يظهر بنافذة الموقع المصمّمة لا بتصميم المتصفح
 // أو ويندوز أو أندرويد. لا انتقال بعد أي alert في الموقع، فعدم توقّف التنفيذ لا يضر.
 window.alert = function (message) { window.showAlert(message); };
+
+
+// =============================================
+// حسابات دخول بلا ملف عميل (تسجيلات انقطعت قبل نقل التسجيل للسيرفر). صاحبها يُطلب منه
+// إكمال بياناته عند دخوله التالي؛ هذه القائمة للمدير ليعرف عددهم ويتواصل معهم.
+// =============================================
+async function mzShowOrphanAccounts() {
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmt = (t) => { const d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }); };
+    try {
+        Swal.fire({ title: 'جاري الفحص...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), background: '#151521', color: '#fff' });
+        const res = await functions.httpsCallable('listOrphanAccounts', { timeout: 120000 })({});
+        const list = (res.data && res.data.orphans) || [];
+        const rows = list.map(o => `<tr><td style="direction:ltr;padding:6px;">${esc(o.phone)}</td><td style="padding:6px;">${esc(fmt(o.created))}</td><td style="padding:6px;">${esc(fmt(o.lastLogin))}</td><td style="padding:6px;"><button type="button" onclick="mzAdminTempPin('${esc(o.uid)}','','${esc(o.phone)}')" title="تعيين رقم سري مؤقت" style="background:none;border:none;color:#38bdf8;cursor:pointer;"><i class="fas fa-key"></i></button></td></tr>`).join('');
+        Swal.fire({
+            title: list.length ? `حسابات ناقصة: ${list.length}` : 'لا توجد حسابات ناقصة ✅',
+            html: list.length
+                ? `<p style="color:#94a3b8;font-size:0.9rem;">حسابات دخول بدون اسم ولا ملف. سيُطلب من صاحب كل حساب إكمال بياناته عند دخوله القادم.</p>
+                   <div style="max-height:50vh;overflow:auto;"><table style="width:100%;font-size:0.85rem;border-collapse:collapse;" dir="rtl">
+                   <tr style="color:#fbbf24;"><th>الرقم</th><th>تاريخ الإنشاء</th><th>آخر دخول</th><th></th></tr>${rows}</table></div>`
+                : '',
+            background: '#151521', color: '#fff', confirmButtonText: 'حسناً', width: 640
+        });
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'تعذر الفحص', text: 'تأكد من نشر الدالة listOrphanAccounts', background: '#151521', color: '#fff' });
+    }
+}
+
+
+// =============================================
+// نسيت الرقم السري: لا إيميل حقيقي ولا SMS مجاني، فيراسل العميل الإدارة بالواتساب من نفس رقم
+// حسابه. المدير يتأكد أن رقم المرسل هو رقم الحساب، ثم يعيّن له رقماً مؤقتاً من لوحة الإدارة.
+// =============================================
+function mzForgotPin() {
+    var phoneEl = document.getElementById('loginPhone');
+    var phone = phoneEl ? toLatinDigits(phoneEl.value).trim().replace(/\s+/g, '') : '';
+    var valid = typeof validateLibyanNumber === 'function' && validateLibyanNumber(phone).valid;
+    var msg = 'السلام عليكم، نسيت الرقم السري لحسابي في سيرفرات الميزو' + (valid ? ' برقم ' + phone : '') +
+        '.\n(أرسل هذه الرسالة من نفس رقم الهاتف المسجل في حسابك حتى نتأكد أنه حسابك)';
+    var url = 'https://wa.me/218945772649?text=' + encodeURIComponent(msg);
+    if (typeof showToast === 'function') {
+        showToast('أرسل الرسالة من نفس رقم حسابك، وستصلك من الإدارة رقماً سرياً مؤقتاً 💬', 'info', 6000);
+    }
+    try { window.open(url, '_blank'); } catch (e) { window.location.href = url; }
+}
+
+
+// =============================================
+// المدير: رقم سري مؤقت لعميل نسي رقمه، بعد التأكد أن طلبه وصل بالواتساب من نفس رقم الحساب
+// =============================================
+async function mzAdminTempPin(uid, name, phone) {
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const who = name ? name + ' (' + phone + ')' : phone;
+    const ok = await Swal.fire({
+        title: 'تعيين رقم سري مؤقت',
+        html: '<div dir="rtl" style="text-align:right;line-height:1.8;font-size:0.95rem;">' +
+            'الحساب: <b>' + esc(who) + '</b><br><br>' +
+            '⚠️ تأكد أولاً أن طلب "نسيت الرقم السري" وصلك بالواتساب <b>من نفس الرقم ' + esc(phone) + '</b>.<br>' +
+            'إن وصلك من رقم مختلف فلا تكمل: قد يكون شخصاً يحاول أخذ حساب غيره.<br><br>' +
+            'سيُخرج الحساب من كل أجهزته، وعند أول دخول بالرقم المؤقت يختار صاحبه رقماً جديداً.</div>',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، الرقم مطابق',
+        cancelButtonText: 'إلغاء',
+        background: '#151521', color: '#fff'
+    });
+    if (!ok.isConfirmed) return;
+    try {
+        Swal.fire({ title: 'جاري التعيين...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), background: '#151521', color: '#fff' });
+        const res = await functions.httpsCallable('adminSetTempPassword')({ uid: uid });
+        const d = res.data || {};
+        let wa = String(d.phone || phone || '').replace(/[^0-9]/g, '');
+        if (wa.startsWith('09')) wa = '218' + wa.substring(1);
+        const text = 'معك إدارة سيرفرات الميزو ALmEz0.\nرقمك السري المؤقت: ' + d.tempPassword +
+            '\nادخل به ثم اختر رقماً سرياً جديداً خاصاً بك.';
+        Swal.fire({
+            icon: 'success',
+            title: 'الرقم السري المؤقت',
+            html: '<div style="font-size:2rem;font-weight:800;letter-spacing:4px;direction:ltr;margin:10px 0;">' + esc(d.tempPassword) + '</div>' +
+                (wa ? '<a href="https://wa.me/' + esc(wa) + '?text=' + encodeURIComponent(text) + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;padding:10px 18px;border-radius:10px;background:#22c55e;color:#fff;text-decoration:none;font-weight:bold;"><i class="fab fa-whatsapp"></i> أرسله للعميل بالواتساب</a>' : '') +
+                (d.hasProfile ? '' : '<p style="color:#fbbf24;font-size:0.85rem;margin-top:12px;">هذا الحساب ناقص البيانات: سيُطلب منه إكمالها بعد الدخول.</p>'),
+            background: '#151521', color: '#fff', confirmButtonText: 'تم'
+        });
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'تعذر التعيين', text: (e && e.message) || 'تأكد من نشر الدالة adminSetTempPassword', background: '#151521', color: '#fff' });
+    }
+}

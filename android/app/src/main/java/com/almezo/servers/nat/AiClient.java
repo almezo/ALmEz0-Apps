@@ -54,6 +54,12 @@ public final class AiClient {
         p.edit().putString("fb_refresh", refreshToken.trim()).remove("fb_id_token").remove("fb_id_exp").apply();
     }
 
+    /** خروج من حساب الموقع: المساعد في المشغل لا يبقى يعمل باسم الحساب السابق. */
+    public static void clearSession(Context ctx) {
+        ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .remove("fb_refresh").remove("fb_id_token").remove("fb_id_exp").apply();
+    }
+
     public boolean hasSession() {
         return !sp.getString("fb_refresh", "").isEmpty();
     }

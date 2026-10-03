@@ -392,6 +392,46 @@ function phoneToSyntheticEmail(phone) {
  * @returns {Promise<string>} الـ uid الخاص بالمستخدم في Firebase Auth
  */
 async function registerWithFirebaseAuth(phone, password, userData) {
+    // أثناء التسجيل يطلق onAuthStateChanged قبل حفظ الملف؛ لا نعرض نافذة "أكمل بياناتك" خطأً
+    window.__mzRegistering = Date.now();
+    try {
+        return await registerWithFirebaseAuthInner(phone, password, userData);
+    } finally {
+        window.__mzRegistering = 0;
+    }
+}
+
+async function registerWithFirebaseAuthInner(phone, password, userData) {
+    // التسجيل من السيرفر (registerCustomer): الحساب والملف معاً أو لا شيء، فلا يبقى حساب بلا اسم
+    // إن انقطع نت العميل في منتصف التسجيل
+    let serverMissing = false;
+    try {
+        await functions.httpsCallable('registerCustomer', { timeout: 30000 })({
+            phone: phone, password: password,
+            firstName: userData.firstName, lastName: userData.lastName,
+            age: String(userData.age), city: userData.city
+        });
+    } catch (e) {
+        const code = String((e && e.code) || '');
+        if (code === 'functions/already-exists' || code === 'already-exists') {
+            const err = new Error('phone-taken'); err.code = 'auth/email-already-in-use'; throw err;
+        }
+        if (code === 'functions/resource-exhausted' || code === 'resource-exhausted') {
+            const err = new Error('too-many'); err.code = 'auth/too-many-requests'; throw err;
+        }
+        // الدالة غير منشورة بعد (يظهر أحياناً internal بسبب رفض المتصفح للرد): الطريقة القديمة مؤقتاً.
+        // الدالة نفسها ترمي أخطاء صريحة دائماً، فلا يصل internal منها في التشغيل العادي
+        if (code === 'functions/not-found' || code === 'not-found' || code === 'functions/internal' || code === 'internal') {
+            serverMissing = true;
+        } else {
+            const err = new Error(code || 'register-failed'); err.code = 'auth/network-request-failed'; throw err;
+        }
+    }
+    if (!serverMissing) {
+        const user = await loginWithFirebaseAuth(phone, password);
+        return user.uid;
+    }
+
     const syntheticEmail = phoneToSyntheticEmail(phone);
 
     // إنشاء حساب Firebase Auth جديد
@@ -601,7 +641,8 @@ async function fetchUserProfile(uid) {
 // =============================================
 // دالة عرض التنبيه الأمني الأحمر عند طرد الجلسة
 // =============================================
-function showSecurityEvictionModal() {
+function showSecurityEvictionModal(kind) {
+    const expired = kind === 'expired';
     // تجنب عرض أكثر من نافذة واحدة
     if (document.getElementById('almezo-eviction-overlay')) return;
 
@@ -615,8 +656,8 @@ function showSecurityEvictionModal() {
         <div style="width:70px;height:70px;background:rgba(255,51,51,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px auto;">
             <i class="fas fa-user-shield" style="font-size:2.5rem;color:#ff3333;"></i>
         </div>
-        <h3 style="margin:0 0 12px 0;color:#ff3333;font-size:1.4rem;font-weight:800;">تنبيه أمني</h3>
-        <p style="margin:0 0 25px 0;color:#b0b0c0;font-size:0.95rem;line-height:1.6;">تم إنهاء جلستك إجبارياً لأن كلمة المرور تم تغييرها من جهاز آخر. يرجى تسجيل الدخول مجدداً.</p>
+        <h3 style="margin:0 0 12px 0;color:#ff3333;font-size:1.4rem;font-weight:800;">${expired ? 'انتهت الجلسة' : 'تنبيه أمني'}</h3>
+        <p style="margin:0 0 25px 0;color:#b0b0c0;font-size:0.95rem;line-height:1.6;">${expired ? 'انتهت جلسة حسابك على هذا الجهاز. يرجى تسجيل الدخول مجدداً.' : 'تم إنهاء جلستك إجبارياً لأن كلمة المرور تم تغييرها من جهاز آخر. يرجى تسجيل الدخول مجدداً.'}</p>
         <button id="btnEvictOk" style="background:linear-gradient(45deg, #ff3333, #d50000);color:#fff;border:none;padding:12px 25px;border-radius:10px;font-size:1.05rem;cursor:pointer;font-weight:bold;width:100%;transition:transform 0.2s;box-shadow:0 4px 15px rgba(255,51,51,0.4);"><i class="fas fa-check-circle" style="margin-left:8px;"></i>حسناً، فهمت</button>
     `;
 
@@ -641,11 +682,169 @@ function showSecurityEvictionModal() {
     };
 }
 
+/**
+ * إكمال ملف حساب ناقص: حساب دخول موجود بلا وثيقة في customers (تسجيل انقطع نته بعد إنشاء الحساب
+ * وقبل حفظ البيانات، قبل نقل التسجيل إلى السيرفر). بدونه يدخل العميل بلا اسم ولا يظهر في قاعدة
+ * العملاء أبداً. يُتحقق من السيرفر مباشرة أن الوثيقة غير موجودة فعلاً، لأن fetchUserProfile يعيد
+ * null أيضاً عند انقطاع النت، ولا نريد أن نسأل عميلاً كاملاً عن بياناته.
+ */
+async function mzPromptCompleteProfile(firebaseUser) {
+    try {
+        if (!firebaseUser || document.getElementById('mzCompleteProfile')) return;
+        // تسجيل أو إكمال جارٍ الآن: الملف في طريقه للحفظ
+        await new Promise(r => setTimeout(r, 2500));
+        if (window.__mzRegistering) return;
+        const phone = String(firebaseUser.email || '').split('@')[0];
+        if (!/^09[1-4][0-9]{7}$/.test(phone)) return;
+        const snap = await db.collection('customers').doc(firebaseUser.uid).get({ source: 'server' });
+        if (snap.exists) return;
+        try {
+            if ((await db.collection('admins').doc(firebaseUser.uid).get()).exists) return;
+        } catch (e) { }
+        if (!auth.currentUser || auth.currentUser.uid !== firebaseUser.uid) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'mzCompleteProfile';
+        overlay.setAttribute('dir', 'rtl');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:999998;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px);';
+        const field = 'width:100%;box-sizing:border-box;padding:12px 14px;margin-top:6px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:1rem;';
+        overlay.innerHTML =
+            '<div style="background:#151521;border:1px solid rgba(34,197,94,0.5);border-radius:18px;padding:24px;width:100%;max-width:400px;color:#fff;max-height:calc(100vh - 32px);overflow-y:auto;">' +
+            '<h3 style="margin:0 0 6px;color:#22c55e;font-size:1.3rem;font-weight:800;">أكمل بيانات حسابك</h3>' +
+            '<p style="margin:0 0 16px;color:#b0b0c0;font-size:0.92rem;line-height:1.6;">لم تكتمل بيانات حسابك عند التسجيل. أكملها مرة واحدة فقط.</p>' +
+            '<label style="font-size:0.9rem;color:#cbd5e1;">الاسم<input id="mzcpFirst" maxlength="50" style="' + field + '"></label>' +
+            '<label style="display:block;margin-top:10px;font-size:0.9rem;color:#cbd5e1;">اللقب<input id="mzcpLast" maxlength="50" style="' + field + '"></label>' +
+            '<label style="display:block;margin-top:10px;font-size:0.9rem;color:#cbd5e1;">العمر<input id="mzcpAge" inputmode="numeric" maxlength="2" style="' + field + '"></label>' +
+            '<label style="display:block;margin-top:10px;font-size:0.9rem;color:#cbd5e1;">المدينة<input id="mzcpCity" maxlength="40" style="' + field + '"></label>' +
+            '<div id="mzcpErr" style="display:none;margin-top:10px;color:#f87171;font-size:0.9rem;"></div>' +
+            '<button id="mzcpSave" style="margin-top:16px;width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(45deg,#22c55e,#16a34a);color:#fff;font-size:1.05rem;font-weight:bold;cursor:pointer;">حفظ البيانات</button>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        const $ = (id) => document.getElementById(id);
+        try { $('mzcpFirst').focus(); } catch (e) { }
+
+        $('mzcpSave').onclick = async function () {
+            const toLatin = (s) => String(s || '').replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0));
+            const data = {
+                firstName: $('mzcpFirst').value.trim(),
+                lastName: $('mzcpLast').value.trim(),
+                age: toLatin($('mzcpAge').value).trim(),
+                city: $('mzcpCity').value.trim(),
+                phone: phone
+            };
+            const ageNum = parseInt(data.age, 10);
+            let err = '';
+            if (data.firstName.length < 2 || data.lastName.length < 2) err = '❌ اكتب الاسم واللقب (حرفين على الأقل)';
+            else if (!/^[0-9]{2}$/.test(data.age) || ageNum < 12 || ageNum > 80) err = '❌ اكتب عمرك بالأرقام (من 12 إلى 80)';
+            else if (data.city.length < 2) err = '❌ اكتب اسم مدينتك';
+            if (err) { $('mzcpErr').textContent = err; $('mzcpErr').style.display = 'block'; return; }
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'جاري الحفظ...';
+            try {
+                await saveUserToFirestore(data, firebaseUser.uid);
+            } catch (e) {
+                $('mzcpErr').textContent = '❌ تعذر الحفظ، تحقق من الإنترنت وحاول مجدداً';
+                $('mzcpErr').style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'حفظ البيانات';
+                return;
+            }
+            // الحفظ نجح: ما بعده تحديث واجهة، وأي خطأ فيه لا يجب أن يُظهر "تعذر الحفظ"
+            overlay.remove();
+            try {
+                currentAuthUser = Object.assign({ uid: firebaseUser.uid }, data);
+                try { localStorage.setItem('almezo_cached_user', JSON.stringify(currentAuthUser)); } catch (e) { }
+                if (typeof sendRegistrationNotification === 'function') sendRegistrationNotification(data);
+                if (typeof updateHeaderLoginState === 'function') updateHeaderLoginState();
+                if (typeof showToast === 'function') showToast('شكراً ' + data.firstName + '! اكتملت بيانات حسابك ✅', 'success');
+            } catch (e) {
+                console.warn('complete profile ui:', e && e.message);
+            }
+        };
+    } catch (e) {
+        console.warn('mzPromptCompleteProfile:', e && e.message);
+    }
+}
+
+/*
+ * الرقم السري المؤقت (نسيت الرقم السري): المدير عيّنه بعد التحقق من صاحب الرقم عبر الواتساب.
+ * عند أول دخول به يُجبر العميل على اختيار رقم خاص به، فلا يبقى المؤقت معروفاً لغيره.
+ * الرقم الذي كتبه للتو في نموذج الدخول يُحفظ في الذاكرة دقيقة واحدة فقط حتى لا يُسأل عنه مرة ثانية.
+ */
+let _mzLoginPw = '';
+let _mzLoginPwTimer = null;
+function mzNoteLoginPassword(pw) {
+    _mzLoginPw = String(pw || '');
+    if (_mzLoginPwTimer) clearTimeout(_mzLoginPwTimer);
+    _mzLoginPwTimer = setTimeout(function () { _mzLoginPw = ''; }, 60000);
+}
+window.mzNoteLoginPassword = mzNoteLoginPassword;
+
+function mzForceChangePassword(firebaseUser) {
+    try {
+        if (!firebaseUser || document.getElementById('mzForcePw')) return;
+        const knownCurrent = _mzLoginPw;
+        const overlay = document.createElement('div');
+        overlay.id = 'mzForcePw';
+        overlay.setAttribute('dir', 'rtl');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:999998;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px);';
+        const field = 'width:100%;box-sizing:border-box;padding:12px 14px;margin-top:6px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:#0f172a;color:#fff;font-size:1rem;';
+        overlay.innerHTML =
+            '<div style="background:#151521;border:1px solid rgba(56,189,248,0.5);border-radius:18px;padding:24px;width:100%;max-width:400px;color:#fff;max-height:calc(100vh - 32px);overflow-y:auto;">' +
+            '<h3 style="margin:0 0 6px;color:#38bdf8;font-size:1.3rem;font-weight:800;">اختر رقماً سرياً جديداً</h3>' +
+            '<p style="margin:0 0 16px;color:#b0b0c0;font-size:0.92rem;line-height:1.6;">دخلت برقم سري مؤقت من الإدارة. اختر الآن رقماً سرياً خاصاً بك لا يعرفه غيرك.</p>' +
+            (knownCurrent ? '' : '<label style="display:block;font-size:0.9rem;color:#cbd5e1;">الرقم السري المؤقت<input id="mzfpCur" type="password" maxlength="30" style="' + field + '"></label>') +
+            '<label style="display:block;margin-top:10px;font-size:0.9rem;color:#cbd5e1;">الرقم السري الجديد<input id="mzfpNew" type="password" maxlength="30" style="' + field + '"></label>' +
+            '<label style="display:block;margin-top:10px;font-size:0.9rem;color:#cbd5e1;">تأكيد الرقم السري الجديد<input id="mzfpNew2" type="password" maxlength="30" style="' + field + '"></label>' +
+            '<div id="mzfpErr" style="display:none;margin-top:10px;color:#f87171;font-size:0.9rem;"></div>' +
+            '<button id="mzfpSave" style="margin-top:16px;width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(45deg,#0ea5e9,#2563eb);color:#fff;font-size:1.05rem;font-weight:bold;cursor:pointer;">حفظ الرقم السري</button>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        const $ = (id) => document.getElementById(id);
+        try { (knownCurrent ? $('mzfpNew') : $('mzfpCur')).focus(); } catch (e) { }
+        const showErr = (t) => { $('mzfpErr').textContent = t; $('mzfpErr').style.display = 'block'; };
+
+        $('mzfpSave').onclick = async function () {
+            const cur = knownCurrent || ($('mzfpCur') ? $('mzfpCur').value.trim() : '');
+            const n1 = $('mzfpNew').value.trim();
+            const n2 = $('mzfpNew2').value.trim();
+            if (!cur) return showErr('❌ اكتب الرقم السري المؤقت الذي أرسلته لك الإدارة');
+            if (n1.length < 6 || n1.length > 30) return showErr('❌ الرقم السري يجب أن يتكون من 6 خانات على الأقل');
+            if (n1 !== n2) return showErr('❌ الرقمان غير متطابقين');
+            if (n1 === cur) return showErr('❌ اختر رقماً مختلفاً عن الرقم المؤقت');
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'جاري الحفظ...';
+            try {
+                await changeUserPassword(cur, n1);
+            } catch (e) {
+                const code = (e && e.code) || '';
+                showErr(code === 'auth/wrong-password' || code === 'auth/invalid-credential'
+                    ? '❌ الرقم السري المؤقت غير صحيح'
+                    : '❌ تعذر الحفظ، تحقق من الإنترنت وحاول مجدداً');
+                btn.disabled = false;
+                btn.textContent = 'حفظ الرقم السري';
+                return;
+            }
+            _mzLoginPw = '';
+            overlay.remove();
+            try { await functions.httpsCallable('clearMustChangePassword')({}); } catch (e) { }
+            if (typeof showToast === 'function') showToast('تم حفظ رقمك السري الجديد ✅', 'success');
+        };
+    } catch (e) {
+        console.warn('mzForceChangePassword:', e && e.message);
+    }
+}
+
 let authSessionUnsubscribe = null;
 let sessionCheckInterval = null; // فحص دوري لصلاحية الجلسة
 
 auth.onAuthStateChanged(async function (firebaseUser) {
     if (firebaseUser) {
+        // دخول جديد بعد خروج أو انتهاء جلسة في نفس الصفحة: العلامة كانت تبقى مفعّلة فتتجاهل
+        // getCurrentUser الكاش وتُخفي انتهاء الجلسة التالي
+        window.__almezo_explicit_logout = false;
         // مساعد الميزو في مشغل أندرويد الأصلي يتصل بدالة الذكاء الاصطناعي بجلسة هذا الحساب نفسه
         try {
             if (firebaseUser.refreshToken && window.AndroidNativeBridge &&
@@ -670,8 +869,11 @@ auth.onAuthStateChanged(async function (firebaseUser) {
         const profile = await fetchUserProfile(firebaseUser.uid);
         if (profile) {
             currentAuthUser = profile;
+            if (profile.mustChangePassword) mzForceChangePassword(firebaseUser);
         } else {
             currentAuthUser = { uid: firebaseUser.uid };
+            // حساب دخول بلا ملف (تسجيل انقطع قبل الإصلاح): نطلب من صاحبه إكمال بياناته مرة واحدة
+            mzPromptCompleteProfile(firebaseUser);
         }
 
         // الطرد اللحظي: الاستماع لـ authVersion للطرد فور تغيير كلمة المرور من جهاز آخر
@@ -772,24 +974,34 @@ auth.onAuthStateChanged(async function (firebaseUser) {
         // وسيطلق onAuthStateChanged(null) تلقائياً.
         // =============================================
         if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+        // كل 5 دقائق ومع ظهور الصفحة فقط: الطرد الفوري عند تغيير كلمة المرور يتم عبر مستمع authVersion
+        // أعلاه، وهذا للحسابات الموقوفة أو المحذوفة. كان كل 30 ثانية حتى والصفحة في الخلفية (قرابة 3000
+        // طلب يومياً لكل عميل)، وكان أول انقطاع نت يوقف الفحص نهائياً
         sessionCheckInterval = setInterval(async () => {
+            if (typeof document !== 'undefined' && document.hidden) return;
             const user = auth.currentUser;
-            if (user) {
-                try {
-                    await user.getIdToken(true); // إجبار فايربيز على التحقق من السيرفر
-                } catch (e) {
-                    // فشل تجديد التوكن → الجلسة أُبطلت!
-                    console.warn('Session check failed - token revoked:', e.code);
-                    clearInterval(sessionCheckInterval);
-                    sessionCheckInterval = null;
-                    // onAuthStateChanged(null) سيُطلق تلقائياً من فايربيز
-                }
+            if (!user) return;
+            try {
+                await user.getIdToken(true); // إجبار فايربيز على التحقق من السيرفر
+            } catch (e) {
+                const code = (e && e.code) || '';
+                // انقطاع النت ليس إبطالاً للجلسة: نستمر في الفحص لاحقاً
+                if (code === 'auth/network-request-failed') return;
+                console.warn('Session check failed - token revoked:', code);
+                clearInterval(sessionCheckInterval);
+                sessionCheckInterval = null;
+                // onAuthStateChanged(null) سيُطلق تلقائياً من فايربيز
             }
-        }, 30000); // كل 30 ثانية
+        }, 5 * 60 * 1000);
 
     } else {
         // المستخدم غير مسجّل أو سجّل خروجاً
         currentAuthUser = null;
+        try {
+            if (window.AndroidNativeBridge && typeof window.AndroidNativeBridge.clearFirebaseSession === 'function') {
+                window.AndroidNativeBridge.clearFirebaseSession();
+            }
+        } catch (e) { }
         if (authSessionUnsubscribe) {
             authSessionUnsubscribe();
             authSessionUnsubscribe = null;
@@ -823,10 +1035,13 @@ auth.onAuthStateChanged(async function (firebaseUser) {
                     try { sessionStorage.setItem('almezo_last_eviction_logged', String(nowTime)); } catch (e) { }
                     if (evictedUser && typeof logActivity === 'function') {
                         logActivity({
-                            action: 'session_forced_eviction',
-                            category: 'security',
-                            severity: 'danger',
-                            title: '🚨 طرد أمني: تم إبطال جلسة الحساب من السيرفر (انتهت الجلسة)',
+                            // ليس طرداً بالضرورة: يحدث أيضاً عند مسح بيانات المتصفح أو انتهاء الجلسة
+                            // على الجهاز، وصاحب الحساب يدخل بعدها بثوانٍ. الطرد الحقيقي (تغيير كلمة
+                            // المرور من جهاز آخر) له سجله الأحمر الخاص (Auth version mismatch)
+                            action: 'session_expired',
+                            category: 'auth',
+                            severity: 'warning',
+                            title: 'انتهاء جلسة الحساب على هذا الجهاز (يحتاج تسجيل دخول جديد)',
                             details: {
                                 phone: evictedUser.phone || '',
                                 uid: evictedUser.uid || '',
@@ -863,8 +1078,8 @@ auth.onAuthStateChanged(async function (firebaseUser) {
                     }
                 } catch (e) { }
 
-                // عرض التنبيه الأمني الأحمر
-                showSecurityEvictionModal();
+                // رسالة هادئة: لا نخبر العميل أن كلمة مروره تغيّرت وهي لم تتغير
+                showSecurityEvictionModal('expired');
             }
         }
     }

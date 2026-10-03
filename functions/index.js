@@ -858,7 +858,7 @@ exports.logEvent = onCall(async (request) => {
 
     const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
     let targetUid = uid;
-    if (!targetUid && d.action === "session_forced_eviction" && d.details && typeof d.details.uid === "string") {
+    if (!targetUid && (d.action === "session_forced_eviction" || d.action === "session_expired") && d.details && typeof d.details.uid === "string") {
         targetUid = d.details.uid.slice(0, 128);
     }
     const user = await logResolveUser(targetUid);
@@ -962,6 +962,12 @@ exports.cleanupActivityLogs = onSchedule({ schedule: "30 2 * * *", timeZone: "Af
 // دقيقة ← 5 ← 10 ← 30 ← 60 دقيقة ← 24 ساعة.
 const GUARD_TIERS_SECONDS = [60, 300, 600, 1800, 3600, 86400];
 const GUARD_MAX_ATTEMPTS = 3;
+// IP مشترك بين عملاء شركة الاتصالات نفسها (CGNAT): حد أعلى بكثير وقفل قصير بلا سلّم
+const GUARD_IP_MAX_ATTEMPTS = 20;
+const GUARD_IP_LOCK_SECONDS = 600;
+// محاولات أقدم من نصف ساعة لا تُحسب، وسلّم المدد يعود للبداية بعد يوم بلا قفل
+const GUARD_ATTEMPT_WINDOW_MS = 30 * 60 * 1000;
+const GUARD_TIER_RESET_MS = 24 * 3600 * 1000;
 
 function guardFormatDuration(seconds) {
     if (seconds < 60) return seconds + " ثانية";
@@ -1083,33 +1089,63 @@ exports.loginGuard = onCall(async (request) => {
         return { locked: false, remainingSeconds: 0, attempts: attempts, remainingAttempts: Math.max(0, GUARD_MAX_ATTEMPTS - attempts) };
     }
 
-    // محاولة فاشلة: زيادة العدّاد على كل المفاتيح، والحظر عند بلوغ الحد
-    const attempts = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.attempts)) || 0)) + 1;
-    const tierIndex = Math.max(0, ...rows.map((r) => (r.data && Number(r.data.tierIndex)) || 0));
+    // محاولة فاشلة. لكل مفتاح عدّاده: الجهاز يُقفل بعد 3 محاولات بسلّم مدد متصاعد، أما عنوان
+    // IP فمشترك في ليبيا بين آلاف عملاء نفس شركة الاتصالات (CGNAT)، فكان قفله بعد 3 محاولات
+    // مجمّعة يحظر عملاء لم يخطئوا أبداً حتى 24 ساعة. الآن IP يُقفل فقط عند 20 محاولة خلال نصف
+    // ساعة (هجوم فعلي) ولمدة 10 دقائق. والمحاولات القديمة تسقط بعد نصف ساعة، والسلّم يعود
+    // للبداية بعد يوم بلا مخالفات.
+    const tsMs = (v) => (v && typeof v.toMillis === "function") ? v.toMillis() : (Number(v) || 0);
+    const freshAttempts = (r) => (r && r.data && now - tsMs(r.data.updatedAt) < GUARD_ATTEMPT_WINDOW_MS)
+        ? (Number(r.data.attempts) || 0) : 0;
+    const hwRow = rows.find((r) => r.key.indexOf("hw_") === 0) || null;
+    const ipRow = rows.find((r) => r.key.indexOf("ip_") === 0) || null;
+    const hwAttempts = hwRow ? freshAttempts(hwRow) + 1 : 0;
+    const ipAttempts = ipRow ? freshAttempts(ipRow) + 1 : 0;
+    const hwData = (hwRow && hwRow.data) || {};
+    const tierIndex = (now - (Number(hwData.lockedUntil) || 0) < GUARD_TIER_RESET_MS) ? (Number(hwData.tierIndex) || 0) : 0;
+    const lockHw = !!hwRow && hwAttempts >= GUARD_MAX_ATTEMPTS;
+    const lockIp = !!ipRow && ipAttempts >= GUARD_IP_MAX_ATTEMPTS;
+    // ما يراه العميل: محاولات جهازه، أو محاولات IP إن لم يرسل بصمة جهاز
+    const attempts = hwRow ? hwAttempts : Math.min(GUARD_MAX_ATTEMPTS - 1, Math.floor(ipAttempts * GUARD_MAX_ATTEMPTS / GUARD_IP_MAX_ATTEMPTS));
     const device = logSanitizeDevice(d.device, ip);
     // الرقم يكتبه العميل: أرقام فقط، وإلا وصل نص حر إلى عنوان تنبيه هاتف المدير
     const cleanPhone = String(d.phone || "").replace(/[^\d+]/g, "").slice(0, 20);
     const batch = db.batch();
 
-    if (attempts >= GUARD_MAX_ATTEMPTS) {
-        const durationSeconds = GUARD_TIERS_SECONDS[Math.min(tierIndex, GUARD_TIERS_SECONDS.length - 1)];
-        const lockedUntil = now + durationSeconds * 1000;
-        rows.forEach((r) => {
-            batch.set(r.ref, Object.assign({
-                key: r.key,
-                hw: String(d.hw || "").slice(0, 40),
-                attempts: 0,
-                tierIndex: Math.min(tierIndex + 1, GUARD_TIERS_SECONDS.length - 1),
-                tier: tierIndex + 1,
-                durationSeconds: durationSeconds,
-                formattedDuration: guardFormatDuration(durationSeconds),
-                lockedUntil: lockedUntil,
-                status: "active",
-                createdAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp()
-            }, guardPersonalFields(r.key, cleanPhone, ip, device)), { merge: true });
-        });
+    const writeCounting = (r, n, tier) => batch.set(r.ref, Object.assign({
+        key: r.key,
+        hw: String(d.hw || "").slice(0, 40),
+        attempts: n,
+        tierIndex: tier,
+        status: "counting",
+        updatedAt: FieldValue.serverTimestamp()
+    }, guardPersonalFields(r.key, cleanPhone, ip, device)), { merge: true });
+    const writeLock = (r, seconds, nextTier, tierNo) => batch.set(r.ref, Object.assign({
+        key: r.key,
+        hw: String(d.hw || "").slice(0, 40),
+        attempts: 0,
+        tierIndex: nextTier,
+        tier: tierNo,
+        durationSeconds: seconds,
+        formattedDuration: guardFormatDuration(seconds),
+        lockedUntil: now + seconds * 1000,
+        status: "active",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+    }, guardPersonalFields(r.key, cleanPhone, ip, device)), { merge: true });
+
+    if (lockHw || lockIp) {
+        const hwSeconds = GUARD_TIERS_SECONDS[Math.min(tierIndex, GUARD_TIERS_SECONDS.length - 1)];
+        if (hwRow) {
+            if (lockHw) writeLock(hwRow, hwSeconds, Math.min(tierIndex + 1, GUARD_TIERS_SECONDS.length - 1), tierIndex + 1);
+            else writeCounting(hwRow, hwAttempts, tierIndex);
+        }
+        if (ipRow) {
+            if (lockIp) writeLock(ipRow, GUARD_IP_LOCK_SECONDS, 0, 1);
+            else writeCounting(ipRow, ipAttempts, 0);
+        }
         await batch.commit();
+        const durationSeconds = lockHw ? hwSeconds : GUARD_IP_LOCK_SECONDS;
 
         // إشعار أمني فوري للمدير من السيرفر فور تفعيل الحظر لضمان وصوله حتى والتطبيق مغلق
         try {
@@ -1144,24 +1180,16 @@ exports.loginGuard = onCall(async (request) => {
             remainingSeconds: durationSeconds,
             durationSeconds: durationSeconds,
             formattedDuration: guardFormatDuration(durationSeconds),
-            tierIndex: tierIndex,
+            tierIndex: lockHw ? tierIndex : 0,
             attempts: GUARD_MAX_ATTEMPTS,
             remainingAttempts: 0
         };
     }
 
-    rows.forEach((r) => {
-        batch.set(r.ref, Object.assign({
-            key: r.key,
-            hw: String(d.hw || "").slice(0, 40),
-            attempts: attempts,
-            tierIndex: tierIndex,
-            status: "counting",
-            updatedAt: FieldValue.serverTimestamp()
-        }, guardPersonalFields(r.key, cleanPhone, ip, device)), { merge: true });
-    });
+    if (hwRow) writeCounting(hwRow, hwAttempts, tierIndex);
+    if (ipRow) writeCounting(ipRow, ipAttempts, 0);
     await batch.commit();
-    return { locked: false, attempts: attempts, remainingAttempts: GUARD_MAX_ATTEMPTS - attempts, tierIndex: tierIndex };
+    return { locked: false, attempts: attempts, remainingAttempts: Math.max(1, GUARD_MAX_ATTEMPTS - attempts), tierIndex: tierIndex };
 });
 
 /**
@@ -1505,4 +1533,185 @@ exports.deleteCustomer = onCall(async (request) => {
     });
 
     return { ok: true, name: name, authDeleted: authDeleted };
+});
+
+// =============================================
+// تسجيل عميل جديد من السيرفر: الحساب والملف معاً أو لا شيء.
+// كان المتصفح ينشئ حساب الدخول ثم يحفظ الملف في خطوة ثانية، فإن انقطع نت العميل بينهما بقي
+// حساب يدخل به بلا اسم ولا يظهر في قاعدة العملاء. هنا السيرفر يكمل وحده، وإن فشل حفظ الملف
+// يحذف الحساب فوراً فيعيد العميل المحاولة.
+// =============================================
+const REG_PHONE_RE = /^09[1-4][0-9]{7}$/;
+// IP في ليبيا مشترك بين آلاف عملاء شركة الاتصالات (CGNAT): الحد يمنع الإغراق الآلي فقط ولا يمس العملاء
+const REG_DAILY_PER_IP = 80;
+
+exports.registerCustomer = onCall(async (request) => {
+    const { getAuth } = require("firebase-admin/auth");
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const d = request.data || {};
+    const str = (v, max) => String(v == null ? "" : v).trim().slice(0, max + 1);
+
+    const phone = str(d.phone, 10);
+    const password = String(d.password || "");
+    const firstName = str(d.firstName, 50);
+    const lastName = str(d.lastName, 50);
+    const age = str(d.age, 2);
+    const city = str(d.city, 40);
+
+    // نفس شروط validation.js وقواعد customers في firestore.rules
+    if (!REG_PHONE_RE.test(phone)) throw new HttpsError("invalid-argument", "bad-phone");
+    if (password.trim().length < 6 || password.length > 30) throw new HttpsError("invalid-argument", "bad-password");
+    if (firstName.length < 2 || firstName.length > 50 || lastName.length < 2 || lastName.length > 50) {
+        throw new HttpsError("invalid-argument", "bad-name");
+    }
+    const ageNum = parseInt(age, 10);
+    if (!/^[0-9]{2}$/.test(age) || ageNum < 12 || ageNum > 80) throw new HttpsError("invalid-argument", "bad-age");
+    if (city.length < 2 || city.length > 40) throw new HttpsError("invalid-argument", "bad-city");
+
+    // حد يومي لكل IP: يمنع إغراق قاعدة العملاء بحسابات وهمية من مكان واحد
+    const raw = request.rawRequest;
+    const ip = String((raw && (raw.ip || (raw.headers && raw.headers["x-forwarded-for"]))) || "unknown")
+        .split(",")[0].trim().replace(/[^0-9a-fA-F:.]/g, "").slice(0, 45) || "unknown";
+    const day = new Date(Date.now() + 2 * 3600 * 1000).toISOString().slice(0, 10);
+    const usageRef = fs().collection("reg_usage").doc(ip.replace(/[:.]/g, "_") + "_" + day);
+    const used = await fs().runTransaction(async (tx) => {
+        const snap = await tx.get(usageRef);
+        const c = (snap.exists ? snap.data().count : 0) || 0;
+        if (c < REG_DAILY_PER_IP) tx.set(usageRef, { day: day, count: FieldValue.increment(1) }, { merge: true });
+        return c;
+    });
+    if (used >= REG_DAILY_PER_IP) throw new HttpsError("resource-exhausted", "too-many");
+
+    let uid;
+    try {
+        const u = await getAuth().createUser({ email: phone + "@almezo-servers.com", password: password });
+        uid = u.uid;
+    } catch (e) {
+        // رقم مسجل: المتصفح يكمل الحساب الناقص بنفس الرقم السري إن كان بلا ملف (completeOrphanRegistration)
+        if (e && e.code === "auth/email-already-exists") throw new HttpsError("already-exists", "phone-taken");
+        logger.error("registerCustomer createUser failed", e);
+        throw new HttpsError("unavailable", "create-failed");
+    }
+
+    try {
+        await fs().collection("customers").doc(uid).set({
+            firstName: firstName,
+            lastName: lastName,
+            age: age,
+            city: city,
+            phone: phone,
+            registeredAt: FieldValue.serverTimestamp(),
+            source: "website"
+        });
+    } catch (e) {
+        logger.error("registerCustomer profile save failed, rolling back", e);
+        try { await getAuth().deleteUser(uid); } catch (e2) { logger.error("rollback deleteUser failed", e2); }
+        throw new HttpsError("unavailable", "save-failed");
+    }
+
+    return { ok: true, uid: uid };
+});
+
+// =============================================
+// قائمة الحسابات الناقصة للمدير: حسابات دخول بلا ملف في customers ولا admins
+// (من التسجيلات التي انقطعت قبل هذا الإصلاح). قراءة فقط.
+// =============================================
+exports.listOrphanAccounts = onCall(async (request) => {
+    if (!request.auth || request.auth.uid !== AI_ADMIN_UID) throw new HttpsError("permission-denied", "admin-only");
+    const { getAuth } = require("firebase-admin/auth");
+    const { getFirestore: fs } = require("firebase-admin/firestore");
+    const db = fs();
+    const orphans = [];
+    let token;
+    do {
+        const page = await getAuth().listUsers(1000, token);
+        const ids = page.users.map((u) => u.uid);
+        for (let i = 0; i < ids.length; i += 100) {
+            const chunk = ids.slice(i, i + 100);
+            const refs = chunk.map((id) => db.collection("customers").doc(id));
+            const snaps = await db.getAll(...refs);
+            const missing = chunk.filter((id, k) => !snaps[k].exists);
+            if (!missing.length) continue;
+            const adminSnaps = await db.getAll(...missing.map((id) => db.collection("admins").doc(id)));
+            missing.forEach((id, k) => {
+                if (adminSnaps[k].exists) return;
+                const u = page.users.find((x) => x.uid === id);
+                orphans.push({
+                    uid: id,
+                    phone: String((u && u.email) || "").split("@")[0],
+                    created: (u && u.metadata && u.metadata.creationTime) || "",
+                    lastLogin: (u && u.metadata && u.metadata.lastSignInTime) || "",
+                    disabled: !!(u && u.disabled)
+                });
+            });
+        }
+        token = page.pageToken;
+    } while (token);
+    return { count: orphans.length, orphans: orphans };
+});
+
+// =============================================
+// نسيت الرقم السري: الحسابات بلا إيميل حقيقي ولا SMS، فالتحقق يتم يدوياً عند المدير (رسالة
+// واتساب من نفس رقم الحساب). هنا يعيّن المدير رقماً سرياً مؤقتاً، وتُخرج كل أجهزة الحساب، ويُجبر
+// صاحبه على اختيار رقم جديد عند أول دخول.
+// =============================================
+exports.adminSetTempPassword = onCall(async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");
+    const { getAuth } = require("firebase-admin/auth");
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const db = fs();
+    const adminUid = request.auth.uid;
+    const isAdmin = adminUid === AI_ADMIN_UID || (await db.collection("admins").doc(adminUid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "هذه العملية للمدير فقط.");
+
+    const uid = String((request.data && request.data.uid) || "").slice(0, 128);
+    if (!uid) throw new HttpsError("invalid-argument", "missing-uid");
+    if (uid === AI_ADMIN_UID || (await db.collection("admins").doc(uid).get()).exists) {
+        throw new HttpsError("permission-denied", "لا يمكن تعيين رقم سري لحساب مدير من هنا.");
+    }
+    const user = await getAuth().getUser(uid).catch(() => null);
+    if (!user) throw new HttpsError("not-found", "الحساب غير موجود.");
+
+    // 6 أرقام عشوائية آمنة: سهلة الإملاء في الواتساب، ويُستبدل فور أول دخول
+    const crypto = require("crypto");
+    const temp = String(crypto.randomInt(100000, 1000000));
+    await getAuth().updateUser(uid, { password: temp });
+    await getAuth().revokeRefreshTokens(uid);
+    const custRef = db.collection("customers").doc(uid);
+    const cust = await custRef.get();
+    if (cust.exists) {
+        await custRef.set({ mustChangePassword: true, authVersion: String(Date.now()) }, { merge: true });
+    }
+
+    const phone = String(user.email || "").split("@")[0];
+    const c = cust.exists ? cust.data() : {};
+    const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || ("عميل (" + phone + ")");
+    await db.collection("activity_logs").add({
+        action: "admin_temp_password",
+        category: "security",
+        severity: "warning",
+        title: "تعيين رقم سري مؤقت من المدير لحساب " + name,
+        details: { phone: phone, uid: uid, name: name },
+        user: { uid: adminUid, name: "المدير", phone: "", role: "admin" },
+        device: {},
+        publicIp: "",
+        page: "admin",
+        url: "",
+        createdAt: Date.now(),
+        timestamp: FieldValue.serverTimestamp(),
+        clientTime: ""
+    });
+    return { ok: true, tempPassword: temp, phone: phone, name: name, hasProfile: cust.exists };
+});
+
+/** صاحب الحساب اختار رقمه السري الجديد بعد الرقم المؤقت: تُزال علامة الإجبار من ملفه. */
+exports.clearMustChangePassword = onCall(async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "غير مصرح.");
+    const { getFirestore: fs, FieldValue } = require("firebase-admin/firestore");
+    const ref = fs().collection("customers").doc(request.auth.uid);
+    const snap = await ref.get();
+    if (snap.exists && snap.data().mustChangePassword) {
+        await ref.set({ mustChangePassword: FieldValue.delete() }, { merge: true });
+    }
+    return { ok: true };
 });
