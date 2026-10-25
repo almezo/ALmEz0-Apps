@@ -1859,6 +1859,83 @@ function mizoReleaseVideos() {
     });
 }
 
+/**
+ * نظام الحماية الذكي عند تبديل شبكة الإنترنت (Graceful Network Switch):
+ * عندما يقوم المستخدم بتبديل الواي فاي إلى بيانات الجوال أو شبكة أخرى، يتغير عنوان الـ IP فوراً.
+ * لو استمر المشغل في إرسال طلبات بالـ IP الجديد بينما السيرفر لا يزال يحسب الـ IP القديم لم يغلق بعد،
+ * أو أرسل رشقة طلبات سريعة، يعتبرها سيرفر IPTV اتصالين متزامنين (Double Login) أو DoS فيحظر الـ IP.
+ * هذا النظام يرصد التبديل فوراً، ويوقف كل الاتصالات الحالية بنظافة، وينتظر 2.5 ثانية (Safe Cooldown)
+ * لتحرير الجلسة في السيرفر ثم يستأنف البث بالـ IP الجديد بأمان تام وبدون أي حظر.
+ */
+(function setupNetworkSwitchSafety() {
+    let networkSwitchTimer = null;
+    let isHandlingNetworkSwitch = false;
+
+    function onNetworkChange(isOnlineEvent) {
+        // إذا كان هناك فيديو يعمل حالياً (مباشر أو فيلم أو مسلسل)
+        const hasActivePlayer = !!(window.vjsPlayer || window.hlsInstance || (art && !art.destroyed));
+        const streamInfo = currentStreamInfo;
+
+        if (!hasActivePlayer || !streamInfo) return;
+
+        console.warn(`[NetworkSafety] تم رصد تغير في حالة الاتصال (${isOnlineEvent ? 'online' : 'offline'}). بدء بروتوكول الحماية من حظر الـ IP...`);
+
+        if (networkSwitchTimer) clearTimeout(networkSwitchTimer);
+
+        if (!navigator.onLine) {
+            // انقطع الاتصال تماماً: تجميد هادئ فوري بدون إرسال طلبات متكررة للسيرفر
+            if (window.hlsInstance) {
+                try { window.hlsInstance.stopLoad(); } catch (e) { }
+            }
+            if (window.vjsPlayer) {
+                try { window.vjsPlayer.pause(); } catch (e) { }
+            }
+            if (typeof showToast === 'function') {
+                showToast('انقطع الاتصال بالإنترنت.. تم إيقاف الطلبات لحماية حسابك من الحظر', 'warning');
+            }
+            return;
+        }
+
+        // عاد الاتصال أو تم التبديل إلى شبكة أخرى (IP جديد)
+        if (typeof showToast === 'function') {
+            showToast('تم رصد تبديل شبكة النت.. جاري ضبط الاتصال وتفادي تعارض الحساب بأمان', 'info');
+        }
+
+        // 1. قطع الاتصال القديم فوراً لإرسال إشارة FIN وإغلاق الـ Session في السيرفر
+        if (window.hlsInstance) {
+            try {
+                window.hlsInstance.stopLoad();
+                window.hlsInstance.detachMedia();
+                window.hlsInstance.destroy();
+            } catch (e) { }
+            window.hlsInstance = null;
+        }
+
+        // 2. تطبيق فترة تبريد آمنة (2.5 ثوانٍ) لإعطاء جدار حماية السيرفر وقتاً لتحرير الاتصال القديم
+        networkSwitchTimer = setTimeout(() => {
+            if (!navigator.onLine) return;
+            console.log('[NetworkSafety] انتهاء فترة الأمان، استئناف البث بالاتصال الجديد...');
+            try {
+                if (window.vjsPlayer && streamInfo) {
+                    const savedTime = window.vjsPlayer.currentTime ? window.vjsPlayer.currentTime() : 0;
+                    playStream(streamInfo.type, streamInfo.id, streamInfo.name, streamInfo.category, streamInfo.container);
+                    // إعادة التقديم للوقت الذي كان واصل له إذا كان فيلم/مسلسل
+                    if (savedTime > 2 && streamInfo.type !== 'live') {
+                        setTimeout(() => {
+                            try { if (window.vjsPlayer) window.vjsPlayer.currentTime(savedTime); } catch (e) { }
+                        }, 800);
+                    }
+                }
+            } catch (err) {
+                console.error('[NetworkSafety] خطأ أثناء استئناف البث الآمن:', err);
+            }
+        }, 2500);
+    }
+
+    window.addEventListener('offline', () => onNetworkChange(false));
+    window.addEventListener('online', () => onNetworkChange(true));
+})();
+
 /** رابط ملف فيلم أو حلقة على السيرفر، بنفس هوست playStream (يستعمله التنزيل في downloads-ui.js). */
 
 // عدد عناصر خانة "المضاف حديثاً" في الأفلام والمسلسلات (كان 20)
@@ -6847,7 +6924,7 @@ window.MizoConnHealth = (function () {
         return 0;
     }
 
-    /* السرعة بالميجابت: من hls.js أو VHS إن وُجدا، وإلا تقدير لملفات MP4 من نمو المخزن × معدل البت */
+    /* السرعة بالميجابت: من hls.js أو VHS إن وُجدا، وإلا تقدير دقيق من نمو المخزن */
     function measureMbps(player, v) {
         const now = performance.now();
         try {
@@ -6859,21 +6936,20 @@ window.MizoConnHealth = (function () {
             const vhs = tech && tech.vhs;
             if (vhs && vhs.throughput > 0) return vhs.throughput / 1e6;
         } catch (e) { }
-        // Chromium: البايتات المفكوكة مقسومة على الزمن المشغَّل = معدل البت الفعلي للملف
+
         const dec = (v.webkitVideoDecodedByteCount || 0) + (v.webkitAudioDecodedByteCount || 0);
         const end = bufferedAhead(v) + v.currentTime;
         const s = st.prog;
-        if (s.t0 === null || v.seeking || v.currentTime < s.pos0) {
+        if (!s || s.t0 === null || v.seeking || v.currentTime < s.pos0) {
             st.prog = { t0: v.currentTime, dec0: dec, pos0: v.currentTime, lastEnd: end, lastAt: now, rates: [] };
             return st.mbps;
         }
         const played = v.currentTime - s.t0;
-        const bitrate = played > 3 ? (dec - s.dec0) * 8 / played : 0;
+        const bitrate = played > 2 ? (dec - s.dec0) * 8 / played : 0;
         const dt = (now - s.lastAt) / 1000;
         const grow = end - s.lastEnd;
         s.lastEnd = end; s.lastAt = now;
-        // مخزن لا ينمو والفيديو يعمل = المتصفح أوقف التحميل لامتلائه أو لانتهاء الملف؛ ليس بطئاً
-        // فلا نحسبه. أما عدم النمو أثناء التقطيع فهو سرعة شبه معدومة فعلاً.
+
         if (bitrate > 0 && dt > 0 && (grow > 0.05 || st.waitingSince)) {
             s.rates.push(Math.max(0, grow) / dt * bitrate / 1e6);
             if (s.rates.length > 5) s.rates.shift();
@@ -6882,21 +6958,38 @@ window.MizoConnHealth = (function () {
         return st.mbps;
     }
 
+    /**
+     * الحكم الفعلي والدقيق لحالة الاتصال:
+     * 2 = أحمر (ضعيف / تقطيع نشط حالياً أو انقطاع تام أو تكرار تقطيع شديد)
+     * 1 = أصفر (سرعة متوسطة أو مخزن مؤقت منخفض < 3 ثوانٍ أو تعافي حديث من تقطيع)
+     * 0 = أخضر (ممتاز / بث سلس تماماً بدون تقطيع ومخزن كافٍ)
+     */
     function verdict(v) {
         const now = Date.now();
-        st.stalls = st.stalls.filter(t => now - t <= 90000);
-        const recent = st.stalls.filter(t => now - t <= 60000).length;
-        const last = st.stalls.length ? st.stalls[st.stalls.length - 1] : 0;
-        const stallingNow = !v.paused && st.waitingSince && now - st.waitingSince > 700 && now - st.lastSeek > 2000;
-        if (stallingNow && st.stalls.length) return 2;
-        if (recent >= 2 || (last && now - last <= 30000)) return 2;
-        if (last) return 1;
-        if (stallingNow) return 1;
-        if (!v.paused && st.wasPlaying && bufferedAhead(v) < 3) return 1;
+        if (!navigator.onLine) return 2; // لا إنترنت = أحمر فوراً
+
+        // تصفية سجل التقطيع القديم (خلال آخر 45 ثانية)
+        st.stalls = st.stalls.filter(t => now - t <= 45000);
+        const recentStalls = st.stalls.filter(t => now - t <= 30000).length;
+        const lastStall = st.stalls.length ? st.stalls[st.stalls.length - 1] : 0;
+
+        // هل الفيديو متوقف حالياً في انتظار تحميل البايتات (Buffering / Stalling)؟
+        const isStallingNow = !v.paused && st.waitingSince && (now - st.waitingSince > 800) && (now - st.lastSeek > 2500);
+
+        if (isStallingNow) return 2; // أحمر: يقطع حالياً
+        if (recentStalls >= 2) return 2; // أحمر: تقطيع متكرر مؤخراً
+
+        // أصفر: حدث تقطيع قبل ثوانٍ قليلة أو المخزن قليل جداً (< 3 ثوانٍ) أثناء التشغيل
+        const buf = bufferedAhead(v);
+        if (lastStall && (now - lastStall <= 12000)) return 1;
+        if (!v.paused && st.wasPlaying && buf > 0 && buf < 2.5) return 1;
+        if (st.mbps > 0 && st.mbps < 2.5) return 1; // سرعة ضعيفة/متوسطة لكن لا تقطع بعد
+
+        // أخضر: البث مستقر والمخزن ممتلئ ولا يوجد تقطيع
         return 0;
     }
 
-    const LABELS = ['ممتاز', 'متوسط', 'ضعيف · تقطيع'];
+    const LABELS = ['ممتاز · مستقر', 'متوسط · انتبه', 'ضعيف · تقطيع'];
     const COLORS = ['#22c55e', '#eab308', '#ef4444'];
 
     function render() {
@@ -6909,7 +7002,7 @@ window.MizoConnHealth = (function () {
         st.mbps = measureMbps(player, v);
         const k = verdict(v);
         const sp = st.mbps > 0 ? (st.mbps >= 10 ? st.mbps.toFixed(0) : st.mbps.toFixed(1)) + ' Mbps' : '';
-        el.innerHTML = `<i style="color:${COLORS[k]}">●</i> ${LABELS[k]}${sp ? ` · <bdi>${sp}</bdi>` : ''}`;
+        el.innerHTML = `<i style="color:${COLORS[k]}; font-size: 13px; text-shadow: 0 0 6px ${COLORS[k]};">●</i> ${LABELS[k]}${sp ? ` · <bdi>${sp}</bdi>` : ''}`;
         el.hidden = false;
     }
 
@@ -6921,7 +7014,6 @@ window.MizoConnHealth = (function () {
 
     function attach(player, url) {
         detach();
-        // ملف منزّل على الجهاز: لا يوجد اتصال نقيسه
         if (!player || /^(file|blob):/i.test(String(url || ''))) return;
         st = {
             player, stalls: [], wasPlaying: false, waitingSince: 0, lastSeek: Date.now(), mbps: -1,
@@ -6930,17 +7022,19 @@ window.MizoConnHealth = (function () {
         const mine = st;
         const on = (ev, fn) => player.on(ev, () => { if (st === mine) fn(); });
         on('playing', () => { mine.wasPlaying = true; mine.waitingSince = 0; });
-        on('seeking', () => { mine.lastSeek = Date.now(); });
-        on('loadstart', () => { mine.lastSeek = Date.now(); mine.wasPlaying = false; mine.prog = { t0: null }; });
+        on('seeking', () => { mine.lastSeek = Date.now(); mine.waitingSince = 0; });
+        on('loadstart', () => { mine.lastSeek = Date.now(); mine.wasPlaying = false; mine.waitingSince = 0; mine.prog = { t0: null }; });
         on('waiting', () => {
             const now = Date.now();
             if (!mine.waitingSince) mine.waitingSince = now;
-            // توقف بعد أن كان الفيديو يعمل، وليس بسبب تقديم من المستخدم = تقطيع حقيقي
-            if (mine.wasPlaying && now - mine.lastSeek > 2000 && !player.paused()) mine.stalls.push(now);
+            if (mine.wasPlaying && now - mine.lastSeek > 2500 && !player.paused()) {
+                mine.stalls.push(now);
+            }
             mine.wasPlaying = false;
         });
         on('dispose', detach);
         timer = setInterval(render, 1000);
+        render(); // إظهار فوري
     }
 
     return { attach, detach };
