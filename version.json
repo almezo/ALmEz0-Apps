@@ -1,26 +1,26 @@
 {
-  "version": "1.6.6",
-  "versionCode": 148,
+  "version": "1.6.5",
+  "versionCode": 147,
   "releaseDate": "2026-10-25",
-  "title": "✨ تحديث جديد متاح — v1.6.6",
+  "title": "✨ تحديث جديد متاح — v1.6.5",
   "notes": "🚀 نسخة جديدة أقوى وأذكى. طوّرنا الكثير خلف الكواليس لتحصل على تجربة أسرع وأكثر استقراراً. نصيحة: لا تفوّت هذا التحديث.",
-  "minSupportedVersion": "1.6.6",
+  "minSupportedVersion": "1.6.5",
   "mandatory": true,
   "windows": {
-    "version": "1.6.6",
-    "minSupportedVersion": "1.6.6",
+    "version": "1.6.5",
+    "minSupportedVersion": "1.6.5",
     "mandatory": true,
     "releaseDate": "2026-10-25",
-    "title": "✨ تحديث إلزامي — مشغل الميزو v1.6.6",
+    "title": "✨ تحديث إلزامي — مشغل الميزو v1.6.5",
     "notes": "🚀 نسخة جديدة أقوى وأذكى. طوّرنا الكثير خلف الكواليس لتحصل على تجربة أسرع وأكثر استقراراً. نصيحة: لا تفوّت هذا التحديث."
   },
   "android": {
-    "version": "1.6.6",
-    "versionCode": 148,
-    "minSupportedVersion": "1.6.6",
+    "version": "1.6.5",
+    "versionCode": 147,
+    "minSupportedVersion": "1.6.5",
     "mandatory": true,
     "releaseDate": "2026-10-25",
-    "title": "✨ تحديث إلزامي — مشغل الميزو v1.6.6",
+    "title": "✨ تحديث إلزامي — مشغل الميزو v1.6.5",
     "notes": "🚀 نسخة جديدة أقوى وأذكى. طوّرنا الكثير خلف الكواليس لتحصل على تجربة أسرع وأكثر استقراراً. نصيحة: لا تفوّت هذا التحديث."
   },
   "downloadUrls": {
