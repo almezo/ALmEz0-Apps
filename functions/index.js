@@ -1617,10 +1617,13 @@ exports.registerCustomer = onCall(async (request) => {
 // (من التسجيلات التي انقطعت قبل هذا الإصلاح). قراءة فقط.
 // =============================================
 exports.listOrphanAccounts = onCall(async (request) => {
-    if (!request.auth || request.auth.uid !== AI_ADMIN_UID) throw new HttpsError("permission-denied", "admin-only");
+    if (!request.auth) throw new HttpsError("unauthenticated", "admin-only");
     const { getAuth } = require("firebase-admin/auth");
     const { getFirestore: fs } = require("firebase-admin/firestore");
     const db = fs();
+    const adminUid = request.auth.uid;
+    const isAdmin = adminUid === AI_ADMIN_UID || (await db.collection("admins").doc(adminUid).get()).exists;
+    if (!isAdmin) throw new HttpsError("permission-denied", "admin-only");
     const orphans = [];
     let token;
     do {

@@ -51,11 +51,12 @@ window.auth = auth;
 
 // جعل الـ Functions اختيارية لتفادي توقف السكربت في الصفحات التي لا تحمله
 let functions = null;
-if (typeof firebase.functions === 'function') {
+if (typeof firebase !== 'undefined' && typeof firebase.functions === 'function') {
     functions = firebase.functions();
 } else {
     console.warn("تنبيه: Firebase Functions SDK غير محمل في هذه الصفحة، تم تخطيه.");
 }
+window.functions = functions;
 
 // =============================================
 // نظام مركز التحكم الشامل في قوانين وعمولات المناديب
@@ -539,7 +540,10 @@ function isUserLoggedIn() {
         var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
         if (cached) {
             var u = JSON.parse(cached);
-            if (u && u.name) {
+            if (u && (u.name || u.firstName)) {
+                if (!u.name && u.firstName) {
+                    u.name = (u.firstName + ' ' + (u.lastName || '')).trim();
+                }
                 currentAuthUser = u;
                 return true;
             }
@@ -555,7 +559,10 @@ function getCurrentUser() {
         var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
         if (cached) {
             var u = JSON.parse(cached);
-            if (u && u.name) {
+            if (u && (u.name || u.firstName)) {
+                if (!u.name && u.firstName) {
+                    u.name = (u.firstName + ' ' + (u.lastName || '')).trim();
+                }
                 currentAuthUser = u;
                 return currentAuthUser;
             }
@@ -840,8 +847,25 @@ function mzForceChangePassword(firebaseUser) {
 let authSessionUnsubscribe = null;
 let sessionCheckInterval = null; // فحص دوري لصلاحية الجلسة
 
+// =============================================
+// حماية التحميل الأولي: عند تنقل الصفحات (من المشغل للرئيسية وغيرها)
+// يُعاد تحميل نافذة JS بالكامل فيصبح window.__almezo_explicit_logout = undefined.
+// يستغرق Firebase وقتاً لاستعادة الجلسة من IndexedDB، لذلك لا نطلق نافذة
+// "انتهت الجلسة" فوراً عند onAuthStateChanged(null) في التحميل الأول.
+// بعد انتهاء فترة الانتظار أو بعد أول إجابة إيجابية من Firebase نثق بالحالة.
+// =============================================
+let __mzAuthInitialized = false;      // صار لدينا أول إجابة من Firebase (سواء مستخدم أو null)
+const __mzAuthInitTime = Date.now(); // وقت تحميل الصفحة
+const __mzGracePeriodMs = 4500;      // مهلة الانتظار 4.5 ثانية للتحميل الأولي
+let __mzEvictionTimer = null;        // مؤقت التحقق من الطرد عند التحميل الأولي
+
 auth.onAuthStateChanged(async function (firebaseUser) {
     if (firebaseUser) {
+        __mzAuthInitialized = true;
+        if (__mzEvictionTimer) {
+            clearTimeout(__mzEvictionTimer);
+            __mzEvictionTimer = null;
+        }
         // دخول جديد بعد خروج أو انتهاء جلسة في نفس الصفحة: العلامة كانت تبقى مفعّلة فتتجاهل
         // getCurrentUser الكاش وتُخفي انتهاء الجلسة التالي
         window.__almezo_explicit_logout = false;
@@ -1015,71 +1039,105 @@ auth.onAuthStateChanged(async function (firebaseUser) {
         // فهذا يعني أن فايربيز أبطل الجلسة (مثلاً بسبب تغيير كلمة المرور من جهاز آخر).
         // في هذه الحالة يجب مسح كل الكاش وإظهار التنبيه الأمني!
         if (!window.__almezo_explicit_logout) {
-            var hadCachedUser = false;
-            var evictedUser = null;
-            try {
-                var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
-                if (cached) {
-                    hadCachedUser = true;
-                    evictedUser = JSON.parse(cached);
+            // ============================================================
+            // إصلاح ظهور "انتهت الجلسة" الكاذب عند التنقل بين الصفحات:
+            //
+            // عند الانتقال من player.html → index.html، تُعاد الصفحة من الصفر:
+            //   • window.__almezo_explicit_logout = undefined (لم يُضبط بعد)
+            //   • Firebase يحتاج 1-4 ثوانٍ لاستعادة التوكن من IndexedDB
+            // إذا أطلقنا onAuthStateChanged(null) قبل أن يكتمل هذا الاسترداد
+            // كان النظام يعتبر الجلسة منتهية ويعرض النافذة الحمراء كاذباً.
+            //
+            // الحل: إن لم يكتمل التهيئة الأولى بعد وكانت المهلة الزمنية لم تنته،
+            //        ننتظر قليلاً ثم نتحقق مجدداً من حالة المستخدم.
+            // ============================================================
+            var isInitialGracePeriod = (Date.now() - __mzAuthInitTime) < __mzGracePeriodMs;
+
+            var doEvictionCheck = function () {
+                __mzEvictionTimer = null;
+                // إذا تسجّل المستخدم أثناء فترة الانتظار، ألغِ الإجراء
+                if (currentAuthUser || window.__almezo_explicit_logout) return;
+                // إذا تمكّن Firebase من استعادة الجلسة فعلاً، ألغِ الإجراء
+                if (auth.currentUser) return;
+
+                var hadCachedUser = false;
+                var evictedUser = null;
+                try {
+                    var cached = localStorage.getItem('almezo_cached_user') || sessionStorage.getItem('almezo_cached_user');
+                    if (cached) {
+                        hadCachedUser = true;
+                        evictedUser = JSON.parse(cached);
+                    }
+                } catch (e) { }
+
+                if (hadCachedUser) {
+                    // تسجيل حركة الطرد الأمني قبل مسح البيانات (مع منع التكرار اللحظي)
+                    var nowTime = Date.now();
+                    var lastLogged = 0;
+                    try { lastLogged = parseInt(sessionStorage.getItem('almezo_last_eviction_logged') || '0', 10); } catch (e) { }
+
+                    if (nowTime - lastLogged > 120000) {
+                        try { sessionStorage.setItem('almezo_last_eviction_logged', String(nowTime)); } catch (e) { }
+                        if (evictedUser && typeof logActivity === 'function') {
+                            logActivity({
+                                // ليس طرداً بالضرورة: يحدث أيضاً عند مسح بيانات المتصفح أو انتهاء الجلسة
+                                // على الجهاز، وصاحب الحساب يدخل بعدها بثوانٍ. الطرد الحقيقي (تغيير كلمة
+                                // المرور من جهاز آخر) له سجله الأحمر الخاص (Auth version mismatch)
+                                action: 'session_expired',
+                                category: 'auth',
+                                severity: 'warning',
+                                title: 'انتهاء جلسة الحساب على هذا الجهاز (يحتاج تسجيل دخول جديد)',
+                                details: {
+                                    phone: evictedUser.phone || '',
+                                    uid: evictedUser.uid || '',
+                                    reason: 'Firebase token revoked',
+                                    evictedUserName: evictedUser.name || (evictedUser.firstName ? (evictedUser.firstName + ' ' + (evictedUser.lastName || '')).trim() : '')
+                                },
+                                userOverride: evictedUser
+                            });
+                        }
+                    }
+
+                    // فايربيز أبطل الجلسة! نمسح كل شيء تماماً ونسجل الخروج الصريح
+                    window.__almezo_explicit_logout = true;
+                    try {
+                        localStorage.removeItem('almezo_cached_user');
+                        sessionStorage.removeItem('almezo_cached_user');
+                        localStorage.removeItem('almezo_auth_version');
+                    } catch (e) { }
+
+                    // تسجيل خروج نهائي من فايربيز لتنظيف IndexedDB ومنع تكرار محاولة الدخول بالجلسة الميتة
+                    try {
+                        if (typeof auth !== 'undefined' && auth && typeof auth.signOut === 'function') {
+                            auth.signOut().catch(function () { });
+                        }
+                    } catch (e) { }
+
+                    // تحديث الهيدر فوراً
+                    try {
+                        var btn = document.querySelector('.header-login-btn');
+                        if (btn) {
+                            btn.innerHTML = 'تسجيل الدخول';
+                            btn.classList.remove('logged-in');
+                            btn.onclick = function () { if (typeof openLoginModal === 'function') openLoginModal(); };
+                        }
+                    } catch (e) { }
+
+                    // رسالة هادئة: لا نخبر العميل أن كلمة مروره تغيّرت وهي لم تتغير
+                    showSecurityEvictionModal('expired');
                 }
-            } catch (e) { }
+            };
 
-            if (hadCachedUser) {
-                // تسجيل حركة الطرد الأمني قبل مسح البيانات (مع منع التكرار اللحظي)
-                var nowTime = Date.now();
-                var lastLogged = 0;
-                try { lastLogged = parseInt(sessionStorage.getItem('almezo_last_eviction_logged') || '0', 10); } catch (e) { }
-
-                if (nowTime - lastLogged > 120000) {
-                    try { sessionStorage.setItem('almezo_last_eviction_logged', String(nowTime)); } catch (e) { }
-                    if (evictedUser && typeof logActivity === 'function') {
-                        logActivity({
-                            // ليس طرداً بالضرورة: يحدث أيضاً عند مسح بيانات المتصفح أو انتهاء الجلسة
-                            // على الجهاز، وصاحب الحساب يدخل بعدها بثوانٍ. الطرد الحقيقي (تغيير كلمة
-                            // المرور من جهاز آخر) له سجله الأحمر الخاص (Auth version mismatch)
-                            action: 'session_expired',
-                            category: 'auth',
-                            severity: 'warning',
-                            title: 'انتهاء جلسة الحساب على هذا الجهاز (يحتاج تسجيل دخول جديد)',
-                            details: {
-                                phone: evictedUser.phone || '',
-                                uid: evictedUser.uid || '',
-                                reason: 'Firebase token revoked',
-                                evictedUserName: evictedUser.name || (evictedUser.firstName ? (evictedUser.firstName + ' ' + (evictedUser.lastName || '')).trim() : '')
-                            },
-                            userOverride: evictedUser
-                        });
-                    }
-                }
-
-                // فايربيز أبطل الجلسة! نمسح كل شيء تماماً ونسجل الخروج الصريح
-                window.__almezo_explicit_logout = true;
-                try {
-                    localStorage.removeItem('almezo_cached_user');
-                    sessionStorage.removeItem('almezo_cached_user');
-                    localStorage.removeItem('almezo_auth_version');
-                } catch (e) { }
-
-                // تسجيل خروج نهائي من فايربيز لتنظيف IndexedDB ومنع تكرار محاولة الدخول بالجلسة الميتة
-                try {
-                    if (typeof auth !== 'undefined' && auth && typeof auth.signOut === 'function') {
-                        auth.signOut().catch(function () { });
-                    }
-                } catch (e) { }
-
-                // تحديث الهيدر فوراً
-                try {
-                    var btn = document.querySelector('.header-login-btn');
-                    if (btn) {
-                        btn.innerHTML = 'تسجيل الدخول';
-                        btn.classList.remove('logged-in');
-                        btn.onclick = function () { if (typeof openLoginModal === 'function') openLoginModal(); };
-                    }
-                } catch (e) { }
-
-                // رسالة هادئة: لا نخبر العميل أن كلمة مروره تغيّرت وهي لم تتغير
-                showSecurityEvictionModal('expired');
+            if (isInitialGracePeriod) {
+                // فترة انتظار أولية: نمنح Firebase وقتاً كافياً لاستعادة الجلسة من IndexedDB
+                // قبل الحكم بأن الجلسة انتهت فعلاً. هذا يمنع الخطأ الكاذب عند التنقل بين الصفحات.
+                if (__mzEvictionTimer) clearTimeout(__mzEvictionTimer);
+                var remainingMs = __mzGracePeriodMs - (Date.now() - __mzAuthInitTime);
+                if (remainingMs < 1000) remainingMs = 1000;
+                __mzEvictionTimer = setTimeout(doEvictionCheck, remainingMs);
+            } else {
+                // خارج فترة الانتظار: الجلسة انتهت حقاً (تغيير كلمة المرور، حذف الحساب...)
+                doEvictionCheck();
             }
         }
     }

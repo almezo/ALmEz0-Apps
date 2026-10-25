@@ -233,18 +233,17 @@
      * تحديث شارات وعدادات المحظورين في بطاقة KPI والتبويب وزر الأداة والنافذة
      */
     function updateBannedCounters() {
-        // نفس المصدر الذي تُرسم منه البطاقات: مستندان لنفس البصمة كانا يعطيان
-        // بطاقتين مقابل عدّاد واحد (العدّاد كان يقرأ Set مُزال التكرار).
         const count = allBannedDocs.length;
+        const totalBanned = count + bannedAccounts.size;
 
         const kpiCountEl = document.getElementById('kpiBannedCount');
-        if (kpiCountEl) kpiCountEl.innerText = count.toLocaleString();
+        if (kpiCountEl) kpiCountEl.innerText = totalBanned.toLocaleString();
 
         const tabCountEl = document.getElementById('bannedTabCount');
-        if (tabCountEl) tabCountEl.innerText = count.toLocaleString();
+        if (tabCountEl) tabCountEl.innerText = totalBanned.toLocaleString();
 
         const btnCountEl = document.getElementById('btnBannedCount');
-        if (btnCountEl) btnCountEl.innerText = count.toLocaleString();
+        if (btnCountEl) btnCountEl.innerText = totalBanned.toLocaleString();
 
         const modalBadgeEl = document.getElementById('modalBannedTotalBadge');
         if (modalBadgeEl) modalBadgeEl.innerText = `${count} جهاز • ${bannedAccounts.size} حساب`;
@@ -587,32 +586,44 @@
                 if (!isSecurityThreat(log)) return false;
             } else if (currentFilterCategory === 'iptv') {
                 const isIptv = log.category === 'iptv' ||
-                    (log.action && (log.action.includes('iptv') || log.action.includes('player') || log.action.includes('server'))) ||
+                    (log.action && /iptv|player|server|stream|channel|movie|series/i.test(log.action)) ||
                     (log.page && log.page.includes('player')) ||
-                    (log.title && (log.title.includes('سيرفر') || log.title.includes('المشغل') || log.title.includes('قناة') || log.title.includes('بث')));
+                    (log.title && /سيرفر|المشغل|قناة|بث|فيلم|مسلسل/i.test(log.title));
                 if (!isIptv) return false;
             } else if (currentFilterCategory === 'admin') {
-                if (!log.user || (log.user.role !== 'admin' && log.user.uid !== ADMIN_TARGET_UID)) return false;
+                const isAdminLog = (log.user && (log.user.role === 'admin' || log.user.uid === ADMIN_TARGET_UID)) ||
+                    log.category === 'admin' || (log.action && log.action.startsWith('admin_'));
+                if (!isAdminLog) return false;
             } else if (currentFilterCategory === 'staff') {
-                if (!log.user || log.user.role !== 'staff') return false;
+                const isStaffLog = (log.user && log.user.role === 'staff') ||
+                    log.category === 'staff' || (log.action && log.action.startsWith('staff_'));
+                if (!isStaffLog) return false;
             } else if (currentFilterCategory === 'customer') {
-                if (!log.user || log.user.role !== 'customer') return false;
+                const isCustomerLog = (log.user && log.user.role === 'customer') ||
+                    log.category === 'customer' || log.category === 'account';
+                if (!isCustomerLog) return false;
             } else if (currentFilterCategory === 'visitor') {
-                if (log.user && log.user.role !== 'visitor') return false;
+                // يشمل الزوار غير المسجلين وجميع حركات التصفح العامة والزيارات
+                const isVisitorLog = log.category === 'visitor' ||
+                    !log.user || log.user.role === 'visitor' ||
+                    (log.action && /home_view|browse|view|click|download|page_view/i.test(log.action));
+                if (!isVisitorLog) return false;
             } else if (currentFilterCategory === 'sales') {
-                // المبيعات والطلبات وعمليات الشراء
+                // المبيعات والطلبات وعمليات الشراء وفتح السلة وطلبات التجربة
                 const isSales = log.category === 'sales' || log.category === 'order' ||
-                    (log.action && /sale|order|purchase|transaction|invoice|balance/i.test(log.action));
+                    (log.action && /sale|order|purchase|checkout|transaction|invoice|balance|demo/i.test(log.action));
                 if (!isSales) return false;
             } else if (currentFilterCategory === 'auth') {
-                // تسجيل الدخول والخروج وتغيير كلمة المرور
+                // تسجيل الدخول والخروج وتغيير كلمة المرور وطرد الجلسات
                 const isAuth = log.category === 'auth' ||
-                    (log.action && /login|logout|register|password|session/i.test(log.action));
+                    (log.action && /login|logout|register|password|session|eviction|lockout/i.test(log.action));
                 if (!isAuth) return false;
             } else if (currentFilterCategory === 'banned') {
                 // عرض حركات الأجهزة والمستخدمين المحظورين فقط
                 const cHw = (log.hardwareFingerprint || (log.device && log.device.hardwareFingerprint) || '').replace(/[^\w-]/g, '').trim();
-                if (!cHw || !bannedDevicesSet.has(cHw)) return false;
+                const isDevBanned = cHw && bannedDevicesSet.has(cHw);
+                const isAccBanned = log.user && log.user.uid && bannedAccounts.has(log.user.uid);
+                if (!isDevBanned && !isAccBanned) return false;
             }
 
             // 2. فلترة البحث النصي (نص البحث لكل سجل يُبنى مرة ويُحفظ: كان JSON.stringify
@@ -750,33 +761,6 @@
                 rowClass += ' log-row-new';
             }
 
-            // رتبة المستخدم
-            const isEviction = log.action === 'session_forced_eviction';
-            const role = (log.user && log.user.role) ? log.user.role : 'visitor';
-            const roleLabel = isEviction 
-                ? '<span class="role-badge role-badge-customer" style="background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5;"><i class="fas fa-sign-out-alt"></i> الحساب المطرود</span>' 
-                : getRoleBadge(role);
-            let userName = (log.user && log.user.name) ? log.user.name : 'زائر مجهول';
-            let userPhone = (log.user && log.user.phone) ? log.user.phone : '';
-            // دخول ناجح سُجّل قبل أن تصل جلسة الحساب للسيرفر: الرقم في التفاصيل أوضح من "زائر"
-            if (log.action === 'login_success' && (userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details && log.details.phone) {
-                userName = 'عميل (' + log.details.phone + ')';
-                if (!userPhone) userPhone = log.details.phone;
-            }
-            if (isEviction || log.action === 'session_expired') {
-                if ((userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details) {
-                    if (log.details.evictedUserName) userName = log.details.evictedUserName;
-                    else if (log.details.phone) userName = 'عميل (' + log.details.phone + ')';
-                    else if (log.details.uid) userName = 'حساب (' + log.details.uid.slice(0, 8) + '...)';
-                }
-                if (!userPhone && log.details && log.details.phone) {
-                    userPhone = log.details.phone;
-                }
-            }
-
-            // شارة مستوى الخطورة / النشاط
-            const sevBadge = getSeverityBadge(log.severity, log.action);
-
             // تفاصيل الجهاز والـ IP وبصمة العتاد (محفوظة في الذاكرة لتفادي الـ regex المتكرر)
             const device = log._device || (log._device = deviceOf(log));
             const t = device.type || '';
@@ -788,6 +772,49 @@
             const ipAddress = log.publicIp || device.publicIp || '';
             const locationStr = [device.city, device.country].filter(Boolean).join(', ');
             const hwFp = log.hardwareFingerprint || device.hardwareFingerprint || '';
+
+            // رتبة المستخدم واسمه الذكي
+            const isEviction = log.action === 'session_forced_eviction';
+            const role = (log.user && log.user.role) ? log.user.role : 'visitor';
+            const roleLabel = isEviction 
+                ? '<span class="role-badge role-badge-customer" style="background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5;"><i class="fas fa-sign-out-alt"></i> الحساب المطرود</span>' 
+                : getRoleBadge(role);
+            let userName = (log.user && log.user.name) ? log.user.name : '';
+            let userPhone = (log.user && log.user.phone) ? log.user.phone : '';
+
+            // دخول ناجح سُجّل قبل أن تصل جلسة الحساب للسيرفر: الرقم في التفاصيل أوضح من "زائر"
+            if (log.action === 'login_success' && (!userName || userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details && log.details.phone) {
+                userName = 'عميل (' + log.details.phone + ')';
+                if (!userPhone) userPhone = log.details.phone;
+            }
+            if (isEviction || log.action === 'session_expired') {
+                if ((!userName || userName === 'زائر مجهول' || userName === 'زائر غير مسجل') && log.details) {
+                    if (log.details.evictedUserName) userName = log.details.evictedUserName;
+                    else if (log.details.phone) userName = 'عميل (' + log.details.phone + ')';
+                    else if (log.details.uid) userName = 'حساب (' + log.details.uid.slice(0, 8) + '...)';
+                }
+                if (!userPhone && log.details && log.details.phone) {
+                    userPhone = log.details.phone;
+                }
+            }
+
+            // للزوار غير المسجلين: إظهار معلومة دالة بدلاً من "زائر مجهول"
+            if (!userName || userName === 'زائر مجهول' || userName === 'زائر غير مسجل') {
+                if (userPhone) {
+                    userName = 'عميل (' + userPhone + ')';
+                } else if (device.city) {
+                    userName = 'زائر (' + device.city + ')';
+                } else if (device.country) {
+                    userName = 'زائر (' + device.country + ')';
+                } else if (osText && osText !== 'غير معروف') {
+                    userName = 'زائر (' + osText + ')';
+                } else {
+                    userName = 'زائر جديد';
+                }
+            }
+
+            // شارة مستوى الخطورة / النشاط
+            const sevBadge = getSeverityBadge(log.severity, log.action, log);
 
             // تفاصيل مختصرة للحركة
             const detailsSummary = formatDetailsSummary(log.details, log.action, log.title);
@@ -859,8 +886,8 @@
                         })()}
                     </td>
                     <td>
-                        <span style="font-family:monospace; font-size:0.82rem; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;">
-                            ${escapeHtml(log.page || 'index.html')}
+                        <span style="font-size:0.8rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); padding:3px 7px; border-radius:6px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; color:#e2e8f0;">
+                            ${friendlyPageName(log.page)}
                         </span>
                     </td>
                     <td>
@@ -944,45 +971,119 @@
         }
     }
 
-    function getSeverityBadge(severity, action) {
+    function friendlyPageName(page) {
+        if (!page) return '<i class="fas fa-house"></i> الرئيسية';
+        const p = String(page).toLowerCase();
+        if (p.includes('index.html') || p === '/') return '<i class="fas fa-house"></i> الرئيسية';
+        if (p.includes('player.html')) return '<i class="fas fa-play"></i> مشغل IPTV';
+        if (p.includes('iptv.html')) return '<i class="fas fa-satellite-dish"></i> باقات IPTV';
+        if (p.includes('smart.html')) return '<i class="fas fa-tv"></i> شاشات Smart';
+        if (p.includes('vip.html')) return '<i class="fas fa-crown"></i> باقات VIP';
+        if (p.includes('devices.html')) return '<i class="fas fa-laptop-code"></i> الأجهزة';
+        if (p.includes('app-details.html')) return '<i class="fas fa-mobile-screen-button"></i> تفاصيل التطبيق';
+        if (p.includes('server-details.html')) return '<i class="fas fa-server"></i> مواصفات السيرفر';
+        if (p.includes('vip-details.html')) return '<i class="fas fa-gem"></i> مواصفات VIP';
+        if (p.includes('admin-dashboard.html')) return '<i class="fas fa-gauge-high"></i> لوحة الإدارة';
+        if (p.includes('security-monitor.html')) return '<i class="fas fa-shield-halved"></i> غرفة الأمان';
+        if (p.includes('purchases.html')) return '<i class="fas fa-boxes-packing"></i> المشتريات';
+        if (p.includes('staff.html')) return '<i class="fas fa-briefcase"></i> لوحة المناديب';
+        return `<i class="fas fa-compass"></i> ${escapeHtml(page)}`;
+    }
+
+    function getSeverityBadge(severity, action, log) {
+        // 1. إجراءات وتنبيهات أمنية حرجة
         if (action === 'client_locked_out') {
-            return '<span class="severity-badge sev-danger" style="animation: pulseDanger 1.2s infinite; border-color:#ff1744; background:rgba(255,23,68,0.3);"><i class="fas fa-user-lock"></i> حظر</span>';
+            return '<span class="severity-badge sev-danger" style="animation: pulseDanger 1.2s infinite; border-color:#ff1744; background:rgba(255,23,68,0.3);"><i class="fas fa-user-lock"></i> حظر أمني للجهاز</span>';
         }
         if (action === 'brute_force_warning') {
-            return '<span class="severity-badge sev-danger" style="animation: pulseDanger 1.5s infinite; border-color:#ff1744; background:rgba(255,23,68,0.25);"><i class="fas fa-biohazard"></i> حظر</span>';
+            return '<span class="severity-badge sev-danger" style="animation: pulseDanger 1.5s infinite; border-color:#ff1744; background:rgba(255,23,68,0.25);"><i class="fas fa-biohazard"></i> هجوم تخمين كلمة سر</span>';
         }
-        if (severity === 'danger' || action === 'login_failed' || action === 'unauthorized_access_attempt') {
-            return '<span class="severity-badge sev-danger"><i class="fas fa-radiation"></i> تنبيه</span>';
+        if (action === 'lockout_attempt') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ff5252; background:rgba(255,82,82,0.22); color:#ff8a80;"><i class="fas fa-hand-paper"></i> محاولة دخول محظور</span>';
+        }
+        if (action === 'unauthorized_access_attempt') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ff1744; background:rgba(255,23,68,0.2); color:#ff5252;"><i class="fas fa-shield-halved"></i> وصول غير مصرح</span>';
+        }
+        if (action === 'login_failed') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ff5252; background:rgba(244,67,54,0.2); color:#ff8a80;"><i class="fas fa-key"></i> فشل تسجيل الدخول</span>';
+        }
+        if (action === 'session_forced_eviction') {
+            return '<span class="severity-badge sev-warning" style="border-color:#f59e0b; background:rgba(245,158,11,0.2); color:#fbbf24;"><i class="fas fa-user-xmark"></i> طرد أمني للجلسة</span>';
+        }
+        if (action === 'session_expired') {
+            return '<span class="severity-badge sev-warning" style="border-color:#fbbf24; background:rgba(251,191,36,0.15); color:#fde68a;"><i class="fas fa-clock-rotate-left"></i> انتهاء الجلسة</span>';
         }
         if (action === 'admin_test_ping') {
-            return '<span class="severity-badge sev-success"><i class="fas fa-satellite"></i> فحص</span>';
+            return '<span class="severity-badge sev-success" style="border-color:#7c4dff; background:rgba(124,77,255,0.2); color:#b388ff;"><i class="fas fa-satellite"></i> فحص الرادار</span>';
         }
-        if (severity === 'warning' || action === 'password_changed' || action === 'staff_withdrawal') {
-            return '<span class="severity-badge sev-warning"><i class="fas fa-exclamation-circle"></i> تنبيه</span>';
+
+        // 2. الحسابات والمصادقة
+        if (action === 'login_success') {
+            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-right-to-bracket"></i> تسجيل دخول</span>';
+        }
+        if (action === 'registration') {
+            return '<span class="severity-badge sev-success" style="border-color:#06b6d4; background:rgba(6,182,212,0.2); color:#67e8f9;"><i class="fas fa-user-plus"></i> تسجيل حساب جديد</span>';
         }
         if (action === 'logout') {
-            return '<span class="severity-badge sev-info" style="border-color:#9e9e9e; background:rgba(158,158,158,0.2); color:#bdbdbd;"><i class="fas fa-sign-out-alt"></i> خروج</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#9e9e9e; background:rgba(158,158,158,0.2); color:#bdbdbd;"><i class="fas fa-arrow-right-from-bracket"></i> تسجيل خروج</span>';
         }
-        if (action === 'order_confirmed_whatsapp' || action === 'purchase') {
-            return '<span class="severity-badge sev-success" style="border-color:#4caf50; background:rgba(76,175,80,0.2); color:#69f0ae;"><i class="fas fa-shopping-cart"></i> شراء</span>';
+        if (action === 'password_changed') {
+            return '<span class="severity-badge sev-warning" style="border-color:#f59e0b; background:rgba(245,158,11,0.2); color:#fbbf24;"><i class="fas fa-lock"></i> تغيير كلمة السر</span>';
+        }
+        if (action === 'customer_role_updated' || action === 'admin_change_staff_role') {
+            return '<span class="severity-badge sev-info" style="border-color:#a855f7; background:rgba(168,85,247,0.2); color:#c084fc;"><i class="fas fa-user-gear"></i> تعديل رتبة</span>';
+        }
+
+        // 3. المبيعات والطلبات وعمليات الشراء
+        if (action === 'checkout_opened') {
+            return '<span class="severity-badge sev-info" style="border-color:#38bdf8; background:rgba(56,189,248,0.2); color:#7dd3fc;"><i class="fas fa-cart-shopping"></i> فتح نافذة الطلب</span>';
+        }
+        if (action === 'order_confirmed_whatsapp') {
+            return '<span class="severity-badge sev-success" style="border-color:#22c55e; background:rgba(34,197,94,0.2); color:#4ade80;"><i class="fab fa-whatsapp"></i> طلب بالواتساب</span>';
         }
         if (action === 'demo_account_request') {
-            return '<span class="severity-badge sev-info" style="border-color:#2196f3; background:rgba(33,150,243,0.2); color:#40c4ff;"><i class="fas fa-vial"></i> تجريبي</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#818cf8; background:rgba(129,140,248,0.2); color:#a5b4fc;"><i class="fas fa-flask"></i> طلب تجربة مجانية</span>';
+        }
+        if (action === 'purchase') {
+            return '<span class="severity-badge sev-success" style="border-color:#10b981; background:rgba(16,185,129,0.2); color:#6ee7b7;"><i class="fas fa-money-bill-wave"></i> عملية شراء</span>';
+        }
+        if (action === 'staff_sale') {
+            return '<span class="severity-badge sev-success" style="border-color:#eab308; background:rgba(234,179,8,0.2); color:#fde047;"><i class="fas fa-cash-register"></i> مبيعات مندوب</span>';
+        }
+        if (action === 'staff_withdrawal') {
+            return '<span class="severity-badge sev-warning" style="border-color:#f97316; background:rgba(249,115,22,0.2); color:#fdba74;"><i class="fas fa-hand-holding-dollar"></i> سحب رصيد مندوب</span>';
+        }
+        if (action === 'staff_cancel_sale') {
+            return '<span class="severity-badge sev-danger" style="border-color:#f43f5e; background:rgba(244,63,94,0.2); color:#fda4af;"><i class="fas fa-ban"></i> إلغاء بيع مندوب</span>';
+        }
+        if (action === 'staff_portal_open') {
+            return '<span class="severity-badge sev-info" style="border-color:#38bdf8; background:rgba(56,189,248,0.2); color:#7dd3fc;"><i class="fas fa-briefcase"></i> لوحة المناديب</span>';
+        }
+
+        // 4. مشغل الميزو وسيرفرات IPTV
+        if (action === 'player_open') {
+            return '<span class="severity-badge sev-info" style="border-color:#00b0ff; background:rgba(0,176,255,0.2); color:#80d8ff;"><i class="fas fa-play"></i> مشغل الميزو</span>';
+        }
+        if (action === 'iptv_player_session') {
+            return '<span class="severity-badge sev-info" style="border-color:#7c4dff; background:rgba(124,77,255,0.2); color:#b388ff;"><i class="fas fa-play-circle"></i> جلسة مشغل</span>';
         }
         if (action === 'iptv_login_success') {
-            return '<span class="severity-badge sev-success" style="border-color:#4caf50; background:rgba(76,175,80,0.25); color:#69f0ae;"><i class="fas fa-tv"></i> دخول سيرفر</span>';
+            return '<span class="severity-badge sev-success" style="border-color:#4caf50; background:rgba(76,175,80,0.25); color:#69f0ae;"><i class="fas fa-satellite-dish"></i> دخول سيرفر</span>';
         }
         if (action === 'player_server_connected') {
-            return '<span class="severity-badge sev-info" style="border-color:#7c4dff; background:rgba(124,77,255,0.25); color:#b388ff;"><i class="fas fa-satellite-dish"></i> ربط سيرفر</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#7c4dff; background:rgba(124,77,255,0.25); color:#b388ff;"><i class="fas fa-link"></i> ربط سيرفر</span>';
         }
-        if (action === 'player_server_failed' || action === 'iptv_login_failed') {
-            return '<span class="severity-badge sev-danger"><i class="fas fa-times-circle"></i> خطأ سيرفر</span>';
+        if (action === 'player_server_failed') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-triangle-exclamation"></i> خطأ سيرفر</span>';
+        }
+        if (action === 'iptv_login_failed') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-circle-xmark"></i> فشل دخول سيرفر</span>';
         }
         if (action === 'player_server_logout' || action === 'iptv_logout') {
-            return '<span class="severity-badge sev-info" style="border-color:#9e9e9e; background:rgba(158,158,158,0.2); color:#bdbdbd;"><i class="fas fa-sign-out-alt"></i> خروج سيرفر</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#9e9e9e; background:rgba(158,158,158,0.2); color:#bdbdbd;"><i class="fas fa-right-from-bracket"></i> خروج سيرفر</span>';
         }
         if (action === 'player_play_channel') {
-            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-play-circle"></i> بث مباشر</span>';
+            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-circle-play"></i> بث مباشر</span>';
         }
         if (action === 'player_play_movie') {
             return '<span class="severity-badge sev-info" style="border-color:#e040fb; background:rgba(224,64,251,0.2); color:#ea80fc;"><i class="fas fa-film"></i> فيلم</span>';
@@ -991,22 +1092,21 @@
             return '<span class="severity-badge sev-info" style="border-color:#ff9100; background:rgba(255,145,0,0.2); color:#ffab40;"><i class="fas fa-tv"></i> مسلسل</span>';
         }
         if (action === 'player_search') {
-            return '<span class="severity-badge sev-info" style="border-color:#ba68c8; background:rgba(186,104,200,0.18); color:#e1bee7;"><i class="fas fa-search"></i> بحث مشغل</span>';
-        }
-        if (action === 'player_open') {
-            return '<span class="severity-badge sev-info" style="border-color:#00b0ff; background:rgba(0,176,255,0.2); color:#80d8ff;"><i class="fas fa-play"></i> مشغل الميزو</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#ba68c8; background:rgba(186,104,200,0.18); color:#e1bee7;"><i class="fas fa-magnifying-glass"></i> بحث مشغل</span>';
         }
         if (action === 'player_browse_live') {
             return '<span class="severity-badge sev-info" style="border-color:#00e676; background:rgba(0,230,118,0.15); color:#b9f6ca;"><i class="fas fa-list-ol"></i> قنوات مباشر</span>';
         }
         if (action === 'player_browse_movies') {
-            return '<span class="severity-badge sev-info" style="border-color:#ab47bc; background:rgba(171,71,188,0.15); color:#e1bee7;"><i class="fas fa-photo-video"></i> مكتبة أفلام</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#ab47bc; background:rgba(171,71,188,0.15); color:#e1bee7;"><i class="fas fa-clapperboard"></i> مكتبة أفلام</span>';
         }
         if (action === 'player_browse_series') {
             return '<span class="severity-badge sev-info" style="border-color:#ffa726; background:rgba(255,167,38,0.15); color:#ffe082;"><i class="fas fa-layer-group"></i> مكتبة مسلسلات</span>';
         }
+
+        // 5. حركات الزوار والتصفح العام للموقع
         if (action === 'home_view') {
-            return '<span class="severity-badge sev-info" style="border-color:#38bdf8; background:rgba(56,189,248,0.15); color:#7dd3fc;"><i class="fas fa-home"></i> الرئيسية</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#38bdf8; background:rgba(56,189,248,0.15); color:#7dd3fc;"><i class="fas fa-house"></i> الرئيسية</span>';
         }
         if (action === 'iptv_browse') {
             return '<span class="severity-badge sev-info" style="border-color:#29b6f6; background:rgba(41,182,246,0.15); color:#81d4fa;"><i class="fas fa-satellite-dish"></i> باقات IPTV</span>';
@@ -1017,16 +1117,110 @@
         if (action === 'vip_browse') {
             return '<span class="severity-badge sev-warning" style="border-color:#ffd700; background:rgba(255,215,0,0.15); color:#ffe082;"><i class="fas fa-crown"></i> باقات VIP</span>';
         }
+        if (action === 'app_details_view') {
+            return '<span class="severity-badge sev-info" style="border-color:#6366f1; background:rgba(99,102,241,0.2); color:#a5b4fc;"><i class="fas fa-mobile-screen-button"></i> تفاصيل التطبيق</span>';
+        }
+        if (action === 'server_details_view') {
+            return '<span class="severity-badge sev-info" style="border-color:#0ea5e9; background:rgba(14,165,233,0.2); color:#7dd3fc;"><i class="fas fa-server"></i> مواصفات السيرفر</span>';
+        }
+        if (action === 'vip_details_view') {
+            return '<span class="severity-badge sev-warning" style="border-color:#eab308; background:rgba(234,179,8,0.2); color:#fef08a;"><i class="fas fa-gem"></i> مواصفات VIP</span>';
+        }
+        if (action === 'devices_browse') {
+            return '<span class="severity-badge sev-info" style="border-color:#14b8a6; background:rgba(20,184,166,0.2); color:#5eead4;"><i class="fas fa-laptop-code"></i> قسم الأجهزة</span>';
+        }
+        if (action === 'page_view') {
+            return '<span class="severity-badge sev-info" style="border-color:#64748b; background:rgba(100,116,139,0.2); color:#cbd5e1;"><i class="fas fa-compass"></i> تصفح صفحة</span>';
+        }
         if (action === 'app_download') {
-            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-download"></i> تنزيل تطبيق</span>';
+            return '<span class="severity-badge sev-success" style="border-color:#00e676; background:rgba(0,230,118,0.2); color:#69f0ae;"><i class="fas fa-circle-down"></i> تنزيل تطبيق</span>';
         }
         if (action === 'app_inapp_update') {
-            return '<span class="severity-badge sev-info" style="border-color:#ff9100; background:rgba(255,145,0,0.25); color:#ffab40;"><i class="fas fa-sync-alt"></i> تحديث تطبيق</span>';
+            return '<span class="severity-badge sev-info" style="border-color:#ff9100; background:rgba(255,145,0,0.25); color:#ffab40;"><i class="fas fa-arrows-rotate"></i> تحديث التطبيق</span>';
         }
-        if (severity === 'success' || action === 'login_success' || action === 'registration' || action === 'staff_sale') {
-            return '<span class="severity-badge sev-success"><i class="fas fa-check-circle"></i> دخول</span>';
+
+        // 6. حركات إدارة النظام والمدير العام
+        if (action === 'admin_dashboard_open') {
+            return '<span class="severity-badge sev-info" style="border-color:#fbbf24; background:rgba(251,191,36,0.2); color:#fde68a;"><i class="fas fa-gauge-high"></i> لوحة الإدارة</span>';
         }
-        return '<span class="severity-badge sev-info"><i class="fas fa-info-circle"></i> تصفح</span>';
+        if (action === 'purchases_view') {
+            return '<span class="severity-badge sev-info" style="border-color:#14b8a6; background:rgba(20,184,166,0.2); color:#5eead4;"><i class="fas fa-boxes-packing"></i> لوحة المشتريات</span>';
+        }
+        if (action === 'admin_ban_device') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-ban"></i> حظر جهاز</span>';
+        }
+        if (action === 'admin_lift_lockout') {
+            return '<span class="severity-badge sev-success" style="border-color:#22c55e; background:rgba(34,197,94,0.2); color:#86efac;"><i class="fas fa-lock-open"></i> فك حظر جهاز</span>';
+        }
+        if (action === 'admin_ban_account') {
+            return '<span class="severity-badge sev-warning" style="border-color:#f97316; background:rgba(249,115,22,0.2); color:#fdba74;"><i class="fas fa-user-slash"></i> إيقاف حساب</span>';
+        }
+        if (action === 'admin_unban_account') {
+            return '<span class="severity-badge sev-success" style="border-color:#22c55e; background:rgba(34,197,94,0.2); color:#86efac;"><i class="fas fa-user-check"></i> تفعيل حساب</span>';
+        }
+        if (action === 'admin_add_product') {
+            return '<span class="severity-badge sev-success" style="border-color:#10b981; background:rgba(16,185,129,0.2); color:#6ee7b7;"><i class="fas fa-plus-circle"></i> إضافة باقة</span>';
+        }
+        if (action === 'admin_edit_product') {
+            return '<span class="severity-badge sev-info" style="border-color:#3b82f6; background:rgba(59,130,246,0.2); color:#93c5fd;"><i class="fas fa-pen-to-square"></i> تعديل باقة</span>';
+        }
+        if (action === 'admin_delete_product') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-trash-can"></i> حذف باقة</span>';
+        }
+        if (action === 'admin_restore_product') {
+            return '<span class="severity-badge sev-success" style="border-color:#10b981; background:rgba(16,185,129,0.2); color:#6ee7b7;"><i class="fas fa-trash-arrow-up"></i> استرجاع باقة</span>';
+        }
+        if (action === 'admin_move_product') {
+            return '<span class="severity-badge sev-info" style="border-color:#8b5cf6; background:rgba(139,92,246,0.2); color:#c4b5fd;"><i class="fas fa-arrows-up-down"></i> ترتيب الباقات</span>';
+        }
+        if (action === 'admin_add_purchase') {
+            return '<span class="severity-badge sev-success" style="border-color:#22c55e; background:rgba(34,197,94,0.2); color:#86efac;"><i class="fas fa-cart-plus"></i> إضافة مشتريات</span>';
+        }
+        if (action === 'admin_delete_purchase') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-trash-can"></i> حذف مشتريات</span>';
+        }
+        if (action === 'admin_edit_inventory_stock') {
+            return '<span class="severity-badge sev-warning" style="border-color:#f59e0b; background:rgba(245,158,11,0.2); color:#fde68a;"><i class="fas fa-boxes-stacked"></i> تعديل مخزون</span>';
+        }
+        if (action === 'admin_delete_inventory_item') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-box-archive"></i> حذف صنف</span>';
+        }
+        if (action === 'admin_close_ledger') {
+            return '<span class="severity-badge sev-info" style="border-color:#a855f7; background:rgba(168,85,247,0.2); color:#d8b4fe;"><i class="fas fa-book-bookmark"></i> إغلاق دورة مالية</span>';
+        }
+        if (action === 'admin_edit_company_balance') {
+            return '<span class="severity-badge sev-info" style="border-color:#0284c7; background:rgba(2,132,199,0.2); color:#7dd3fc;"><i class="fas fa-building-columns"></i> تعديل رصيد</span>';
+        }
+        if (action === 'admin_edit_transaction') {
+            return '<span class="severity-badge sev-info" style="border-color:#6366f1; background:rgba(99,102,241,0.2); color:#a5b4fc;"><i class="fas fa-file-invoice-dollar"></i> تعديل حركة</span>';
+        }
+        if (action === 'admin_adjust_balances') {
+            return '<span class="severity-badge sev-warning" style="border-color:#eab308; background:rgba(234,179,8,0.2); color:#fef08a;"><i class="fas fa-scale-balanced"></i> تسوية أرصدة</span>';
+        }
+        if (action === 'admin_delete_transaction') {
+            return '<span class="severity-badge sev-danger" style="border-color:#f43f5e; background:rgba(244,63,94,0.2); color:#fda4af;"><i class="fas fa-file-circle-xmark"></i> حذف حركة</span>';
+        }
+        if (action === 'admin_update_staff_rules') {
+            return '<span class="severity-badge sev-info" style="border-color:#14b8a6; background:rgba(20,184,166,0.2); color:#5eead4;"><i class="fas fa-clipboard-check"></i> قواعد المناديب</span>';
+        }
+        if (action === 'admin_export_logs') {
+            return '<span class="severity-badge sev-success" style="border-color:#22c55e; background:rgba(34,197,94,0.2); color:#86efac;"><i class="fas fa-file-excel"></i> تصدير السجل</span>';
+        }
+        if (action === 'admin_clear_logs') {
+            return '<span class="severity-badge sev-danger" style="border-color:#ef4444; background:rgba(239,68,68,0.2); color:#fca5a5;"><i class="fas fa-trash-arrow-up"></i> مسح السجل</span>';
+        }
+
+        // 7. المعالجة الاحتياطية الذكية بناءً على مستوى الخطورة
+        if (severity === 'danger') {
+            return '<span class="severity-badge sev-danger"><i class="fas fa-exclamation-triangle"></i> خطر أمني</span>';
+        }
+        if (severity === 'warning') {
+            return '<span class="severity-badge sev-warning"><i class="fas fa-exclamation-circle"></i> تنبيه</span>';
+        }
+        if (severity === 'success') {
+            return '<span class="severity-badge sev-success"><i class="fas fa-check-circle"></i> نشاط ناجح</span>';
+        }
+        return '<span class="severity-badge sev-info"><i class="fas fa-eye"></i> تصفح ونشاط</span>';
     }
 
     function formatDetailsSummary(details, action, title) {
@@ -2238,8 +2432,9 @@
     // =============================================
     function setupDatePicker() {
         const dateInput = document.getElementById('socDatePicker');
+        const resetBtn = document.getElementById('btnResetDate');
         if (dateInput && typeof flatpickr !== 'undefined') {
-            flatpickr(dateInput, {
+            const fp = flatpickr(dateInput, {
                 dateFormat: "Y-m-d",
                 altInput: true,
                 altFormat: "d/m/Y",
@@ -2248,11 +2443,22 @@
                 locale: "ar",
                 onChange: function (selectedDates, dateStr) {
                     currentSelectedDate = dateStr || null;
+                    if (resetBtn) resetBtn.style.display = dateStr ? 'inline-flex' : 'none';
                     currentPage = 1;
                     renderLogsTable();
                     loadSelectedDay();
                 }
             });
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function () {
+                    fp.clear();
+                    currentSelectedDate = null;
+                    resetBtn.style.display = 'none';
+                    currentPage = 1;
+                    renderLogsTable();
+                    updateKpiMetrics();
+                });
+            }
         }
     }
 })();

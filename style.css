@@ -9927,3 +9927,37 @@ body.mz-desktop-fullscreen header, body.mz-desktop-fullscreen .main-header { pad
     border-color: #fff;
     outline: none;
 }
+
+/* =============================================
+   Security Monitor – SOC page utility classes
+   (replaces inline styles removed from security-monitor.html)
+   ============================================= */
+
+/* صف فلتر التاريخ: مرن مع مسافة بين العناصر */
+.soc-date-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* زر إعادة التاريخ لليوم – مخفي افتراضياً، يظهر بالـ JS */
+.btn-reset-date {
+    display: none;
+    padding: 8px 10px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.btn-reset-date:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #fff;
+}
+
+/* لافتة التحذير من اقتطاع السجل – مخفية افتراضياً */
+.soc-truncation-notice--hidden {
+    display: none;
+}
+

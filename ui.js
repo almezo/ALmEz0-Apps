@@ -1077,6 +1077,23 @@ function intelJsArg(v) {
     return safeIntelEsc(JSON.stringify(String(v == null ? '' : v)));
 }
 
+window.ensureSweetAlert = function () {
+    if (typeof window.Swal !== 'undefined') return Promise.resolve(window.Swal);
+    return new Promise((resolve, reject) => {
+        const existing = document.getElementById('almezo-swal-script');
+        if (existing) {
+            existing.addEventListener('load', () => resolve(window.Swal));
+            return;
+        }
+        const script = document.createElement('script');
+        script.id = 'almezo-swal-script';
+        script.src = 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+        script.onload = () => resolve(window.Swal);
+        script.onerror = () => reject(new Error('تعذر تحميل مكتبة التنبيهات'));
+        document.head.appendChild(script);
+    });
+};
+
 window.openUsersIntelModal = function () {
     let overlay = document.getElementById('usersIntelModalOverlay');
     if (!overlay) {
@@ -1362,12 +1379,12 @@ function subscribeUsersIntelData() {
         }
     }
 
-    // 2. جلب سجلات المشغل والسيرفرات من activity_logs
+    // 2. جلب سجلات المشغل والسيرفرات من activity_logs (رفع السقف من 300 إلى 1500 مع جلب العدد الكلي بالسحابة)
     if (!usersIntelLogsUnsub) {
         try {
             usersIntelLogsUnsub = firestore.collection('activity_logs')
                 .where('category', '==', 'iptv')
-                .limit(300)
+                .limit(1500)
                 .onSnapshot((snapshot) => {
                     const list = [];
                     snapshot.forEach((doc) => {
@@ -1379,15 +1396,31 @@ function subscribeUsersIntelData() {
                         return tB - tA;
                     });
                     usersIntelIptvLogsCache = list;
-                    const countEl = document.getElementById('intelCountPlayer');
-                    if (countEl) countEl.innerText = list.length;
+
+                    // جلب العدد الإجمالي الحقيقي دون التقييد بسقف المشاهدة اللحظية
+                    if (typeof firestore.collection('activity_logs').where('category', '==', 'iptv').count === 'function') {
+                        firestore.collection('activity_logs').where('category', '==', 'iptv').count().get().then(cSnap => {
+                            const totalCount = cSnap.data().count;
+                            const countEl = document.getElementById('intelCountPlayer');
+                            if (countEl) countEl.innerText = totalCount.toLocaleString('ar-LY');
+                            const statValEl = document.getElementById('intelTotalPlayerSessions');
+                            if (statValEl) statValEl.innerText = totalCount.toLocaleString('ar-LY');
+                        }).catch(() => {
+                            const countEl = document.getElementById('intelCountPlayer');
+                            if (countEl) countEl.innerText = (list.length >= 1500 ? '1500+' : list.length.toLocaleString('ar-LY'));
+                        });
+                    } else {
+                        const countEl = document.getElementById('intelCountPlayer');
+                        if (countEl) countEl.innerText = (list.length >= 1500 ? '1500+' : list.length.toLocaleString('ar-LY'));
+                    }
+
                     if (usersIntelActiveTab === 'player') {
                         renderUsersIntelContent();
                     }
                 }, (err) => {
                     console.warn('IPTV logs query fallback:', err);
-                    // في حال عدم وجود فهرس مركب، نجلب السجلات العامة ونفلترها
-                    firestore.collection('activity_logs').limit(250).get().then(snap => {
+                    // في حال عدم وجود فهرس مركب، نجلب السجلات ونفلترها
+                    firestore.collection('activity_logs').limit(1500).get().then(snap => {
                         const list = [];
                         snap.forEach(doc => {
                             const d = doc.data();
@@ -1398,7 +1431,7 @@ function subscribeUsersIntelData() {
                         list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                         usersIntelIptvLogsCache = list;
                         const countEl = document.getElementById('intelCountPlayer');
-                        if (countEl) countEl.innerText = list.length;
+                        if (countEl) countEl.innerText = list.length.toLocaleString('ar-LY');
                         if (usersIntelActiveTab === 'player') {
                             renderUsersIntelContent();
                         }
@@ -1595,32 +1628,46 @@ function renderUsersIntelContent() {
         const totalLogs = usersIntelIptvLogsCache.length;
         const uniqueUsernames = new Set();
         const uniqueServers = new Set();
+        const uniqueDevices = new Set();
 
         usersIntelIptvLogsCache.forEach(log => {
-            if (log.details && log.details.username) uniqueUsernames.add(log.details.username.toLowerCase());
+            const u = (log.details && log.details.username) || (log.user && log.user.name);
+            if (u && u !== 'غير محدد') uniqueUsernames.add(u.toLowerCase());
             if (log.details && log.details.server) uniqueServers.add(log.details.server);
+            const devKey = (log.device && log.device.hardwareFingerprint) || log.hardwareFingerprint || log.publicIp || (log.device && log.device.publicIp) || '';
+            if (devKey) uniqueDevices.add(devKey);
         });
+
+        const playerTabBadge = document.getElementById('intelCountPlayer');
+        const displayTotal = (playerTabBadge && playerTabBadge.innerText) ? playerTabBadge.innerText : totalLogs.toLocaleString('ar-LY');
 
         statsGrid.innerHTML = `
             <div class="intel-stat-card">
                 <div class="intel-stat-icon intel-stat-purple"><i class="fas fa-play-circle"></i></div>
                 <div class="intel-stat-info">
-                    <h5>إجمالي جلسات المشغل</h5>
-                    <div class="intel-stat-value">${totalLogs}</div>
+                    <h5>إجمالي حركات وجلسات المشغل</h5>
+                    <div class="intel-stat-value" id="intelTotalPlayerSessions">${displayTotal}</div>
                 </div>
             </div>
             <div class="intel-stat-card">
                 <div class="intel-stat-icon intel-stat-green"><i class="fas fa-id-badge"></i></div>
                 <div class="intel-stat-info">
-                    <h5>اشتراكات IPTV فريدة مسجلة</h5>
-                    <div class="intel-stat-value">${uniqueUsernames.size}</div>
+                    <h5>اشتراكات وحسابات IPTV فريدة</h5>
+                    <div class="intel-stat-value">${uniqueUsernames.size.toLocaleString('ar-LY')}</div>
+                </div>
+            </div>
+            <div class="intel-stat-card">
+                <div class="intel-stat-icon intel-stat-blue"><i class="fas fa-tv"></i></div>
+                <div class="intel-stat-info">
+                    <h5>أجهزة ومشاهدين نشطين</h5>
+                    <div class="intel-stat-value">${(uniqueDevices.size || uniqueUsernames.size).toLocaleString('ar-LY')}</div>
                 </div>
             </div>
             <div class="intel-stat-card">
                 <div class="intel-stat-icon intel-stat-blue"><i class="fas fa-server"></i></div>
                 <div class="intel-stat-info">
-                    <h5>سيرفرات متصلة حالياً</h5>
-                    <div class="intel-stat-value">${uniqueServers.size}</div>
+                    <h5>سيرفرات متصلة</h5>
+                    <div class="intel-stat-value">${uniqueServers.size.toLocaleString('ar-LY')}</div>
                 </div>
             </div>
         `;
@@ -1752,6 +1799,8 @@ window.changeIntelCustomerRole = async function (customerId, customerName, newRo
     const firestore = window.db || (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
     if (!firestore) return;
 
+    if (window.ensureSweetAlert) await window.ensureSweetAlert().catch(() => {});
+
     if (typeof Swal !== 'undefined') {
         const res = await Swal.fire({
             title: 'تغيير رتبة المستخدم',
@@ -1801,23 +1850,102 @@ window.changeIntelCustomerRole = async function (customerId, customerName, newRo
     }
 };
 
-window.openCustomerDetailNotes = function (customerId, name, phone) {
+window.openCustomerDetailNotes = async function (customerId, name, phone) {
+    if (window.ensureSweetAlert) await window.ensureSweetAlert().catch(() => {});
+
+    // البحث عن العميل في الكاش للحصول على البيانات الكاملة
+    const cust = (usersIntelCustomersCache && usersIntelCustomersCache.find(c => c.id === customerId)) || {};
+    const fullName = [cust.firstName, cust.lastName].filter(Boolean).join(' ') || name || 'عميل';
+    const cleanPhone = cust.phone || phone || 'غير محدد';
+    const city = cust.city || 'ليبيا';
+    const role = cust.role || 'customer';
+
+    const roleLabels = {
+        admin: '<span class="intel-role-badge intel-role-admin"><i class="fas fa-shield-alt"></i> مدير نظام</span>',
+        staff: '<span class="intel-role-badge intel-role-staff"><i class="fas fa-user-tie"></i> مندوب مبيعات</span>',
+        customer: '<span class="intel-role-badge intel-role-customer"><i class="fas fa-user-check"></i> عميل معتمد</span>',
+        blocked: '<span class="intel-role-badge intel-role-blocked"><i class="fas fa-ban"></i> محظور</span>'
+    };
+    const roleBadge = roleLabels[role] || `<span class="intel-role-badge intel-role-customer">${safeIntelEsc(role)}</span>`;
+
+    let regDateText = 'غير محدد';
+    if (cust.registeredAt) {
+        const d = cust.registeredAt.seconds ? new Date(cust.registeredAt.seconds * 1000) : (cust.registeredAt.toMillis ? new Date(cust.registeredAt.toMillis()) : new Date(cust.registeredAt));
+        if (!isNaN(d.getTime())) regDateText = d.toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' });
+    }
+
+    let waPhone = String(cleanPhone).replace(/[^0-9]/g, '');
+    if (waPhone.startsWith('09')) waPhone = '218' + waPhone.substring(1);
+    else if (waPhone.startsWith('9')) waPhone = '218' + waPhone;
+    const waUrl = waPhone ? `https://wa.me/${waPhone}` : '';
+
+    const htmlContent = `
+        <div style="text-align:right; font-size:0.88rem; line-height:1.7; padding:4px 2px;" dir="rtl">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.1);">
+                <div style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:22px; flex-shrink:0;">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div style="flex:1;">
+                    <h4 style="margin:0; font-size:1.05rem; color:#fff; font-weight:700;">${safeIntelEsc(fullName)}</h4>
+                    <div style="margin-top:4px;">${roleBadge}</div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:8px 12px;">
+                    <div style="color:#94a3b8; font-size:0.75rem;"><i class="fas fa-phone" style="color:#38bdf8;"></i> رقم الهاتف</div>
+                    <div style="font-weight:700; color:#fff; direction:ltr; text-align:right; margin-top:2px; font-family:monospace;">${safeIntelEsc(cleanPhone)}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:8px 12px;">
+                    <div style="color:#94a3b8; font-size:0.75rem;"><i class="fas fa-city" style="color:#fbbf24;"></i> المدينة / المنطقة</div>
+                    <div style="font-weight:700; color:#fff; margin-top:2px;">${safeIntelEsc(city)}</div>
+                </div>
+            </div>
+
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:8px 12px; margin-bottom:12px;">
+                <div style="color:#94a3b8; font-size:0.75rem;"><i class="fas fa-calendar-alt" style="color:#34d399;"></i> تاريخ التسجيل</div>
+                <div style="font-weight:600; color:#cbd5e1; margin-top:2px; font-size:0.8rem;">${safeIntelEsc(regDateText)}</div>
+            </div>
+
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:8px 12px; margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="color:#94a3b8; font-size:0.75rem;"><i class="fas fa-fingerprint" style="color:#c084fc;"></i> معرف الحساب (UID)</div>
+                    <button type="button" class="intel-btn-copy" onclick="copyIntelText('${safeIntelEsc(customerId)}', this)" title="نسخ المعرف" style="padding:2px 6px;">
+                        <i class="fas fa-copy"></i> نسخ
+                    </button>
+                </div>
+                <div style="font-family:monospace; font-size:0.75rem; color:#94a3b8; word-break:break-all; margin-top:4px; direction:ltr; text-align:left;">${safeIntelEsc(customerId)}</div>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px;">
+                ${waUrl ? `
+                    <a href="${waUrl}" target="_blank" rel="noopener" style="flex:1; min-width:110px; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:#22c55e; color:#fff; text-decoration:none; padding:8px 12px; border-radius:8px; font-size:0.82rem; font-weight:700;">
+                        <i class="fab fa-whatsapp"></i> واتساب
+                    </a>
+                ` : ''}
+                <button type="button" onclick="mzAdminTempPin('${safeIntelEsc(customerId)}', '${safeIntelEsc(fullName)}', '${safeIntelEsc(cleanPhone)}')" style="flex:1; min-width:130px; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; padding:8px 12px; border-radius:8px; font-size:0.82rem; font-weight:700; cursor:pointer;">
+                    <i class="fas fa-key"></i> رقم سري مؤقت
+                </button>
+                <button type="button" onclick="deleteCustomerAccount('${safeIntelEsc(customerId)}', '${safeIntelEsc(fullName)}', '${safeIntelEsc(cleanPhone)}')" style="display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#ef4444; padding:8px 12px; border-radius:8px; font-size:0.82rem; font-weight:700; cursor:pointer;" title="حذف الحساب نهائياً">
+                    <i class="fas fa-trash-alt"></i> حذف
+                </button>
+            </div>
+        </div>
+    `;
+
     if (typeof Swal !== 'undefined') {
         Swal.fire({
-            // عنوان SweetAlert يُعرض كـ HTML مثل html، فكلاهما يُهرَّب
-            title: `بطاقة العميل: ${safeIntelEsc(name)}`,
-            html: `
-                <div style="text-align:right; font-size:0.9rem; line-height:1.7; padding:10px;">
-                    <p><strong>المعرف (UID):</strong> <code>${safeIntelEsc(customerId)}</code></p>
-                    <p><strong>رقم الهاتف:</strong> ${safeIntelEsc(phone)}</p>
-                    <p><strong>حالة الحساب:</strong> نشط ومسجل في السحابة</p>
-                </div>
-            `,
-            confirmButtonText: 'إغلاق',
+            title: `بطاقة العميل`,
+            html: htmlContent,
+            showConfirmButton: false,
+            showCloseButton: true,
             background: '#0d121d',
             color: '#fff',
-            customClass: { popup: 'almezo-swal-popup', confirmButton: 'almezo-swal-btn' }
+            width: 520,
+            customClass: { popup: 'almezo-swal-popup' }
         });
+    } else {
+        alert(`بطاقة العميل: ${fullName}\nالهاتف: ${cleanPhone}\nالرتبة: ${role}\nالمدينة: ${city}\nUID: ${customerId}`);
     }
 };
 
@@ -3825,23 +3953,33 @@ function updateHeaderLoginState() {
 
         // إذا كان فايربيز ما زال في مرحلة الفحص الأولي (auth is validating)
         if (cachedStr && (typeof auth !== 'undefined' && auth.currentUser === null && !window.__almezo_explicit_logout)) {
-            // إضافة حماية إضافية للـ Cache:
-            // إذا كان الكاش موجوداً ولكن تم حذف authVersion بسبب طرد سابق، لا تستخدم الكاش!
-            var localAuthVersion = null;
-            try { localAuthVersion = localStorage.getItem('almezo_auth_version'); } catch (e) { }
-
-            if (localAuthVersion) {
-                try {
-                    var cachedUser = JSON.parse(cachedStr);
-                    if (cachedUser && cachedUser.name) {
-                        btn.innerHTML = '<i class="fas fa-user-check"></i> ' + cachedUser.name;
-                        btn.classList.add('logged-in');
-                        btn.onclick = function () { openLogoutModal(); };
-                        checkFABMode();
-                        return;
-                    }
-                } catch (e) { }
-            }
+            // ============================================================
+            // إصلاح مشكلة الحسابات الجديدة:
+            // almezo_auth_version يُضبط فقط بعد وصول أول snapshot من Firestore
+            // (من مستمع authVersion في firebase-config.js). الحسابات الجديدة لا يكون
+            // لديها authVersion في قاعدة البيانات بعد، لذلك localAuthVersion = null
+            // لفترة قصيرة بعد التسجيل. كان الكود القديم يرفض الكاش في هذه الحالة
+            // ويمسحه، فيظهر كأن الجلسة انتهت.
+            //
+            // القاعدة الصحيحة:
+            //   - إذا كان localAuthVersion = null  ← حساب جديد أو ما زال يُحمَّل: ثق بالكاش
+            //   - إذا كان localAuthVersion موجود   ← كاش شرعي من جلسة صحيحة: ثق بالكاش
+            //   - إذا كان الكاش موجود لكن تم حذف authVersion بعد طرد سابق (explicit_logout=true)
+            //     ← الشرط فوق (!window.__almezo_explicit_logout) يمنع الوصول لهنا أصلاً
+            // ============================================================
+            try {
+                var cachedUser = JSON.parse(cachedStr);
+                if (cachedUser && (cachedUser.name || cachedUser.firstName)) {
+                    var displayName = cachedUser.firstName
+                        ? (cachedUser.firstName + ' ' + (cachedUser.lastName || '')).trim()
+                        : cachedUser.name;
+                    btn.innerHTML = '<i class="fas fa-user-check"></i> ' + displayName;
+                    btn.classList.add('logged-in');
+                    btn.onclick = function () { openLogoutModal(); };
+                    checkFABMode();
+                    return;
+                }
+            } catch (e) { }
         }
 
         btn.innerHTML = 'تسجيل الدخول';
@@ -5448,6 +5586,19 @@ async function completeOrphanRegistration(phone, password, userData) {
         window.__mzRegistering = 0;
     }
     currentAuthUser = Object.assign({ uid: user.uid }, userData);
+    // حفظ الكاش فوراً لضمان استمرار الجلسة عند التنقل بين الصفحات
+    window.__almezo_explicit_logout = false;
+    try {
+        var orphanCache = JSON.stringify({
+            uid: user.uid,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            phone: userData.phone,
+            name: (userData.firstName + ' ' + (userData.lastName || '')).trim()
+        });
+        localStorage.setItem('almezo_cached_user', orphanCache);
+        sessionStorage.setItem('almezo_cached_user', orphanCache);
+    } catch (e) { }
     if (typeof sendRegistrationNotification === 'function') sendRegistrationNotification(userData);
     updateHeaderLoginState();
     closeLoginModal();
@@ -5559,6 +5710,21 @@ async function handleRegistration() {
 
         // === 2. تحديث currentAuthUser فوراً (قبل أن يُطلق onAuthStateChanged) ===
         currentAuthUser = { uid, ...userData };
+
+        // === 2.5 حفظ الكاش في localStorage فوراً لضمان استمرار الجلسة عند التنقل بين الصفحات ===
+        // (مثلاً: الانتقال لـ player.html والعودة — بدونه يُعيد onAuthStateChanged إطلاق منطق الطرد)
+        window.__almezo_explicit_logout = false;
+        try {
+            var newUserCache = JSON.stringify({
+                uid: uid,
+                firstName: firstName,
+                lastName: lastName,
+                phone: phone,
+                name: (firstName + ' ' + lastName).trim()
+            });
+            localStorage.setItem('almezo_cached_user', newUserCache);
+            sessionStorage.setItem('almezo_cached_user', newUserCache);
+        } catch (e) { }
 
         // === 3. إرسال إشعار للمدير في الخلفية عبر Cloud Function (بدون كلمة المرور) ===
         if (typeof sendRegistrationNotification === 'function') {
@@ -6149,12 +6315,16 @@ window.alert = function (message) { window.showAlert(message); };
 // حسابات دخول بلا ملف عميل (تسجيلات انقطعت قبل نقل التسجيل للسيرفر). صاحبها يُطلب منه
 // إكمال بياناته عند دخوله التالي؛ هذه القائمة للمدير ليعرف عددهم ويتواصل معهم.
 // =============================================
-async function mzShowOrphanAccounts() {
+window.mzShowOrphanAccounts = async function () {
+    const fn = window.functions || (typeof firebase !== 'undefined' && typeof firebase.functions === 'function' ? firebase.functions() : null);
+    if (!fn) { if (typeof showAlert === 'function') showAlert('خدمة الدوال السحابية غير متاحة في هذه الصفحة.', 'error'); return; }
+    if (window.ensureSweetAlert) await window.ensureSweetAlert().catch(() => {});
+    if (typeof Swal === 'undefined') { if (typeof showAlert === 'function') showAlert('تعذر تحميل مكتبة التنبيهات.', 'error'); return; }
     const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const fmt = (t) => { const d = new Date(t); return isNaN(d) ? '—' : d.toLocaleString('ar-LY', { timeZone: 'Africa/Tripoli' }); };
     try {
         Swal.fire({ title: 'جاري الفحص...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), background: '#151521', color: '#fff' });
-        const res = await functions.httpsCallable('listOrphanAccounts', { timeout: 120000 })({});
+        const res = await fn.httpsCallable('listOrphanAccounts', { timeout: 120000 })({});
         const list = (res.data && res.data.orphans) || [];
         const rows = list.map(o => `<tr><td style="direction:ltr;padding:6px;">${esc(o.phone)}</td><td style="padding:6px;">${esc(fmt(o.created))}</td><td style="padding:6px;">${esc(fmt(o.lastLogin))}</td><td style="padding:6px;"><button type="button" onclick="mzAdminTempPin('${esc(o.uid)}','','${esc(o.phone)}')" title="تعيين رقم سري مؤقت" style="background:none;border:none;color:#38bdf8;cursor:pointer;"><i class="fas fa-key"></i></button></td></tr>`).join('');
         Swal.fire({
@@ -6169,7 +6339,7 @@ async function mzShowOrphanAccounts() {
     } catch (e) {
         Swal.fire({ icon: 'error', title: 'تعذر الفحص', text: 'تأكد من نشر الدالة listOrphanAccounts', background: '#151521', color: '#fff' });
     }
-}
+};
 
 
 // =============================================
@@ -6193,7 +6363,11 @@ function mzForgotPin() {
 // =============================================
 // المدير: رقم سري مؤقت لعميل نسي رقمه، بعد التأكد أن طلبه وصل بالواتساب من نفس رقم الحساب
 // =============================================
-async function mzAdminTempPin(uid, name, phone) {
+window.mzAdminTempPin = async function (uid, name, phone) {
+    const fn = window.functions || (typeof firebase !== 'undefined' && typeof firebase.functions === 'function' ? firebase.functions() : null);
+    if (!fn) { if (typeof showAlert === 'function') showAlert('خدمة الدوال السحابية غير متاحة في هذه الصفحة.', 'error'); return; }
+    if (window.ensureSweetAlert) await window.ensureSweetAlert().catch(() => {});
+    if (typeof Swal === 'undefined') { if (typeof showAlert === 'function') showAlert('تعذر تحميل مكتبة التنبيهات.', 'error'); return; }
     const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const who = name ? name + ' (' + phone + ')' : phone;
     const ok = await Swal.fire({
@@ -6211,7 +6385,7 @@ async function mzAdminTempPin(uid, name, phone) {
     if (!ok.isConfirmed) return;
     try {
         Swal.fire({ title: 'جاري التعيين...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), background: '#151521', color: '#fff' });
-        const res = await functions.httpsCallable('adminSetTempPassword')({ uid: uid });
+        const res = await fn.httpsCallable('adminSetTempPassword')({ uid: uid });
         const d = res.data || {};
         let wa = String(d.phone || phone || '').replace(/[^0-9]/g, '');
         if (wa.startsWith('09')) wa = '218' + wa.substring(1);
@@ -6228,4 +6402,4 @@ async function mzAdminTempPin(uid, name, phone) {
     } catch (e) {
         Swal.fire({ icon: 'error', title: 'تعذر التعيين', text: (e && e.message) || 'تأكد من نشر الدالة adminSetTempPassword', background: '#151521', color: '#fff' });
     }
-}
+};

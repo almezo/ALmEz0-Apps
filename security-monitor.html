@@ -1726,8 +1726,11 @@
                     <input type="text" id="logSearchInput" placeholder="بحث بالاسم، الهاتف، نوع الحركة، الجهاز...">
                 </div>
 
-                <div class="soc-date-filter">
+                <div class="soc-date-filter soc-date-filter-row">
                     <input type="text" id="socDatePicker" placeholder="📅 التاريخ (الكل)">
+                    <button type="button" id="btnResetDate" class="soc-action-btn btn-reset-date" title="الرجوع إلى اليوم">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
 
                 <button type="button" class="soc-action-btn btn-banned-manager" id="btnOpenBannedModal" title="عرض وإدارة قائمة المستخدمين والأجهزة المحظورة">
@@ -1753,7 +1756,7 @@
 
         <!-- حاوية وجدول السجلات الحية -->
         <!-- يظهر فقط حين يتجاوز اليوم 1500 حركة: الأرقام والجدول حينها لا يغطيان اليوم كاملاً -->
-        <div class="soc-truncation-notice" id="socTruncationNotice" style="display:none;">
+        <div class="soc-truncation-notice soc-truncation-notice--hidden" id="socTruncationNotice">
             <i class="fas fa-triangle-exclamation"></i>
             <div>
                 <strong>اليوم أكبر من نافذة البث الحي.</strong>
@@ -1868,6 +1871,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ar.js" integrity="sha384-yZqNNZeGVo7J+Bv4HgUkz1jHmDHbupbt4fBAWj+MJyFAsVQqQ/VpRncxzdCgVPn4" crossorigin="anonymous"></script>
 
