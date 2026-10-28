@@ -49,6 +49,16 @@ db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
 const auth = firebase.auth();
 window.auth = auth;
 
+// ضمان تثبيت الجلسة محلياً (LOCAL Persistence) ليعمل مع IndexedDB و LocalStorage كـ Fallback
+// خصوصاً على الشاشات الصينية ونسخ WebView القديمة
+try {
+    if (typeof firebase.auth.Auth.Persistence !== 'undefined' && firebase.auth.Auth.Persistence.LOCAL) {
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function (e) {
+            console.warn('Auth setPersistence warning:', e && e.message);
+        });
+    }
+} catch (e) { }
+
 // جعل الـ Functions اختيارية لتفادي توقف السكربت في الصفحات التي لا تحمله
 let functions = null;
 if (typeof firebase !== 'undefined' && typeof firebase.functions === 'function') {
@@ -852,11 +862,18 @@ let sessionCheckInterval = null; // فحص دوري لصلاحية الجلسة
 // يُعاد تحميل نافذة JS بالكامل فيصبح window.__almezo_explicit_logout = undefined.
 // يستغرق Firebase وقتاً لاستعادة الجلسة من IndexedDB، لذلك لا نطلق نافذة
 // "انتهت الجلسة" فوراً عند onAuthStateChanged(null) في التحميل الأول.
-// بعد انتهاء فترة الانتظار أو بعد أول إجابة إيجابية من Firebase نثق بالحالة.
+// على الشاشات الصينية وأجهزة التلفاز ونسخ WebView الضعيفة تكون القراءة أبطأ، فنمنحها وقتاً كافياً.
 // =============================================
 let __mzAuthInitialized = false;      // صار لدينا أول إجابة من Firebase (سواء مستخدم أو null)
 const __mzAuthInitTime = Date.now(); // وقت تحميل الصفحة
-const __mzGracePeriodMs = 4500;      // مهلة الانتظار 4.5 ثانية للتحميل الأولي
+// منح مهلة أطول للأجهزة والشاشات (15 ثانية للشاشات والأجهزة الضعيفة، 8 ثوانٍ للأجهزة العادية)
+const __isSlowDeviceOrTv = (function () {
+    try {
+        var ua = (navigator && navigator.userAgent) || '';
+        return !!(window.AndroidNativeBridge || /Android|TV|Box|AFT|MiBOX|TX9/i.test(ua));
+    } catch (e) { return false; }
+})();
+const __mzGracePeriodMs = __isSlowDeviceOrTv ? 15000 : 8000;
 let __mzEvictionTimer = null;        // مؤقت التحقق من الطرد عند التحميل الأولي
 
 auth.onAuthStateChanged(async function (firebaseUser) {
@@ -1071,6 +1088,15 @@ auth.onAuthStateChanged(async function (firebaseUser) {
                 } catch (e) { }
 
                 if (hadCachedUser) {
+                    // حماية إضافية للأجهزة البطيئة والشاشات:
+                    // إذا كان الدخول تم حديثاً في آخر 60 ثانية، لا نطرده بل نمنح فرصة إضافية لأن IndexedDB قد يكون متأخراً
+                    var loginTime = 0;
+                    try { loginTime = parseInt(sessionStorage.getItem('almezo_last_login_time') || localStorage.getItem('almezo_last_login_time') || '0', 10); } catch (e) { }
+                    if (Date.now() - loginTime < 60000) {
+                        console.warn('Recent login detected - deferring eviction check for slow device');
+                        return;
+                    }
+
                     // تسجيل حركة الطرد الأمني قبل مسح البيانات (مع منع التكرار اللحظي)
                     var nowTime = Date.now();
                     var lastLogged = 0;
@@ -1080,9 +1106,6 @@ auth.onAuthStateChanged(async function (firebaseUser) {
                         try { sessionStorage.setItem('almezo_last_eviction_logged', String(nowTime)); } catch (e) { }
                         if (evictedUser && typeof logActivity === 'function') {
                             logActivity({
-                                // ليس طرداً بالضرورة: يحدث أيضاً عند مسح بيانات المتصفح أو انتهاء الجلسة
-                                // على الجهاز، وصاحب الحساب يدخل بعدها بثوانٍ. الطرد الحقيقي (تغيير كلمة
-                                // المرور من جهاز آخر) له سجله الأحمر الخاص (Auth version mismatch)
                                 action: 'session_expired',
                                 category: 'auth',
                                 severity: 'warning',
@@ -1133,7 +1156,7 @@ auth.onAuthStateChanged(async function (firebaseUser) {
                 // قبل الحكم بأن الجلسة انتهت فعلاً. هذا يمنع الخطأ الكاذب عند التنقل بين الصفحات.
                 if (__mzEvictionTimer) clearTimeout(__mzEvictionTimer);
                 var remainingMs = __mzGracePeriodMs - (Date.now() - __mzAuthInitTime);
-                if (remainingMs < 1000) remainingMs = 1000;
+                if (remainingMs < 2000) remainingMs = 2000;
                 __mzEvictionTimer = setTimeout(doEvictionCheck, remainingMs);
             } else {
                 // خارج فترة الانتظار: الجلسة انتهت حقاً (تغيير كلمة المرور، حذف الحساب...)

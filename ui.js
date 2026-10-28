@@ -5151,6 +5151,13 @@ async function handleLogin() {
             currentAuthUser = { uid: firebaseUser.uid, phone: phone };
         }
 
+        // تسجيل وقت الدخول لحماية الجلسة من الطرد الكاذب على الأجهزة البطيئة والشاشات
+        try {
+            var nowStr = String(Date.now());
+            localStorage.setItem('almezo_last_login_time', nowStr);
+            sessionStorage.setItem('almezo_last_login_time', nowStr);
+        } catch (e) { }
+
         // تصفير الحظر والمحاولات الفاشلة عند النجاح (محلياً وفي السيرفر)
         if (typeof resetDeviceLockout === 'function') {
             resetDeviceLockout();
